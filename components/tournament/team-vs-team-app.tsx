@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   calculateTeamVsTeamMatchScore,
   getTeamVsTeamPairConstitutions,
@@ -17,8 +17,11 @@ import {
 import {
   advanceTeamVsTeamFourTeamBracket,
   calculateTeamVsTeamPlacements,
+  calculateTeamVsTeamStandings,
+  finishTeamVsTeamTournament,
   loadActiveTeamVsTeamTournament,
   saveActiveTeamVsTeamTournament,
+  saveCompletedTeamVsTeamTournament,
   saveTeamVsTeamTieBreak,
   type TeamVsTeamMatchState,
   type TeamVsTeamTournamentState,
@@ -26,6 +29,7 @@ import {
 
 export function TeamVsTeamApp() {
   const [state, setState] = useState<TeamVsTeamTournamentState | null>(() => loadActiveTeamVsTeamTournament());
+  const [message, setMessage] = useState("");
 
   if (!state) {
     return <p className="app-card p-4 font-bold text-[var(--muted)]">Ingen Team vs. Team-turnering er oprettet endnu.</p>;
@@ -33,6 +37,8 @@ export function TeamVsTeamApp() {
 
   const tournament = state;
   const activeMatch = tournament.matchups.find((match) => match.id === tournament.activeMatchupId) ?? tournament.matchups[0];
+  const standings = calculateTeamVsTeamStandings(tournament);
+  const isFinished = tournament.status === "finished";
 
   if (!activeMatch) {
     return <p className="app-card p-4 font-bold text-[var(--muted)]">Ingen holdkamp er oprettet endnu.</p>;
@@ -56,6 +62,11 @@ export function TeamVsTeamApp() {
 
   function commit(nextState: TeamVsTeamTournamentState) {
     saveActiveTeamVsTeamTournament(nextState);
+
+    if (nextState.status === "finished") {
+      saveCompletedTeamVsTeamTournament(nextState);
+    }
+
     setState(nextState);
   }
 
@@ -67,14 +78,67 @@ export function TeamVsTeamApp() {
     commit(advanceTeamVsTeamFourTeamBracket(tournament));
   }
 
+  function finishTournamentNow() {
+    const nextState = finishTeamVsTeamTournament(tournament);
+    commit(nextState);
+    setMessage("Team vs. Team-turneringen er afsluttet og gemt i historikken.");
+  }
+
   return (
     <div className="grid gap-5">
+      <section className="app-card grid gap-3 p-4 sm:p-5">
+        <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{isFinished ? "Afsluttet Team vs. Team" : "Aktiv Team vs. Team"}</p>
+        <h2 className="text-2xl font-black">{tournament.name}</h2>
+        <p className="font-bold text-[var(--muted)]">
+          {tournament.teamCount} hold · {tournament.playersPerTeam} spillere pr. hold · {tournament.maxRounds} runder · {tournament.matchFormat === "oneSet" ? "1 sæt" : "bedst af 3 sæt"}
+        </p>
+        <div className="action-grid">
+          <a className="btn-secondary min-h-12" href="/tournaments">Turneringshistorik</a>
+          <button className="min-h-12 rounded-md bg-red-600 px-4 font-black text-white disabled:bg-gray-300" type="button" disabled={isFinished} onClick={finishTournamentNow}>
+            {isFinished ? "Afsluttet" : "Afslut turnering nu"}
+          </button>
+        </div>
+        {message ? <p className="rounded-md bg-green-50 p-3 font-bold text-[var(--primary-strong)]">{message}</p> : null}
+      </section>
+
+      <TeamVsTeamStandings standings={standings} />
+
       {tournament.teamCount === 4 ? (
         <TeamVsTeamBracketPanel activeMatchId={activeMatch.id} canAdvanceBracket={canAdvanceBracket} state={tournament} onAdvance={advanceBracket} onSelectMatch={selectMatch} />
       ) : null}
       {placements.length ? <TeamVsTeamPlacements placements={placements} state={tournament} /> : null}
       <ActiveTeamVsTeamFlow key={activeMatch.id} activeMatch={activeMatch} matchup={{ id: activeMatch.id, teamA, teamB }} state={tournament} setState={setState} />
     </div>
+  );
+}
+
+function TeamVsTeamStandings({ standings }: { standings: ReturnType<typeof calculateTeamVsTeamStandings> }) {
+  const columns = { gridTemplateColumns: "70px minmax(140px, 1fr) 80px 90px 90px" };
+
+  return (
+    <section className="grid gap-3">
+      <h2 className="text-xl font-black">Holdstilling</h2>
+      <div className="overflow-x-auto rounded-md border border-[var(--border)] bg-white">
+        <div className="min-w-[520px]">
+          <div className="grid gap-2 bg-green-50 px-3 py-2 text-sm font-black text-[var(--primary-strong)]" style={columns}>
+            <span>Plads</span>
+            <span>Hold</span>
+            <span>V</span>
+            <span>Kamp</span>
+            <span>Spillet</span>
+          </div>
+          {standings.map((standing) => (
+            <div key={standing.teamId} className="grid gap-2 border-t border-[var(--border)] px-3 py-3 text-sm font-bold" style={columns}>
+              <span>{standing.rank}</span>
+              <span>{standing.teamName}</span>
+              <span>{standing.won}</span>
+              <span>{standing.matchWins}-{standing.matchLosses}</span>
+              <span>{standing.played}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -131,13 +195,17 @@ function ActiveTeamVsTeamFlow({ activeMatch, matchup, state, setState }: { activ
 
   function commit(nextState: TeamVsTeamTournamentState) {
     saveActiveTeamVsTeamTournament(nextState);
+
+    if (nextState.status === "finished") {
+      saveCompletedTeamVsTeamTournament(nextState);
+    }
+
     setState(nextState);
   }
 
   function updateActiveMatch(updater: (match: TeamVsTeamMatchState) => TeamVsTeamMatchState) {
     commit({
       ...state,
-      status: "active",
       matchups: state.matchups.map((match) => (match.id === activeMatch.id ? updater(match) : match)),
     });
   }
@@ -171,8 +239,7 @@ function ActiveTeamVsTeamFlow({ activeMatch, matchup, state, setState }: { activ
   function handleSaveTieBreak(tieBreak: TeamVsTeamTieBreak) {
     try {
       const nextState = saveTeamVsTeamTieBreak(state, matchup, tieBreak);
-      saveActiveTeamVsTeamTournament(nextState);
-      setState(nextState);
+      commit(nextState);
       setMessage("Match Tie-break er gemt.");
     } catch (caughtError) {
       setMessage(caughtError instanceof Error ? caughtError.message : "Match Tie-break kunne ikke gemmes.");
@@ -225,7 +292,7 @@ function ActiveTeamVsTeamFlow({ activeMatch, matchup, state, setState }: { activ
 
 function LineupEditor({ matchup, lineup, previousLineups, playersPerTeam, onSave }: { matchup: TeamVsTeamMatchup; lineup: TeamVsTeamRoundLineup; previousLineups: TeamVsTeamRoundLineup[]; playersPerTeam: 4 | 6 | 8; onSave: (lineup: TeamVsTeamRoundLineup) => void }) {
   const [draft, setDraft] = useState(lineup);
-  const repeatedPairWarning = getRepeatedPairWarning(matchup, draft, previousLineups, playersPerTeam);
+  const repeatedPairWarning = useMemo(() => getRepeatedPairWarning(matchup, draft, previousLineups, playersPerTeam), [draft, matchup, playersPerTeam, previousLineups]);
 
   return (
     <div className="app-card grid gap-4 p-4 sm:p-5">

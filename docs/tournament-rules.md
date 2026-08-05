@@ -111,3 +111,5 @@ Team vs Team supports:
 The old automatic 6-0 team-mate penalty rule is not used. A 6-0 result only counts for the match where it was entered.
 
 If a holdkamp is tied after all rounds, the organiser enters a Match Tie-break to decide the winner.
+
+Team vs Team tournaments can be finished immediately. Finished Team vs Team tournaments are saved in local history, can be reopened as a final standing, and can be reopened for result corrections.

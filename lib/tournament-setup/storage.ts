@@ -5,11 +5,18 @@ import type { TeamVsTeamTournamentState } from "./team-vs-team-setup";
 const activeTournamentStorageKey = "lezgo.activeTournament.v1";
 const activeTeamVsTeamStorageKey = "lezgo.activeTeamVsTeam.v1";
 const completedTournamentsStorageKey = "lezgo.completedTournaments.v1";
+const completedTeamVsTeamTournamentsStorageKey = "lezgo.completedTeamVsTeamTournaments.v1";
 
 export interface CompletedTournament {
   id: string;
   finishedAt: string;
   state: LiveTournamentState;
+}
+
+export interface CompletedTeamVsTeamTournament {
+  id: string;
+  finishedAt: string;
+  state: TeamVsTeamTournamentState;
 }
 
 export function saveActiveTournament(state: LiveTournamentState): void {
@@ -132,6 +139,83 @@ export function loadCompletedTournaments(): CompletedTournament[] {
   }
 }
 
+export function saveCompletedTeamVsTeamTournament(state: TeamVsTeamTournamentState): CompletedTeamVsTeamTournament {
+  const finishedAt = state.finishedAt ?? new Date().toISOString();
+  const completedTournament: CompletedTeamVsTeamTournament = {
+    id: createCompletedTeamVsTeamTournamentId(state, finishedAt),
+    finishedAt,
+    state: {
+      ...state,
+      status: "finished",
+      finishedAt,
+    },
+  };
+  const completedTournaments = loadCompletedTeamVsTeamTournaments().filter((tournament) => tournament.id !== completedTournament.id);
+
+  window.localStorage.setItem(completedTeamVsTeamTournamentsStorageKey, JSON.stringify([completedTournament, ...completedTournaments]));
+
+  return completedTournament;
+}
+
+export function restoreCompletedTeamVsTeamTournament(id: string): TeamVsTeamTournamentState | null {
+  const completedTournament = loadCompletedTeamVsTeamTournaments().find((tournament) => tournament.id === id);
+
+  if (!completedTournament) {
+    return null;
+  }
+
+  saveActiveTeamVsTeamTournament(completedTournament.state);
+
+  return completedTournament.state;
+}
+
+export function reopenCompletedTeamVsTeamTournament(id: string): TeamVsTeamTournamentState | null {
+  const completedTournament = loadCompletedTeamVsTeamTournaments().find((tournament) => tournament.id === id);
+
+  if (!completedTournament) {
+    return null;
+  }
+
+  const activeState: TeamVsTeamTournamentState = {
+    ...completedTournament.state,
+    status: "active",
+  };
+
+  saveActiveTeamVsTeamTournament(activeState);
+
+  return activeState;
+}
+
+export function deleteCompletedTeamVsTeamTournament(id: string): CompletedTeamVsTeamTournament[] {
+  const completedTournaments = loadCompletedTeamVsTeamTournaments().filter((tournament) => tournament.id !== id);
+
+  window.localStorage.setItem(completedTeamVsTeamTournamentsStorageKey, JSON.stringify(completedTournaments));
+
+  return completedTournaments;
+}
+
+export function loadCompletedTeamVsTeamTournaments(): CompletedTeamVsTeamTournament[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  const savedTournaments = window.localStorage.getItem(completedTeamVsTeamTournamentsStorageKey);
+
+  if (!savedTournaments) {
+    return [];
+  }
+
+  try {
+    return (JSON.parse(savedTournaments) as CompletedTeamVsTeamTournament[]).map((tournament) => ({
+      ...tournament,
+      state: normalizeActiveTeamVsTeamState(tournament.state),
+    }));
+  } catch {
+    window.localStorage.removeItem(completedTeamVsTeamTournamentsStorageKey);
+    return [];
+  }
+}
+
 function normalizeActiveTeamVsTeamState(state: TeamVsTeamTournamentState): TeamVsTeamTournamentState {
   const rawState = state as Partial<TeamVsTeamTournamentState>;
   const playersPerTeam = isPlayersPerTeam(rawState.playersPerTeam) ? rawState.playersPerTeam : 4;
@@ -182,4 +266,8 @@ function isMatchFormat(value: unknown): value is TeamVsTeamMatchFormat {
 
 function createCompletedTournamentId(state: LiveTournamentState): string {
   return `${state.tournamentName.trim().toLocaleLowerCase("da")}-${state.finishedAt ?? "active"}`;
+}
+
+function createCompletedTeamVsTeamTournamentId(state: TeamVsTeamTournamentState, finishedAt: string): string {
+  return `${state.name.trim().toLocaleLowerCase("da")}-${finishedAt}`;
 }

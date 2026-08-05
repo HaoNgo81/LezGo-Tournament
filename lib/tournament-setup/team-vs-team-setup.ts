@@ -36,6 +36,7 @@ export interface TeamVsTeamMatchState {
 export interface TeamVsTeamTournamentState extends TeamVsTeamSetupInput {
   status: "setup" | "active" | "finished";
   activeMatchupId?: string;
+  finishedAt?: string;
   maxRounds: 2 | 3;
   matchups: TeamVsTeamMatchState[];
 }

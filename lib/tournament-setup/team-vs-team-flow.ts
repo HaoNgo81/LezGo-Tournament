@@ -6,6 +6,25 @@ export interface TeamVsTeamPlacement {
   teamId: string;
 }
 
+export interface TeamVsTeamStanding {
+  rank: number;
+  teamId: string;
+  teamName: string;
+  played: number;
+  won: number;
+  lost: number;
+  matchWins: number;
+  matchLosses: number;
+}
+
+export function finishTeamVsTeamTournament(state: TeamVsTeamTournamentState, finishedAt = new Date().toISOString()): TeamVsTeamTournamentState {
+  return {
+    ...state,
+    status: "finished",
+    finishedAt,
+  };
+}
+
 export function saveTeamVsTeamTieBreak(
   state: TeamVsTeamTournamentState,
   matchup: TeamVsTeamMatchup,
@@ -21,7 +40,6 @@ export function saveTeamVsTeamTieBreak(
 
   return {
     ...state,
-    status: "active",
     matchups: state.matchups.map((match) => (match.id === matchup.id ? saveTieBreakOnMatch(match, tieBreak) : match)),
   };
 }
@@ -102,6 +120,66 @@ export function calculateTeamVsTeamPlacements(state: TeamVsTeamTournamentState):
   ];
 }
 
+export function calculateTeamVsTeamStandings(state: TeamVsTeamTournamentState): TeamVsTeamStanding[] {
+  const standings = state.teams.map((team) => ({
+    rank: 0,
+    teamId: team.id,
+    teamName: team.name,
+    played: 0,
+    won: 0,
+    lost: 0,
+    matchWins: 0,
+    matchLosses: 0,
+  }));
+
+  state.matchups.forEach((match) => {
+    const teamAStanding = standings.find((standing) => standing.teamId === match.teamAId);
+    const teamBStanding = standings.find((standing) => standing.teamId === match.teamBId);
+    const matchup = getMatchupFromState(state, match);
+
+    if (!teamAStanding || !teamBStanding || !matchup) {
+      return;
+    }
+
+    const score = calculateTeamVsTeamMatchScore(matchup, match.roundResults, match.tieBreak, { playersPerTeam: state.playersPerTeam, matchFormat: state.matchFormat });
+
+    teamAStanding.matchWins += score.teamAWins;
+    teamAStanding.matchLosses += score.teamBWins;
+    teamBStanding.matchWins += score.teamBWins;
+    teamBStanding.matchLosses += score.teamAWins;
+
+    if (!score.winnerTeamId) {
+      return;
+    }
+
+    teamAStanding.played += 1;
+    teamBStanding.played += 1;
+
+    if (score.winnerTeamId === match.teamAId) {
+      teamAStanding.won += 1;
+      teamBStanding.lost += 1;
+      return;
+    }
+
+    teamBStanding.won += 1;
+    teamAStanding.lost += 1;
+  });
+
+  return standings
+    .sort((left, right) => {
+      if (right.won !== left.won) {
+        return right.won - left.won;
+      }
+
+      if (right.matchWins !== left.matchWins) {
+        return right.matchWins - left.matchWins;
+      }
+
+      return left.teamName.localeCompare(right.teamName, "da");
+    })
+    .map((standing, index) => ({ ...standing, rank: index + 1 }));
+}
+
 export function getTeamVsTeamMatchWinnerTeamId(state: TeamVsTeamTournamentState, match: TeamVsTeamMatchState): string | undefined {
   return getMatchOutcome(state, match).winnerTeamId;
 }
@@ -114,14 +192,13 @@ function saveTieBreakOnMatch(match: TeamVsTeamMatchState, tieBreak: TeamVsTeamTi
 }
 
 function getMatchOutcome(state: TeamVsTeamTournamentState, match: TeamVsTeamMatchState): { winnerTeamId?: string; loserTeamId?: string } {
-  const teamA = state.teams.find((team) => team.id === match.teamAId);
-  const teamB = state.teams.find((team) => team.id === match.teamBId);
+  const matchup = getMatchupFromState(state, match);
 
-  if (!teamA || !teamB) {
+  if (!matchup) {
     throw new Error(`Holdkampen mangler et gyldigt hold: ${match.id}`);
   }
 
-  const score = calculateTeamVsTeamMatchScore({ id: match.id, teamA, teamB }, match.roundResults, match.tieBreak, { playersPerTeam: state.playersPerTeam, matchFormat: state.matchFormat });
+  const score = calculateTeamVsTeamMatchScore(matchup, match.roundResults, match.tieBreak, { playersPerTeam: state.playersPerTeam, matchFormat: state.matchFormat });
 
   if (!score.winnerTeamId) {
     return {};
@@ -129,6 +206,13 @@ function getMatchOutcome(state: TeamVsTeamTournamentState, match: TeamVsTeamMatc
 
   return {
     winnerTeamId: score.winnerTeamId,
-    loserTeamId: score.winnerTeamId === teamA.id ? teamB.id : teamA.id,
+    loserTeamId: score.winnerTeamId === matchup.teamA.id ? matchup.teamB.id : matchup.teamA.id,
   };
+}
+
+function getMatchupFromState(state: TeamVsTeamTournamentState, match: TeamVsTeamMatchState): TeamVsTeamMatchup | undefined {
+  const teamA = state.teams.find((team) => team.id === match.teamAId);
+  const teamB = state.teams.find((team) => team.id === match.teamBId);
+
+  return teamA && teamB ? { id: match.id, teamA, teamB } : undefined;
 }

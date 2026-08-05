@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { advanceTeamVsTeamFourTeamBracket, calculateTeamVsTeamPlacements, createTeamVsTeamTournamentFromSetup, createTournamentFromSetup, parsePlayers, saveTeamVsTeamTieBreak } from "../lib/tournament-setup";
+import { advanceTeamVsTeamFourTeamBracket, calculateTeamVsTeamPlacements, calculateTeamVsTeamStandings, createTeamVsTeamTournamentFromSetup, finishTeamVsTeamTournament, createTournamentFromSetup, parsePlayers, saveTeamVsTeamTieBreak } from "../lib/tournament-setup";
 import type { TeamVsTeamRoundResult, TeamVsTeamTeam } from "../lib/team-vs-team";
 
 const playerText = ["Anna", "Hassan", "Maja", "Noah", "Sofia", "Emil", "Clara", "Jonas"].join("\n");
@@ -211,6 +211,31 @@ describe("tournament setup", () => {
     ]);
   });
 
+  it("finishes Team vs. Team and keeps a complete team standing", () => {
+    const tournament = createTeamVsTeamTournamentFromSetup({
+      name: "Klubkamp",
+      date: "2026-08-05",
+      startTime: "18:00",
+      scoringMode: "Fri scoring",
+      teamCount: 2,
+      playersPerTeam: 4,
+      matchFormat: "oneSet",
+      teams: [teamA, teamB],
+    });
+    const decidedTournament = {
+      ...tournament,
+      matchups: [{ ...tournament.matchups[0], roundResults: createStraightTeamAWinResults() }],
+    };
+
+    const finished = finishTeamVsTeamTournament(decidedTournament, "2026-08-05T18:30:00.000Z");
+    const standings = calculateTeamVsTeamStandings(finished);
+
+    expect(finished).toMatchObject({ status: "finished", finishedAt: "2026-08-05T18:30:00.000Z" });
+    expect(standings).toEqual([
+      { rank: 1, teamId: "team-a", teamName: "Hold A", played: 1, won: 1, lost: 0, matchWins: 6, matchLosses: 0 },
+      { rank: 2, teamId: "team-b", teamName: "Hold B", played: 1, won: 0, lost: 1, matchWins: 0, matchLosses: 6 },
+    ]);
+  });
   it("saves Team vs. Team Match Tie-break on the active holdkamp", () => {
     const tournament = createTeamVsTeamTournamentFromSetup({
       name: "Klubkamp",

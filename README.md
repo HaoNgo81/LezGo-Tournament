@@ -17,6 +17,7 @@ The app currently supports:
 - TV/read-only overview from `/tv`
 - Share page with QR code from `/share`
 - Team vs Team flow from `/team-vs-team` with 4, 6, or 8 players per team
+- Team vs Team finish and history from `/tournaments`
 
 Data is stored locally in the browser with `localStorage`.
 

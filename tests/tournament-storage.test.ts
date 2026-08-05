@@ -1,14 +1,44 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { createMockLiveTournamentState, finishTournament } from "../lib/live-scoring";
 import {
+  deleteCompletedTeamVsTeamTournament,
   deleteCompletedTournament,
-  loadActiveTournament,
   loadActiveTeamVsTeamTournament,
+  loadActiveTournament,
+  loadCompletedTeamVsTeamTournaments,
   loadCompletedTournaments,
+  reopenCompletedTeamVsTeamTournament,
   reopenCompletedTournament,
+  restoreCompletedTeamVsTeamTournament,
   restoreCompletedTournament,
+  saveCompletedTeamVsTeamTournament,
   saveCompletedTournament,
 } from "../lib/tournament-setup";
+
+const finishedTeamVsTeamState = {
+  name: "Klubkamp",
+  date: "2026-08-05",
+  startTime: "18:00",
+  scoringMode: "Fri scoring" as const,
+  teamCount: 2 as const,
+  playersPerTeam: 4 as const,
+  matchFormat: "oneSet" as const,
+  teams: [createTeam("a", "Hold A"), createTeam("b", "Hold B")],
+  status: "finished" as const,
+  activeMatchupId: "holdkamp-1",
+  finishedAt: "2026-08-05T18:30:00.000Z",
+  maxRounds: 3 as const,
+  matchups: [
+    {
+      id: "holdkamp-1",
+      label: "Holdkamp",
+      teamAId: "team-a",
+      teamBId: "team-b",
+      lineups: [],
+      roundResults: [],
+    },
+  ],
+};
 
 describe("tournament storage", () => {
   beforeEach(() => {
@@ -55,6 +85,21 @@ describe("tournament storage", () => {
     expect(loadCompletedTournaments()).toHaveLength(1);
     expect(loadCompletedTournaments()[0].state.tournamentName).toBe("Aften Americano");
   });
+
+  it("stores, restores, reopens, and deletes completed Team vs. Team tournaments", () => {
+    const completedTournament = saveCompletedTeamVsTeamTournament(finishedTeamVsTeamState);
+    const restoredState = restoreCompletedTeamVsTeamTournament(completedTournament.id);
+    const reopenedState = reopenCompletedTeamVsTeamTournament(completedTournament.id);
+    const remainingTournaments = deleteCompletedTeamVsTeamTournament(completedTournament.id);
+
+    expect(loadCompletedTeamVsTeamTournaments()).toHaveLength(0);
+    expect(completedTournament.finishedAt).toBe("2026-08-05T18:30:00.000Z");
+    expect(restoredState?.status).toBe("finished");
+    expect(reopenedState?.status).toBe("active");
+    expect(loadActiveTeamVsTeamTournament()?.name).toBe("Klubkamp");
+    expect(remainingTournaments).toEqual([]);
+  });
+
   it("normalizes older Team vs. Team results from local storage", () => {
     const legacyState = {
       name: "Klubkamp",
@@ -92,6 +137,7 @@ describe("tournament storage", () => {
     expect(loadedState?.matchups[0].roundResults[0].match1.sets).toEqual([{ teamAPoints: 6, teamBPoints: 0 }]);
   });
 });
+
 function createTeam(idPrefix: string, name: string) {
   return {
     id: `team-${idPrefix}`,
