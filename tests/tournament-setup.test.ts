@@ -250,22 +250,6 @@ describe("tournament setup", () => {
     expect(() => parsePlayers("Anna\nanna")).toThrow("Spillernavn skal være unikt: anna");
   });
 
-  it("rejects Club vs Club until it is specified", () => {
-    expect(() =>
-      createTournamentFromSetup({
-        name: "Klubkamp",
-        format: "Club vs Club",
-        playerText,
-        femalePlayerText: "",
-        malePlayerText: "",
-        courts: 2,
-        rounds: 2,
-        scoringMode: "Fri scoring",
-        firstRoundOrder: "manual",
-        rankingMode: "matchPointsFirst",
-      }),
-    ).toThrow("Club vs Club er ikke implementeret endnu.");
-  });
 });
 
 function createTeam(idPrefix: string, name: string, count = 4): TeamVsTeamTeam {

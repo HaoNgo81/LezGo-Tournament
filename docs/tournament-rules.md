@@ -13,12 +13,6 @@ Implemented:
 - Mixed Americano
 - Team vs Team
 
-Not implemented:
-
-- Club vs Club
-
-Club vs Club is intentionally not implemented until the full specification is defined.
-
 ## Player Setup
 
 Standard formats use one player per line.

@@ -10,7 +10,6 @@ describe("mock tournament baseline", () => {
       "Fast Makker Americano",
       "Fast Makker Mexicano",
       "Team vs. Team",
-      "Club vs Club",
     ]);
   });
 

@@ -5,7 +5,6 @@
   "Fast Makker Americano",
   "Fast Makker Mexicano",
   "Team vs. Team",
-  "Club vs Club",
 ] as const;
 
 export const scoringModes = ["Fri scoring", "Fast antal point", "Spil på tid"] as const;
@@ -43,12 +42,12 @@ export const standings = [
 export const tournaments = [
   { title: "Fredag Americano", status: "Aktiv", type: "Americano", players: 12 },
   { title: "Sommer Mix", status: "Kommende", type: "Mixed Americano", players: 16 },
-  { title: "Klubfinale", status: "Afsluttet", type: "Club vs Club", players: 24 },
+  { title: "Holdfinale", status: "Afsluttet", type: "Team vs. Team", players: 16 },
 ];
 
 export const templates = [
   { title: "8 spillere / 2 baner", type: "Americano", scoring: "Fast antal point" },
   { title: "12 spillere / 3 baner", type: "Mexicano", scoring: "Spil på tid" },
-  { title: "Club vs Club standard", type: "Club vs Club", scoring: "Fast antal point" },
+  { title: "Mixed fredag", type: "Mixed Americano", scoring: "Fri scoring" },
 ];
 

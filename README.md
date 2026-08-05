@@ -36,8 +36,6 @@ Implemented formats:
   - 1 set or best of 3 sets per match
   - No automatic 6-0 team-mate penalty
 
-Club vs Club is not implemented yet because the full specification has not been defined.
-
 ## Scoring And Ranking
 
 The organiser can choose whether standings are ranked by:

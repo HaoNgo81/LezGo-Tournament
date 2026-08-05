@@ -14,8 +14,7 @@ export type TournamentSetupFormat =
   | "Mixed Americano"
   | "Fast Makker Americano"
   | "Fast Makker Mexicano"
-  | "Team vs. Team"
-  | "Club vs Club";
+  | "Team vs. Team";
 
 export interface TournamentSetupInput {
   name: string;
@@ -109,8 +108,6 @@ function mapSetupFormat(format: TournamentSetupFormat): TournamentFormat {
       return "fixed-partner-mexicano";
     case "Team vs. Team":
       throw new Error("Team vs. Team oprettes via holdformularen.");
-    case "Club vs Club":
-      throw new Error("Club vs Club er ikke implementeret endnu.");
     default:
       return assertNever(format);
   }

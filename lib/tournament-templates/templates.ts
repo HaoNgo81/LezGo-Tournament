@@ -6,7 +6,7 @@ const templateStorageKey = "lezgo.tournamentTemplates.v1";
 export interface TournamentTemplate {
   id: string;
   title: string;
-  format: Exclude<TournamentSetupFormat, "Club vs Club" | "Team vs. Team">;
+  format: Exclude<TournamentSetupFormat, "Team vs. Team">;
   scoringMode: ScoringMode;
   courts: number;
   rounds: number;
@@ -17,7 +17,7 @@ export interface TournamentTemplate {
 
 export interface TournamentTemplateInput {
   title: string;
-  format: Exclude<TournamentSetupFormat, "Club vs Club" | "Team vs. Team">;
+  format: Exclude<TournamentSetupFormat, "Team vs. Team">;
   scoringMode: ScoringMode;
   courts: number;
   rounds: number;

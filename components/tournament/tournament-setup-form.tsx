@@ -18,7 +18,7 @@ import type { TeamVsTeamMatchFormat, TeamVsTeamPlayersPerTeam, TeamVsTeamTeam } 
 import { loadTournamentSettings } from "@/lib/tournament-settings";
 import { findTournamentTemplate } from "@/lib/tournament-templates";
 
-const formatOptions = tournamentTypes.filter((type) => type !== "Club vs Club") as TournamentSetupFormat[];
+const formatOptions = [...tournamentTypes] as TournamentSetupFormat[];
 
 const rankingModeOptions: Array<{ label: string; value: StandingsRankingMode }> = [
   { label: "Flest matchpoint", value: "matchPointsFirst" },

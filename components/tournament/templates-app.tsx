@@ -14,7 +14,7 @@ import {
 import type { StandingsRankingMode } from "@/lib/tournament-engine";
 import type { ScoringMode, TournamentSetupFormat } from "@/lib/tournament-setup";
 
-const formatOptions = tournamentTypes.filter((type) => type !== "Club vs Club" && type !== "Team vs. Team") as Array<Exclude<TournamentSetupFormat, "Club vs Club" | "Team vs. Team">>;
+const formatOptions = tournamentTypes.filter((type) => type !== "Team vs. Team") as Array<Exclude<TournamentSetupFormat, "Team vs. Team">>;
 const rankingOptions: Array<{ label: string; value: StandingsRankingMode }> = [
   { label: "Flest matchpoint", value: "matchPointsFirst" },
   { label: "Flest partipoint", value: "partiPointsFirst" },

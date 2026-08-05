@@ -2,6 +2,7 @@
 
 ## 0.20.0
 
+- Removed Club vs Club from the product scope and visible format lists.
 - Removed the Team vs Team automatic 6-0 team-mate penalty rule.
 - Added 4, 6, and 8 players per team setup options.
 - Limited 6-player and 8-player Team vs Team tournaments to 2 rounds.
