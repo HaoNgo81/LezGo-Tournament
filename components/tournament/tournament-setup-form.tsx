@@ -14,7 +14,7 @@ import {
   type TournamentSetupFormat,
 } from "@/lib/tournament-setup";
 import type { StandingsRankingMode } from "@/lib/tournament-engine";
-import type { TeamVsTeamMatchFormat, TeamVsTeamPlayersPerTeam, TeamVsTeamTeam } from "@/lib/team-vs-team";
+import { getTeamVsTeamCaptainName, type TeamVsTeamMatchFormat, type TeamVsTeamPlayersPerTeam, type TeamVsTeamTeam } from "@/lib/team-vs-team";
 import { loadTournamentSettings } from "@/lib/tournament-settings";
 import { findTournamentTemplate } from "@/lib/tournament-templates";
 
@@ -251,6 +251,7 @@ export function TournamentSetupForm() {
           {scoringMode === "Spil på tid" ? <p><strong>Spilletid:</strong> {timeLimitMinutes} min.</p> : null}
           <p><strong>{isTeamVsTeam ? "Hold" : "Spillere"}:</strong> {isTeamVsTeam ? teamCount : playerCount}</p>
           {isTeamVsTeam ? <p><strong>Spillere pr. hold:</strong> {playersPerTeam}</p> : null}
+          {isTeamVsTeam ? <p><strong>Holdkaptajner:</strong> {teamDrafts.slice(0, teamCount).map((team) => `${team.name || "Hold"}: ${getTeamVsTeamCaptainName(team)}`).join(" · ")}</p> : null}
           {!isTeamVsTeam ? <p><strong>Baner:</strong> {courts}</p> : null}
           {!isTeamVsTeam ? <p><strong>Runder:</strong> {rounds}</p> : <p><strong>Holdkamp:</strong> {teamRounds} runder · 2 kampe pr. runde · {teamMatchFormat === "oneSet" ? "1 sæt" : "bedst af 3 sæt"}</p>}
           {!isTeamVsTeam ? <p><strong>Stilling:</strong> {rankingModeOptions.find((option) => option.value === rankingMode)?.label}</p> : null}

@@ -18,6 +18,7 @@ import {
   type TeamVsTeamTournamentState,
 } from "@/lib/tournament-setup";
 import type { LiveTournamentState } from "@/lib/live-scoring";
+import { getTeamVsTeamCaptainName } from "@/lib/team-vs-team";
 
 export function TournamentListApp() {
   const [activeTournament] = useState<LiveTournamentState | null>(() => loadActiveTournament());
@@ -89,6 +90,7 @@ export function TournamentListApp() {
               <p className="mt-1 font-bold text-[var(--muted)]">
                 Afsluttet · {completedTournament.state.teams.length} hold · {completedTournament.state.playersPerTeam} spillere pr. hold · {formatDate(completedTournament.finishedAt)}
               </p>
+              <TeamCaptainSummary teams={completedTournament.state.teams} />
               <div className="mt-4 action-grid">
                 <a className="btn-outline-primary" href="/team-vs-team" onClick={() => handleOpenFinishedTeamVsTeam(completedTournament.id)}>Se slutstilling</a>
                 <a className="btn-secondary" href="/team-vs-team" onClick={() => handleReopenFinishedTeamVsTeam(completedTournament.id)}>Ret resultater</a>
@@ -111,8 +113,21 @@ function TeamVsTeamCard({ tournament }: { tournament: TeamVsTeamTournamentState 
       <p className="mt-1 font-bold text-[var(--muted)]">
         {tournament.teams.length} hold · {tournament.playersPerTeam} spillere pr. hold · {tournament.teams.length * tournament.playersPerTeam} spillere i alt · {tournament.scoringMode}
       </p>
+      <TeamCaptainSummary teams={tournament.teams} />
       <a className="btn-outline-primary mt-4" href="/team-vs-team">Åbn holdkamp</a>
     </article>
+  );
+}
+
+function TeamCaptainSummary({ teams }: { teams: TeamVsTeamTournamentState["teams"] }) {
+  return (
+    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+      {teams.map((team) => (
+        <p key={team.id} className="rounded-md border border-[var(--line)] bg-white px-3 py-2 text-sm font-bold text-[var(--muted)]">
+          <span className="text-[var(--foreground)]">{team.name}</span>: {getTeamVsTeamCaptainName(team)}
+        </p>
+      ))}
+    </div>
   );
 }
 

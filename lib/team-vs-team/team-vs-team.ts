@@ -131,6 +131,16 @@ export function validateTeamVsTeamTeams(teams: TeamVsTeamTeam[], playersPerTeam:
   });
 }
 
+export function getTeamVsTeamCaptainName(team: TeamVsTeamTeam): string {
+  const captain = team.players.find((player) => player.id === team.captainPlayerId);
+
+  if (!captain) {
+    return "Ikke valgt";
+  }
+
+  return captain.name.trim() || "Navn mangler";
+}
+
 export function createTeamVsTeamBracket(teams: TeamVsTeamTeam[], playersPerTeam: TeamVsTeamPlayersPerTeam = 4): TeamVsTeamBracket {
   validateTeamVsTeamTeams(teams, playersPerTeam);
 

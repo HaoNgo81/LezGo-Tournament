@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import {
   calculateTeamVsTeamMatchScore,
+  getTeamVsTeamCaptainName,
   getTeamVsTeamPairConstitutions,
   validateTeamVsTeamLineup,
   type TeamVsTeamMatchFormat,
@@ -107,8 +108,25 @@ export function TeamVsTeamApp() {
         <TeamVsTeamBracketPanel activeMatchId={activeMatch.id} canAdvanceBracket={canAdvanceBracket} state={tournament} onAdvance={advanceBracket} onSelectMatch={selectMatch} />
       ) : null}
       {placements.length ? <TeamVsTeamPlacements placements={placements} state={tournament} /> : null}
+      <TeamVsTeamCaptains teams={[teamA, teamB]} />
       <ActiveTeamVsTeamFlow key={activeMatch.id} activeMatch={activeMatch} matchup={{ id: activeMatch.id, teamA, teamB }} state={tournament} setState={setState} />
     </div>
+  );
+}
+
+function TeamVsTeamCaptains({ teams }: { teams: TeamVsTeamTeam[] }) {
+  return (
+    <section className="grid gap-3">
+      <h2 className="text-xl font-black">Holdkaptajner</h2>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {teams.map((team) => (
+          <article key={team.id} className="app-card grid gap-1 p-4">
+            <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{team.name}</p>
+            <p className="text-lg font-black">{getTeamVsTeamCaptainName(team)}</p>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -160,6 +178,7 @@ function TeamVsTeamBracketPanel({ activeMatchId, canAdvanceBracket, state, onAdv
             <button key={match.id} className={`rounded-md border p-3 text-left font-bold ${match.id === activeMatchId ? "border-[var(--primary)] bg-green-50" : "border-[var(--border)] bg-white"}`} type="button" onClick={() => onSelectMatch(match.id)}>
               <span className="block text-sm uppercase text-[var(--muted)]">{match.label}</span>
               <span className="block text-lg font-black">{getTeamNameById(state, match.teamAId)} mod {getTeamNameById(state, match.teamBId)}</span>
+              {matchup ? <span className="block text-sm text-[var(--muted)]">Kaptajner: {getTeamVsTeamCaptainName(matchup.teamA)} / {getTeamVsTeamCaptainName(matchup.teamB)}</span> : null}
               <span className="block text-sm text-[var(--muted)]">{score ? `${score.teamAWins}-${score.teamBWins}` : "Afventer"}{score?.winnerTeamId ? ` · Vinder: ${getTeamNameById(state, score.winnerTeamId)}` : ""}</span>
             </button>
           );

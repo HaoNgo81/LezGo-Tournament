@@ -1,6 +1,7 @@
 export {
   calculateTeamVsTeamMatchScore,
   createTeamVsTeamBracket,
+  getTeamVsTeamCaptainName,
   getTeamVsTeamMaxRounds,
   getTeamVsTeamPairConstitutions,
   teamVsTeamPlayerOptions,

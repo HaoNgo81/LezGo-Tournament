@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   calculateTeamVsTeamMatchScore,
   createTeamVsTeamBracket,
+  getTeamVsTeamCaptainName,
   getTeamVsTeamPairConstitutions,
   validateTeamVsTeamLineup,
   validateTeamVsTeamTeams,
@@ -45,6 +46,12 @@ describe("Team vs. Team rules", () => {
     expect(() => validateTeamVsTeamTeams([teamA, teamB, teamC, teamD], 4)).not.toThrow();
     expect(() => validateTeamVsTeamTeams([teamA, teamB, teamC], 4)).toThrow("Team vs. Team kræver enten 2 eller 4 hold.");
     expect(() => validateTeamVsTeamTeams([{ ...teamA, captainPlayerId: "missing" }, teamB], 4)).toThrow("holdkaptajn");
+  });
+
+  it("resolves the selected captain name for display", () => {
+    expect(getTeamVsTeamCaptainName({ ...teamA, captainPlayerId: "a3" })).toBe("Hold A spiller 3");
+    expect(getTeamVsTeamCaptainName({ ...teamA, captainPlayerId: "missing" })).toBe("Ikke valgt");
+    expect(getTeamVsTeamCaptainName({ ...teamA, players: [{ ...teamA.players[0], name: "" }, ...teamA.players.slice(1)] })).toBe("Navn mangler");
   });
 
   it("creates pair constitutions for 4, 6, and 8 player teams", () => {

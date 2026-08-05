@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.21.0
+
+- Added visible Team vs Team captain summaries during setup, active play, and tournament history.
+- Added a Team vs Team captain display helper with regression tests.
+
 ## 0.20.0
 
 - Added Team vs Team finish, local history, reopen, and delete flows.
