@@ -1,7 +1,9 @@
-﻿export {
+export {
   calculateTeamVsTeamMatchScore,
   createTeamVsTeamBracket,
+  getTeamVsTeamMaxRounds,
   getTeamVsTeamPairConstitutions,
+  teamVsTeamPlayerOptions,
   validateTeamVsTeamLineup,
   validateTeamVsTeamTeams,
   validateTeamVsTeamTieBreak,
@@ -9,10 +11,13 @@
 export type {
   TeamVsTeamBracket,
   TeamVsTeamBracketMatch,
+  TeamVsTeamMatchFormat,
+  TeamVsTeamMatchResult,
   TeamVsTeamMatchScore,
   TeamVsTeamMatchup,
   TeamVsTeamPairing,
   TeamVsTeamPlayer,
+  TeamVsTeamPlayersPerTeam,
   TeamVsTeamRoundLineup,
   TeamVsTeamRoundResult,
   TeamVsTeamRoundScore,

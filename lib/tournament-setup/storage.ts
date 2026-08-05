@@ -1,4 +1,5 @@
 import type { LiveTournamentState } from "../live-scoring";
+import { getTeamVsTeamMaxRounds, teamVsTeamPlayerOptions, type TeamVsTeamMatchFormat, type TeamVsTeamMatchResult, type TeamVsTeamPlayersPerTeam, type TeamVsTeamRoundResult, type TeamVsTeamSetResult } from "../team-vs-team";
 import type { TeamVsTeamTournamentState } from "./team-vs-team-setup";
 
 const activeTournamentStorageKey = "lezgo.activeTournament.v1";
@@ -50,7 +51,7 @@ export function loadActiveTeamVsTeamTournament(): TeamVsTeamTournamentState | nu
   }
 
   try {
-    return JSON.parse(savedState) as TeamVsTeamTournamentState;
+    return normalizeActiveTeamVsTeamState(JSON.parse(savedState) as TeamVsTeamTournamentState);
   } catch {
     window.localStorage.removeItem(activeTeamVsTeamStorageKey);
     return null;
@@ -129,6 +130,54 @@ export function loadCompletedTournaments(): CompletedTournament[] {
     window.localStorage.removeItem(completedTournamentsStorageKey);
     return [];
   }
+}
+
+function normalizeActiveTeamVsTeamState(state: TeamVsTeamTournamentState): TeamVsTeamTournamentState {
+  const rawState = state as Partial<TeamVsTeamTournamentState>;
+  const playersPerTeam = isPlayersPerTeam(rawState.playersPerTeam) ? rawState.playersPerTeam : 4;
+  const matchFormat = isMatchFormat(rawState.matchFormat) ? rawState.matchFormat : "oneSet";
+  const maxRounds = rawState.maxRounds === 2 || rawState.maxRounds === 3 ? rawState.maxRounds : getTeamVsTeamMaxRounds(playersPerTeam);
+
+  return {
+    ...state,
+    playersPerTeam,
+    matchFormat,
+    maxRounds,
+    matchups: Array.isArray(state.matchups)
+      ? state.matchups.map((match) => ({
+          ...match,
+          roundResults: Array.isArray(match.roundResults) ? match.roundResults.map(normalizeTeamVsTeamRoundResult) : [],
+        }))
+      : [],
+  };
+}
+
+function normalizeTeamVsTeamRoundResult(roundResult: TeamVsTeamRoundResult): TeamVsTeamRoundResult {
+  return {
+    ...roundResult,
+    match1: normalizeTeamVsTeamMatchResult(roundResult.match1),
+    match2: normalizeTeamVsTeamMatchResult(roundResult.match2),
+  };
+}
+
+function normalizeTeamVsTeamMatchResult(matchResult: TeamVsTeamMatchResult | TeamVsTeamSetResult): TeamVsTeamMatchResult {
+  if (isTeamVsTeamMatchResult(matchResult)) {
+    return { sets: matchResult.sets };
+  }
+
+  return { sets: [matchResult] };
+}
+
+function isTeamVsTeamMatchResult(matchResult: TeamVsTeamMatchResult | TeamVsTeamSetResult): matchResult is TeamVsTeamMatchResult {
+  return "sets" in matchResult && Array.isArray(matchResult.sets);
+}
+
+function isPlayersPerTeam(value: unknown): value is TeamVsTeamPlayersPerTeam {
+  return typeof value === "number" && teamVsTeamPlayerOptions.includes(value as TeamVsTeamPlayersPerTeam);
+}
+
+function isMatchFormat(value: unknown): value is TeamVsTeamMatchFormat {
+  return value === "oneSet" || value === "bestOfThree";
 }
 
 function createCompletedTournamentId(state: LiveTournamentState): string {

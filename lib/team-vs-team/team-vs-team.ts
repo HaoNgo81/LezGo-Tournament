@@ -1,4 +1,4 @@
-﻿export interface TeamVsTeamPlayer {
+export interface TeamVsTeamPlayer {
   id: string;
   name: string;
 }
@@ -7,8 +7,12 @@ export interface TeamVsTeamTeam {
   id: string;
   name: string;
   captainPlayerId: string;
-  players: [TeamVsTeamPlayer, TeamVsTeamPlayer, TeamVsTeamPlayer, TeamVsTeamPlayer];
+  players: TeamVsTeamPlayer[];
 }
+
+export type TeamVsTeamPlayersPerTeam = 4 | 6 | 8;
+
+export type TeamVsTeamMatchFormat = "oneSet" | "bestOfThree";
 
 export interface TeamVsTeamMatchup {
   id: string;
@@ -33,10 +37,14 @@ export interface TeamVsTeamSetResult {
   teamBPoints: number;
 }
 
+export interface TeamVsTeamMatchResult {
+  sets: TeamVsTeamSetResult[];
+}
+
 export interface TeamVsTeamRoundResult {
   roundNumber: 1 | 2 | 3;
-  match1: TeamVsTeamSetResult;
-  match2: TeamVsTeamSetResult;
+  match1: TeamVsTeamMatchResult;
+  match2: TeamVsTeamMatchResult;
 }
 
 export interface TeamVsTeamTieBreak {
@@ -74,11 +82,19 @@ export interface TeamVsTeamBracket {
   warning?: string;
 }
 
-const teamSize = 4;
+export const teamVsTeamPlayerOptions: TeamVsTeamPlayersPerTeam[] = [4, 6, 8];
 
-export function validateTeamVsTeamTeams(teams: TeamVsTeamTeam[]): void {
+export function getTeamVsTeamMaxRounds(playersPerTeam: TeamVsTeamPlayersPerTeam): 2 | 3 {
+  return playersPerTeam === 4 ? 3 : 2;
+}
+
+export function validateTeamVsTeamTeams(teams: TeamVsTeamTeam[], playersPerTeam: TeamVsTeamPlayersPerTeam = 4): void {
   if (teams.length !== 2 && teams.length !== 4) {
     throw new Error("Team vs. Team kræver enten 2 eller 4 hold.");
+  }
+
+  if (!teamVsTeamPlayerOptions.includes(playersPerTeam)) {
+    throw new Error("Team vs. Team kræver 4, 6 eller 8 spillere pr. hold.");
   }
 
   const teamIds = new Set<string>();
@@ -91,18 +107,18 @@ export function validateTeamVsTeamTeams(teams: TeamVsTeamTeam[]): void {
 
     teamIds.add(team.id);
 
-    if (team.players.length !== teamSize) {
-      throw new Error(`${team.name} skal have præcis 4 spillere.`);
+    if (team.players.length !== playersPerTeam) {
+      throw new Error(`${team.name} skal have præcis ${playersPerTeam} spillere.`);
     }
 
     const teamPlayerIds = new Set(team.players.map((player) => player.id));
 
-    if (teamPlayerIds.size !== teamSize) {
+    if (teamPlayerIds.size !== playersPerTeam) {
       throw new Error(`${team.name} har dublerede spillere.`);
     }
 
     if (!teamPlayerIds.has(team.captainPlayerId)) {
-      throw new Error(`${team.name} skal have en holdkaptajn blandt holdets 4 spillere.`);
+      throw new Error(`${team.name} skal have en holdkaptajn blandt holdets spillere.`);
     }
 
     team.players.forEach((player) => {
@@ -115,8 +131,8 @@ export function validateTeamVsTeamTeams(teams: TeamVsTeamTeam[]): void {
   });
 }
 
-export function createTeamVsTeamBracket(teams: TeamVsTeamTeam[]): TeamVsTeamBracket {
-  validateTeamVsTeamTeams(teams);
+export function createTeamVsTeamBracket(teams: TeamVsTeamTeam[], playersPerTeam: TeamVsTeamPlayersPerTeam = 4): TeamVsTeamBracket {
+  validateTeamVsTeamTeams(teams, playersPerTeam);
 
   if (teams.length === 2) {
     return {
@@ -138,19 +154,32 @@ export function createTeamVsTeamBracket(teams: TeamVsTeamTeam[]): TeamVsTeamBrac
 }
 
 export function getTeamVsTeamPairConstitutions(team: TeamVsTeamTeam): Array<[[string, string], [string, string]]> {
-  const [player1, player2, player3, player4] = team.players.map((player) => player.id);
-
-  return [
+  const playerIds = team.players.map((player) => player.id);
+  const [player1, player2, player3, player4, player5, player6, player7, player8] = playerIds;
+  const constitutions: Array<[[string, string], [string, string]]> = [
     [[player1, player2], [player3, player4]],
     [[player1, player3], [player2, player4]],
-    [[player1, player4], [player2, player3]],
   ];
+
+  if (team.players.length === 4) {
+    constitutions.push([[player1, player4], [player2, player3]]);
+  }
+
+  if (team.players.length === 6) {
+    constitutions[1] = [[player5, player6], [player1, player2]];
+  }
+
+  if (team.players.length === 8) {
+    constitutions[1] = [[player5, player6], [player7, player8]];
+  }
+
+  return constitutions;
 }
 
-export function validateTeamVsTeamLineup(matchup: TeamVsTeamMatchup, lineup: TeamVsTeamRoundLineup, previousLineups: TeamVsTeamRoundLineup[] = []): string[] {
-  assertRoundNumber(lineup.roundNumber);
-  assertTeamUsesEveryPlayerOnce(matchup.teamA, [lineup.match1.teamAPlayerIds, lineup.match2.teamAPlayerIds]);
-  assertTeamUsesEveryPlayerOnce(matchup.teamB, [lineup.match1.teamBPlayerIds, lineup.match2.teamBPlayerIds]);
+export function validateTeamVsTeamLineup(matchup: TeamVsTeamMatchup, lineup: TeamVsTeamRoundLineup, previousLineups: TeamVsTeamRoundLineup[] = [], playersPerTeam: TeamVsTeamPlayersPerTeam = 4): string[] {
+  assertRoundNumber(lineup.roundNumber, playersPerTeam);
+  assertTeamUsesFourUniquePlayers(matchup.teamA, [lineup.match1.teamAPlayerIds, lineup.match2.teamAPlayerIds]);
+  assertTeamUsesFourUniquePlayers(matchup.teamB, [lineup.match1.teamBPlayerIds, lineup.match2.teamBPlayerIds]);
 
   const repeatedPairs = findRepeatedPairs(lineup, previousLineups);
 
@@ -161,17 +190,25 @@ export function validateTeamVsTeamLineup(matchup: TeamVsTeamMatchup, lineup: Tea
   return repeatedPairs.map((pair) => `Makkerpar er allerede anvendt: ${pair}`);
 }
 
-export function calculateTeamVsTeamMatchScore(matchup: TeamVsTeamMatchup, roundResults: TeamVsTeamRoundResult[], tieBreak?: TeamVsTeamTieBreak): TeamVsTeamMatchScore {
+export function calculateTeamVsTeamMatchScore(
+  matchup: TeamVsTeamMatchup,
+  roundResults: TeamVsTeamRoundResult[],
+  tieBreak?: TeamVsTeamTieBreak,
+  options: { playersPerTeam?: TeamVsTeamPlayersPerTeam; matchFormat?: TeamVsTeamMatchFormat } = {},
+): TeamVsTeamMatchScore {
+  const playersPerTeam = options.playersPerTeam ?? 4;
+  const matchFormat = options.matchFormat ?? "oneSet";
+  const maxRounds = getTeamVsTeamMaxRounds(playersPerTeam);
   const sortedResults = [...roundResults].sort((left, right) => left.roundNumber - right.roundNumber);
-  const roundScores = sortedResults.map(calculateRoundScore);
+  const roundScores = sortedResults.map((result) => calculateRoundScore(result, playersPerTeam, matchFormat));
   const teamAWins = roundScores.reduce((sum, round) => sum + round.awardedMatchWins.teamA, 0);
   const teamBWins = roundScores.reduce((sum, round) => sum + round.awardedMatchWins.teamB, 0);
-  const tieBreakRequired = sortedResults.length === 3 && teamAWins === 3 && teamBWins === 3;
+  const tieBreakRequired = sortedResults.length === maxRounds && teamAWins === teamBWins;
   let tieBreakWinnerTeamId: string | undefined;
 
   if (tieBreak) {
     if (!tieBreakRequired) {
-      throw new Error("Match Tie-break må først oprettes, når stillingen efter 3 runder er 3-3.");
+      throw new Error("Match Tie-break må først oprettes, når holdkampen står uafgjort efter alle runder.");
     }
 
     validateTeamVsTeamTieBreak(matchup, tieBreak);
@@ -184,7 +221,7 @@ export function calculateTeamVsTeamMatchScore(matchup: TeamVsTeamMatchup, roundR
     roundScores,
     tieBreakRequired,
     tieBreakWinnerTeamId,
-    winnerTeamId: tieBreakWinnerTeamId ?? getWinnerTeamId(matchup, teamAWins, teamBWins, sortedResults.length),
+    winnerTeamId: tieBreakWinnerTeamId ?? getWinnerTeamId(matchup, teamAWins, teamBWins, sortedResults.length, maxRounds),
   };
 }
 
@@ -194,46 +231,17 @@ export function validateTeamVsTeamTieBreak(matchup: TeamVsTeamMatchup, tieBreak:
   assertValidTieBreakResult(tieBreak.result);
 }
 
-function calculateRoundScore(result: TeamVsTeamRoundResult): TeamVsTeamRoundScore {
-  assertRoundNumber(result.roundNumber);
-  assertValidSetResult(result.match1);
-  assertValidSetResult(result.match2);
+function calculateRoundScore(result: TeamVsTeamRoundResult, playersPerTeam: TeamVsTeamPlayersPerTeam, matchFormat: TeamVsTeamMatchFormat): TeamVsTeamRoundScore {
+  assertRoundNumber(result.roundNumber, playersPerTeam);
+  assertValidMatchResult(result.match1, matchFormat);
+  assertValidMatchResult(result.match2, matchFormat);
 
-  const match1Winner = getSetWinner(result.match1);
-  const match2Winner = getSetWinner(result.match2);
+  const match1Winner = getMatchWinner(result.match1);
+  const match2Winner = getMatchWinner(result.match2);
   const actualMatchWins = {
     teamA: Number(match1Winner === "teamA") + Number(match2Winner === "teamA"),
     teamB: Number(match1Winner === "teamB") + Number(match2Winner === "teamB"),
   };
-  const teamAHasSixZero = didTeamWinSixZero(result.match1, "teamA") || didTeamWinSixZero(result.match2, "teamA");
-  const teamBHasSixZero = didTeamWinSixZero(result.match1, "teamB") || didTeamWinSixZero(result.match2, "teamB");
-
-  if (teamAHasSixZero && teamBHasSixZero) {
-    return {
-      roundNumber: result.roundNumber,
-      actualMatchWins,
-      awardedMatchWins: actualMatchWins,
-      ruleMessage: "Begge hold har vundet 6-0. Straffen ophæves, og hvert hold tildeles én kampsejr.",
-    };
-  }
-
-  if (teamAHasSixZero) {
-    return {
-      roundNumber: result.roundNumber,
-      actualMatchWins,
-      awardedMatchWins: { teamA: 2, teamB: 0 },
-      ruleMessage: "6-0-reglen er aktiveret. Hold A tildeles begge kampsejre i denne runde.",
-    };
-  }
-
-  if (teamBHasSixZero) {
-    return {
-      roundNumber: result.roundNumber,
-      actualMatchWins,
-      awardedMatchWins: { teamA: 0, teamB: 2 },
-      ruleMessage: "6-0-reglen er aktiveret. Hold B tildeles begge kampsejre i denne runde.",
-    };
-  }
 
   return {
     roundNumber: result.roundNumber,
@@ -242,19 +250,21 @@ function calculateRoundScore(result: TeamVsTeamRoundResult): TeamVsTeamRoundScor
   };
 }
 
-function assertRoundNumber(roundNumber: number): asserts roundNumber is 1 | 2 | 3 {
-  if (![1, 2, 3].includes(roundNumber)) {
-    throw new Error("Team vs. Team består af præcis 3 runder.");
+function assertRoundNumber(roundNumber: number, playersPerTeam: TeamVsTeamPlayersPerTeam = 4): asserts roundNumber is 1 | 2 | 3 {
+  const maxRounds = getTeamVsTeamMaxRounds(playersPerTeam);
+
+  if (!Number.isInteger(roundNumber) || roundNumber < 1 || roundNumber > maxRounds) {
+    throw new Error(`Team vs. Team med ${playersPerTeam} spillere pr. hold består af præcis ${maxRounds} runder.`);
   }
 }
 
-function assertTeamUsesEveryPlayerOnce(team: TeamVsTeamTeam, pairs: Array<[string, string]>): void {
+function assertTeamUsesFourUniquePlayers(team: TeamVsTeamTeam, pairs: Array<[string, string]>): void {
   const teamPlayerIds = new Set(team.players.map((player) => player.id));
   const selectedPlayerIds = pairs.flat();
   const uniqueSelectedPlayerIds = new Set(selectedPlayerIds);
 
   if (selectedPlayerIds.length !== 4 || uniqueSelectedPlayerIds.size !== 4) {
-    throw new Error(`${team.name}: alle 4 spillere skal anvendes præcis én gang i runden.`);
+    throw new Error(`${team.name}: der skal vælges 4 forskellige spillere i runden.`);
   }
 
   selectedPlayerIds.forEach((playerId) => {
@@ -292,6 +302,23 @@ function assertPairBelongsToTeam(team: TeamVsTeamTeam, playerIds: [string, strin
   }
 }
 
+function assertValidMatchResult(result: TeamVsTeamMatchResult, matchFormat: TeamVsTeamMatchFormat): void {
+  if (!Array.isArray(result.sets)) {
+    throw new Error("Kampresultat skal indtastes som sæt.");
+  }
+
+  if (matchFormat === "oneSet" && result.sets.length !== 1) {
+    throw new Error("Kampformatet 1 sæt kræver præcis ét sætresultat.");
+  }
+
+  if (matchFormat === "bestOfThree" && (result.sets.length < 2 || result.sets.length > 3)) {
+    throw new Error("Bedst af 3 sæt kræver 2 eller 3 sætresultater.");
+  }
+
+  result.sets.forEach(assertValidSetResult);
+  getMatchWinner(result);
+}
+
 function assertValidSetResult(result: TeamVsTeamSetResult): void {
   assertIntegerScore(result);
 
@@ -321,12 +348,27 @@ function getSetWinner(result: TeamVsTeamSetResult): "teamA" | "teamB" {
   return result.teamAPoints > result.teamBPoints ? "teamA" : "teamB";
 }
 
-function didTeamWinSixZero(result: TeamVsTeamSetResult, team: "teamA" | "teamB"): boolean {
-  return team === "teamA" ? result.teamAPoints === 6 && result.teamBPoints === 0 : result.teamBPoints === 6 && result.teamAPoints === 0;
+function getMatchWinner(result: TeamVsTeamMatchResult): "teamA" | "teamB" {
+  const setWins = result.sets.reduce(
+    (wins, setResult) => {
+      const winner = getSetWinner(setResult);
+      return {
+        teamA: wins.teamA + Number(winner === "teamA"),
+        teamB: wins.teamB + Number(winner === "teamB"),
+      };
+    },
+    { teamA: 0, teamB: 0 },
+  );
+
+  if (setWins.teamA === setWins.teamB) {
+    throw new Error("En kamp skal have en vinder på sæt.");
+  }
+
+  return setWins.teamA > setWins.teamB ? "teamA" : "teamB";
 }
 
-function getWinnerTeamId(matchup: TeamVsTeamMatchup, teamAWins: number, teamBWins: number, completedRounds: number): string | undefined {
-  if (completedRounds < 3 || teamAWins === teamBWins) {
+function getWinnerTeamId(matchup: TeamVsTeamMatchup, teamAWins: number, teamBWins: number, completedRounds: number, maxRounds: 2 | 3): string | undefined {
+  if (completedRounds < maxRounds || teamAWins === teamBWins) {
     return undefined;
   }
 

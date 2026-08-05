@@ -1,4 +1,4 @@
-﻿import { calculateTeamVsTeamMatchScore, type TeamVsTeamMatchup, type TeamVsTeamTieBreak } from "../team-vs-team";
+import { calculateTeamVsTeamMatchScore, type TeamVsTeamMatchup, type TeamVsTeamTieBreak } from "../team-vs-team";
 import type { TeamVsTeamMatchState, TeamVsTeamTournamentState } from "./team-vs-team-setup";
 
 export interface TeamVsTeamPlacement {
@@ -17,7 +17,7 @@ export function saveTeamVsTeamTieBreak(
     throw new Error(`Holdkamp findes ikke: ${matchup.id}`);
   }
 
-  calculateTeamVsTeamMatchScore(matchup, activeMatch.roundResults, tieBreak);
+  calculateTeamVsTeamMatchScore(matchup, activeMatch.roundResults, tieBreak, { playersPerTeam: state.playersPerTeam, matchFormat: state.matchFormat });
 
   return {
     ...state,
@@ -121,7 +121,7 @@ function getMatchOutcome(state: TeamVsTeamTournamentState, match: TeamVsTeamMatc
     throw new Error(`Holdkampen mangler et gyldigt hold: ${match.id}`);
   }
 
-  const score = calculateTeamVsTeamMatchScore({ id: match.id, teamA, teamB }, match.roundResults, match.tieBreak);
+  const score = calculateTeamVsTeamMatchScore({ id: match.id, teamA, teamB }, match.roundResults, match.tieBreak, { playersPerTeam: state.playersPerTeam, matchFormat: state.matchFormat });
 
   if (!score.winnerTeamId) {
     return {};

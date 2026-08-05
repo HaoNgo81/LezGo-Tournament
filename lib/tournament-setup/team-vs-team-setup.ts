@@ -1,4 +1,14 @@
-﻿import { createTeamVsTeamBracket, validateTeamVsTeamTeams, type TeamVsTeamRoundLineup, type TeamVsTeamRoundResult, type TeamVsTeamTeam, type TeamVsTeamTieBreak } from "../team-vs-team";
+import {
+  createTeamVsTeamBracket,
+  getTeamVsTeamMaxRounds,
+  validateTeamVsTeamTeams,
+  type TeamVsTeamMatchFormat,
+  type TeamVsTeamPlayersPerTeam,
+  type TeamVsTeamRoundLineup,
+  type TeamVsTeamRoundResult,
+  type TeamVsTeamTeam,
+  type TeamVsTeamTieBreak,
+} from "../team-vs-team";
 
 export type ScoringMode = "Fri scoring" | "Fast antal point" | "Spil på tid";
 
@@ -8,6 +18,8 @@ export interface TeamVsTeamSetupInput {
   startTime: string;
   scoringMode: ScoringMode;
   teamCount: 2 | 4;
+  playersPerTeam: TeamVsTeamPlayersPerTeam;
+  matchFormat: TeamVsTeamMatchFormat;
   teams: TeamVsTeamTeam[];
 }
 
@@ -24,6 +36,7 @@ export interface TeamVsTeamMatchState {
 export interface TeamVsTeamTournamentState extends TeamVsTeamSetupInput {
   status: "setup" | "active" | "finished";
   activeMatchupId?: string;
+  maxRounds: 2 | 3;
   matchups: TeamVsTeamMatchState[];
 }
 
@@ -38,6 +51,14 @@ export function createTeamVsTeamTournamentFromSetup(input: TeamVsTeamSetupInput)
     throw new Error("Team vs. Team kræver enten 2 eller 4 hold.");
   }
 
+  if (![4, 6, 8].includes(input.playersPerTeam)) {
+    throw new Error("Vælg 4, 6 eller 8 spillere pr. hold.");
+  }
+
+  if (input.matchFormat !== "oneSet" && input.matchFormat !== "bestOfThree") {
+    throw new Error("Vælg enten 1 sæt eller bedst af 3 sæt pr. kamp.");
+  }
+
   if (input.teams.length !== input.teamCount) {
     throw new Error(`Der skal oprettes præcis ${input.teamCount} hold.`);
   }
@@ -45,7 +66,7 @@ export function createTeamVsTeamTournamentFromSetup(input: TeamVsTeamSetupInput)
   const teams = input.teams.map((team) => ({
     ...team,
     name: team.name.trim(),
-    players: team.players.map((player) => ({ ...player, name: player.name.trim() })) as TeamVsTeamTeam["players"],
+    players: team.players.slice(0, input.playersPerTeam).map((player) => ({ ...player, name: player.name.trim() })),
   }));
 
   teams.forEach((team) => {
@@ -55,14 +76,14 @@ export function createTeamVsTeamTournamentFromSetup(input: TeamVsTeamSetupInput)
 
     team.players.forEach((player) => {
       if (!player.name) {
-        throw new Error(`${team.name}: alle 4 spillernavne skal udfyldes.`);
+        throw new Error(`${team.name}: alle ${input.playersPerTeam} spillernavne skal udfyldes.`);
       }
     });
   });
 
-  validateTeamVsTeamTeams(teams);
+  validateTeamVsTeamTeams(teams, input.playersPerTeam);
 
-  const bracket = createTeamVsTeamBracket(teams);
+  const bracket = createTeamVsTeamBracket(teams, input.playersPerTeam);
   const matchups = bracket.firstRound.map((match) => ({
     id: match.id,
     label: match.label,
@@ -75,6 +96,9 @@ export function createTeamVsTeamTournamentFromSetup(input: TeamVsTeamSetupInput)
   return {
     ...input,
     name,
+    playersPerTeam: input.playersPerTeam,
+    matchFormat: input.matchFormat,
+    maxRounds: getTeamVsTeamMaxRounds(input.playersPerTeam),
     teams,
     status: "setup",
     activeMatchupId: matchups[0]?.id,

@@ -1,4 +1,4 @@
-﻿export { createTournamentFromSetup, parsePlayers } from "./setup";
+export { createTournamentFromSetup, parsePlayers } from "./setup";
 export { createTeamVsTeamTournamentFromSetup } from "./team-vs-team-setup";
 export { advanceTeamVsTeamFourTeamBracket, calculateTeamVsTeamPlacements, getTeamVsTeamMatchWinnerTeamId, saveTeamVsTeamTieBreak } from "./team-vs-team-flow";
 export {

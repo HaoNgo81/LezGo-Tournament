@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.20.0
+
+- Removed the Team vs Team automatic 6-0 team-mate penalty rule.
+- Added 4, 6, and 8 players per team setup options.
+- Limited 6-player and 8-player Team vs Team tournaments to 2 rounds.
+- Added 1 set and best-of-3 set scoring options per Team vs Team match.
+- Added backward-compatible loading for older saved Team vs Team results.
 ## 0.19.0
 
 - Updated README with current project scope, routes, formats, scoring, ranking, CI, and development commands.

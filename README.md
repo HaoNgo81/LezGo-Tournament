@@ -16,7 +16,7 @@ The app currently supports:
 - Read-only player view from `/qr`
 - TV/read-only overview from `/tv`
 - Share page with QR code from `/share`
-- Team vs Team flow from `/team-vs-team`
+- Team vs Team flow from `/team-vs-team` with 4, 6, or 8 players per team
 
 Data is stored locally in the browser with `localStorage`.
 
@@ -30,6 +30,11 @@ Implemented formats:
 - Fast Makker Mexicano
 - Mixed Americano
 - Team vs Team
+  - 2 or 4 teams
+  - 4 players per team: 3 rounds
+  - 6 or 8 players per team: 2 rounds
+  - 1 set or best of 3 sets per match
+  - No automatic 6-0 team-mate penalty
 
 Club vs Club is not implemented yet because the full specification has not been defined.
 

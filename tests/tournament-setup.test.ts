@@ -1,58 +1,15 @@
-﻿import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { advanceTeamVsTeamFourTeamBracket, calculateTeamVsTeamPlacements, createTeamVsTeamTournamentFromSetup, createTournamentFromSetup, parsePlayers, saveTeamVsTeamTieBreak } from "../lib/tournament-setup";
-import type { TeamVsTeamTeam } from "../lib/team-vs-team";
+import type { TeamVsTeamRoundResult, TeamVsTeamTeam } from "../lib/team-vs-team";
 
 const playerText = ["Anna", "Hassan", "Maja", "Noah", "Sofia", "Emil", "Clara", "Jonas"].join("\n");
 const femalePlayerText = ["Anna", "Maja", "Sofia", "Clara"].join("\n");
 const malePlayerText = ["Hassan", "Noah", "Emil", "Jonas"].join("\n");
 
-const teamA: TeamVsTeamTeam = {
-  id: "team-a",
-  name: "Hold A",
-  captainPlayerId: "a1",
-  players: [
-    { id: "a1", name: "Anna" },
-    { id: "a2", name: "Hassan" },
-    { id: "a3", name: "Maja" },
-    { id: "a4", name: "Noah" },
-  ],
-};
-
-const teamB: TeamVsTeamTeam = {
-  id: "team-b",
-  name: "Hold B",
-  captainPlayerId: "b1",
-  players: [
-    { id: "b1", name: "Sofia" },
-    { id: "b2", name: "Emil" },
-    { id: "b3", name: "Clara" },
-    { id: "b4", name: "Jonas" },
-  ],
-};
-
-const teamC: TeamVsTeamTeam = {
-  id: "team-c",
-  name: "Hold C",
-  captainPlayerId: "c1",
-  players: [
-    { id: "c1", name: "Freja" },
-    { id: "c2", name: "Malik" },
-    { id: "c3", name: "Ida" },
-    { id: "c4", name: "Oscar" },
-  ],
-};
-
-const teamD: TeamVsTeamTeam = {
-  id: "team-d",
-  name: "Hold D",
-  captainPlayerId: "d1",
-  players: [
-    { id: "d1", name: "Liva" },
-    { id: "d2", name: "Yusuf" },
-    { id: "d3", name: "Nora" },
-    { id: "d4", name: "Theo" },
-  ],
-};
+const teamA = createTeam("a", "Hold A");
+const teamB = createTeam("b", "Hold B");
+const teamC = createTeam("c", "Hold C");
+const teamD = createTeam("d", "Hold D");
 
 describe("tournament setup", () => {
   it("parses one player per line", () => {
@@ -106,6 +63,7 @@ describe("tournament setup", () => {
 
     expect(tournament).toMatchObject({ scoringMode: "Spil på tid", timeLimitMinutes: 12 });
   });
+
   it("creates Mixed Americano from separate women and men fields", () => {
     const tournament = createTournamentFromSetup({
       name: "Mixed fredag",
@@ -133,6 +91,8 @@ describe("tournament setup", () => {
       startTime: "18:00",
       scoringMode: "Fri scoring",
       teamCount: 2,
+      playersPerTeam: 4,
+      matchFormat: "oneSet",
       teams: [teamA, teamB],
     });
 
@@ -141,10 +101,30 @@ describe("tournament setup", () => {
       status: "setup",
       scoringMode: "Fri scoring",
       teamCount: 2,
+      playersPerTeam: 4,
+      matchFormat: "oneSet",
+      maxRounds: 3,
     });
     expect(tournament.teams).toHaveLength(2);
     expect(tournament.activeMatchupId).toBe("holdkamp-1");
     expect(tournament.matchups[0]).toMatchObject({ id: "holdkamp-1", teamAId: "team-a", teamBId: "team-b", lineups: [], roundResults: [] });
+  });
+
+  it("creates Team vs. Team setup with 6 players and 2 rounds", () => {
+    const tournament = createTeamVsTeamTournamentFromSetup({
+      name: "Klubkamp 6",
+      date: "2026-08-05",
+      startTime: "18:00",
+      scoringMode: "Fri scoring",
+      teamCount: 2,
+      playersPerTeam: 6,
+      matchFormat: "bestOfThree",
+      teams: [createTeam("a", "Hold A", 6), createTeam("b", "Hold B", 6)],
+    });
+
+    expect(tournament.playersPerTeam).toBe(6);
+    expect(tournament.matchFormat).toBe("bestOfThree");
+    expect(tournament.maxRounds).toBe(2);
   });
 
   it("creates four-team Team vs. Team setup with two semifinals", () => {
@@ -154,6 +134,8 @@ describe("tournament setup", () => {
       startTime: "18:00",
       scoringMode: "Fri scoring",
       teamCount: 4,
+      playersPerTeam: 4,
+      matchFormat: "oneSet",
       teams: [teamA, teamB, teamC, teamD],
     });
 
@@ -171,6 +153,8 @@ describe("tournament setup", () => {
       startTime: "18:00",
       scoringMode: "Fri scoring",
       teamCount: 4,
+      playersPerTeam: 4,
+      matchFormat: "oneSet",
       teams: [teamA, teamB, teamC, teamD],
     });
     const stateWithDecidedSemis = {
@@ -196,6 +180,8 @@ describe("tournament setup", () => {
       startTime: "18:00",
       scoringMode: "Fri scoring",
       teamCount: 4,
+      playersPerTeam: 4,
+      matchFormat: "oneSet",
       teams: [teamA, teamB, teamC, teamD],
     });
     const advanced = advanceTeamVsTeamFourTeamBracket({
@@ -224,6 +210,7 @@ describe("tournament setup", () => {
       { rank: 4, teamId: "team-d" },
     ]);
   });
+
   it("saves Team vs. Team Match Tie-break on the active holdkamp", () => {
     const tournament = createTeamVsTeamTournamentFromSetup({
       name: "Klubkamp",
@@ -231,6 +218,8 @@ describe("tournament setup", () => {
       startTime: "18:00",
       scoringMode: "Fri scoring",
       teamCount: 2,
+      playersPerTeam: 4,
+      matchFormat: "oneSet",
       teams: [teamA, teamB],
     });
     const match = tournament.matchups[0];
@@ -240,9 +229,9 @@ describe("tournament setup", () => {
         {
           ...match,
           roundResults: [
-            { roundNumber: 1 as const, match1: { teamAPoints: 6, teamBPoints: 4 }, match2: { teamAPoints: 3, teamBPoints: 6 } },
-            { roundNumber: 2 as const, match1: { teamAPoints: 7, teamBPoints: 5 }, match2: { teamAPoints: 4, teamBPoints: 6 } },
-            { roundNumber: 3 as const, match1: { teamAPoints: 7, teamBPoints: 6 }, match2: { teamAPoints: 2, teamBPoints: 6 } },
+            round(1, 6, 4, 3, 6),
+            round(2, 7, 5, 4, 6),
+            round(3, 7, 6, 2, 6),
           ],
         },
       ],
@@ -279,20 +268,35 @@ describe("tournament setup", () => {
   });
 });
 
-function createStraightTeamAWinResults() {
+function createTeam(idPrefix: string, name: string, count = 4): TeamVsTeamTeam {
+  return {
+    id: `team-${idPrefix}`,
+    name,
+    captainPlayerId: `${idPrefix}1`,
+    players: Array.from({ length: count }, (_, index) => ({ id: `${idPrefix}${index + 1}`, name: `${name} spiller ${index + 1}` })),
+  };
+}
+
+function round(roundNumber: 1 | 2 | 3, match1TeamAPoints: number, match1TeamBPoints: number, match2TeamAPoints: number, match2TeamBPoints: number): TeamVsTeamRoundResult {
+  return {
+    roundNumber,
+    match1: { sets: [{ teamAPoints: match1TeamAPoints, teamBPoints: match1TeamBPoints }] },
+    match2: { sets: [{ teamAPoints: match2TeamAPoints, teamBPoints: match2TeamBPoints }] },
+  };
+}
+
+function createStraightTeamAWinResults(): TeamVsTeamRoundResult[] {
   return [
-    { roundNumber: 1 as const, match1: { teamAPoints: 6, teamBPoints: 4 }, match2: { teamAPoints: 6, teamBPoints: 3 } },
-    { roundNumber: 2 as const, match1: { teamAPoints: 6, teamBPoints: 2 }, match2: { teamAPoints: 6, teamBPoints: 1 } },
-    { roundNumber: 3 as const, match1: { teamAPoints: 6, teamBPoints: 5 }, match2: { teamAPoints: 6, teamBPoints: 4 } },
+    round(1, 6, 4, 6, 3),
+    round(2, 6, 2, 6, 1),
+    round(3, 6, 5, 6, 4),
   ];
 }
 
-function createStraightTeamBWinResults() {
+function createStraightTeamBWinResults(): TeamVsTeamRoundResult[] {
   return [
-    { roundNumber: 1 as const, match1: { teamAPoints: 4, teamBPoints: 6 }, match2: { teamAPoints: 3, teamBPoints: 6 } },
-    { roundNumber: 2 as const, match1: { teamAPoints: 2, teamBPoints: 6 }, match2: { teamAPoints: 1, teamBPoints: 6 } },
-    { roundNumber: 3 as const, match1: { teamAPoints: 5, teamBPoints: 6 }, match2: { teamAPoints: 4, teamBPoints: 6 } },
+    round(1, 4, 6, 3, 6),
+    round(2, 2, 6, 1, 6),
+    round(3, 5, 6, 4, 6),
   ];
 }
-
-

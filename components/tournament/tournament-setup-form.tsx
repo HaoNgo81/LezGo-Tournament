@@ -14,7 +14,7 @@ import {
   type TournamentSetupFormat,
 } from "@/lib/tournament-setup";
 import type { StandingsRankingMode } from "@/lib/tournament-engine";
-import type { TeamVsTeamTeam } from "@/lib/team-vs-team";
+import type { TeamVsTeamMatchFormat, TeamVsTeamPlayersPerTeam, TeamVsTeamTeam } from "@/lib/team-vs-team";
 import { loadTournamentSettings } from "@/lib/tournament-settings";
 import { findTournamentTemplate } from "@/lib/tournament-templates";
 
@@ -45,16 +45,18 @@ export function TournamentSetupForm() {
   const [courts, setCourts] = useState(initialTemplate?.courts ?? initialSettings.courts);
   const [rounds, setRounds] = useState(initialTemplate?.rounds ?? initialSettings.rounds);
   const [teamCount, setTeamCount] = useState<2 | 4>(2);
-  const [teamDrafts, setTeamDrafts] = useState<TeamVsTeamTeam[]>(() => createDefaultTeams(4));
+  const [playersPerTeam, setPlayersPerTeam] = useState<TeamVsTeamPlayersPerTeam>(4);
+  const [teamMatchFormat, setTeamMatchFormat] = useState<TeamVsTeamMatchFormat>("oneSet");
+  const [teamDrafts, setTeamDrafts] = useState<TeamVsTeamTeam[]>(() => createDefaultTeams(4, 8));
   const [firstRoundOrder, setFirstRoundOrder] = useState<"manual" | "random">(initialTemplate?.firstRoundOrder ?? "manual");
   const [rankingMode, setRankingMode] = useState<StandingsRankingMode>(initialTemplate?.rankingMode ?? initialSettings.rankingMode);
   const [error, setError] = useState("");
   const isTeamVsTeam = format === "Team vs. Team";
-
+  const teamRounds = playersPerTeam === 4 ? 3 : 2;
 
   const playerCount = useMemo(() => {
     if (isTeamVsTeam) {
-      return teamCount * 4;
+      return teamCount * playersPerTeam;
     }
 
     if (format === "Mixed Americano") {
@@ -62,7 +64,7 @@ export function TournamentSetupForm() {
     }
 
     return countLines(playerText);
-  }, [femalePlayerText, format, isTeamVsTeam, malePlayerText, playerText, teamCount]);
+  }, [femalePlayerText, format, isTeamVsTeam, malePlayerText, playerText, playersPerTeam, teamCount]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -76,7 +78,9 @@ export function TournamentSetupForm() {
           startTime,
           scoringMode,
           teamCount,
-          teams: teamDrafts.slice(0, teamCount),
+          playersPerTeam,
+          matchFormat: teamMatchFormat,
+          teams: teamDrafts.slice(0, teamCount).map((team) => ({ ...team, players: team.players.slice(0, playersPerTeam) })),
         });
 
         saveActiveTeamVsTeamTournament(tournament);
@@ -155,13 +159,33 @@ export function TournamentSetupForm() {
             </label>
           ) : null}
           {isTeamVsTeam ? (
-            <label className="grid gap-2 text-lg font-bold">
-              Antal hold
-              <select className="field-control" value={teamCount} onChange={(event) => setTeamCount(Number(event.target.value) as 2 | 4)}>
-                <option value={2}>2 hold</option>
-                <option value={4}>4 hold</option>
-              </select>
-            </label>
+            <>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <label className="grid gap-2 text-lg font-bold">
+                  Antal hold
+                  <select className="field-control" value={teamCount} onChange={(event) => setTeamCount(Number(event.target.value) as 2 | 4)}>
+                    <option value={2}>2 hold</option>
+                    <option value={4}>4 hold</option>
+                  </select>
+                </label>
+                <label className="grid gap-2 text-lg font-bold">
+                  Spillere pr. hold
+                  <select className="field-control" value={playersPerTeam} onChange={(event) => setPlayersPerTeam(Number(event.target.value) as TeamVsTeamPlayersPerTeam)}>
+                    <option value={4}>4 spillere</option>
+                    <option value={6}>6 spillere</option>
+                    <option value={8}>8 spillere</option>
+                  </select>
+                </label>
+                <label className="grid gap-2 text-lg font-bold">
+                  Kampformat
+                  <select className="field-control" value={teamMatchFormat} onChange={(event) => setTeamMatchFormat(event.target.value as TeamVsTeamMatchFormat)}>
+                    <option value="oneSet">1 sæt</option>
+                    <option value="bestOfThree">Bedst af 3 sæt</option>
+                  </select>
+                </label>
+              </div>
+              <p className="font-bold text-[var(--muted)]">{playersPerTeam === 4 ? "4 spillere pr. hold spiller 3 runder." : "6 eller 8 spillere pr. hold spiller 2 runder."}</p>
+            </>
           ) : (
             <>
               <label className="grid gap-2 text-lg font-bold">
@@ -196,7 +220,7 @@ export function TournamentSetupForm() {
         <Section title="3. Hold">
           <div className="grid gap-3">
             {teamDrafts.slice(0, teamCount).map((team, index) => (
-              <TeamEditor key={team.id} team={team} teamNumber={index + 1} onChange={(nextTeam) => updateTeam(index, nextTeam)} />
+              <TeamEditor key={team.id} team={team} teamNumber={index + 1} playersPerTeam={playersPerTeam} onChange={(nextTeam) => updateTeam(index, nextTeam)} />
             ))}
           </div>
         </Section>
@@ -226,8 +250,9 @@ export function TournamentSetupForm() {
           <p><strong>Scoring:</strong> {scoringMode}</p>
           {scoringMode === "Spil på tid" ? <p><strong>Spilletid:</strong> {timeLimitMinutes} min.</p> : null}
           <p><strong>{isTeamVsTeam ? "Hold" : "Spillere"}:</strong> {isTeamVsTeam ? teamCount : playerCount}</p>
+          {isTeamVsTeam ? <p><strong>Spillere pr. hold:</strong> {playersPerTeam}</p> : null}
           {!isTeamVsTeam ? <p><strong>Baner:</strong> {courts}</p> : null}
-          {!isTeamVsTeam ? <p><strong>Runder:</strong> {rounds}</p> : <p><strong>Holdkamp:</strong> 3 runder · 2 kampe pr. runde</p>}
+          {!isTeamVsTeam ? <p><strong>Runder:</strong> {rounds}</p> : <p><strong>Holdkamp:</strong> {teamRounds} runder · 2 kampe pr. runde · {teamMatchFormat === "oneSet" ? "1 sæt" : "bedst af 3 sæt"}</p>}
           {!isTeamVsTeam ? <p><strong>Stilling:</strong> {rankingModeOptions.find((option) => option.value === rankingMode)?.label}</p> : null}
         </div>
       </Section>
@@ -240,9 +265,9 @@ export function TournamentSetupForm() {
   );
 }
 
-function TeamEditor({ team, teamNumber, onChange }: { team: TeamVsTeamTeam; teamNumber: number; onChange: (team: TeamVsTeamTeam) => void }) {
+function TeamEditor({ team, teamNumber, playersPerTeam, onChange }: { team: TeamVsTeamTeam; teamNumber: number; playersPerTeam: TeamVsTeamPlayersPerTeam; onChange: (team: TeamVsTeamTeam) => void }) {
   function updatePlayerName(playerIndex: number, name: string) {
-    const players = team.players.map((player, index) => (index === playerIndex ? { ...player, name } : player)) as TeamVsTeamTeam["players"];
+    const players = team.players.map((player, index) => (index === playerIndex ? { ...player, name } : player));
     onChange({ ...team, players });
   }
 
@@ -253,7 +278,7 @@ function TeamEditor({ team, teamNumber, onChange }: { team: TeamVsTeamTeam; team
         <input className="field-control" value={team.name} onChange={(event) => onChange({ ...team, name: event.target.value })} aria-label={`Hold ${teamNumber} navn`} />
       </label>
       <div className="grid gap-3 sm:grid-cols-2">
-        {team.players.map((player, playerIndex) => (
+        {team.players.slice(0, playersPerTeam).map((player, playerIndex) => (
           <label key={player.id} className="grid gap-2 text-base font-bold">
             Spiller {playerIndex + 1}
             <input className="field-control" value={player.name} onChange={(event) => updatePlayerName(playerIndex, event.target.value)} />
@@ -263,7 +288,7 @@ function TeamEditor({ team, teamNumber, onChange }: { team: TeamVsTeamTeam; team
       <label className="grid gap-2 text-lg font-bold">
         Holdkaptajn
         <select className="field-control" value={team.captainPlayerId} onChange={(event) => onChange({ ...team, captainPlayerId: event.target.value })}>
-          {team.players.map((player, playerIndex) => (
+          {team.players.slice(0, playersPerTeam).map((player, playerIndex) => (
             <option key={player.id} value={player.id}>{player.name || `Spiller ${playerIndex + 1}`}</option>
           ))}
         </select>
@@ -281,19 +306,18 @@ function getInitialTemplate() {
   return templateId ? findTournamentTemplate(templateId) : null;
 }
 
-function createDefaultTeams(count: 4): TeamVsTeamTeam[] {
+function createDefaultTeams(count: 4, playersPerTeam: 8): TeamVsTeamTeam[] {
   return Array.from({ length: count }, (_, teamIndex) => ({
     id: `team-${teamIndex + 1}`,
     name: `Hold ${teamIndex + 1}`,
     captainPlayerId: `team-${teamIndex + 1}-player-1`,
-    players: [1, 2, 3, 4].map((playerNumber) => ({
-      id: `team-${teamIndex + 1}-player-${playerNumber}`,
+    players: Array.from({ length: playersPerTeam }, (_, playerIndex) => ({
+      id: `team-${teamIndex + 1}-player-${playerIndex + 1}`,
       name: "",
-    })) as TeamVsTeamTeam["players"],
+    })),
   }));
 }
 
 function countLines(text: string): number {
   return text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).length;
 }
-

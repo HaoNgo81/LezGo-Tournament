@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useMemo, useState } from "react";
 import { Section } from "@/components/ui/section";
@@ -75,7 +75,7 @@ function TeamVsTeamCard({ tournament }: { tournament: TeamVsTeamTournamentState 
       <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">Team vs. Team</p>
       <h3 className="mt-1 text-xl font-black">{tournament.name}</h3>
       <p className="mt-1 font-bold text-[var(--muted)]">
-        {tournament.teams.length} hold · {tournament.teams.length * 4} spillere · {tournament.scoringMode}
+        {tournament.teams.length} hold · {tournament.playersPerTeam} spillere pr. hold · {tournament.teams.length * tournament.playersPerTeam} spillere i alt · {tournament.scoringMode}
       </p>
       <a className="btn-outline-primary mt-4" href="/team-vs-team">Åbn holdkamp</a>
     </article>

@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   calculateTeamVsTeamMatchScore,
   createTeamVsTeamBracket,
@@ -7,56 +7,23 @@ import {
   validateTeamVsTeamTeams,
   type TeamVsTeamMatchup,
   type TeamVsTeamRoundLineup,
+  type TeamVsTeamRoundResult,
   type TeamVsTeamTeam,
 } from "../lib/team-vs-team";
 
-const teamA: TeamVsTeamTeam = {
-  id: "team-a",
-  name: "Hold A",
-  captainPlayerId: "a1",
-  players: [
-    { id: "a1", name: "Anna" },
-    { id: "a2", name: "Hassan" },
-    { id: "a3", name: "Maja" },
-    { id: "a4", name: "Noah" },
-  ],
-};
+function createTeam(idPrefix: string, name: string, count = 4): TeamVsTeamTeam {
+  return {
+    id: `team-${idPrefix}`,
+    name,
+    captainPlayerId: `${idPrefix}1`,
+    players: Array.from({ length: count }, (_, index) => ({ id: `${idPrefix}${index + 1}`, name: `${name} spiller ${index + 1}` })),
+  };
+}
 
-const teamB: TeamVsTeamTeam = {
-  id: "team-b",
-  name: "Hold B",
-  captainPlayerId: "b1",
-  players: [
-    { id: "b1", name: "Sofia" },
-    { id: "b2", name: "Emil" },
-    { id: "b3", name: "Clara" },
-    { id: "b4", name: "Jonas" },
-  ],
-};
-
-const teamC: TeamVsTeamTeam = {
-  id: "team-c",
-  name: "Hold C",
-  captainPlayerId: "c1",
-  players: [
-    { id: "c1", name: "Freja" },
-    { id: "c2", name: "Malik" },
-    { id: "c3", name: "Ida" },
-    { id: "c4", name: "Oscar" },
-  ],
-};
-
-const teamD: TeamVsTeamTeam = {
-  id: "team-d",
-  name: "Hold D",
-  captainPlayerId: "d1",
-  players: [
-    { id: "d1", name: "Liva" },
-    { id: "d2", name: "Yusuf" },
-    { id: "d3", name: "Nora" },
-    { id: "d4", name: "Theo" },
-  ],
-};
+const teamA = createTeam("a", "Hold A");
+const teamB = createTeam("b", "Hold B");
+const teamC = createTeam("c", "Hold C");
+const teamD = createTeam("d", "Hold D");
 
 const matchup: TeamVsTeamMatchup = {
   id: "m1",
@@ -71,22 +38,32 @@ const openingLineup: TeamVsTeamRoundLineup = {
 };
 
 describe("Team vs. Team rules", () => {
-  it("requires either 2 or 4 teams with exactly 4 players and a captain", () => {
-    expect(() => validateTeamVsTeamTeams([teamA, teamB])).not.toThrow();
-    expect(() => validateTeamVsTeamTeams([teamA, teamB, teamC, teamD])).not.toThrow();
-    expect(() => validateTeamVsTeamTeams([teamA, teamB, teamC])).toThrow("Team vs. Team kræver enten 2 eller 4 hold.");
-    expect(() => validateTeamVsTeamTeams([{ ...teamA, captainPlayerId: "missing" }, teamB])).toThrow("holdkaptajn");
+  it("requires either 2 or 4 teams with 4, 6, or 8 players and a captain", () => {
+    expect(() => validateTeamVsTeamTeams([teamA, teamB], 4)).not.toThrow();
+    expect(() => validateTeamVsTeamTeams([createTeam("a", "Hold A", 6), createTeam("b", "Hold B", 6)], 6)).not.toThrow();
+    expect(() => validateTeamVsTeamTeams([createTeam("a", "Hold A", 8), createTeam("b", "Hold B", 8)], 8)).not.toThrow();
+    expect(() => validateTeamVsTeamTeams([teamA, teamB, teamC, teamD], 4)).not.toThrow();
+    expect(() => validateTeamVsTeamTeams([teamA, teamB, teamC], 4)).toThrow("Team vs. Team kræver enten 2 eller 4 hold.");
+    expect(() => validateTeamVsTeamTeams([{ ...teamA, captainPlayerId: "missing" }, teamB], 4)).toThrow("holdkaptajn");
   });
 
-  it("creates the three allowed internal pair constitutions for each team", () => {
+  it("creates pair constitutions for 4, 6, and 8 player teams", () => {
     expect(getTeamVsTeamPairConstitutions(teamA)).toEqual([
       [["a1", "a2"], ["a3", "a4"]],
       [["a1", "a3"], ["a2", "a4"]],
       [["a1", "a4"], ["a2", "a3"]],
     ]);
+    expect(getTeamVsTeamPairConstitutions(createTeam("a", "Hold A", 6))).toEqual([
+      [["a1", "a2"], ["a3", "a4"]],
+      [["a5", "a6"], ["a1", "a2"]],
+    ]);
+    expect(getTeamVsTeamPairConstitutions(createTeam("a", "Hold A", 8))).toEqual([
+      [["a1", "a2"], ["a3", "a4"]],
+      [["a5", "a6"], ["a7", "a8"]],
+    ]);
   });
 
-  it("validates manual lineups so every team player is used exactly once", () => {
+  it("validates manual lineups so each round uses four different players from each team", () => {
     expect(validateTeamVsTeamLineup(matchup, openingLineup)).toEqual([]);
 
     expect(() =>
@@ -95,7 +72,7 @@ describe("Team vs. Team rules", () => {
         match1: { teamAPlayerIds: ["a1", "a2"], teamBPlayerIds: ["b1", "b2"] },
         match2: { teamAPlayerIds: ["a2", "a4"], teamBPlayerIds: ["b3", "b4"] },
       }),
-    ).toThrow("alle 4 spillere skal anvendes præcis én gang");
+    ).toThrow("4 forskellige spillere");
   });
 
   it("blocks repeated pair constitutions unless organiser overrides the warning", () => {
@@ -105,31 +82,32 @@ describe("Team vs. Team rules", () => {
     expect(validateTeamVsTeamLineup(matchup, { ...repeatedLineup, overrideRepeatedPairs: true }, [openingLineup])).toContain("Makkerpar er allerede anvendt: a1+a2");
   });
 
-  it("applies the 6-0 rule when only one team wins 6-0 in a round", () => {
+  it("does not award automatic 6-0 wins to the team mate match", () => {
     const score = calculateTeamVsTeamMatchScore(matchup, [
-      { roundNumber: 1, match1: { teamAPoints: 6, teamBPoints: 0 }, match2: { teamAPoints: 3, teamBPoints: 6 } },
-    ]);
-
-    expect(score.roundScores[0].actualMatchWins).toEqual({ teamA: 1, teamB: 1 });
-    expect(score.roundScores[0].awardedMatchWins).toEqual({ teamA: 2, teamB: 0 });
-    expect(score.roundScores[0].ruleMessage).toContain("6-0-reglen er aktiveret");
-  });
-
-  it("cancels the 6-0 penalty when both teams win 6-0 in the same round", () => {
-    const score = calculateTeamVsTeamMatchScore(matchup, [
-      { roundNumber: 1, match1: { teamAPoints: 6, teamBPoints: 0 }, match2: { teamAPoints: 0, teamBPoints: 6 } },
+      round(1, oneSet(6, 0), oneSet(3, 6)),
     ]);
 
     expect(score.roundScores[0].actualMatchWins).toEqual({ teamA: 1, teamB: 1 });
     expect(score.roundScores[0].awardedMatchWins).toEqual({ teamA: 1, teamB: 1 });
-    expect(score.roundScores[0].ruleMessage).toContain("Straffen ophæves");
+    expect(score.roundScores[0].ruleMessage).toBeUndefined();
   });
 
-  it("requires Match Tie-break only after three rounds end 3-3 and validates win by two", () => {
-    const tiedRounds = [
-      { roundNumber: 1 as const, match1: { teamAPoints: 6, teamBPoints: 4 }, match2: { teamAPoints: 3, teamBPoints: 6 } },
-      { roundNumber: 2 as const, match1: { teamAPoints: 7, teamBPoints: 5 }, match2: { teamAPoints: 4, teamBPoints: 6 } },
-      { roundNumber: 3 as const, match1: { teamAPoints: 7, teamBPoints: 6 }, match2: { teamAPoints: 2, teamBPoints: 6 } },
+  it("supports best of 3 sets per match", () => {
+    const score = calculateTeamVsTeamMatchScore(
+      matchup,
+      [round(1, bestOfThree([6, 4], [3, 6], [10, 8]), bestOfThree([6, 2], [6, 4]))],
+      undefined,
+      { matchFormat: "bestOfThree" },
+    );
+
+    expect(score.roundScores[0].actualMatchWins).toEqual({ teamA: 2, teamB: 0 });
+  });
+
+  it("requires Match Tie-break after a 3-3 result with 4 players and validates win by two", () => {
+    const tiedRounds: TeamVsTeamRoundResult[] = [
+      round(1, oneSet(6, 4), oneSet(3, 6)),
+      round(2, oneSet(7, 5), oneSet(4, 6)),
+      round(3, oneSet(7, 6), oneSet(2, 6)),
     ];
 
     const score = calculateTeamVsTeamMatchScore(matchup, tiedRounds);
@@ -152,6 +130,18 @@ describe("Team vs. Team rules", () => {
     ).toBe("team-a");
   });
 
+  it("requires Match Tie-break after a 2-2 result with 6 or 8 players", () => {
+    const sixPlayerMatchup = { id: "m1", teamA: createTeam("a", "Hold A", 6), teamB: createTeam("b", "Hold B", 6) };
+    const score = calculateTeamVsTeamMatchScore(
+      sixPlayerMatchup,
+      [round(1, oneSet(6, 4), oneSet(3, 6)), round(2, oneSet(6, 2), oneSet(4, 6))],
+      undefined,
+      { playersPerTeam: 6 },
+    );
+
+    expect(score).toMatchObject({ teamAWins: 2, teamBWins: 2, tieBreakRequired: true, winnerTeamId: undefined });
+  });
+
   it("creates first and second hold rounds for four teams", () => {
     const bracket = createTeamVsTeamBracket([teamA, teamB, teamC, teamD]);
 
@@ -165,3 +155,15 @@ describe("Team vs. Team rules", () => {
     ]);
   });
 });
+
+function oneSet(teamAPoints: number, teamBPoints: number) {
+  return { sets: [{ teamAPoints, teamBPoints }] };
+}
+
+function bestOfThree(...sets: Array<[number, number]>) {
+  return { sets: sets.map(([teamAPoints, teamBPoints]) => ({ teamAPoints, teamBPoints })) };
+}
+
+function round(roundNumber: 1 | 2 | 3, match1: ReturnType<typeof oneSet>, match2: ReturnType<typeof oneSet>): TeamVsTeamRoundResult {
+  return { roundNumber, match1, match2 };
+}
