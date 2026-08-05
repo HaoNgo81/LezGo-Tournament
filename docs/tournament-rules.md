@@ -106,7 +106,7 @@ Team vs Team supports:
 - 6 or 8 players per team: 2 rounds
 - 2 matches per round
 - Manual lineup selection by the organiser
-- One selected captain per team, visible in setup, active play, and history
+- One selected captain per team, visible in setup, active play, history, QR, and TV
 - 1 set or best of 3 sets per match
 
 The old automatic 6-0 team-mate penalty rule is not used. A 6-0 result only counts for the match where it was entered.
@@ -114,3 +114,5 @@ The old automatic 6-0 team-mate penalty rule is not used. A 6-0 result only coun
 If a holdkamp is tied after all rounds, the organiser enters a Match Tie-break to decide the winner.
 
 Team vs Team tournaments can be finished immediately. Finished Team vs Team tournaments are saved in local history, can be reopened as a final standing, and can be reopened for result corrections.
+
+QR and TV views show Team vs Team holdstilling, captains, and the active holdkamp without result editing.

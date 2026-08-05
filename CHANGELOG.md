@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.22.0
+
+- Added Team vs Team read-only QR and TV views with holdstilling, captains, and active match data.
+- Added Team vs Team read-only view-model tests.
+
 ## 0.21.0
 
 - Added visible Team vs Team captain summaries during setup, active play, and tournament history.
