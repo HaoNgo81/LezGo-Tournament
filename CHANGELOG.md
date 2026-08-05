@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.19.0
+
+- Updated README with current project scope, routes, formats, scoring, ranking, CI, and development commands.
+- Added tournament rules documentation.
+- Added development process documentation.
+
 ## 0.10.0
 
 - Added Share tournament page.

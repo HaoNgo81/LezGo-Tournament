@@ -1,96 +1,102 @@
-# LezGo Tournament
+# LEZGO Tournament
 
-LEZGO PADEL is a mobile-first padel tournament app.
+Mobile-first padel tournament app for arranging, running, sharing, and finishing local padel tournaments.
 
-## First delivery
+## Current Scope
 
-This delivery contains the navigable mock application shell for:
+The app currently supports:
 
-- Home
-- New tournament flow
-- Tournament templates
-- Tournaments
-- Settings
-- Live tournament
-- TV view
-- QR read-only view
-- Finish tournament confirmation
+- Tournament setup from `/new-tournament`
+- Live scoring from `/live`
+- Running standings during the tournament
+- Finished tournament view from `/finish`
+- Tournament history from `/tournaments`
+- Tournament templates from `/templates`
+- Default organiser settings from `/settings`
+- Read-only player view from `/qr`
+- TV/read-only overview from `/tv`
+- Share page with QR code from `/share`
+- Team vs Team flow from `/team-vs-team`
 
-## Tournament engine
+Data is stored locally in the browser with `localStorage`.
 
-The first tournament engine module supports:
+## Tournament Formats
+
+Implemented formats:
 
 - Americano
 - Mexicano
-- Mixed Americano
 - Fast Makker Americano
 - Fast Makker Mexicano
+- Mixed Americano
+- Team vs Team
 
-Implemented rules:
+Club vs Club is not implemented yet because the full specification has not been defined.
 
-- Player count must be divisible by 4.
-- Courts are selected manually and must match 4 players per court in this version.
-- The organiser selects the number of rounds.
-- Scoring uses 3 match points for a win, 1 for a draw, and 0 for a loss.
-- The organiser can rank standings by either most match points or most won parti points.
-- Standings track parti points, point difference, wins, draws, losses, and head-to-head results.
-- Mixed Americano uses separate women and men player groups through player gender metadata.
+## Scoring And Ranking
 
-Club vs Club and persistence are intentionally not implemented in this module.
+The organiser can choose whether standings are ranked by:
 
-## Live scoring
+- Match points first
+- Parti points first
 
-The live scoring module uses local state and mock data. It supports:
+Match points:
 
-- Result entry per match as Team A parti points and Team B parti points.
-- Immediate standings updates after saving.
-- Match status: Ikke spillet or Gemt.
-- Editing saved results by opening the match again.
-- Live selection of standings ranking by most match points or most won parti points.
-- Round progress for the active round.
-- Previous and next round navigation.
-- Next round is locked until every match in the active round is saved.
-- The same standings calculation for live and final standings.
+- Win: 3 points
+- Draw: 1 point
+- Loss: 0 points
 
-## Tournament setup
+Tie-break handling follows the implemented tournament engine rules:
 
-The tournament setup module supports:
+- Match points
+- Won parti points
+- Point difference
+- Internal head-to-head result when relevant
 
-- Creating a local tournament from the New tournament screen.
-- Tournament name, format, courts, rounds, first round order, and standings ranking mode.
-- One-player-per-line entry for standard formats.
-- Separate women and men text fields for Mixed Americano.
-- Validation before starting the live tournament.
+The same ranking logic is used during live play and after the tournament is finished.
 
-## Finish tournament
+## Key Features
 
-The finish module supports:
+- Manual result entry
+- Editable results during and after tournament completion
+- Ability to finish a tournament early
+- Result and standings visibility for all participants
+- Read-only QR and TV views
+- Partner and opponent visibility in player view
+- Bye/pause handling
+- Match statuses: ready, in progress, completed
+- Optional timed play with countdown and alarm
+- Tournament templates without saved player lists
+- Default organiser settings
 
-- Finishing a tournament immediately, even before all planned rounds are played.
-- Final standings for all participants using the selected ranking mode.
-- Local storage of finished tournaments.
-- Editing results after a tournament is finished.
+## Project Structure
 
-## Read-only views
+```text
+app/          Next.js routes and pages
+components/   Reusable UI and feature components
+docs/         Project documentation
+hooks/        React hooks
+lib/          Tournament logic, storage, templates, settings, exports
+public/       Static public assets
+styles/       Style-related project assets
+tests/        Vitest test suite
+```
 
-The read-only views module supports:
+## Development
 
-- QR view from the active local tournament.
-- TV view from the active local tournament.
-- Current active round matches, all standings, and round status.
-- QR player overview for all players with court, partner, opponents, and rank.
-- Read-only presentation with no result entry.
+Install dependencies:
 
-## Sharing
+```bash
+npm install
+```
 
-The sharing module supports:
+Start local development:
 
-- A Share tournament page with a QR code for `/qr`.
-- Copy link action for the QR read-only view.
-- Quick actions for opening QR and TV views.
-- A share action from the live tournament screen.
+```bash
+npm run dev
+```
 
-## Scripts
+Run the required quality checks:
 
 ```bash
 npm run build
@@ -98,3 +104,41 @@ npm run typecheck
 npm run lint
 npm run test
 ```
+
+On Windows PowerShell, use `npm.cmd` if script execution policy blocks `npm`:
+
+```powershell
+npm.cmd run build
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run test
+```
+
+## Continuous Integration
+
+GitHub Actions runs the same quality gate on `main` pushes and pull requests:
+
+- Install dependencies with `npm ci`
+- Build
+- TypeScript check
+- Lint
+- Tests
+
+Workflow file:
+
+```text
+.github/workflows/ci.yml
+```
+
+## Development Rule
+
+Each new module must follow this order:
+
+1. Implement one module.
+2. Build the project.
+3. Run TypeScript check.
+4. Run lint.
+5. Fix all errors.
+6. Run tests.
+7. Fix all errors.
+8. Continue only when everything is green.
