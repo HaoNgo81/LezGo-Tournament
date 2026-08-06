@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.23.0
+
+- Registered the app service worker so the PWA shell is installable.
+- Added a regression test for service worker registration.
+
 ## 0.22.0
 
 - Added Team vs Team read-only QR and TV views with holdstilling, captains, and active match data.

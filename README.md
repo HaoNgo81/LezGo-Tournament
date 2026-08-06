@@ -18,6 +18,7 @@ The app currently supports:
 - Share page with QR code from `/share`
 - Team vs Team flow from `/team-vs-team` with 4, 6, or 8 players per team
 - Team vs Team finish and history from `/tournaments`
+- PWA installation support with a registered service worker
 
 Data is stored locally in the browser with `localStorage`.
 
