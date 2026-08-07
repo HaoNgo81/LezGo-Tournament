@@ -3,10 +3,12 @@ import type { ScoringMode, TournamentSetupFormat } from "../tournament-setup";
 
 const templateStorageKey = "lezgo.tournamentTemplates.v1";
 
+export type StandardTournamentTemplateFormat = Exclude<TournamentSetupFormat, "Team vs. Team" | "Puljespil">;
+
 export interface TournamentTemplate {
   id: string;
   title: string;
-  format: Exclude<TournamentSetupFormat, "Team vs. Team">;
+  format: StandardTournamentTemplateFormat;
   scoringMode: ScoringMode;
   courts: number;
   rounds: number;
@@ -17,7 +19,7 @@ export interface TournamentTemplate {
 
 export interface TournamentTemplateInput {
   title: string;
-  format: Exclude<TournamentSetupFormat, "Team vs. Team">;
+  format: StandardTournamentTemplateFormat;
   scoringMode: ScoringMode;
   courts: number;
   rounds: number;
@@ -47,7 +49,8 @@ export function loadTournamentTemplates(): TournamentTemplate[] {
   }
 
   try {
-    return JSON.parse(savedTemplates) as TournamentTemplate[];
+    const parsedTemplates = JSON.parse(savedTemplates) as TournamentTemplate[];
+    return parsedTemplates.filter(isStandardTournamentTemplate);
   } catch {
     window.localStorage.removeItem(templateStorageKey);
     return createDefaultTournamentTemplates();
@@ -99,6 +102,10 @@ function createTemplate(input: TournamentTemplateInput, id = createTemplateId(in
     throw new Error("Vælg spilletid for skabelonen.");
   }
 
+  if (!isStandardTemplateFormat(input.format)) {
+    throw new Error("Puljespil og Team vs. Team kræver egne opsætningsfelter og kan ikke gemmes som standardskabelon.");
+  }
+
   return {
     id,
     title,
@@ -110,6 +117,14 @@ function createTemplate(input: TournamentTemplateInput, id = createTemplateId(in
     rankingMode: input.rankingMode,
     timeLimitMinutes: input.scoringMode === "Spil på tid" ? input.timeLimitMinutes : undefined,
   };
+}
+
+function isStandardTournamentTemplate(template: TournamentTemplate): template is TournamentTemplate {
+  return isStandardTemplateFormat(template.format);
+}
+
+function isStandardTemplateFormat(format: TournamentSetupFormat): format is StandardTournamentTemplateFormat {
+  return format !== "Team vs. Team" && format !== "Puljespil";
 }
 
 function createTemplateId(title: string): string {

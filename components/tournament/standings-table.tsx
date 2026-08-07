@@ -13,9 +13,7 @@ export function StandingsTable({ standings }: StandingsTableProps) {
             <th className="p-3">Placering</th>
             <th className="p-3">Navn</th>
             <th className="p-3">Matchpoint</th>
-            <th className="p-3">Partipoint</th>
-            <th className="p-3">Tabte</th>
-            <th className="p-3">Difference</th>
+            <th className="p-3">Scorepoint</th>
             <th className="p-3">Sejre</th>
             <th className="p-3">Uafgjort</th>
             <th className="p-3">Tab</th>
@@ -28,8 +26,6 @@ export function StandingsTable({ standings }: StandingsTableProps) {
               <td className="p-3 font-bold">{row.name}</td>
               <td className="p-3">{row.matchPoints}</td>
               <td className="p-3">{row.pointsFor}</td>
-              <td className="p-3">{row.pointsAgainst}</td>
-              <td className="p-3">{row.pointDifference}</td>
               <td className="p-3">{row.wins}</td>
               <td className="p-3">{row.draws}</td>
               <td className="p-3">{row.losses}</td>

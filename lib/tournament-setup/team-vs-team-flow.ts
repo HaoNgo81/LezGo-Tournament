@@ -1,8 +1,8 @@
 import { calculateTeamVsTeamMatchScore, type TeamVsTeamMatchup, type TeamVsTeamTieBreak } from "../team-vs-team";
-import type { TeamVsTeamMatchState, TeamVsTeamTournamentState } from "./team-vs-team-setup";
+import { createTeamVsTeamKnockoutGroup, type TeamVsTeamMatchState, type TeamVsTeamTournamentState } from "./team-vs-team-setup";
 
 export interface TeamVsTeamPlacement {
-  rank: 1 | 2 | 3 | 4;
+  rank: number;
   teamId: string;
 }
 
@@ -36,7 +36,13 @@ export function saveTeamVsTeamTieBreak(
     throw new Error(`Holdkamp findes ikke: ${matchup.id}`);
   }
 
-  calculateTeamVsTeamMatchScore(matchup, activeMatch.roundResults, tieBreak, { playersPerTeam: state.playersPerTeam, matchFormat: state.matchFormat });
+  calculateTeamVsTeamMatchScore(matchup, activeMatch.roundResults, tieBreak, {
+    playersPerTeam: state.playersPerTeam,
+    matchFormat: state.matchFormat,
+    scoringMode: state.scoringMode,
+    fixedScoreRule: state.fixedScoreRule,
+    fixedScorePoints: state.fixedScorePoints,
+  });
 
   return {
     ...state,
@@ -44,8 +50,98 @@ export function saveTeamVsTeamTieBreak(
   };
 }
 
+export function canAdvanceTeamVsTeamKnockout(state: TeamVsTeamTournamentState): boolean {
+  if (state.competitionMode !== "knockout" || !state.knockoutGroups?.length) {
+    return false;
+  }
+
+  const activeGroups = state.knockoutGroups.filter((group) => group.status === "active");
+  return activeGroups.length > 0 && activeGroups.every((group) => group.matchIds.every((matchId) => {
+    const match = state.matchups.find((candidate) => candidate.id === matchId);
+    return match ? Boolean(getMatchOutcome(state, match).winnerTeamId) : false;
+  }));
+}
+
+export function advanceTeamVsTeamKnockout(state: TeamVsTeamTournamentState): TeamVsTeamTournamentState {
+  if (state.competitionMode !== "knockout" || !state.knockoutGroups?.length) {
+    return state;
+  }
+
+  const activeGroups = state.knockoutGroups.filter((group) => group.status === "active");
+
+  if (!activeGroups.length) {
+    return state;
+  }
+
+  if (!canAdvanceTeamVsTeamKnockout(state)) {
+    throw new Error("Alle aktive knockout- og placeringskampe skal være afgjort før næste runde.");
+  }
+
+  const nextGroups = state.knockoutGroups.map((group) => (
+    group.status === "active" ? { ...group, status: "resolved" as const } : group
+  ));
+  const nextMatchups = [...state.matchups];
+  const nextPlacements = [...(state.knockoutPlacements ?? [])];
+  const generatedMatchIds: string[] = [];
+
+  activeGroups.forEach((group) => {
+    const outcomes = group.matchIds.map((matchId) => {
+      const match = state.matchups.find((candidate) => candidate.id === matchId);
+
+      if (!match) {
+        throw new Error(`Knockoutkamp findes ikke: ${matchId}`);
+      }
+
+      const outcome = getMatchOutcome(state, match);
+
+      if (!outcome.winnerTeamId || !outcome.loserTeamId) {
+        throw new Error(`Knockoutkampen er ikke afgjort: ${match.label}`);
+      }
+
+      return outcome as { winnerTeamId: string; loserTeamId: string };
+    });
+    const winnerTeamIds = [...(group.byeTeamId ? [group.byeTeamId] : []), ...outcomes.map((outcome) => outcome.winnerTeamId)];
+    const loserTeamIds = outcomes.map((outcome) => outcome.loserTeamId);
+
+    if (group.teamIds.length === 2) {
+      nextPlacements.push(
+        { rank: group.rankStart, teamId: winnerTeamIds[0] },
+        { rank: group.rankStart + 1, teamId: loserTeamIds[0] },
+      );
+      return;
+    }
+
+    addKnockoutSubgroup(`${group.id}-oevre`, winnerTeamIds, group.rankStart);
+    addKnockoutSubgroup(`${group.id}-nedre`, loserTeamIds, group.rankStart + winnerTeamIds.length);
+  });
+
+  function addKnockoutSubgroup(id: string, teamIds: string[], rankStart: number) {
+    if (teamIds.length === 1) {
+      nextPlacements.push({ rank: rankStart, teamId: teamIds[0] });
+      return;
+    }
+
+    const createdGroup = createTeamVsTeamKnockoutGroup(teamIds, rankStart, id);
+    nextGroups.push(createdGroup.group);
+    createdGroup.matches.forEach((match) => {
+      nextMatchups.push({ ...match, lineups: [], roundResults: [] });
+      generatedMatchIds.push(match.id);
+    });
+  }
+
+  const placementsByRank = new Map(nextPlacements.map((placement) => [placement.rank, placement]));
+
+  return {
+    ...state,
+    activeMatchupId: generatedMatchIds[0] ?? state.activeMatchupId,
+    matchups: nextMatchups,
+    knockoutGroups: nextGroups,
+    knockoutPlacements: [...placementsByRank.values()].sort((left, right) => left.rank - right.rank),
+  };
+}
+
 export function advanceTeamVsTeamFourTeamBracket(state: TeamVsTeamTournamentState): TeamVsTeamTournamentState {
-  if (state.teamCount !== 4) {
+  if (state.competitionMode !== "knockout" || state.teamCount !== 4) {
     return state;
   }
 
@@ -94,7 +190,11 @@ export function advanceTeamVsTeamFourTeamBracket(state: TeamVsTeamTournamentStat
 }
 
 export function calculateTeamVsTeamPlacements(state: TeamVsTeamTournamentState): TeamVsTeamPlacement[] {
-  if (state.teamCount !== 4) {
+  if (state.competitionMode === "knockout" && state.knockoutGroups?.length) {
+    return [...(state.knockoutPlacements ?? [])].sort((left, right) => left.rank - right.rank);
+  }
+
+  if (state.competitionMode !== "knockout" || state.teamCount !== 4) {
     return [];
   }
 
@@ -141,7 +241,13 @@ export function calculateTeamVsTeamStandings(state: TeamVsTeamTournamentState): 
       return;
     }
 
-    const score = calculateTeamVsTeamMatchScore(matchup, match.roundResults, match.tieBreak, { playersPerTeam: state.playersPerTeam, matchFormat: state.matchFormat });
+    const score = calculateTeamVsTeamMatchScore(matchup, match.roundResults, match.tieBreak, {
+      playersPerTeam: state.playersPerTeam,
+      matchFormat: state.matchFormat,
+      scoringMode: state.scoringMode,
+      fixedScoreRule: state.fixedScoreRule,
+      fixedScorePoints: state.fixedScorePoints,
+    });
 
     teamAStanding.matchWins += score.teamAWins;
     teamAStanding.matchLosses += score.teamBWins;
@@ -198,7 +304,13 @@ function getMatchOutcome(state: TeamVsTeamTournamentState, match: TeamVsTeamMatc
     throw new Error(`Holdkampen mangler et gyldigt hold: ${match.id}`);
   }
 
-  const score = calculateTeamVsTeamMatchScore(matchup, match.roundResults, match.tieBreak, { playersPerTeam: state.playersPerTeam, matchFormat: state.matchFormat });
+  const score = calculateTeamVsTeamMatchScore(matchup, match.roundResults, match.tieBreak, {
+    playersPerTeam: state.playersPerTeam,
+    matchFormat: state.matchFormat,
+    scoringMode: state.scoringMode,
+    fixedScoreRule: state.fixedScoreRule,
+    fixedScorePoints: state.fixedScorePoints,
+  });
 
   if (!score.winnerTeamId) {
     return {};

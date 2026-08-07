@@ -1,10 +1,11 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Section } from "@/components/ui/section";
 import { scoringModes, tournamentTypes } from "@/lib/mock/tournament-data";
 import {
+  createDefaultTournamentTemplates,
   deleteTournamentTemplate,
   loadTournamentTemplates,
   saveTournamentTemplate,
@@ -12,12 +13,13 @@ import {
   type TournamentTemplateInput,
 } from "@/lib/tournament-templates";
 import type { StandingsRankingMode } from "@/lib/tournament-engine";
-import type { ScoringMode, TournamentSetupFormat } from "@/lib/tournament-setup";
+import type { ScoringMode } from "@/lib/tournament-setup";
+import { useHasHydrated } from "@/hooks/use-has-hydrated";
 
-const formatOptions = tournamentTypes.filter((type) => type !== "Team vs. Team") as Array<Exclude<TournamentSetupFormat, "Team vs. Team">>;
+const formatOptions = tournamentTypes.filter((type) => type !== "Team vs. Team" && type !== "Puljespil") as TournamentTemplateInput["format"][];
 const rankingOptions: Array<{ label: string; value: StandingsRankingMode }> = [
   { label: "Flest matchpoint", value: "matchPointsFirst" },
-  { label: "Flest partipoint", value: "partiPointsFirst" },
+  { label: "Flest scorepoint", value: "partiPointsFirst" },
 ];
 const defaultDraft: TournamentTemplateInput = {
   title: "Ny skabelon",
@@ -31,11 +33,28 @@ const defaultDraft: TournamentTemplateInput = {
 };
 
 export function TemplatesApp() {
-  const [templates, setTemplates] = useState<TournamentTemplate[]>(() => loadTournamentTemplates());
+  const hasHydrated = useHasHydrated();
+  const [templates, setTemplates] = useState<TournamentTemplate[]>(() => createDefaultTournamentTemplates());
   const [draft, setDraft] = useState<TournamentTemplateInput>(defaultDraft);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    if (!hasHydrated) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setTemplates(loadTournamentTemplates());
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [hasHydrated]);
+
+  if (!hasHydrated) {
+    return <p className="app-card p-4 font-bold text-[var(--muted)]">Indlæser skabeloner...</p>;
+  }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

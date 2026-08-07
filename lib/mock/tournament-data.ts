@@ -4,6 +4,7 @@
   "Mixed Americano",
   "Fast Makker Americano",
   "Fast Makker Mexicano",
+  "Puljespil",
   "Team vs. Team",
 ] as const;
 

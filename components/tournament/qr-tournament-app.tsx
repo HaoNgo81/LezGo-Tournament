@@ -1,16 +1,35 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MatchCards } from "@/components/tournament/match-cards";
 import { StandingsTable } from "@/components/tournament/standings-table";
 import { Section } from "@/components/ui/section";
 import { createMockLiveTournamentState, type LiveTournamentState } from "@/lib/live-scoring";
-import { createReadOnlyTournamentView, createTeamVsTeamReadOnlyView, type TeamVsTeamReadOnlyView } from "@/lib/read-only-views";
+import { createReadOnlyTournamentView, createTeamVsTeamReadOnlyView, type ReadOnlyTournamentView, type TeamVsTeamReadOnlyView } from "@/lib/read-only-views";
 import { loadActiveTeamVsTeamTournament, loadActiveTournament, type TeamVsTeamTournamentState } from "@/lib/tournament-setup";
+import { useHasHydrated } from "@/hooks/use-has-hydrated";
 
 export function QrTournamentApp() {
-  const [teamVsTeamState] = useState<TeamVsTeamTournamentState | null>(() => loadActiveTeamVsTeamTournament());
-  const [state] = useState<LiveTournamentState>(() => loadActiveTournament() ?? createMockLiveTournamentState());
+  const [teamVsTeamState, setTeamVsTeamState] = useState<TeamVsTeamTournamentState | null>(null);
+  const [state, setState] = useState<LiveTournamentState>(() => createMockLiveTournamentState());
+  const hasHydrated = useHasHydrated();
+
+  useEffect(() => {
+    if (!hasHydrated) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setTeamVsTeamState(loadActiveTeamVsTeamTournament());
+      setState(loadActiveTournament() ?? createMockLiveTournamentState());
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [hasHydrated]);
+
+  if (!hasHydrated) {
+    return <div className="app-card p-4 font-bold text-[var(--muted)]">Indlæser turnering...</div>;
+  }
 
   if (teamVsTeamState) {
     return <TeamVsTeamQrView view={createTeamVsTeamReadOnlyView(teamVsTeamState)} />;
@@ -21,6 +40,10 @@ export function QrTournamentApp() {
 
 function StandardQrView({ state }: { state: LiveTournamentState }) {
   const view = useMemo(() => createReadOnlyTournamentView(state), [state]);
+
+  if (view.poolPlay) {
+    return <PoolPlayQrView view={view} poolPlay={view.poolPlay} />;
+  }
 
   return (
     <div className="grid gap-5">
@@ -72,6 +95,82 @@ function StandardQrView({ state }: { state: LiveTournamentState }) {
 
       <Section title="Info">
         <p className="app-card p-4 text-lg leading-7">Visningen er read-only og viser turneringens aktuelle kampe, runder og stilling.</p>
+      </Section>
+    </div>
+  );
+}
+
+function PoolPlayQrView({ view, poolPlay }: { view: ReadOnlyTournamentView; poolPlay: NonNullable<ReadOnlyTournamentView["poolPlay"]> }) {
+  return (
+    <div className="grid gap-5">
+      <Section title={view.tournamentName}>
+        <div className="grid gap-3 app-card p-4 text-lg leading-8">
+          <p><strong>Format:</strong> Puljespil</p>
+          <p><strong>Fase:</strong> {poolPlay.phase}</p>
+          <p><strong>Deltagere:</strong> {poolPlay.participantCount}</p>
+          <p><strong>Puljer:</strong> {poolPlay.poolCount}</p>
+        </div>
+      </Section>
+
+      <Section title="Puljestillinger">
+        <div className="grid gap-4">
+          {poolPlay.initialStandings.map((table) => (
+            <section key={table.poolId} className="grid gap-3" aria-labelledby={`${table.poolId}-qr-heading`}>
+              <h3 id={`${table.poolId}-qr-heading`} className="text-lg font-black">{table.poolName}</h3>
+              <StandingsTable standings={table.rows} />
+            </section>
+          ))}
+        </div>
+      </Section>
+
+      {poolPlay.finalPlacements.length ? (
+        <Section title="Slutplaceringer">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {poolPlay.finalPlacements.map((placement) => (
+              <article key={`${placement.groupName}-${placement.rank}`} className="app-card flex items-center justify-between gap-3 p-4">
+                <div>
+                  <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{placement.groupName}</p>
+                  <h3 className="mt-1 text-xl font-black">{placement.participantName}</h3>
+                </div>
+                <span className="text-3xl font-black">{placement.rank}.</span>
+              </article>
+            ))}
+          </div>
+        </Section>
+      ) : null}
+
+      <Section title="Næste fase">
+        {poolPlay.nextPhaseMatches.length ? <MatchCards matches={poolPlay.nextPhaseMatches} /> : <p className="app-card p-4 font-bold text-[var(--muted)]">Næste fase er ikke oprettet endnu.</p>}
+      </Section>
+
+      {poolPlay.finalMatches.length ? (
+        <Section title="Finaler">
+          <MatchCards matches={poolPlay.finalMatches} />
+        </Section>
+      ) : null}
+
+      {poolPlay.placementTiebreakMatches.length ? (
+        <Section title="Tiebreak om placering">
+          <MatchCards matches={poolPlay.placementTiebreakMatches} />
+        </Section>
+      ) : null}
+
+      {poolPlay.automaticAdvances.length ? (
+        <Section title="Automatisk videre">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {poolPlay.automaticAdvances.map((advance) => (
+              <article key={advance.id} className="app-card p-4">
+                <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{advance.resolution === "bye" ? "Oversidning" : "Walkover"}</p>
+                <h3 className="mt-1 text-xl font-black">{advance.participantName}</h3>
+                <p className="mt-2 font-bold text-[var(--muted)]">{advance.sourcePoolName}, nr. {advance.sourceRank}</p>
+              </article>
+            ))}
+          </div>
+        </Section>
+      ) : null}
+
+      <Section title="Info">
+        <p className="app-card p-4 text-lg leading-7">Visningen er read-only og viser puljespillets aktuelle stillinger, næste fase og finaler.</p>
       </Section>
     </div>
   );

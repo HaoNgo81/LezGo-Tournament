@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   calculateTeamVsTeamMatchScore,
   getTeamVsTeamCaptainName,
@@ -17,8 +17,10 @@ import {
 } from "@/lib/team-vs-team";
 import {
   advanceTeamVsTeamFourTeamBracket,
+  advanceTeamVsTeamKnockout,
   calculateTeamVsTeamPlacements,
   calculateTeamVsTeamStandings,
+  canAdvanceTeamVsTeamKnockout,
   finishTeamVsTeamTournament,
   loadActiveTeamVsTeamTournament,
   saveActiveTeamVsTeamTournament,
@@ -27,10 +29,28 @@ import {
   type TeamVsTeamMatchState,
   type TeamVsTeamTournamentState,
 } from "@/lib/tournament-setup";
+import { useHasHydrated } from "@/hooks/use-has-hydrated";
 
 export function TeamVsTeamApp() {
-  const [state, setState] = useState<TeamVsTeamTournamentState | null>(() => loadActiveTeamVsTeamTournament());
+  const isHydrated = useHasHydrated();
+  const [state, setState] = useState<TeamVsTeamTournamentState | null>(null);
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    if (!isHydrated) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setState(loadActiveTeamVsTeamTournament());
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [isHydrated]);
+
+  if (!isHydrated) {
+    return <p className="app-card p-4 font-bold text-[var(--muted)]">Indlæser Team vs. Team-turnering...</p>;
+  }
 
   if (!state) {
     return <p className="app-card p-4 font-bold text-[var(--muted)]">Ingen Team vs. Team-turnering er oprettet endnu.</p>;
@@ -53,13 +73,21 @@ export function TeamVsTeamApp() {
   }
 
   const placements = calculateTeamVsTeamPlacements(tournament);
-  const canAdvanceBracket =
-    tournament.teamCount === 4 &&
-    tournament.matchups.length === 2 &&
-    tournament.matchups.every((match) => {
-      const pendingMatchup = getMatchupFromState(tournament, match);
-      return pendingMatchup ? Boolean(calculateTeamVsTeamMatchScore(pendingMatchup, match.roundResults, match.tieBreak, { playersPerTeam: tournament.playersPerTeam, matchFormat: tournament.matchFormat }).winnerTeamId) : false;
-    });
+  const canAdvanceBracket = tournament.knockoutGroups?.length
+    ? canAdvanceTeamVsTeamKnockout(tournament)
+    : tournament.competitionMode === "knockout" &&
+      tournament.teamCount === 4 &&
+      tournament.matchups.length === 2 &&
+      tournament.matchups.every((match) => {
+        const pendingMatchup = getMatchupFromState(tournament, match);
+        return pendingMatchup ? Boolean(calculateTeamVsTeamMatchScore(pendingMatchup, match.roundResults, match.tieBreak, {
+          playersPerTeam: tournament.playersPerTeam,
+          matchFormat: tournament.matchFormat,
+          scoringMode: tournament.scoringMode,
+          fixedScoreRule: tournament.fixedScoreRule,
+          fixedScorePoints: tournament.fixedScorePoints,
+        }).winnerTeamId) : false;
+      });
 
   function commit(nextState: TeamVsTeamTournamentState) {
     saveActiveTeamVsTeamTournament(nextState);
@@ -76,7 +104,7 @@ export function TeamVsTeamApp() {
   }
 
   function advanceBracket() {
-    commit(advanceTeamVsTeamFourTeamBracket(tournament));
+    commit(tournament.knockoutGroups?.length ? advanceTeamVsTeamKnockout(tournament) : advanceTeamVsTeamFourTeamBracket(tournament));
   }
 
   function finishTournamentNow() {
@@ -91,7 +119,7 @@ export function TeamVsTeamApp() {
         <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{isFinished ? "Afsluttet Team vs. Team" : "Aktiv Team vs. Team"}</p>
         <h2 className="text-2xl font-black">{tournament.name}</h2>
         <p className="font-bold text-[var(--muted)]">
-          {tournament.teamCount} hold · {tournament.playersPerTeam} spillere pr. hold · {tournament.maxRounds} runder · {tournament.matchFormat === "oneSet" ? "1 sæt" : "bedst af 3 sæt"}
+          {tournament.competitionMode === "pool" ? "Puljespil" : "Knockout"} · {tournament.teamCount} hold · {tournament.playersPerTeam} spillere pr. hold · {tournament.maxRounds} runder · {tournament.matchFormat === "oneSet" ? "1 sæt" : "bedst af 3 sæt"}
         </p>
         <div className="action-grid">
           <a className="btn-secondary min-h-12" href="/tournaments">Turneringshistorik</a>
@@ -104,8 +132,8 @@ export function TeamVsTeamApp() {
 
       <TeamVsTeamStandings standings={standings} />
 
-      {tournament.teamCount === 4 ? (
-        <TeamVsTeamBracketPanel activeMatchId={activeMatch.id} canAdvanceBracket={canAdvanceBracket} state={tournament} onAdvance={advanceBracket} onSelectMatch={selectMatch} />
+      {tournament.matchups.length > 1 ? (
+        <TeamVsTeamMatchesPanel activeMatchId={activeMatch.id} canAdvanceBracket={canAdvanceBracket} state={tournament} onAdvance={advanceBracket} onSelectMatch={selectMatch} />
       ) : null}
       {placements.length ? <TeamVsTeamPlacements placements={placements} state={tournament} /> : null}
       <TeamVsTeamCaptains teams={[teamA, teamB]} />
@@ -160,20 +188,26 @@ function TeamVsTeamStandings({ standings }: { standings: ReturnType<typeof calcu
   );
 }
 
-function TeamVsTeamBracketPanel({ activeMatchId, canAdvanceBracket, state, onAdvance, onSelectMatch }: { activeMatchId: string; canAdvanceBracket: boolean; state: TeamVsTeamTournamentState; onAdvance: () => void; onSelectMatch: (matchId: string) => void }) {
+function TeamVsTeamMatchesPanel({ activeMatchId, canAdvanceBracket, state, onAdvance, onSelectMatch }: { activeMatchId: string; canAdvanceBracket: boolean; state: TeamVsTeamTournamentState; onAdvance: () => void; onSelectMatch: (matchId: string) => void }) {
   return (
     <section className="app-card grid gap-3 p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">4-holds flow</p>
+          <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{state.competitionMode === "pool" ? "Puljespil" : "Knockout"}</p>
           <h2 className="text-xl font-black">Holdkampe</h2>
         </div>
-        {canAdvanceBracket ? <button className="min-h-11 rounded-md bg-[var(--primary)] px-4 font-black text-white" type="button" onClick={onAdvance}>Dan finale og placeringskamp</button> : null}
+        {canAdvanceBracket ? <button className="min-h-11 rounded-md bg-[var(--primary)] px-4 font-black text-white" type="button" onClick={onAdvance}>Dan næste knockout- og placeringsrunde</button> : null}
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
         {state.matchups.map((match) => {
           const matchup = getMatchupFromState(state, match);
-          const score = matchup ? calculateTeamVsTeamMatchScore(matchup, match.roundResults, match.tieBreak, { playersPerTeam: state.playersPerTeam, matchFormat: state.matchFormat }) : undefined;
+          const score = matchup ? calculateTeamVsTeamMatchScore(matchup, match.roundResults, match.tieBreak, {
+            playersPerTeam: state.playersPerTeam,
+            matchFormat: state.matchFormat,
+            scoringMode: state.scoringMode,
+            fixedScoreRule: state.fixedScoreRule,
+            fixedScorePoints: state.fixedScorePoints,
+          }) : undefined;
           return (
             <button key={match.id} className={`rounded-md border p-3 text-left font-bold ${match.id === activeMatchId ? "border-[var(--primary)] bg-green-50" : "border-[var(--border)] bg-white"}`} type="button" onClick={() => onSelectMatch(match.id)}>
               <span className="block text-sm uppercase text-[var(--muted)]">{match.label}</span>
@@ -188,7 +222,7 @@ function TeamVsTeamBracketPanel({ activeMatchId, canAdvanceBracket, state, onAdv
   );
 }
 
-function TeamVsTeamPlacements({ placements, state }: { placements: Array<{ rank: 1 | 2 | 3 | 4; teamId: string }>; state: TeamVsTeamTournamentState }) {
+function TeamVsTeamPlacements({ placements, state }: { placements: Array<{ rank: number; teamId: string }>; state: TeamVsTeamTournamentState }) {
   return (
     <section className="app-card grid gap-3 p-4 sm:p-5">
       <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">Slutstilling</p>
@@ -206,7 +240,13 @@ function TeamVsTeamPlacements({ placements, state }: { placements: Array<{ rank:
 
 function ActiveTeamVsTeamFlow({ activeMatch, matchup, state, setState }: { activeMatch: TeamVsTeamMatchState; matchup: TeamVsTeamMatchup; state: TeamVsTeamTournamentState; setState: (state: TeamVsTeamTournamentState) => void }) {
   const [message, setMessage] = useState("");
-  const score = calculateTeamVsTeamMatchScore(matchup, activeMatch.roundResults, activeMatch.tieBreak, { playersPerTeam: state.playersPerTeam, matchFormat: state.matchFormat });
+  const score = calculateTeamVsTeamMatchScore(matchup, activeMatch.roundResults, activeMatch.tieBreak, {
+    playersPerTeam: state.playersPerTeam,
+    matchFormat: state.matchFormat,
+    scoringMode: state.scoringMode,
+    fixedScoreRule: state.fixedScoreRule,
+    fixedScorePoints: state.fixedScorePoints,
+  });
   const nextRoundNumber = Math.min(activeMatch.roundResults.length + 1, state.maxRounds) as 1 | 2 | 3;
   const currentLineup = activeMatch.lineups.find((lineup) => lineup.roundNumber === nextRoundNumber) ?? createDefaultLineup(matchup, nextRoundNumber);
   const currentResult = activeMatch.roundResults.find((result) => result.roundNumber === nextRoundNumber) ?? createEmptyResult(nextRoundNumber, state.matchFormat);
@@ -247,7 +287,13 @@ function ActiveTeamVsTeamFlow({ activeMatch, matchup, state, setState }: { activ
   function handleSaveResult(result: TeamVsTeamRoundResult) {
     try {
       const nextResults = [...activeMatch.roundResults.filter((roundResult) => roundResult.roundNumber !== result.roundNumber), result].sort((left, right) => left.roundNumber - right.roundNumber);
-      calculateTeamVsTeamMatchScore(matchup, nextResults, activeMatch.tieBreak, { playersPerTeam: state.playersPerTeam, matchFormat: state.matchFormat });
+      calculateTeamVsTeamMatchScore(matchup, nextResults, activeMatch.tieBreak, {
+        playersPerTeam: state.playersPerTeam,
+        matchFormat: state.matchFormat,
+        scoringMode: state.scoringMode,
+        fixedScoreRule: state.fixedScoreRule,
+        fixedScorePoints: state.fixedScorePoints,
+      });
       updateActiveMatch((match) => ({ ...match, roundResults: nextResults }));
       setMessage(`Resultat for runde ${result.roundNumber} er gemt.`);
     } catch (caughtError) {

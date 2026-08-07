@@ -1,17 +1,36 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createMockLiveTournamentState, type LiveTournamentState } from "@/lib/live-scoring";
 import { createQrCodeMatrix, createShareUrl } from "@/lib/sharing";
 import { loadActiveTournament } from "@/lib/tournament-setup";
+import { useHasHydrated } from "@/hooks/use-has-hydrated";
 
 export function ShareTournamentApp() {
-  const [state] = useState<LiveTournamentState>(() => loadActiveTournament() ?? createMockLiveTournamentState());
-  const [origin] = useState(() => (typeof window === "undefined" ? "http://localhost:3000" : window.location.origin));
+  const hasHydrated = useHasHydrated();
+  const [state, setState] = useState<LiveTournamentState>(() => createMockLiveTournamentState());
+  const [origin, setOrigin] = useState("http://localhost:3000");
   const [copyStatus, setCopyStatus] = useState("");
   const shareUrl = useMemo(() => createShareUrl(origin, "/qr"), [origin]);
   const qrCode = useMemo(() => createQrCodeMatrix(shareUrl), [shareUrl]);
+
+  useEffect(() => {
+    if (!hasHydrated) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setState(loadActiveTournament() ?? createMockLiveTournamentState());
+      setOrigin(window.location.origin);
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [hasHydrated]);
+
+  if (!hasHydrated) {
+    return <div className="app-card p-4 font-bold text-[var(--muted)]">Indlæser deling...</div>;
+  }
 
   async function handleCopy() {
     await navigator.clipboard.writeText(shareUrl);

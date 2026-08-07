@@ -9,6 +9,8 @@ import {
   loadCompletedTournaments,
   reopenCompletedTeamVsTeamTournament,
   reopenCompletedTournament,
+  saveActiveTeamVsTeamTournament,
+  saveActiveTournament,
   restoreCompletedTeamVsTeamTournament,
   restoreCompletedTournament,
   saveCompletedTeamVsTeamTournament,
@@ -21,6 +23,8 @@ const finishedTeamVsTeamState = {
   startTime: "18:00",
   scoringMode: "Fri scoring" as const,
   teamCount: 2 as const,
+  competitionMode: "knockout" as const,
+  drawMode: "manual" as const,
   playersPerTeam: 4 as const,
   matchFormat: "oneSet" as const,
   teams: [createTeam("a", "Hold A"), createTeam("b", "Hold B")],
@@ -86,6 +90,40 @@ describe("tournament storage", () => {
     expect(loadCompletedTournaments()[0].state.tournamentName).toBe("Aften Americano");
   });
 
+  it("normalizes older active pool-play tournaments from local storage", () => {
+    const legacyState = createLegacyPoolPlayState("Legacy pulje");
+
+    window.localStorage.setItem("lezgo.activeTournament.v1", JSON.stringify(legacyState));
+
+    const loadedState = loadActiveTournament();
+
+    expect(loadedState?.poolPlay?.initialResults).toEqual([]);
+    expect(loadedState?.poolPlay?.nextStageResults).toEqual([]);
+    expect(loadedState?.poolPlay?.finalResults).toEqual([]);
+  });
+
+  it("normalizes older completed pool-play tournaments from local storage", () => {
+    const legacyState = createLegacyPoolPlayState("Legacy afsluttet");
+
+    window.localStorage.setItem("lezgo.completedTournaments.v1", JSON.stringify([
+      {
+        id: "legacy-afsluttet",
+        finishedAt: "2026-08-04T18:00:00.000Z",
+        state: {
+          ...legacyState,
+          status: "finished",
+          finishedAt: "2026-08-04T18:00:00.000Z",
+        },
+      },
+    ]));
+
+    const [completedTournament] = loadCompletedTournaments();
+
+    expect(completedTournament.state.poolPlay?.initialResults).toEqual([]);
+    expect(completedTournament.state.poolPlay?.nextStageResults).toEqual([]);
+    expect(completedTournament.state.poolPlay?.finalResults).toEqual([]);
+  });
+
   it("stores, restores, reopens, and deletes completed Team vs. Team tournaments", () => {
     const completedTournament = saveCompletedTeamVsTeamTournament(finishedTeamVsTeamState);
     const restoredState = restoreCompletedTeamVsTeamTournament(completedTournament.id);
@@ -98,6 +136,19 @@ describe("tournament storage", () => {
     expect(reopenedState?.status).toBe("active");
     expect(loadActiveTeamVsTeamTournament()?.name).toBe("Klubkamp");
     expect(remainingTournaments).toEqual([]);
+  });
+
+  it("keeps only one active tournament type at a time", () => {
+    saveActiveTeamVsTeamTournament({ ...finishedTeamVsTeamState, status: "active" });
+    saveActiveTournament(createMockLiveTournamentState());
+
+    expect(loadActiveTournament()?.tournamentName).toBe("Mock Americano");
+    expect(loadActiveTeamVsTeamTournament()).toBeNull();
+
+    saveActiveTeamVsTeamTournament({ ...finishedTeamVsTeamState, status: "active" });
+
+    expect(loadActiveTournament()).toBeNull();
+    expect(loadActiveTeamVsTeamTournament()?.name).toBe("Klubkamp");
   });
 
   it("normalizes older Team vs. Team results from local storage", () => {
@@ -133,6 +184,8 @@ describe("tournament storage", () => {
 
     expect(loadedState?.playersPerTeam).toBe(4);
     expect(loadedState?.matchFormat).toBe("oneSet");
+    expect(loadedState?.competitionMode).toBe("knockout");
+    expect(loadedState?.drawMode).toBe("manual");
     expect(loadedState?.maxRounds).toBe(3);
     expect(loadedState?.matchups[0].roundResults[0].match1.sets).toEqual([{ teamAPoints: 6, teamBPoints: 0 }]);
   });
@@ -144,5 +197,53 @@ function createTeam(idPrefix: string, name: string) {
     name,
     captainPlayerId: `${idPrefix}1`,
     players: Array.from({ length: 4 }, (_, index) => ({ id: `${idPrefix}${index + 1}`, name: `${name} spiller ${index + 1}` })),
+  };
+}
+
+function createLegacyPoolPlayState(name: string) {
+  const participants = [
+    { id: "participant-1", name: "Par A" },
+    { id: "participant-2", name: "Par B" },
+    { id: "participant-3", name: "Par C" },
+    { id: "participant-4", name: "Par D" },
+  ];
+
+  return {
+    tournamentName: name,
+    format: "pool-play",
+    status: "active",
+    players: participants,
+    rounds: [],
+    activeRoundNumber: 1,
+    results: [],
+    scoringMode: "Fri scoring",
+    rankingMode: "matchPointsFirst",
+    poolPlay: {
+      phase: "initial",
+      advancementMode: "crossMatches",
+      unmatchedResolution: "bye",
+      initialStage: {
+        participantType: "pair",
+        participants,
+        pools: [
+          {
+            id: "pool-1",
+            name: "Pulje 1",
+            participantIds: ["participant-1", "participant-2"],
+            scheduleType: "roundRobin",
+            encounters: [{ id: "pool-1-match-1", poolId: "pool-1", participantAId: "participant-1", participantBId: "participant-2" }],
+            americanoRounds: [],
+          },
+          {
+            id: "pool-2",
+            name: "Pulje 2",
+            participantIds: ["participant-3", "participant-4"],
+            scheduleType: "roundRobin",
+            encounters: [{ id: "pool-2-match-1", poolId: "pool-2", participantAId: "participant-3", participantBId: "participant-4" }],
+            americanoRounds: [],
+          },
+        ],
+      },
+    },
   };
 }

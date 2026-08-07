@@ -4,6 +4,7 @@ export {
   getTeamVsTeamCaptainName,
   getTeamVsTeamMaxRounds,
   getTeamVsTeamPairConstitutions,
+  teamVsTeamCountOptions,
   teamVsTeamPlayerOptions,
   validateTeamVsTeamLineup,
   validateTeamVsTeamTeams,
@@ -12,6 +13,8 @@ export {
 export type {
   TeamVsTeamBracket,
   TeamVsTeamBracketMatch,
+  TeamVsTeamCompetitionMode,
+  TeamVsTeamDrawMode,
   TeamVsTeamMatchFormat,
   TeamVsTeamMatchResult,
   TeamVsTeamMatchScore,
@@ -24,5 +27,6 @@ export type {
   TeamVsTeamRoundScore,
   TeamVsTeamSetResult,
   TeamVsTeamTeam,
+  TeamVsTeamTeamCount,
   TeamVsTeamTieBreak,
 } from "./team-vs-team";

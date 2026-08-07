@@ -1,5 +1,7 @@
 ﻿import type { MatchResult, StandingRow, StandingsRankingMode, Team, TournamentMatch, TournamentPlayer, TournamentRound } from "./types";
 
+import type { FixedTeamStandingInput } from "./types";
+
 interface Accumulator {
   id: string;
   name: string;
@@ -46,16 +48,21 @@ export function calculatePlayerStandings(
 }
 
 export function calculateTeamStandings(
-  teams: Team[],
+  teams: readonly (Team | FixedTeamStandingInput)[],
   rounds: TournamentRound[],
   results: MatchResult[],
   rankingMode: StandingsRankingMode = "matchPointsFirst",
 ): StandingRow[] {
-  const rows = new Map(teams.map((team) => [team.id, createAccumulator(team.id, team.id)]));
+  const standingTeams = teams.map(normalizeTeamStandingInput);
+  const rows = new Map(standingTeams.map(({ team, name }) => [team.id, createAccumulator(team.id, name)]));
   const resultMap = new Map(results.map((result) => [result.matchId, result]));
   const completedMatches = collectCompletedMatches(rounds, resultMap);
 
-  applyTeamByes(rows, rounds);
+  applyTeamByes(
+    rows,
+    rounds,
+    standingTeams.map(({ team }) => team),
+  );
 
   for (const completedMatch of completedMatches) {
     const scores = getTeamScores(completedMatch.match, completedMatch.result);
@@ -65,6 +72,10 @@ export function calculateTeamStandings(
   applyHeadToHead(rows, completedMatches, (match, result) => getTeamScores(match, result));
 
   return rankRows([...rows.values()], rankingMode);
+}
+
+function normalizeTeamStandingInput(input: Team | FixedTeamStandingInput): FixedTeamStandingInput {
+  return "team" in input ? input : { team: input, name: input.id };
 }
 
 function createAccumulator(id: string, name: string): Accumulator {
@@ -95,12 +106,12 @@ function applyPlayerByes(rows: Map<string, Accumulator>, rounds: TournamentRound
   }
 }
 
-function applyTeamByes(rows: Map<string, Accumulator>, rounds: TournamentRound[]): void {
+function applyTeamByes(rows: Map<string, Accumulator>, rounds: TournamentRound[], teams: Team[]): void {
   const teamIdsByPlayerId = new Map<string, string>();
 
-  for (const rowId of rows.keys()) {
-    for (const playerId of rowId.split("+")) {
-      teamIdsByPlayerId.set(playerId, rowId);
+  for (const team of teams) {
+    for (const playerId of team.playerIds) {
+      teamIdsByPlayerId.set(playerId, team.id);
     }
   }
 

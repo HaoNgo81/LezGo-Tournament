@@ -38,9 +38,11 @@ export function createTournamentRounds(config: TournamentEngineConfig): Tourname
     case "fixed-partner-americano":
       return createFixedPartnerRounds(createFixedPartnerTeams(players), config.rounds, false, config.courts);
     case "fixed-partner-mexicano":
-      return createFixedPartnerRounds(createFixedPartnerTeams(players), config.rounds, true, config.courts);
+      return [createNextFixedMexicanoRoundFromTeamRanking(createFixedPartnerTeams(players), 1, config.courts)];
     case "mixed-americano":
       return createMixedAmericanoRounds(players, config.rounds, config.courts);
+    case "pool-play":
+      throw new Error("Puljespil opretter runder via puljemotoren.");
     default:
       return assertNever(config.format);
   }

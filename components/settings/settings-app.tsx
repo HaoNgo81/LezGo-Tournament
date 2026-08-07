@@ -1,20 +1,38 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Section } from "@/components/ui/section";
 import { scoringModes } from "@/lib/mock/tournament-data";
-import { loadTournamentSettings, saveTournamentSettings, type TournamentSettings } from "@/lib/tournament-settings";
+import { createDefaultTournamentSettings, loadTournamentSettings, saveTournamentSettings, type TournamentSettings } from "@/lib/tournament-settings";
 import type { StandingsRankingMode } from "@/lib/tournament-engine";
 import type { ScoringMode } from "@/lib/tournament-setup";
+import { useHasHydrated } from "@/hooks/use-has-hydrated";
 
 const rankingOptions: Array<{ label: string; value: StandingsRankingMode }> = [
   { label: "Flest matchpoint", value: "matchPointsFirst" },
-  { label: "Flest partipoint", value: "partiPointsFirst" },
+  { label: "Flest scorepoint", value: "partiPointsFirst" },
 ];
 
 export function SettingsApp() {
-  const [settings, setSettings] = useState<TournamentSettings>(() => loadTournamentSettings());
+  const hasHydrated = useHasHydrated();
+  const [settings, setSettings] = useState<TournamentSettings>(() => createDefaultTournamentSettings());
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    if (!hasHydrated) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setSettings(loadTournamentSettings());
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [hasHydrated]);
+
+  if (!hasHydrated) {
+    return <p className="app-card p-4 font-bold text-[var(--muted)]">Indlæser indstillinger...</p>;
+  }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

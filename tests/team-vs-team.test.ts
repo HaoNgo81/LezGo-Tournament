@@ -39,12 +39,14 @@ const openingLineup: TeamVsTeamRoundLineup = {
 };
 
 describe("Team vs. Team rules", () => {
-  it("requires either 2 or 4 teams with 4, 6, or 8 players and a captain", () => {
+  it("requires 2 to 8 teams with 4, 6, or 8 players and a captain", () => {
     expect(() => validateTeamVsTeamTeams([teamA, teamB], 4)).not.toThrow();
     expect(() => validateTeamVsTeamTeams([createTeam("a", "Hold A", 6), createTeam("b", "Hold B", 6)], 6)).not.toThrow();
     expect(() => validateTeamVsTeamTeams([createTeam("a", "Hold A", 8), createTeam("b", "Hold B", 8)], 8)).not.toThrow();
     expect(() => validateTeamVsTeamTeams([teamA, teamB, teamC, teamD], 4)).not.toThrow();
-    expect(() => validateTeamVsTeamTeams([teamA, teamB, teamC], 4)).toThrow("Team vs. Team kræver enten 2 eller 4 hold.");
+    expect(() => validateTeamVsTeamTeams([teamA, teamB, teamC], 4)).not.toThrow();
+    expect(() => validateTeamVsTeamTeams([teamA], 4)).toThrow("mellem 2 og 8 hold");
+    expect(() => validateTeamVsTeamTeams(Array.from({ length: 9 }, (_, index) => createTeam(`x${index}`, `Hold ${index + 1}`)), 4)).toThrow("mellem 2 og 8 hold");
     expect(() => validateTeamVsTeamTeams([{ ...teamA, captainPlayerId: "missing" }, teamB], 4)).toThrow("holdkaptajn");
   });
 
@@ -108,6 +110,38 @@ describe("Team vs. Team rules", () => {
     );
 
     expect(score.roundScores[0].actualMatchWins).toEqual({ teamA: 2, teamB: 0 });
+  });
+
+  it("validates fixed target scoring in Team vs. Team sets", () => {
+    expect(() => calculateTeamVsTeamMatchScore(
+      matchup,
+      [round(1, oneSet(20, 12), oneSet(21, 10))],
+      undefined,
+      { scoringMode: "Fast antal point", fixedScoreRule: "target", fixedScorePoints: 21 },
+    )).toThrow("én score være præcis 21");
+
+    expect(calculateTeamVsTeamMatchScore(
+      matchup,
+      [round(1, oneSet(21, 12), oneSet(10, 21))],
+      undefined,
+      { scoringMode: "Fast antal point", fixedScoreRule: "target", fixedScorePoints: 21 },
+    ).roundScores[0].actualMatchWins).toEqual({ teamA: 1, teamB: 1 });
+  });
+
+  it("validates fixed total scoring in Team vs. Team sets", () => {
+    expect(() => calculateTeamVsTeamMatchScore(
+      matchup,
+      [round(1, oneSet(12, 10), oneSet(8, 13))],
+      undefined,
+      { scoringMode: "Fast antal point", fixedScoreRule: "total", fixedScorePoints: 21 },
+    )).toThrow("tilsammen være 21");
+
+    expect(calculateTeamVsTeamMatchScore(
+      matchup,
+      [round(1, oneSet(11, 10), oneSet(8, 13))],
+      undefined,
+      { scoringMode: "Fast antal point", fixedScoreRule: "total", fixedScorePoints: 21 },
+    ).roundScores[0].actualMatchWins).toEqual({ teamA: 1, teamB: 1 });
   });
 
   it("requires Match Tie-break after a 3-3 result with 4 players and validates win by two", () => {

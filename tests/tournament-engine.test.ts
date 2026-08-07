@@ -3,6 +3,7 @@ import {
   calculatePlayerStandings,
   calculateTeamStandings,
   createFixedPartnerTeams,
+  createNextFixedMexicanoRoundFromTeamRanking,
   createNextMexicanoRoundFromPlayerRanking,
   createTournamentRounds,
   type MatchResult,
@@ -26,6 +27,22 @@ const tenPlayers: TournamentPlayer[] = [
   { id: "p9", name: "Liva" },
   { id: "p10", name: "Theo" },
 ];
+const sixteenPlayers: TournamentPlayer[] = Array.from({ length: 16 }, (_, index) => ({
+  id: `p${index + 1}`,
+  name: `Spiller ${index + 1}`,
+}));
+const sixteenMixedPlayers: TournamentPlayer[] = [
+  ...Array.from({ length: 8 }, (_, index) => ({
+    id: `f${index + 1}`,
+    name: `Kvinde ${index + 1}`,
+    gender: "female" as const,
+  })),
+  ...Array.from({ length: 8 }, (_, index) => ({
+    id: `m${index + 1}`,
+    name: `Mand ${index + 1}`,
+    gender: "male" as const,
+  })),
+];
 const mixedPlayers: TournamentPlayer[] = [
   { id: "f1", name: "Anna", gender: "female" },
   { id: "f2", name: "Maja", gender: "female" },
@@ -38,6 +55,29 @@ const mixedPlayers: TournamentPlayer[] = [
 ];
 
 describe("tournament engine", () => {
+  it.each([
+    ["americano", sixteenPlayers],
+    ["mixed-americano", sixteenMixedPlayers],
+    ["fixed-partner-americano", sixteenPlayers],
+  ] as const)("fills 4 courts for every generated %s round with 16 players", (format, formatPlayers) => {
+    const rounds = createTournamentRounds({ format, players: formatPlayers, rounds: 5, courts: 4, firstRoundOrder: "manual" });
+
+    expect(rounds).toHaveLength(5);
+    expect(rounds.every((round) => round.matches.length === 4)).toBe(true);
+    expect(rounds.every((round) => (round.byePlayerIds ?? []).length === 0)).toBe(true);
+  });
+
+  it.each([
+    "mexicano",
+    "fixed-partner-mexicano",
+  ] as const)("fills 4 courts for the first ranked %s round with 16 players", (format) => {
+    const rounds = createTournamentRounds({ format, players: sixteenPlayers, rounds: 5, courts: 4, firstRoundOrder: "manual" });
+
+    expect(rounds).toHaveLength(1);
+    expect(rounds[0].matches).toHaveLength(4);
+    expect(rounds[0].byePlayerIds ?? []).toHaveLength(0);
+  });
+
   it("creates manual Americano opening round as 1+2 vs 3+4", () => {
     const [round] = createTournamentRounds({ format: "americano", players, rounds: 1, courts: 2, firstRoundOrder: "manual" });
 
@@ -57,6 +97,40 @@ describe("tournament engine", () => {
     expect(round.matches[1].teamB.playerIds).toEqual(["p6", "p8"]);
   });
 
+  it("creates 4-court Mexicano rounds as 1+3 vs 2+4, 5+7 vs 6+8, and so on", () => {
+    const round = createNextMexicanoRoundFromPlayerRanking(sixteenPlayers, 2, 4);
+
+    for (let courtIndex = 0; courtIndex < 4; courtIndex += 1) {
+      const baseRank = courtIndex * 4;
+
+      expect(round.matches[courtIndex]).toMatchObject({
+        courtNumber: courtIndex + 1,
+        teamA: {
+          playerIds: [sixteenPlayers[baseRank].id, sixteenPlayers[baseRank + 2].id],
+        },
+        teamB: {
+          playerIds: [sixteenPlayers[baseRank + 1].id, sixteenPlayers[baseRank + 3].id],
+        },
+      });
+    }
+  });
+
+  it("creates Fast Makker Mexicano rounds as rank 1 vs 2, 3 vs 4, and so on", () => {
+    const teamsByRanking = createFixedPartnerTeams(players);
+    const round = createNextFixedMexicanoRoundFromTeamRanking(teamsByRanking, 2, 2);
+
+    expect(round.matches[0]).toMatchObject({
+      courtNumber: 1,
+      teamA: teamsByRanking[0],
+      teamB: teamsByRanking[1],
+    });
+    expect(round.matches[1]).toMatchObject({
+      courtNumber: 2,
+      teamA: teamsByRanking[2],
+      teamB: teamsByRanking[3],
+    });
+  });
+
   it("keeps fixed partners through all fixed partner Americano rounds", () => {
     const rounds = createTournamentRounds({ format: "fixed-partner-americano", players, rounds: 3, courts: 2 });
     const expectedTeamIds = createFixedPartnerTeams(players).map((team) => team.id).sort();
@@ -65,6 +139,21 @@ describe("tournament engine", () => {
       const teamIds = round.matches.flatMap((match) => [match.teamA.id, match.teamB.id]).sort();
       expect(teamIds).toEqual(expectedTeamIds);
     }
+  });
+
+  it("uses supplied pair names in fixed-team standings", () => {
+    const teams = createFixedPartnerTeams(players);
+    const standings = calculateTeamStandings(
+      teams.map((team) => ({
+        team,
+        name: team.playerIds.map((playerId) => players.find((player) => player.id === playerId)?.name).join(" / "),
+      })),
+      [],
+      [],
+    );
+
+    expect(standings.find((row) => row.id === teams[0].id)?.name).toBe("Anna / Hassan");
+    expect(standings).toHaveLength(4);
   });
 
   it("creates Mixed Americano teams with one woman and one man", () => {

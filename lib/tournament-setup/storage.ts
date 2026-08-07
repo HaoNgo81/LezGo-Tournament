@@ -21,6 +21,7 @@ export interface CompletedTeamVsTeamTournament {
 
 export function saveActiveTournament(state: LiveTournamentState): void {
   window.localStorage.setItem(activeTournamentStorageKey, JSON.stringify(state));
+  window.localStorage.removeItem(activeTeamVsTeamStorageKey);
 }
 
 export function loadActiveTournament(): LiveTournamentState | null {
@@ -35,7 +36,7 @@ export function loadActiveTournament(): LiveTournamentState | null {
   }
 
   try {
-    return JSON.parse(savedState) as LiveTournamentState;
+    return normalizeActiveTournamentState(JSON.parse(savedState) as LiveTournamentState);
   } catch {
     window.localStorage.removeItem(activeTournamentStorageKey);
     return null;
@@ -44,6 +45,7 @@ export function loadActiveTournament(): LiveTournamentState | null {
 
 export function saveActiveTeamVsTeamTournament(state: TeamVsTeamTournamentState): void {
   window.localStorage.setItem(activeTeamVsTeamStorageKey, JSON.stringify(state));
+  window.localStorage.removeItem(activeTournamentStorageKey);
 }
 
 export function loadActiveTeamVsTeamTournament(): TeamVsTeamTournamentState | null {
@@ -132,7 +134,10 @@ export function loadCompletedTournaments(): CompletedTournament[] {
   }
 
   try {
-    return JSON.parse(savedTournaments) as CompletedTournament[];
+    return (JSON.parse(savedTournaments) as CompletedTournament[]).map((tournament) => ({
+      ...tournament,
+      state: normalizeActiveTournamentState(tournament.state),
+    }));
   } catch {
     window.localStorage.removeItem(completedTournamentsStorageKey);
     return [];
@@ -216,14 +221,43 @@ export function loadCompletedTeamVsTeamTournaments(): CompletedTeamVsTeamTournam
   }
 }
 
+function normalizeActiveTournamentState(state: LiveTournamentState): LiveTournamentState {
+  if (!state.poolPlay) {
+    return state;
+  }
+
+  return {
+    ...state,
+    poolPlay: {
+      ...state.poolPlay,
+      initialResults: Array.isArray(state.poolPlay.initialResults) ? state.poolPlay.initialResults : [],
+      nextStageResults: Array.isArray(state.poolPlay.nextStageResults) ? state.poolPlay.nextStageResults : [],
+      finalResults: Array.isArray(state.poolPlay.finalResults) ? state.poolPlay.finalResults : [],
+      placementTiebreakResults: Array.isArray(state.poolPlay.placementTiebreakResults) ? state.poolPlay.placementTiebreakResults : [],
+      ...(state.poolPlay.crossMatchStage ? {
+        crossMatchStage: {
+          ...state.poolPlay.crossMatchStage,
+          unmatchedPlacementGroups: Array.isArray(state.poolPlay.crossMatchStage.unmatchedPlacementGroups)
+            ? state.poolPlay.crossMatchStage.unmatchedPlacementGroups
+            : [],
+        },
+      } : {}),
+    },
+  };
+}
+
 function normalizeActiveTeamVsTeamState(state: TeamVsTeamTournamentState): TeamVsTeamTournamentState {
   const rawState = state as Partial<TeamVsTeamTournamentState>;
   const playersPerTeam = isPlayersPerTeam(rawState.playersPerTeam) ? rawState.playersPerTeam : 4;
   const matchFormat = isMatchFormat(rawState.matchFormat) ? rawState.matchFormat : "oneSet";
   const maxRounds = rawState.maxRounds === 2 || rawState.maxRounds === 3 ? rawState.maxRounds : getTeamVsTeamMaxRounds(playersPerTeam);
+  const competitionMode = rawState.competitionMode === "pool" ? "pool" : "knockout";
+  const drawMode = rawState.drawMode === "random" ? "random" : "manual";
 
   return {
     ...state,
+    competitionMode,
+    drawMode,
     playersPerTeam,
     matchFormat,
     maxRounds,

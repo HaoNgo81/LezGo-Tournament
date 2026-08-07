@@ -1,15 +1,21 @@
 import {
   calculatePlayerStandings,
+  calculateTeamStandings,
+  createFixedPartnerTeams,
+  createNextFixedMexicanoRoundFromTeamRanking,
+  createNextMexicanoRoundFromPlayerRanking,
   createTournamentRounds,
   type MatchResult,
   type StandingRow,
   type StandingsRankingMode,
+  type Team,
   type TournamentFormat,
   type TournamentMatch,
   type TournamentPlayer,
   type TournamentRound,
 } from "../tournament-engine";
-import type { ScoringMode } from "../tournament-setup/team-vs-team-setup";
+import { validateScoreForScoringMode, type FixedScoreRule, type ScoringMode } from "../tournament-setup/scoring";
+import type { LivePoolPlayState } from "./pool-play-state";
 
 export interface LiveTournamentState {
   tournamentName: string;
@@ -18,18 +24,23 @@ export interface LiveTournamentState {
   finishedAt?: string;
   players: TournamentPlayer[];
   rounds: TournamentRound[];
+  configuredRounds?: number;
+  courtCount?: number;
   activeRoundNumber: number;
   results: MatchResult[];
   startedMatchIds: string[];
   scoringMode: ScoringMode;
+  fixedScoreRule?: FixedScoreRule;
+  fixedScorePoints?: number;
   timeLimitMinutes?: number;
   roundTimer?: RoundTimerState;
   rankingMode: StandingsRankingMode;
+  poolPlay?: LivePoolPlayState;
 }
 
 export type LiveMatchStatus = "Klar" | "I gang" | "Afsluttet";
 
-export type RoundTimerStatus = "idle" | "countdown" | "running" | "expired";
+export type RoundTimerStatus = "idle" | "countdown" | "running" | "paused" | "expired";
 
 export interface RoundTimerState {
   roundNumber: number;
@@ -69,6 +80,8 @@ export function createMockLiveTournamentState(rankingMode: StandingsRankingMode 
     status: "active",
     players,
     rounds: createTournamentRounds({ format: "americano", players, rounds: 2, courts: 2, firstRoundOrder: "manual" }),
+    configuredRounds: 2,
+    courtCount: 2,
     activeRoundNumber: 1,
     results: [],
     startedMatchIds: [],
@@ -120,7 +133,7 @@ export function getRoundProgress(state: LiveTournamentState, roundNumber = state
 }
 
 export function canGoToNextRound(state: LiveTournamentState): boolean {
-  return state.activeRoundNumber < state.rounds.length && getRoundProgress(state).isComplete;
+  return state.activeRoundNumber < getConfiguredRoundCount(state) && getRoundProgress(state).isComplete;
 }
 
 export function goToPreviousRound(state: LiveTournamentState): LiveTournamentState {
@@ -135,7 +148,9 @@ export function goToPreviousRound(state: LiveTournamentState): LiveTournamentSta
 }
 
 export function goToNextRound(state: LiveTournamentState): LiveTournamentState {
-  if (state.activeRoundNumber >= state.rounds.length) {
+  const nextRoundNumber = state.activeRoundNumber + 1;
+
+  if (state.activeRoundNumber >= getConfiguredRoundCount(state)) {
     return state;
   }
 
@@ -143,9 +158,14 @@ export function goToNextRound(state: LiveTournamentState): LiveTournamentState {
     throw new Error("Alle kampe i runden skal være gemt, før næste runde kan åbnes.");
   }
 
+  const rounds = state.rounds.some((round) => round.roundNumber === nextRoundNumber)
+    ? state.rounds
+    : [...state.rounds, createNextDynamicRound(state, nextRoundNumber)];
+
   return {
     ...state,
-    activeRoundNumber: state.activeRoundNumber + 1,
+    rounds,
+    activeRoundNumber: nextRoundNumber,
   };
 }
 
@@ -170,6 +190,7 @@ export function startMatch(state: LiveTournamentState, matchId: string): LiveTou
 
 export function saveMatchResult(state: LiveTournamentState, result: MatchResult): LiveTournamentState {
   assertValidResult(result);
+  validateScoreForScoringMode(state.scoringMode, result.teamAPoints, result.teamBPoints, state);
 
   assertMatchExists(state, result.matchId);
 
@@ -191,6 +212,16 @@ export function startRoundTimer(state: LiveTournamentState): LiveTournamentState
     throw new Error("Vælg spilletid før uret startes.");
   }
 
+  if (state.roundTimer?.roundNumber === state.activeRoundNumber && state.roundTimer.status === "paused") {
+    return {
+      ...state,
+      roundTimer: {
+        ...state.roundTimer,
+        status: state.roundTimer.countdownSeconds > 0 ? "countdown" : "running",
+      },
+    };
+  }
+
   return {
     ...state,
     roundTimer: {
@@ -206,7 +237,7 @@ export function startRoundTimer(state: LiveTournamentState): LiveTournamentState
 export function tickRoundTimer(state: LiveTournamentState, elapsedSeconds = 1): LiveTournamentState {
   const timer = state.roundTimer;
 
-  if (!timer || timer.status === "idle" || timer.status === "expired") {
+  if (!timer || timer.status === "idle" || timer.status === "paused" || timer.status === "expired") {
     return state;
   }
 
@@ -239,6 +270,41 @@ export function tickRoundTimer(state: LiveTournamentState, elapsedSeconds = 1): 
     },
   };
 }
+
+export function stopRoundTimer(state: LiveTournamentState): LiveTournamentState {
+  const timer = state.roundTimer;
+
+  if (!timer || (timer.status !== "countdown" && timer.status !== "running")) {
+    return state;
+  }
+
+  return {
+    ...state,
+    roundTimer: {
+      ...timer,
+      status: "paused",
+    },
+  };
+}
+
+export function resetRoundTimer(state: LiveTournamentState): LiveTournamentState {
+  if (state.scoringMode !== "Spil på tid" || !state.timeLimitMinutes || state.timeLimitMinutes < 1) {
+    return state;
+  }
+
+  const durationSeconds = state.timeLimitMinutes * 60;
+
+  return {
+    ...state,
+    roundTimer: {
+      roundNumber: state.activeRoundNumber,
+      status: "idle",
+      countdownSeconds: 15,
+      remainingSeconds: durationSeconds,
+      durationSeconds,
+    },
+  };
+}
 export function setLiveRankingMode(state: LiveTournamentState, rankingMode: StandingsRankingMode): LiveTournamentState {
   return {
     ...state,
@@ -247,6 +313,15 @@ export function setLiveRankingMode(state: LiveTournamentState, rankingMode: Stan
 }
 
 export function calculateLiveStandings(state: LiveTournamentState): StandingRow[] {
+  if (state.format === "fixed-partner-americano" || state.format === "fixed-partner-mexicano") {
+    const teams = createFixedPartnerTeams(state.players).map((team) => ({
+      team,
+      name: team.playerIds.map((playerId) => getPlayerName(state.players, playerId)).join(" / "),
+    }));
+
+    return calculateTeamStandings(teams, state.rounds, state.results, state.rankingMode);
+  }
+
   return calculatePlayerStandings(state.players, state.rounds, state.results, state.rankingMode);
 }
 
@@ -270,6 +345,31 @@ function assertValidResult(result: MatchResult): void {
   if (result.teamAPoints < 0 || result.teamBPoints < 0) {
     throw new Error("Resultat må ikke være negativt.");
   }
+}
+
+function getConfiguredRoundCount(state: LiveTournamentState): number {
+  return state.configuredRounds ?? state.rounds.length;
+}
+
+function createNextDynamicRound(state: LiveTournamentState, roundNumber: number): TournamentRound {
+  if (state.format === "mexicano") {
+    const standings = calculatePlayerStandings(state.players, state.rounds, state.results, state.rankingMode);
+    const playerById = new Map(state.players.map((player) => [player.id, player]));
+    const rankedPlayers = standings.map((row) => playerById.get(row.id)).filter((player): player is TournamentPlayer => Boolean(player));
+
+    return createNextMexicanoRoundFromPlayerRanking(rankedPlayers, roundNumber, state.courtCount);
+  }
+
+  if (state.format === "fixed-partner-mexicano") {
+    const teams = createFixedPartnerTeams(state.players);
+    const standings = calculateTeamStandings(teams, state.rounds, state.results, state.rankingMode);
+    const teamById = new Map(teams.map((team) => [team.id, team]));
+    const rankedTeams = standings.map((row) => teamById.get(row.id)).filter((team): team is Team => Boolean(team));
+
+    return createNextFixedMexicanoRoundFromTeamRanking(rankedTeams, roundNumber, state.courtCount);
+  }
+
+  throw new Error(`Runde ${roundNumber} er ikke oprettet.`);
 }
 
 

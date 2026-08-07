@@ -3,7 +3,8 @@
   | "mexicano"
   | "mixed-americano"
   | "fixed-partner-americano"
-  | "fixed-partner-mexicano";
+  | "fixed-partner-mexicano"
+  | "pool-play";
 
 export type Gender = "female" | "male";
 
@@ -38,6 +39,7 @@ export interface MatchResult {
   matchId: string;
   teamAPoints: number;
   teamBPoints: number;
+  tieBreakWinner?: "teamA" | "teamB";
 }
 
 export interface StandingRow {

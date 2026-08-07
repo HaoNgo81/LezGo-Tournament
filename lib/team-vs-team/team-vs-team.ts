@@ -1,3 +1,5 @@
+import { validateScoreForScoringMode, type FixedScoreRule, type ScoringMode } from "../tournament-setup/scoring";
+
 export interface TeamVsTeamPlayer {
   id: string;
   name: string;
@@ -13,6 +15,12 @@ export interface TeamVsTeamTeam {
 export type TeamVsTeamPlayersPerTeam = 4 | 6 | 8;
 
 export type TeamVsTeamMatchFormat = "oneSet" | "bestOfThree";
+
+export type TeamVsTeamTeamCount = 2 | 3 | 4 | 5 | 6 | 7 | 8;
+
+export type TeamVsTeamCompetitionMode = "knockout" | "pool";
+
+export type TeamVsTeamDrawMode = "manual" | "random";
 
 export interface TeamVsTeamMatchup {
   id: string;
@@ -83,14 +91,15 @@ export interface TeamVsTeamBracket {
 }
 
 export const teamVsTeamPlayerOptions: TeamVsTeamPlayersPerTeam[] = [4, 6, 8];
+export const teamVsTeamCountOptions: TeamVsTeamTeamCount[] = [2, 3, 4, 5, 6, 7, 8];
 
 export function getTeamVsTeamMaxRounds(playersPerTeam: TeamVsTeamPlayersPerTeam): 2 | 3 {
   return playersPerTeam === 4 ? 3 : 2;
 }
 
 export function validateTeamVsTeamTeams(teams: TeamVsTeamTeam[], playersPerTeam: TeamVsTeamPlayersPerTeam = 4): void {
-  if (teams.length !== 2 && teams.length !== 4) {
-    throw new Error("Team vs. Team kræver enten 2 eller 4 hold.");
+  if (teams.length < 2 || teams.length > 8) {
+    throw new Error("Team vs. Team kræver mellem 2 og 8 hold.");
   }
 
   if (!teamVsTeamPlayerOptions.includes(playersPerTeam)) {
@@ -204,13 +213,19 @@ export function calculateTeamVsTeamMatchScore(
   matchup: TeamVsTeamMatchup,
   roundResults: TeamVsTeamRoundResult[],
   tieBreak?: TeamVsTeamTieBreak,
-  options: { playersPerTeam?: TeamVsTeamPlayersPerTeam; matchFormat?: TeamVsTeamMatchFormat } = {},
+  options: {
+    playersPerTeam?: TeamVsTeamPlayersPerTeam;
+    matchFormat?: TeamVsTeamMatchFormat;
+    scoringMode?: ScoringMode;
+    fixedScoreRule?: FixedScoreRule;
+    fixedScorePoints?: number;
+  } = {},
 ): TeamVsTeamMatchScore {
   const playersPerTeam = options.playersPerTeam ?? 4;
   const matchFormat = options.matchFormat ?? "oneSet";
   const maxRounds = getTeamVsTeamMaxRounds(playersPerTeam);
   const sortedResults = [...roundResults].sort((left, right) => left.roundNumber - right.roundNumber);
-  const roundScores = sortedResults.map((result) => calculateRoundScore(result, playersPerTeam, matchFormat));
+  const roundScores = sortedResults.map((result) => calculateRoundScore(result, playersPerTeam, matchFormat, options));
   const teamAWins = roundScores.reduce((sum, round) => sum + round.awardedMatchWins.teamA, 0);
   const teamBWins = roundScores.reduce((sum, round) => sum + round.awardedMatchWins.teamB, 0);
   const tieBreakRequired = sortedResults.length === maxRounds && teamAWins === teamBWins;
@@ -241,10 +256,15 @@ export function validateTeamVsTeamTieBreak(matchup: TeamVsTeamMatchup, tieBreak:
   assertValidTieBreakResult(tieBreak.result);
 }
 
-function calculateRoundScore(result: TeamVsTeamRoundResult, playersPerTeam: TeamVsTeamPlayersPerTeam, matchFormat: TeamVsTeamMatchFormat): TeamVsTeamRoundScore {
+function calculateRoundScore(
+  result: TeamVsTeamRoundResult,
+  playersPerTeam: TeamVsTeamPlayersPerTeam,
+  matchFormat: TeamVsTeamMatchFormat,
+  scoringSettings: { scoringMode?: ScoringMode; fixedScoreRule?: FixedScoreRule; fixedScorePoints?: number },
+): TeamVsTeamRoundScore {
   assertRoundNumber(result.roundNumber, playersPerTeam);
-  assertValidMatchResult(result.match1, matchFormat);
-  assertValidMatchResult(result.match2, matchFormat);
+  assertValidMatchResult(result.match1, matchFormat, scoringSettings);
+  assertValidMatchResult(result.match2, matchFormat, scoringSettings);
 
   const match1Winner = getMatchWinner(result.match1);
   const match2Winner = getMatchWinner(result.match2);
@@ -312,7 +332,11 @@ function assertPairBelongsToTeam(team: TeamVsTeamTeam, playerIds: [string, strin
   }
 }
 
-function assertValidMatchResult(result: TeamVsTeamMatchResult, matchFormat: TeamVsTeamMatchFormat): void {
+function assertValidMatchResult(
+  result: TeamVsTeamMatchResult,
+  matchFormat: TeamVsTeamMatchFormat,
+  scoringSettings: { scoringMode?: ScoringMode; fixedScoreRule?: FixedScoreRule; fixedScorePoints?: number },
+): void {
   if (!Array.isArray(result.sets)) {
     throw new Error("Kampresultat skal indtastes som sæt.");
   }
@@ -325,12 +349,16 @@ function assertValidMatchResult(result: TeamVsTeamMatchResult, matchFormat: Team
     throw new Error("Bedst af 3 sæt kræver 2 eller 3 sætresultater.");
   }
 
-  result.sets.forEach(assertValidSetResult);
+  result.sets.forEach((setResult) => assertValidSetResult(setResult, scoringSettings));
   getMatchWinner(result);
 }
 
-function assertValidSetResult(result: TeamVsTeamSetResult): void {
+function assertValidSetResult(
+  result: TeamVsTeamSetResult,
+  scoringSettings: { scoringMode?: ScoringMode; fixedScoreRule?: FixedScoreRule; fixedScorePoints?: number },
+): void {
   assertIntegerScore(result);
+  validateScoreForScoringMode(scoringSettings.scoringMode ?? "Fri scoring", result.teamAPoints, result.teamBPoints, scoringSettings);
 
   if (result.teamAPoints === result.teamBPoints) {
     throw new Error("En Team vs. Team-kamp skal have en vinder.");

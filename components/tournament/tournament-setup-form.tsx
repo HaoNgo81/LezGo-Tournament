@@ -6,15 +6,29 @@ import { PrimaryButton } from "@/components/ui/primary-button";
 import { Section } from "@/components/ui/section";
 import { scoringModes, tournamentTypes } from "@/lib/mock/tournament-data";
 import {
+  createPoolTournamentFromSetup,
   createTeamVsTeamTournamentFromSetup,
   createTournamentFromSetup,
   saveActiveTeamVsTeamTournament,
   saveActiveTournament,
+  type FixedScoreRule,
+  type PoolAdvancementMode,
+  type PoolParticipantType,
+  type PoolTeamPlayers,
+  type PoolUnmatchedResolution,
   type ScoringMode,
   type TournamentSetupFormat,
 } from "@/lib/tournament-setup";
 import type { StandingsRankingMode } from "@/lib/tournament-engine";
-import { getTeamVsTeamCaptainName, type TeamVsTeamMatchFormat, type TeamVsTeamPlayersPerTeam, type TeamVsTeamTeam } from "@/lib/team-vs-team";
+import {
+  getTeamVsTeamCaptainName,
+  type TeamVsTeamCompetitionMode,
+  type TeamVsTeamDrawMode,
+  type TeamVsTeamMatchFormat,
+  type TeamVsTeamPlayersPerTeam,
+  type TeamVsTeamTeam,
+  type TeamVsTeamTeamCount,
+} from "@/lib/team-vs-team";
 import { loadTournamentSettings } from "@/lib/tournament-settings";
 import { findTournamentTemplate } from "@/lib/tournament-templates";
 
@@ -22,7 +36,7 @@ const formatOptions = [...tournamentTypes] as TournamentSetupFormat[];
 
 const rankingModeOptions: Array<{ label: string; value: StandingsRankingMode }> = [
   { label: "Flest matchpoint", value: "matchPointsFirst" },
-  { label: "Flest partipoint", value: "partiPointsFirst" },
+  { label: "Flest scorepoint", value: "partiPointsFirst" },
 ];
 
 const defaultPlayerText = ["Anna", "Hassan", "Maja", "Noah", "Sofia", "Emil", "Clara", "Jonas"].join("\n");
@@ -34,24 +48,35 @@ export function TournamentSetupForm() {
   const initialSettings = useMemo(() => loadTournamentSettings(), []);
   const initialTemplate = useMemo(() => getInitialTemplate(), []);
   const [name, setName] = useState(initialTemplate?.title ?? "Fredag Americano");
-  const [date, setDate] = useState("");
-  const [startTime, setStartTime] = useState("");
   const [format, setFormat] = useState<TournamentSetupFormat>(initialTemplate?.format ?? "Americano");
   const [scoringMode, setScoringMode] = useState<ScoringMode>(initialTemplate?.scoringMode ?? initialSettings.scoringMode);
+  const [fixedScoreRule, setFixedScoreRule] = useState<FixedScoreRule>("target");
+  const [fixedScorePoints, setFixedScorePoints] = useState(21);
   const [timeLimitMinutes, setTimeLimitMinutes] = useState(initialTemplate?.timeLimitMinutes ?? initialSettings.timeLimitMinutes);
   const [playerText, setPlayerText] = useState(defaultPlayerText);
   const [femalePlayerText, setFemalePlayerText] = useState(defaultFemaleText);
   const [malePlayerText, setMalePlayerText] = useState(defaultMaleText);
   const [courts, setCourts] = useState(initialTemplate?.courts ?? initialSettings.courts);
   const [rounds, setRounds] = useState(initialTemplate?.rounds ?? initialSettings.rounds);
-  const [teamCount, setTeamCount] = useState<2 | 4>(2);
+  const [teamCount, setTeamCount] = useState<TeamVsTeamTeamCount>(2);
+  const [competitionMode, setCompetitionMode] = useState<TeamVsTeamCompetitionMode>("knockout");
+  const [drawMode, setDrawMode] = useState<TeamVsTeamDrawMode>("manual");
   const [playersPerTeam, setPlayersPerTeam] = useState<TeamVsTeamPlayersPerTeam>(4);
   const [teamMatchFormat, setTeamMatchFormat] = useState<TeamVsTeamMatchFormat>("oneSet");
-  const [teamDrafts, setTeamDrafts] = useState<TeamVsTeamTeam[]>(() => createDefaultTeams(4, 8));
+  const [teamDrafts, setTeamDrafts] = useState<TeamVsTeamTeam[]>(() => createDefaultTeams(8, 8));
+  const [poolParticipantType, setPoolParticipantType] = useState<PoolParticipantType>("player");
+  const [poolCount, setPoolCount] = useState(2);
+  const [participantsPerPool, setParticipantsPerPool] = useState(4);
+  const [poolAdvancementMode, setPoolAdvancementMode] = useState<PoolAdvancementMode>("crossMatches");
+  const [poolUnmatchedResolution, setPoolUnmatchedResolution] = useState<PoolUnmatchedResolution>("bye");
+  const [poolTeamPlayersPerTeam, setPoolTeamPlayersPerTeam] = useState<PoolTeamPlayers>(4);
   const [firstRoundOrder, setFirstRoundOrder] = useState<"manual" | "random">(initialTemplate?.firstRoundOrder ?? "manual");
   const [rankingMode, setRankingMode] = useState<StandingsRankingMode>(initialTemplate?.rankingMode ?? initialSettings.rankingMode);
   const [error, setError] = useState("");
   const isTeamVsTeam = format === "Team vs. Team";
+  const isPoolPlay = format === "Puljespil";
+  const isFixedPartner = format === "Fast Makker Americano" || format === "Fast Makker Mexicano";
+  const fixedPartnerPairs = getFixedPartnerPairs(playerText);
   const teamRounds = playersPerTeam === 4 ? 3 : 2;
 
   const playerCount = useMemo(() => {
@@ -59,12 +84,16 @@ export function TournamentSetupForm() {
       return teamCount * playersPerTeam;
     }
 
+    if (isPoolPlay) {
+      return countLines(playerText);
+    }
+
     if (format === "Mixed Americano") {
       return countLines(femalePlayerText) + countLines(malePlayerText);
     }
 
     return countLines(playerText);
-  }, [femalePlayerText, format, isTeamVsTeam, malePlayerText, playerText, playersPerTeam, teamCount]);
+  }, [femalePlayerText, format, isPoolPlay, isTeamVsTeam, malePlayerText, playerText, playersPerTeam, teamCount]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -74,17 +103,41 @@ export function TournamentSetupForm() {
       if (isTeamVsTeam) {
         const tournament = createTeamVsTeamTournamentFromSetup({
           name,
-          date,
-          startTime,
           scoringMode,
+          fixedScoreRule,
+          fixedScorePoints,
           teamCount,
+          competitionMode,
+          drawMode,
           playersPerTeam,
           matchFormat: teamMatchFormat,
           teams: teamDrafts.slice(0, teamCount).map((team) => ({ ...team, players: team.players.slice(0, playersPerTeam) })),
         });
 
         saveActiveTeamVsTeamTournament(tournament);
-        router.push("/tournaments");
+        router.push("/team-vs-team");
+        return;
+      }
+
+      if (isPoolPlay) {
+        const tournament = createPoolTournamentFromSetup({
+          name,
+          participantType: poolParticipantType,
+          participantText: playerText,
+          poolCount,
+          participantsPerPool,
+          advancementMode: poolAdvancementMode,
+          unmatchedResolution: poolUnmatchedResolution,
+          scoringMode,
+          fixedScoreRule,
+          fixedScorePoints,
+          timeLimitMinutes,
+          rankingMode,
+          teamPlayersPerTeam: poolParticipantType === "team" ? poolTeamPlayersPerTeam : undefined,
+        });
+
+        saveActiveTournament(tournament);
+        router.push("/live");
         return;
       }
 
@@ -97,6 +150,8 @@ export function TournamentSetupForm() {
         courts,
         rounds,
         scoringMode,
+        fixedScoreRule,
+        fixedScorePoints,
         timeLimitMinutes,
         firstRoundOrder,
         rankingMode,
@@ -113,6 +168,22 @@ export function TournamentSetupForm() {
     setTeamDrafts((currentTeams) => currentTeams.map((team, index) => (index === teamIndex ? nextTeam : team)));
   }
 
+  function updateFixedPartnerPlayer(pairIndex: number, playerIndex: number, playerName: string) {
+    const names = getFixedPartnerPlayerNames(playerText);
+    names[pairIndex * 2 + playerIndex] = playerName;
+    setPlayerText(names.join("\n"));
+  }
+
+  function addFixedPartnerPair() {
+    setPlayerText([...getFixedPartnerPlayerNames(playerText), "", ""].join("\n"));
+  }
+
+  function removeFixedPartnerPair(pairIndex: number) {
+    const names = getFixedPartnerPlayerNames(playerText);
+    names.splice(pairIndex * 2, 2);
+    setPlayerText(names.join("\n"));
+  }
+
   return (
     <form className="grid gap-5" onSubmit={handleSubmit}>
       <Section title="1. Turneringsform">
@@ -122,7 +193,10 @@ export function TournamentSetupForm() {
               key={option}
               className={`min-h-16 rounded-md border p-4 text-left text-lg font-black transition focus:outline-none focus:ring-4 focus:ring-green-100 ${format === option ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary-strong)]" : "border-[var(--line)] bg-white"}`}
               type="button"
-              onClick={() => setFormat(option)}
+              onClick={() => {
+                setFormat(option);
+                setError("");
+              }}
             >
               {option}
             </button>
@@ -136,22 +210,27 @@ export function TournamentSetupForm() {
             Navn
             <input className="field-control" value={name} onChange={(event) => setName(event.target.value)} />
           </label>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="grid gap-2 text-lg font-bold">
-              Dato
-              <input className="field-control" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
-            </label>
-            <label className="grid gap-2 text-lg font-bold">
-              Starttidspunkt
-              <input className="field-control" type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} />
-            </label>
-          </div>
           <label className="grid gap-2 text-lg font-bold">
             Scoring
             <select className="field-control" value={scoringMode} onChange={(event) => setScoringMode(event.target.value as ScoringMode)}>
               {scoringModes.map((mode) => <option key={mode}>{mode}</option>)}
             </select>
           </label>
+          {scoringMode === "Fast antal point" ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="grid gap-2 text-lg font-bold">
+                Fast scoretype
+                <select className="field-control" value={fixedScoreRule} onChange={(event) => setFixedScoreRule(event.target.value as FixedScoreRule)}>
+                  <option value="target">Spil til et antal scorepoint</option>
+                  <option value="total">Fast samlet antal scorepoint</option>
+                </select>
+              </label>
+              <label className="grid gap-2 text-lg font-bold">
+                Antal scorepoint
+                <input className="field-control" min="1" type="number" value={fixedScorePoints} onChange={(event) => setFixedScorePoints(Number(event.target.value))} />
+              </label>
+            </div>
+          ) : null}
           {scoringMode === "Spil på tid" ? (
             <label className="grid gap-2 text-lg font-bold">
               Spilletid pr. runde
@@ -162,12 +241,33 @@ export function TournamentSetupForm() {
             <>
               <div className="grid gap-3 sm:grid-cols-3">
                 <label className="grid gap-2 text-lg font-bold">
-                  Antal hold
-                  <select className="field-control" value={teamCount} onChange={(event) => setTeamCount(Number(event.target.value) as 2 | 4)}>
-                    <option value={2}>2 hold</option>
-                    <option value={4}>4 hold</option>
+                  Afvikling
+                  <select
+                    className="field-control"
+                    value={competitionMode}
+                    onChange={(event) => setCompetitionMode(event.target.value as TeamVsTeamCompetitionMode)}
+                  >
+                    <option value="knockout">Knockout</option>
+                    <option value="pool">Puljespil</option>
                   </select>
                 </label>
+                <label className="grid gap-2 text-lg font-bold">
+                  Antal hold
+                  <select className="field-control" value={teamCount} onChange={(event) => setTeamCount(Number(event.target.value) as TeamVsTeamTeamCount)}>
+                    {[2, 3, 4, 5, 6, 7, 8].map((count) => <option key={count} value={count}>{count} hold</option>)}
+                  </select>
+                </label>
+                {competitionMode === "knockout" ? (
+                  <label className="grid gap-2 text-lg font-bold">
+                    Fordeling
+                    <select className="field-control" value={drawMode} onChange={(event) => setDrawMode(event.target.value as TeamVsTeamDrawMode)}>
+                      <option value="manual">Manuel</option>
+                      <option value="random">Tilfældig</option>
+                    </select>
+                  </label>
+                ) : null}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
                 <label className="grid gap-2 text-lg font-bold">
                   Spillere pr. hold
                   <select className="field-control" value={playersPerTeam} onChange={(event) => setPlayersPerTeam(Number(event.target.value) as TeamVsTeamPlayersPerTeam)}>
@@ -184,7 +284,65 @@ export function TournamentSetupForm() {
                   </select>
                 </label>
               </div>
-              <p className="font-bold text-[var(--muted)]">{playersPerTeam === 4 ? "4 spillere pr. hold spiller 3 runder." : "6 eller 8 spillere pr. hold spiller 2 runder."}</p>
+              <p className="font-bold text-[var(--muted)]">
+                {competitionMode === "pool" ? `Alle ${teamCount} hold møder hinanden én gang. ` : ""}
+                {playersPerTeam === 4 ? "4 spillere pr. hold spiller 3 runder." : "6 eller 8 spillere pr. hold spiller 2 runder."}
+              </p>
+            </>
+          ) : isPoolPlay ? (
+            <>
+              <label className="grid gap-2 text-lg font-bold">
+                Stilling sorteres efter
+                <select className="field-control" value={rankingMode} onChange={(event) => setRankingMode(event.target.value as StandingsRankingMode)}>
+                  {rankingModeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </label>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <label className="grid gap-2 text-lg font-bold">
+                  Deltagertype
+                  <select className="field-control" value={poolParticipantType} onChange={(event) => setPoolParticipantType(event.target.value as PoolParticipantType)}>
+                    <option value="player">Spillere</option>
+                    <option value="pair">Par</option>
+                    <option value="team">Hold</option>
+                  </select>
+                </label>
+                <label className="grid gap-2 text-lg font-bold">
+                  Antal puljer
+                  <input className="field-control" min="1" max="8" type="number" value={poolCount} onChange={(event) => setPoolCount(Number(event.target.value))} />
+                </label>
+                <label className="grid gap-2 text-lg font-bold">
+                  {poolParticipantCountLabel(poolParticipantType)}
+                  <input className="field-control" min={poolParticipantType === "player" ? 4 : 2} type="number" value={participantsPerPool} onChange={(event) => setParticipantsPerPool(Number(event.target.value))} />
+                </label>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <label className="grid gap-2 text-lg font-bold">
+                  Progression
+                  <select className="field-control" value={poolAdvancementMode} onChange={(event) => setPoolAdvancementMode(event.target.value as PoolAdvancementMode)}>
+                    <option value="crossMatches">Krydskampe</option>
+                    <option value="placementPools">Placeringspuljer</option>
+                  </select>
+                </label>
+                <label className="grid gap-2 text-lg font-bold">
+                  Ulig sidste pulje
+                  <select className="field-control" value={poolUnmatchedResolution} onChange={(event) => setPoolUnmatchedResolution(event.target.value as PoolUnmatchedResolution)}>
+                    <option value="bye">Oversidning</option>
+                    <option value="walkover">Walkover</option>
+                  </select>
+                </label>
+                {poolParticipantType === "team" ? (
+                  <label className="grid gap-2 text-lg font-bold">
+                    Spillere pr. hold
+                    <select className="field-control" value={poolTeamPlayersPerTeam} onChange={(event) => setPoolTeamPlayersPerTeam(Number(event.target.value) as PoolTeamPlayers)}>
+                      <option value={4}>4 spillere</option>
+                      <option value={6}>6 spillere</option>
+                    </select>
+                  </label>
+                ) : null}
+              </div>
+              <p className="font-bold text-[var(--muted)]">
+                {poolCount * participantsPerPool} {poolParticipantTotalLabel(poolParticipantType)} fordeles i {poolCount} puljer.
+              </p>
             </>
           ) : (
             <>
@@ -225,7 +383,7 @@ export function TournamentSetupForm() {
           </div>
         </Section>
       ) : (
-        <Section title="3. Spillere">
+        <Section title={`3. ${participantSectionTitle(format, poolParticipantType)}`}>
           {format === "Mixed Americano" ? (
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="grid gap-2 text-lg font-bold">
@@ -237,8 +395,35 @@ export function TournamentSetupForm() {
                 <textarea className="field-control min-h-64 resize-y text-xl leading-8" value={malePlayerText} onChange={(event) => setMalePlayerText(event.target.value)} />
               </label>
             </div>
+          ) : isFixedPartner ? (
+            <div className="grid gap-3">
+              {fixedPartnerPairs.map((pair, pairIndex) => (
+                <article key={`pair-${pairIndex + 1}`} className="rounded-md border border-[var(--line)] bg-white p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <h3 className="text-lg font-black">Par {pairIndex + 1}</h3>
+                    {fixedPartnerPairs.length > 2 ? (
+                      <button className="font-bold text-red-700" type="button" onClick={() => removeFixedPartnerPair(pairIndex)}>Fjern par</button>
+                    ) : null}
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {pair.map((playerName, playerIndex) => (
+                      <label key={playerIndex} className="grid gap-2 text-base font-bold">
+                        Spiller {playerIndex + 1}
+                        <input
+                          aria-label={`Par ${pairIndex + 1}, spiller ${playerIndex + 1}`}
+                          className="field-control"
+                          value={playerName}
+                          onChange={(event) => updateFixedPartnerPlayer(pairIndex, playerIndex, event.target.value)}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </article>
+              ))}
+              <button className="min-h-12 rounded-md border border-[var(--line)] bg-white px-4 font-black" type="button" onClick={addFixedPartnerPair}>Tilføj par</button>
+            </div>
           ) : (
-            <textarea className="field-control min-h-64 resize-y text-xl leading-8" value={playerText} onChange={(event) => setPlayerText(event.target.value)} aria-label="Spillere, et navn pr. linje" />
+            <textarea className="field-control min-h-64 resize-y text-xl leading-8" value={playerText} onChange={(event) => setPlayerText(event.target.value)} aria-label={`${participantTextareaLabel(format, poolParticipantType)}, et navn pr. linje`} />
           )}
         </Section>
       )}
@@ -248,12 +433,17 @@ export function TournamentSetupForm() {
           <p><strong>Navn:</strong> {name || "-"}</p>
           <p><strong>Format:</strong> {format}</p>
           <p><strong>Scoring:</strong> {scoringMode}</p>
+          {scoringMode === "Fast antal point" ? <p><strong>Fast score:</strong> {fixedScoreRule === "target" ? `Spil til ${fixedScorePoints}` : `${fixedScorePoints} samlet`}</p> : null}
           {scoringMode === "Spil på tid" ? <p><strong>Spilletid:</strong> {timeLimitMinutes} min.</p> : null}
-          <p><strong>{isTeamVsTeam ? "Hold" : "Spillere"}:</strong> {isTeamVsTeam ? teamCount : playerCount}</p>
+          <p><strong>{isTeamVsTeam ? "Hold" : participantSummaryLabel(format, poolParticipantType)}:</strong> {isTeamVsTeam ? teamCount : playerCount}</p>
+          {isTeamVsTeam ? <p><strong>Afvikling:</strong> {competitionMode === "pool" ? "Puljespil · alle mødes én gang" : `Knockout · ${drawMode === "manual" ? "manuel" : "tilfældig"} fordeling`}</p> : null}
+          {isPoolPlay ? <p><strong>Puljer:</strong> {poolCount} · {participantsPerPool} pr. pulje</p> : null}
+          {isPoolPlay ? <p><strong>Progression:</strong> {poolAdvancementMode === "crossMatches" ? "Krydskampe" : "Placeringspuljer"} · {poolUnmatchedResolution === "bye" ? "oversidning" : "walkover"}</p> : null}
+          {isPoolPlay && poolParticipantType === "team" ? <p><strong>Spillere pr. hold:</strong> {poolTeamPlayersPerTeam}</p> : null}
           {isTeamVsTeam ? <p><strong>Spillere pr. hold:</strong> {playersPerTeam}</p> : null}
           {isTeamVsTeam ? <p><strong>Holdkaptajner:</strong> {teamDrafts.slice(0, teamCount).map((team) => `${team.name || "Hold"}: ${getTeamVsTeamCaptainName(team)}`).join(" · ")}</p> : null}
-          {!isTeamVsTeam ? <p><strong>Baner:</strong> {courts}</p> : null}
-          {!isTeamVsTeam ? <p><strong>Runder:</strong> {rounds}</p> : <p><strong>Holdkamp:</strong> {teamRounds} runder · 2 kampe pr. runde · {teamMatchFormat === "oneSet" ? "1 sæt" : "bedst af 3 sæt"}</p>}
+          {!isTeamVsTeam && !isPoolPlay ? <p><strong>Baner:</strong> {courts}</p> : null}
+          {!isTeamVsTeam && !isPoolPlay ? <p><strong>Runder:</strong> {rounds}</p> : isTeamVsTeam ? <p><strong>Holdkamp:</strong> {teamRounds} runder · 2 kampe pr. runde · {teamMatchFormat === "oneSet" ? "1 sæt" : "bedst af 3 sæt"}</p> : null}
           {!isTeamVsTeam ? <p><strong>Stilling:</strong> {rankingModeOptions.find((option) => option.value === rankingMode)?.label}</p> : null}
         </div>
       </Section>
@@ -278,12 +468,27 @@ function TeamEditor({ team, teamNumber, playersPerTeam, onChange }: { team: Team
         Holdnavn
         <input className="field-control" value={team.name} onChange={(event) => onChange({ ...team, name: event.target.value })} aria-label={`Hold ${teamNumber} navn`} />
       </label>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {team.players.slice(0, playersPerTeam).map((player, playerIndex) => (
-          <label key={player.id} className="grid gap-2 text-base font-bold">
-            Spiller {playerIndex + 1}
-            <input className="field-control" value={player.name} onChange={(event) => updatePlayerName(playerIndex, event.target.value)} />
-          </label>
+      <div className="grid gap-3">
+        {Array.from({ length: playersPerTeam / 2 }, (_, pairIndex) => team.players.slice(pairIndex * 2, pairIndex * 2 + 2)).map((pair, pairIndex) => (
+          <fieldset key={`team-${teamNumber}-pair-${pairIndex + 1}`} className="grid gap-3 border-t border-[var(--line)] pt-3">
+            <legend className="pr-3 text-lg font-black">Par {pairIndex + 1}</legend>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {pair.map((player, playerIndex) => {
+                const absolutePlayerIndex = pairIndex * 2 + playerIndex;
+                return (
+                  <label key={player.id} className="grid gap-2 text-base font-bold">
+                    Spiller {playerIndex + 1}
+                    <input
+                      aria-label={`Hold ${teamNumber}, par ${pairIndex + 1}, spiller ${playerIndex + 1}`}
+                      className="field-control"
+                      value={player.name}
+                      onChange={(event) => updatePlayerName(absolutePlayerIndex, event.target.value)}
+                    />
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
         ))}
       </div>
       <label className="grid gap-2 text-lg font-bold">
@@ -307,7 +512,7 @@ function getInitialTemplate() {
   return templateId ? findTournamentTemplate(templateId) : null;
 }
 
-function createDefaultTeams(count: 4, playersPerTeam: 8): TeamVsTeamTeam[] {
+function createDefaultTeams(count: 8, playersPerTeam: 8): TeamVsTeamTeam[] {
   return Array.from({ length: count }, (_, teamIndex) => ({
     id: `team-${teamIndex + 1}`,
     name: `Hold ${teamIndex + 1}`,
@@ -321,4 +526,72 @@ function createDefaultTeams(count: 4, playersPerTeam: 8): TeamVsTeamTeam[] {
 
 function countLines(text: string): number {
   return text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).length;
+}
+
+function getFixedPartnerPlayerNames(text: string): string[] {
+  const names = text.split(/\r?\n/);
+
+  while (names.length < 4) {
+    names.push("");
+  }
+
+  if (names.length % 2 !== 0) {
+    names.push("");
+  }
+
+  return names;
+}
+
+function getFixedPartnerPairs(text: string): Array<[string, string]> {
+  const names = getFixedPartnerPlayerNames(text);
+  return Array.from({ length: names.length / 2 }, (_, index) => [names[index * 2], names[index * 2 + 1]] as [string, string]);
+}
+
+function poolParticipantCountLabel(participantType: PoolParticipantType): string {
+  switch (participantType) {
+    case "player":
+      return "Spillere pr. pulje";
+    case "pair":
+      return "Par pr. pulje";
+    case "team":
+      return "Hold pr. pulje";
+  }
+}
+
+function poolParticipantTotalLabel(participantType: PoolParticipantType): string {
+  switch (participantType) {
+    case "player":
+      return "spillere";
+    case "pair":
+      return "par";
+    case "team":
+      return "hold";
+  }
+}
+
+function participantSectionTitle(format: TournamentSetupFormat, poolParticipantType: PoolParticipantType): string {
+  if (format !== "Puljespil") {
+    return "Spillere";
+  }
+
+  switch (poolParticipantType) {
+    case "player":
+      return "Spillere";
+    case "pair":
+      return "Par";
+    case "team":
+      return "Hold";
+  }
+}
+
+function participantTextareaLabel(format: TournamentSetupFormat, poolParticipantType: PoolParticipantType): string {
+  if (format !== "Puljespil") {
+    return "Spillere";
+  }
+
+  return participantSectionTitle(format, poolParticipantType);
+}
+
+function participantSummaryLabel(format: TournamentSetupFormat, poolParticipantType: PoolParticipantType): string {
+  return participantTextareaLabel(format, poolParticipantType);
 }

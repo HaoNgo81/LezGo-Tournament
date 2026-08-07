@@ -1,10 +1,13 @@
-import { describe, expect, it } from "vitest";
-import { advanceTeamVsTeamFourTeamBracket, calculateTeamVsTeamPlacements, calculateTeamVsTeamStandings, createTeamVsTeamTournamentFromSetup, finishTeamVsTeamTournament, createTournamentFromSetup, parsePlayers, saveTeamVsTeamTieBreak } from "../lib/tournament-setup";
+import { describe, expect, it, vi } from "vitest";
+import { advanceTeamVsTeamKnockout, calculateTeamVsTeamPlacements, calculateTeamVsTeamStandings, canAdvanceTeamVsTeamKnockout, createPoolTournamentFromSetup, createTeamVsTeamTournamentFromSetup, finishTeamVsTeamTournament, createTournamentFromSetup, parsePlayers, saveTeamVsTeamTieBreak, type TeamVsTeamTournamentState } from "../lib/tournament-setup";
 import type { TeamVsTeamRoundResult, TeamVsTeamTeam } from "../lib/team-vs-team";
 
 const playerText = ["Anna", "Hassan", "Maja", "Noah", "Sofia", "Emil", "Clara", "Jonas"].join("\n");
 const femalePlayerText = ["Anna", "Maja", "Sofia", "Clara"].join("\n");
 const malePlayerText = ["Hassan", "Noah", "Emil", "Jonas"].join("\n");
+const sixteenPlayerText = Array.from({ length: 16 }, (_, index) => `Spiller ${index + 1}`).join("\n");
+const eightFemalePlayerText = Array.from({ length: 8 }, (_, index) => `Kvinde ${index + 1}`).join("\n");
+const eightMalePlayerText = Array.from({ length: 8 }, (_, index) => `Mand ${index + 1}`).join("\n");
 
 const teamA = createTeam("a", "Hold A");
 const teamB = createTeam("b", "Hold B");
@@ -12,6 +15,33 @@ const teamC = createTeam("c", "Hold C");
 const teamD = createTeam("d", "Hold D");
 
 describe("tournament setup", () => {
+  it.each([
+    ["Americano", sixteenPlayerText, "", "", 5],
+    ["Mexicano", sixteenPlayerText, "", "", 1],
+    ["Mixed Americano", "", eightFemalePlayerText, eightMalePlayerText, 5],
+    ["Fast Makker Americano", sixteenPlayerText, "", "", 5],
+    ["Fast Makker Mexicano", sixteenPlayerText, "", "", 1],
+  ] as const)("creates %s for 16 players or 8 pairs on 4 courts", (format, formatPlayerText, formatFemaleText, formatMaleText, expectedRounds) => {
+    const tournament = createTournamentFromSetup({
+      name: `${format} 16/4`,
+      format,
+      playerText: formatPlayerText,
+      femalePlayerText: formatFemaleText,
+      malePlayerText: formatMaleText,
+      courts: 4,
+      rounds: 5,
+      scoringMode: "Fri scoring",
+      firstRoundOrder: "manual",
+      rankingMode: "matchPointsFirst",
+    });
+
+    expect(tournament.players).toHaveLength(16);
+    expect(tournament.configuredRounds).toBe(5);
+    expect(tournament.courtCount).toBe(4);
+    expect(tournament.rounds).toHaveLength(expectedRounds);
+    expect(tournament.rounds.every((round) => round.matches.length === 4)).toBe(true);
+  });
+
   it("parses one player per line", () => {
     expect(parsePlayers("Anna\nHassan\n\nMaja")).toEqual([
       { id: "p1", name: "Anna" },
@@ -64,6 +94,73 @@ describe("tournament setup", () => {
     expect(tournament).toMatchObject({ scoringMode: "Spil på tid", timeLimitMinutes: 12 });
   });
 
+  it("stores target score settings for fixed scoring", () => {
+    const tournament = createTournamentFromSetup({
+      name: "Fast Americano",
+      format: "Americano",
+      playerText,
+      femalePlayerText: "",
+      malePlayerText: "",
+      courts: 2,
+      rounds: 2,
+      scoringMode: "Fast antal point",
+      fixedScoreRule: "target",
+      fixedScorePoints: 21,
+      firstRoundOrder: "manual",
+      rankingMode: "matchPointsFirst",
+    });
+
+    expect(tournament).toMatchObject({ scoringMode: "Fast antal point", fixedScoreRule: "target", fixedScorePoints: 21 });
+  });
+
+  it("stores total score settings for Team vs. Team", () => {
+    const tournament = createTeamVsTeamTournamentFromSetup({
+      name: "Fast klubkamp",
+      scoringMode: "Fast antal point",
+      fixedScoreRule: "total",
+      fixedScorePoints: 21,
+      teamCount: 2,
+      playersPerTeam: 4,
+      matchFormat: "oneSet",
+      teams: [teamA, teamB],
+    });
+
+    expect(tournament).toMatchObject({ scoringMode: "Fast antal point", fixedScoreRule: "total", fixedScorePoints: 21 });
+  });
+
+  it("creates fixed partner rounds from adjacent player pairs", () => {
+    const tournament = createTournamentFromSetup({
+      name: "Fast Makker",
+      format: "Fast Makker Americano",
+      playerText,
+      femalePlayerText: "",
+      malePlayerText: "",
+      courts: 2,
+      rounds: 2,
+      scoringMode: "Fri scoring",
+      firstRoundOrder: "manual",
+      rankingMode: "matchPointsFirst",
+    });
+
+    expect(tournament.rounds[0].matches).toHaveLength(2);
+    expect(tournament.rounds[0].matches[0].teamA.playerIds).toEqual(["p1", "p2"]);
+  });
+
+  it("rejects more courts than fixed partner pairs can fill", () => {
+    expect(() => createTournamentFromSetup({
+      name: "For mange baner",
+      format: "Fast Makker Mexicano",
+      playerText,
+      femalePlayerText: "",
+      malePlayerText: "",
+      courts: 3,
+      rounds: 2,
+      scoringMode: "Fri scoring",
+      firstRoundOrder: "manual",
+      rankingMode: "matchPointsFirst",
+    })).toThrow("4 par kan højst fylde 2 baner");
+  });
+
   it("creates Mixed Americano from separate women and men fields", () => {
     const tournament = createTournamentFromSetup({
       name: "Mixed fredag",
@@ -84,11 +181,78 @@ describe("tournament setup", () => {
     expect(tournament.rankingMode).toBe("partiPointsFirst");
   });
 
+  it("creates a pool-play live state from setup input", () => {
+    const tournament = createPoolTournamentFromSetup({
+      name: "Lørdag Puljespil",
+      participantType: "pair",
+      participantText: ["Par A", "Par B", "Par C", "Par D", "Par E", "Par F"].join("\n"),
+      poolCount: 2,
+      participantsPerPool: 3,
+      advancementMode: "crossMatches",
+      unmatchedResolution: "bye",
+      scoringMode: "Fast antal point",
+      fixedScoreRule: "target",
+      fixedScorePoints: 21,
+      rankingMode: "matchPointsFirst",
+    });
+
+    expect(tournament).toMatchObject({
+      tournamentName: "Lørdag Puljespil",
+      format: "pool-play",
+      status: "active",
+      rounds: [],
+      scoringMode: "Fast antal point",
+      fixedScoreRule: "target",
+      fixedScorePoints: 21,
+      rankingMode: "matchPointsFirst",
+    });
+    expect(tournament.poolPlay).toMatchObject({
+      phase: "initial",
+      advancementMode: "crossMatches",
+      unmatchedResolution: "bye",
+    });
+    expect(tournament.poolPlay?.initialStage.pools).toHaveLength(2);
+    expect(tournament.poolPlay?.initialStage.pools[0].encounters).toHaveLength(3);
+  });
+
+  it("creates pool-play team setup with approved submatch count", () => {
+    const tournament = createPoolTournamentFromSetup({
+      name: "Holdpuljer",
+      participantType: "team",
+      participantText: ["Hold A", "Hold B", "Hold C", "Hold D"].join("\n"),
+      poolCount: 2,
+      participantsPerPool: 2,
+      advancementMode: "placementPools",
+      unmatchedResolution: "walkover",
+      scoringMode: "Fri scoring",
+      rankingMode: "partiPointsFirst",
+      teamPlayersPerTeam: 6,
+    });
+
+    expect(tournament.poolPlay?.initialStage.participantType).toBe("team");
+    expect(tournament.poolPlay?.initialStage.pools.every((pool) => (
+      pool.encounters.length === 1 && pool.encounters[0].matchesPerTeam === 3
+    ))).toBe(true);
+    expect(tournament.poolPlay?.unmatchedResolution).toBe("walkover");
+  });
+
+  it("validates pool-play participant count through the pool engine", () => {
+    expect(() => createPoolTournamentFromSetup({
+      name: "For få par",
+      participantType: "pair",
+      participantText: ["Par A", "Par B", "Par C"].join("\n"),
+      poolCount: 2,
+      participantsPerPool: 2,
+      advancementMode: "crossMatches",
+      unmatchedResolution: "bye",
+      scoringMode: "Fri scoring",
+      rankingMode: "matchPointsFirst",
+    })).toThrow("Der skal være præcis 4 deltagere.");
+  });
+
   it("creates Team vs. Team setup with free scoring", () => {
     const tournament = createTeamVsTeamTournamentFromSetup({
       name: "Klubkamp",
-      date: "2026-08-05",
-      startTime: "18:00",
       scoringMode: "Fri scoring",
       teamCount: 2,
       playersPerTeam: 4,
@@ -106,15 +270,36 @@ describe("tournament setup", () => {
       maxRounds: 3,
     });
     expect(tournament.teams).toHaveLength(2);
-    expect(tournament.activeMatchupId).toBe("holdkamp-1");
-    expect(tournament.matchups[0]).toMatchObject({ id: "holdkamp-1", teamAId: "team-a", teamBId: "team-b", lineups: [], roundResults: [] });
+    expect(tournament.activeMatchupId).toBe("knockout-1-kamp-1");
+    expect(tournament.matchups[0]).toMatchObject({ id: "knockout-1-kamp-1", teamAId: "team-a", teamBId: "team-b", lineups: [], roundResults: [] });
+  });
+
+  it("creates one pool match for every unique team pair from 2 to 8 teams", () => {
+    for (let count = 2; count <= 8; count += 1) {
+      const teams = Array.from({ length: count }, (_, index) => createTeam(`pool-${index + 1}`, `Puljehold ${index + 1}`));
+      const tournament = createTeamVsTeamTournamentFromSetup({
+        name: `${count} hold pulje`,
+        scoringMode: "Fri scoring",
+        teamCount: count as 2 | 3 | 4 | 5 | 6 | 7 | 8,
+        competitionMode: "pool",
+        drawMode: "manual",
+        playersPerTeam: 4,
+        matchFormat: "oneSet",
+        teams,
+      });
+      const pairKeys = tournament.matchups.map((match) => [match.teamAId, match.teamBId].sort().join("-"));
+
+      expect(tournament.competitionMode).toBe("pool");
+      expect(tournament.matchups).toHaveLength((count * (count - 1)) / 2);
+      expect(new Set(pairKeys).size).toBe(pairKeys.length);
+      expect(tournament.activeMatchupId).toBe("puljekamp-1");
+      expect(calculateTeamVsTeamStandings(tournament)).toHaveLength(count);
+    }
   });
 
   it("creates Team vs. Team setup with 6 players and 2 rounds", () => {
     const tournament = createTeamVsTeamTournamentFromSetup({
       name: "Klubkamp 6",
-      date: "2026-08-05",
-      startTime: "18:00",
       scoringMode: "Fri scoring",
       teamCount: 2,
       playersPerTeam: 6,
@@ -127,95 +312,71 @@ describe("tournament setup", () => {
     expect(tournament.maxRounds).toBe(2);
   });
 
-  it("creates four-team Team vs. Team setup with two semifinals", () => {
+  it("uses manual team order for knockout pairings", () => {
     const tournament = createTeamVsTeamTournamentFromSetup({
       name: "Klubfinaler",
-      date: "2026-08-05",
-      startTime: "18:00",
       scoringMode: "Fri scoring",
       teamCount: 4,
+      competitionMode: "knockout",
+      drawMode: "manual",
       playersPerTeam: 4,
       matchFormat: "oneSet",
       teams: [teamA, teamB, teamC, teamD],
     });
 
-    expect(tournament.activeMatchupId).toBe("semifinale-1");
+    expect(tournament.knockoutGroups?.[0].teamIds).toEqual(["team-a", "team-b", "team-c", "team-d"]);
     expect(tournament.matchups).toMatchObject([
-      { id: "semifinale-1", teamAId: "team-a", teamBId: "team-b" },
-      { id: "semifinale-2", teamAId: "team-c", teamBId: "team-d" },
+      { id: "knockout-1-kamp-1", teamAId: "team-a", teamBId: "team-b" },
+      { id: "knockout-1-kamp-2", teamAId: "team-c", teamBId: "team-d" },
     ]);
   });
 
-  it("advances four-team Team vs. Team semifinals to final and placement match", () => {
-    const tournament = createTeamVsTeamTournamentFromSetup({
-      name: "Klubfinaler",
-      date: "2026-08-05",
-      startTime: "18:00",
-      scoringMode: "Fri scoring",
-      teamCount: 4,
-      playersPerTeam: 4,
-      matchFormat: "oneSet",
-      teams: [teamA, teamB, teamC, teamD],
-    });
-    const stateWithDecidedSemis = {
-      ...tournament,
-      matchups: tournament.matchups.map((match) => ({
-        ...match,
-        roundResults: createStraightTeamAWinResults(),
-      })),
-    };
+  it("randomizes knockout distribution when selected", () => {
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0);
 
-    const advanced = advanceTeamVsTeamFourTeamBracket(stateWithDecidedSemis);
+    try {
+      const teams = [teamA, teamB, teamC, teamD, createTeam("e", "Hold E")];
+      const tournament = createTeamVsTeamTournamentFromSetup({
+        name: "Tilfældig knockout",
+        scoringMode: "Fri scoring",
+        teamCount: 5,
+        competitionMode: "knockout",
+        drawMode: "random",
+        playersPerTeam: 4,
+        matchFormat: "oneSet",
+        teams,
+      });
 
-    expect(advanced.activeMatchupId).toBe("finale");
-    expect(advanced.matchups).toHaveLength(4);
-    expect(advanced.matchups.find((match) => match.id === "finale")).toMatchObject({ teamAId: "team-a", teamBId: "team-c" });
-    expect(advanced.matchups.find((match) => match.id === "placeringskamp")).toMatchObject({ teamAId: "team-b", teamBId: "team-d" });
+      expect(tournament.knockoutGroups?.[0].teamIds).not.toEqual(teams.map((team) => team.id));
+    } finally {
+      randomSpy.mockRestore();
+    }
   });
 
-  it("calculates final placements after final and placement match are decided", () => {
-    const tournament = createTeamVsTeamTournamentFromSetup({
-      name: "Klubfinaler",
-      date: "2026-08-05",
-      startTime: "18:00",
-      scoringMode: "Fri scoring",
-      teamCount: 4,
-      playersPerTeam: 4,
-      matchFormat: "oneSet",
-      teams: [teamA, teamB, teamC, teamD],
-    });
-    const advanced = advanceTeamVsTeamFourTeamBracket({
-      ...tournament,
-      matchups: tournament.matchups.map((match) => ({ ...match, roundResults: createStraightTeamAWinResults() })),
-    });
-    const finished = {
-      ...advanced,
-      matchups: advanced.matchups.map((match) => {
-        if (match.id === "finale") {
-          return { ...match, roundResults: createStraightTeamBWinResults() };
-        }
+  it("decides every placement in knockout tournaments with 2 to 8 teams", () => {
+    for (let count = 2; count <= 8; count += 1) {
+      const teams = Array.from({ length: count }, (_, index) => createTeam(`ko-${index + 1}`, `Knockouthold ${index + 1}`));
+      const tournament = createTeamVsTeamTournamentFromSetup({
+        name: `${count} hold knockout`,
+        scoringMode: "Fri scoring",
+        teamCount: count as 2 | 3 | 4 | 5 | 6 | 7 | 8,
+        competitionMode: "knockout",
+        drawMode: "manual",
+        playersPerTeam: 4,
+        matchFormat: "oneSet",
+        teams,
+      });
+      const completed = completeKnockoutWithTeamAWins(tournament);
+      const placements = calculateTeamVsTeamPlacements(completed);
 
-        if (match.id === "placeringskamp") {
-          return { ...match, roundResults: createStraightTeamAWinResults() };
-        }
-
-        return match;
-      }),
-    };
-
-    expect(calculateTeamVsTeamPlacements(finished)).toEqual([
-      { rank: 1, teamId: "team-c" },
-      { rank: 2, teamId: "team-a" },
-      { rank: 3, teamId: "team-b" },
-      { rank: 4, teamId: "team-d" },
-    ]);
+      expect(placements.map((placement) => placement.rank)).toEqual(Array.from({ length: count }, (_, index) => index + 1));
+      expect(new Set(placements.map((placement) => placement.teamId)).size).toBe(count);
+    }
   });
 
   it("finishes Team vs. Team and keeps a complete team standing", () => {
     const tournament = createTeamVsTeamTournamentFromSetup({
       name: "Klubkamp",
-      date: "2026-08-05",
-      startTime: "18:00",
       scoringMode: "Fri scoring",
       teamCount: 2,
       playersPerTeam: 4,
@@ -239,8 +400,6 @@ describe("tournament setup", () => {
   it("saves Team vs. Team Match Tie-break on the active holdkamp", () => {
     const tournament = createTeamVsTeamTournamentFromSetup({
       name: "Klubkamp",
-      date: "2026-08-05",
-      startTime: "18:00",
       scoringMode: "Fri scoring",
       teamCount: 2,
       playersPerTeam: 4,
@@ -302,10 +461,30 @@ function createStraightTeamAWinResults(): TeamVsTeamRoundResult[] {
   ];
 }
 
-function createStraightTeamBWinResults(): TeamVsTeamRoundResult[] {
-  return [
-    round(1, 4, 6, 3, 6),
-    round(2, 2, 6, 1, 6),
-    round(3, 5, 6, 4, 6),
-  ];
+function completeKnockoutWithTeamAWins(initialState: TeamVsTeamTournamentState): TeamVsTeamTournamentState {
+  let state = initialState;
+
+  for (let step = 0; step < 10; step += 1) {
+    if (calculateTeamVsTeamPlacements(state).length === state.teamCount) {
+      return state;
+    }
+
+    const activeMatchIds = new Set(
+      state.knockoutGroups
+        ?.filter((group) => group.status === "active")
+        .flatMap((group) => group.matchIds) ?? [],
+    );
+
+    state = {
+      ...state,
+      matchups: state.matchups.map((match) => (
+        activeMatchIds.has(match.id) ? { ...match, roundResults: createStraightTeamAWinResults() } : match
+      )),
+    };
+
+    expect(canAdvanceTeamVsTeamKnockout(state)).toBe(true);
+    state = advanceTeamVsTeamKnockout(state);
+  }
+
+  throw new Error("Knockoutturneringen blev ikke færdig inden for 10 trin.");
 }

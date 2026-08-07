@@ -1,10 +1,12 @@
 ﻿import {
   calculateLiveStandings,
+  createPoolPlaySummary,
   getLiveMatches,
   getPlayerName,
   getRoundProgress,
   type LiveMatchView,
   type LiveTournamentState,
+  type PoolPlaySummary,
 } from "../live-scoring";
 import type { StandingRow } from "../tournament-engine";
 
@@ -34,6 +36,7 @@ export interface ReadOnlyPlayerInfo {
 
 export interface ReadOnlyTournamentView {
   tournamentName: string;
+  format: "standard" | "pool-play";
   activeRoundNumber: number;
   totalRounds: number;
   courts: number;
@@ -43,9 +46,51 @@ export interface ReadOnlyTournamentView {
   standings: StandingRow[];
   byePlayers: string[];
   rounds: ReadOnlyRoundStatus[];
+  poolPlay?: ReadOnlyPoolPlayView;
+}
+
+export interface ReadOnlyPoolPlayView {
+  phase: "Puljer" | "Placering" | "Krydskampe" | "Finaler";
+  participantCount: number;
+  poolCount: number;
+  initialStandings: PoolPlaySummary["initialStandings"];
+  nextPhaseMatches: ReadOnlyMatchCard[];
+  finalMatches: ReadOnlyMatchCard[];
+  placementTiebreakMatches: ReadOnlyMatchCard[];
+  finalPlacements: PoolPlaySummary["finalPlacements"];
+  automaticAdvances: PoolPlaySummary["automaticAdvances"];
 }
 
 export function createReadOnlyTournamentView(state: LiveTournamentState): ReadOnlyTournamentView {
+  if (state.poolPlay) {
+    const poolSummary = createPoolPlaySummary(state.poolPlay, state.rankingMode);
+
+    return {
+      tournamentName: state.tournamentName,
+      format: "pool-play",
+      activeRoundNumber: 0,
+      totalRounds: 0,
+      courts: poolSummary.finalMatches.length || poolSummary.nextPhaseMatches.length,
+      players: state.poolPlay.initialStage.participants.length,
+      playerInfo: [],
+      matches: [],
+      standings: [],
+      byePlayers: [],
+      rounds: [],
+      poolPlay: {
+        phase: formatPoolPhase(state.poolPlay.phase),
+        participantCount: state.poolPlay.initialStage.participants.length,
+        poolCount: state.poolPlay.initialStage.pools.length,
+        initialStandings: poolSummary.initialStandings,
+        nextPhaseMatches: poolSummary.nextPhaseMatches.map(createPoolReadOnlyMatchCard),
+        finalMatches: poolSummary.finalMatches.map(createPoolReadOnlyMatchCard),
+        placementTiebreakMatches: poolSummary.placementTiebreakMatches.map(createPoolReadOnlyMatchCard),
+        finalPlacements: poolSummary.finalPlacements,
+        automaticAdvances: poolSummary.automaticAdvances,
+      },
+    };
+  }
+
   const standings = calculateLiveStandings(state);
   const liveMatches = getLiveMatches(state);
   const activeRound = state.rounds.find((round) => round.roundNumber === state.activeRoundNumber);
@@ -53,8 +98,9 @@ export function createReadOnlyTournamentView(state: LiveTournamentState): ReadOn
 
   return {
     tournamentName: state.tournamentName,
+    format: "standard",
     activeRoundNumber: state.activeRoundNumber,
-    totalRounds: state.rounds.length,
+    totalRounds: state.configuredRounds ?? state.rounds.length,
     courts: liveMatches.length,
     players: state.players.length,
     playerInfo: createReadOnlyPlayerInfo(liveMatches, state, standings),
@@ -70,6 +116,36 @@ export function createReadOnlyTournamentView(state: LiveTournamentState): ReadOn
       };
     }),
   };
+}
+
+function createPoolReadOnlyMatchCard(match: PoolPlaySummary["nextPhaseMatches"][number]): ReadOnlyMatchCard {
+  return {
+    id: match.id,
+    court: `${match.groupName} · ${match.label}`,
+    teamA: match.teamAName,
+    teamB: match.teamBName,
+    score: match.result ? formatPoolResultScore(match.result) : "Ikke gemt",
+    status: match.result ? "Afsluttet" : "Klar",
+  };
+}
+
+function formatPoolResultScore(result: NonNullable<PoolPlaySummary["nextPhaseMatches"][number]["result"]>): string {
+  const baseScore = `${result.teamAPoints} - ${result.teamBPoints}`;
+
+  return result.tieBreakWinner ? `${baseScore} (MTB: ${result.tieBreakWinner === "teamA" ? "hold A" : "hold B"})` : baseScore;
+}
+
+function formatPoolPhase(phase: NonNullable<LiveTournamentState["poolPlay"]>["phase"]): ReadOnlyPoolPlayView["phase"] {
+  switch (phase) {
+    case "initial":
+      return "Puljer";
+    case "placementPools":
+      return "Placering";
+    case "crossMatches":
+      return "Krydskampe";
+    case "finals":
+      return "Finaler";
+  }
 }
 
 function createReadOnlyPlayerInfo(liveMatches: LiveMatchView[], state: LiveTournamentState, standings: StandingRow[]): ReadOnlyPlayerInfo[] {

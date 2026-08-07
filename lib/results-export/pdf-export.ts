@@ -1,9 +1,10 @@
 ﻿import { calculateLiveStandings, getPlayerName, type LiveTournamentState } from "../live-scoring";
 import type { MatchResult, TournamentFormat, TournamentMatch } from "../tournament-engine";
+import { createPoolPlaySummary, type PoolPlaySummaryMatch } from "../live-scoring";
 
 const rankingModeLabels = {
   matchPointsFirst: "Flest matchpoint",
-  partiPointsFirst: "Flest partipoint",
+  partiPointsFirst: "Flest scorepoint",
 } as const;
 
 const formatLabels: Record<TournamentFormat, string> = {
@@ -12,6 +13,7 @@ const formatLabels: Record<TournamentFormat, string> = {
   "mixed-americano": "Mixed Americano",
   "fixed-partner-americano": "Fast Makker Americano",
   "fixed-partner-mexicano": "Fast Makker Mexicano",
+  "pool-play": "Puljespil",
 };
 
 export function createTournamentResultPdf(state: LiveTournamentState): Uint8Array {
@@ -29,6 +31,10 @@ export function createTournamentResultFileName(state: LiveTournamentState): stri
 }
 
 export function createTournamentResultLines(state: LiveTournamentState): string[] {
+  if (state.poolPlay) {
+    return createPoolPlayResultLines(state as LiveTournamentState & { poolPlay: NonNullable<LiveTournamentState["poolPlay"]> });
+  }
+
   const standings = calculateLiveStandings(state);
   const resultByMatchId = new Map(state.results.map((result) => [result.matchId, result]));
   const lines = [
@@ -39,10 +45,10 @@ export function createTournamentResultLines(state: LiveTournamentState): string[
     `Format: ${formatLabels[state.format]}`,
     `Ranking: ${rankingModeLabels[state.rankingMode]}`,
     `Spillere: ${state.players.length}`,
-    `Runder: ${state.rounds.length}`,
+    `Runder: ${state.configuredRounds ?? state.rounds.length}`,
     "",
     "SLUTSTILLING",
-    "Placering | Navn | Matchpoint | Partipoint | Tabte | Difference | Sejre | Uafgjort | Tab",
+    "Placering | Navn | Matchpoint | Scorepoint | Tabte | Difference | Sejre | Uafgjort | Tab",
     ...standings.map((row) =>
       [
         row.rank,
@@ -71,6 +77,98 @@ export function createTournamentResultLines(state: LiveTournamentState): string[
   });
 
   return lines;
+}
+
+function createPoolPlayResultLines(state: LiveTournamentState & { poolPlay: NonNullable<LiveTournamentState["poolPlay"]> }): string[] {
+  const summary = createPoolPlaySummary(state.poolPlay, state.rankingMode);
+  const lines = [
+    `LEZGO Padel - ${state.tournamentName}`,
+    "",
+    `Status: ${state.status === "finished" ? "Afsluttet" : "Aktiv"}`,
+    `Afsluttet: ${state.finishedAt ? formatDateTime(state.finishedAt) : "Ikke afsluttet"}`,
+    `Format: ${formatLabels[state.format]}`,
+    `Ranking: ${rankingModeLabels[state.rankingMode]}`,
+    `Deltagere: ${state.poolPlay.initialStage.participants.length}`,
+    `Puljer: ${state.poolPlay.initialStage.pools.length}`,
+    "",
+    "PULJESTILLINGER",
+  ];
+
+  summary.initialStandings.forEach((table) => {
+    lines.push(table.poolName);
+    lines.push("Placering | Navn | Matchpoint | Scorepoint | Tabte | Difference | Sejre | Uafgjort | Tab");
+    table.rows.forEach((row) => {
+      lines.push([
+        row.rank,
+        row.name,
+        row.matchPoints,
+        row.pointsFor,
+        row.pointsAgainst,
+        row.pointDifference,
+        row.wins,
+        row.draws,
+        row.losses,
+      ].join(" | "));
+    });
+    lines.push("");
+  });
+
+  if (summary.finalPlacements.length) {
+    lines.push("SLUTPLACERINGER");
+    summary.finalPlacements.forEach((placement) => {
+      lines.push(`${placement.rank}. ${placement.participantName} (${placement.groupName})`);
+    });
+    lines.push("");
+  }
+
+  lines.push("NÆSTE FASE");
+
+  if (summary.nextPhaseMatches.length) {
+    summary.nextPhaseMatches.forEach((match) => {
+      lines.push(formatPoolPlayMatchLine(match));
+    });
+  } else {
+    lines.push("Ingen næste-fase-kampe oprettet.");
+  }
+
+  if (summary.finalMatches.length) {
+    lines.push("");
+    lines.push("FINALER");
+    summary.finalMatches.forEach((match) => {
+      lines.push(formatPoolPlayMatchLine(match));
+    });
+  }
+
+  if (summary.placementTiebreakMatches.length) {
+    lines.push("");
+    lines.push("TIEBREAK OM PLACERING");
+    summary.placementTiebreakMatches.forEach((match) => {
+      lines.push(formatPoolPlayMatchLine(match));
+    });
+  }
+
+  if (summary.automaticAdvances.length) {
+    lines.push("");
+    lines.push("AUTOMATISK VIDERE");
+    summary.automaticAdvances.forEach((advance) => {
+      lines.push(`${advance.participantName} (${advance.sourcePoolName}, nr. ${advance.sourceRank}) - ${advance.resolution === "bye" ? "Oversidning" : "Walkover"}`);
+    });
+  }
+
+  return lines;
+}
+
+function formatPoolPlayMatchLine(match: PoolPlaySummaryMatch): string {
+  const score = match.result ? formatPoolPlayScore(match.result) : "Ikke spillet";
+  const submatches = match.matchesPerTeam ? ` (${match.matchesPerTeam} delkampe)` : "";
+
+  return `${match.groupName}, ${match.label}${submatches}: ${match.teamAName} vs ${match.teamBName} - ${score}`;
+}
+
+function formatPoolPlayScore(result: PoolPlaySummaryMatch["result"] & {}): string {
+  const baseScore = `${result.teamAPoints}-${result.teamBPoints}`;
+
+  return result.tieBreakWinner ? `${baseScore} (MTB: ${result.tieBreakWinner === "teamA" ? "hold A" : "hold B"})` : baseScore;
 }
 
 function formatMatchLine(match: TournamentMatch, result: MatchResult | undefined, state: LiveTournamentState): string {
