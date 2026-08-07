@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   calculateTeamVsTeamMatchScore,
   getTeamVsTeamCaptainName,
@@ -122,7 +123,7 @@ export function TeamVsTeamApp() {
           {tournament.competitionMode === "pool" ? "Puljespil" : "Knockout"} · {tournament.teamCount} hold · {tournament.playersPerTeam} spillere pr. hold · {tournament.maxRounds} runder · {tournament.matchFormat === "oneSet" ? "1 sæt" : "bedst af 3 sæt"}
         </p>
         <div className="action-grid">
-          <a className="btn-secondary min-h-12" href="/tournaments">Turneringshistorik</a>
+          <Link className="btn-secondary min-h-12" href="/tournaments">Turneringshistorik</Link>
           <button className="min-h-12 rounded-md bg-red-600 px-4 font-black text-white disabled:bg-gray-300" type="button" disabled={isFinished} onClick={finishTournamentNow}>
             {isFinished ? "Afsluttet" : "Afslut turnering nu"}
           </button>

@@ -22,6 +22,7 @@ describe("TournamentListApp pool play", () => {
 
     expect(await screen.findByText("Aktiv pulje")).toBeInTheDocument();
     expect(screen.getByText("Puljespil · 4 par · 2 puljer · Krydskampe · Fri scoring")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Åbn live" })).toHaveAttribute("href", "/live");
     expect(screen.getByText(/Afsluttet · Puljespil · 4 par · 2 puljer/)).toBeInTheDocument();
   });
   it("shows final placements for completed pool-play tournaments", async () => {

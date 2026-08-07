@@ -163,7 +163,7 @@ describe("LiveScoringApp score sheet", () => {
     fireEvent.click(screen.getByRole("button", { name: "Opret finaler" }));
 
     expect(screen.getByText("Finaler oprettet.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Par D mod Par C -" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Par D vs Par C -" })).toBeInTheDocument();
   });
 
   it("scores separate placement tiebreaks for individual Americano cross-play ties", async () => {

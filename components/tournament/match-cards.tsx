@@ -16,11 +16,11 @@ export function MatchCards({ matches = mockMatches.map((match) => ({ ...match, i
               {match.score}
             </span>
           </div>
-          <div className="mt-4 grid gap-2 text-lg font-bold">
-            <p>{match.teamA}</p>
-            <p className="text-[var(--muted)]">mod</p>
-            <p>{match.teamB}</p>
-          </div>
+          <p className="mt-4 text-lg font-bold leading-7">
+            <span>{match.teamA}</span>{" "}
+            <span className="text-[var(--muted)]">vs</span>{" "}
+            <span>{match.teamB}</span>
+          </p>
         </article>
       ))}
     </div>

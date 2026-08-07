@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { Section } from "@/components/ui/section";
 import {
   deleteCompletedTeamVsTeamTournament,
@@ -81,7 +82,7 @@ export function TournamentListApp() {
             <article key={tournament.tournamentName} className="app-card p-4 sm:p-5">
               <h3 className="text-xl font-black">{tournament.tournamentName}</h3>
               <p className="mt-1 font-bold text-[var(--muted)]">{formatLiveTournamentSummary(tournament)}</p>
-              <a className="btn-outline-primary mt-4" href="/live">Åbn live</a>
+              <Link className="btn-outline-primary mt-4" href="/live">Åbn live</Link>
             </article>
           )) : null}
           {activeTeamVsTeamTournaments.length ? activeTeamVsTeamTournaments.map((tournament) => <TeamVsTeamCard key={tournament.name} tournament={tournament} />) : null}
@@ -109,8 +110,8 @@ export function TournamentListApp() {
               </p>
               <TeamCaptainSummary teams={completedTournament.state.teams} />
               <div className="mt-4 action-grid">
-                <a className="btn-outline-primary" href="/team-vs-team" onClick={() => handleOpenFinishedTeamVsTeam(completedTournament.id)}>Se slutstilling</a>
-                <a className="btn-secondary" href="/team-vs-team" onClick={() => handleReopenFinishedTeamVsTeam(completedTournament.id)}>Ret resultater</a>
+                <Link className="btn-outline-primary" href="/team-vs-team" onClick={() => handleOpenFinishedTeamVsTeam(completedTournament.id)}>Se slutstilling</Link>
+                <Link className="btn-secondary" href="/team-vs-team" onClick={() => handleReopenFinishedTeamVsTeam(completedTournament.id)}>Ret resultater</Link>
                 <button className="btn-danger" type="button" onClick={() => handleDeleteFinishedTeamVsTeam(completedTournament.id)}>Slet</button>
               </div>
             </article>
@@ -131,7 +132,7 @@ function TeamVsTeamCard({ tournament }: { tournament: TeamVsTeamTournamentState 
         {tournament.teams.length} hold · {tournament.playersPerTeam} spillere pr. hold · {tournament.teams.length * tournament.playersPerTeam} spillere i alt · {tournament.scoringMode}
       </p>
       <TeamCaptainSummary teams={tournament.teams} />
-      <a className="btn-outline-primary mt-4" href="/team-vs-team">Åbn holdkamp</a>
+      <Link className="btn-outline-primary mt-4" href="/team-vs-team">Åbn holdkamp</Link>
     </article>
   );
 }
@@ -175,8 +176,8 @@ function CompletedTournamentCard({
       </p>
       {placements.length ? <CompletedPoolPlacements placements={placements} /> : null}
       <div className="mt-4 action-grid">
-        <a className="btn-outline-primary" href="/finish" onClick={() => onOpen(completedTournament.id)}>Se slutstilling</a>
-        <a className="btn-secondary" href="/live" onClick={() => onReopen(completedTournament.id)}>Ret resultater</a>
+        <Link className="btn-outline-primary" href="/finish" onClick={() => onOpen(completedTournament.id)}>Se slutstilling</Link>
+        <Link className="btn-secondary" href="/live" onClick={() => onReopen(completedTournament.id)}>Ret resultater</Link>
         <button className="btn-danger" type="button" onClick={() => onDelete(completedTournament.id)}>Slet</button>
       </div>
     </article>

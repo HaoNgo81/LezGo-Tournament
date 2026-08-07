@@ -637,9 +637,11 @@ function PoolMatchCard({ match, onSelect }: { match: PoolMatchView; onSelect: ()
       </div>
       {match.matchesPerTeam ? <p className="mt-2 text-sm font-black text-[var(--primary-strong)]">{match.matchesPerTeam} delkampe</p> : null}
       <button className="mt-4 grid w-full gap-2 text-left text-lg font-bold" type="button" onClick={onSelect}>
-        <p>{match.teamAName}</p>
-        <p className="text-[var(--muted)]">mod</p>
-        <p>{match.teamBName}</p>
+        <p className="leading-7">
+          <span>{match.teamAName}</span>{" "}
+          <span className="text-[var(--muted)]">vs</span>{" "}
+          <span>{match.teamBName}</span>
+        </p>
         <span className="mt-2 text-2xl font-black">{isCompleted ? formatPoolResultScore(match) : "-"}</span>
       </button>
       <button className="mt-4 min-h-12 w-full rounded-md bg-[var(--primary)] px-3 font-black text-white" type="button" onClick={onSelect}>{isCompleted ? "Rediger" : "Registrer"}</button>
@@ -943,6 +945,8 @@ function LiveMatchCard({ liveMatch, players, onSelect }: { liveMatch: LiveMatchV
   const match = liveMatch.match;
   const scoreText = liveMatch.result ? `${liveMatch.result.teamAPoints} - ${liveMatch.result.teamBPoints}` : "-";
   const statusClass = liveMatch.status === "Afsluttet" ? "bg-green-100 text-[var(--primary-strong)]" : liveMatch.status === "I gang" ? "bg-yellow-100 text-yellow-800" : "bg-gray-100 text-[var(--muted)]";
+  const teamAName = formatTeam(match.teamA.playerIds, players);
+  const teamBName = formatTeam(match.teamB.playerIds, players);
 
   return (
     <article className="app-card min-h-44 p-4 text-left transition hover:border-[var(--primary)] focus-within:ring-4 focus-within:ring-green-100">
@@ -953,9 +957,11 @@ function LiveMatchCard({ liveMatch, players, onSelect }: { liveMatch: LiveMatchV
         </span>
       </div>
       <button className="mt-4 grid w-full gap-2 text-left text-lg font-bold" type="button" onClick={onSelect}>
-        <p>{formatTeam(match.teamA.playerIds, players)}</p>
-        <p className="text-[var(--muted)]">mod</p>
-        <p>{formatTeam(match.teamB.playerIds, players)}</p>
+        <p className="leading-7">
+          <span>{teamAName}</span>{" "}
+          <span className="text-[var(--muted)]">vs</span>{" "}
+          <span>{teamBName}</span>
+        </p>
         <span className="mt-2 text-2xl font-black">{scoreText}</span>
       </button>
       <button className="mt-4 min-h-12 w-full rounded-md bg-[var(--primary)] px-3 font-black text-white" type="button" onClick={onSelect}>{liveMatch.result ? "Rediger" : "Registrer"}</button>
