@@ -3,6 +3,7 @@ name: GitHub Pages
 on:
   push:
     branches:
+      - main
       - codex-mobile-test-link
   workflow_dispatch:
 
