@@ -15,7 +15,7 @@ import {
   createMixedAmericanoRound,
   orderedPlayers,
 } from "./round-generation";
-import { canonicalPairKey } from "./utils";
+import { canonicalPairKey, seededShuffle } from "./utils";
 
 interface ByeTracker {
   pauseCounts: Map<string, number>;
@@ -36,9 +36,9 @@ export function createTournamentRounds(config: TournamentEngineConfig): Tourname
     case "mexicano":
       return [createNextMexicanoRoundFromPlayerRanking(players, 1, config.courts)];
     case "fixed-partner-americano":
-      return createFixedPartnerRounds(createFixedPartnerTeams(players), config.rounds, false, config.courts);
+      return createFixedPartnerRounds(orderedFixedPartnerTeams(config), config.rounds, false, config.courts);
     case "fixed-partner-mexicano":
-      return [createNextFixedMexicanoRoundFromTeamRanking(createFixedPartnerTeams(players), 1, config.courts)];
+      return [createNextFixedMexicanoRoundFromTeamRanking(orderedFixedPartnerTeams(config), 1, config.courts)];
     case "mixed-americano":
       return createMixedAmericanoRounds(players, config.rounds, config.courts);
     case "pool-play":
@@ -46,6 +46,12 @@ export function createTournamentRounds(config: TournamentEngineConfig): Tourname
     default:
       return assertNever(config.format);
   }
+}
+
+function orderedFixedPartnerTeams(config: TournamentEngineConfig): Team[] {
+  const teams = createFixedPartnerTeams(config.players);
+
+  return config.firstRoundOrder === "random" ? seededShuffle(teams, config.randomSeed) : teams;
 }
 
 export function createNextMexicanoRoundFromPlayerRanking(playersByRanking: TournamentEngineConfig["players"], roundNumber: number, courts?: number): TournamentRound {

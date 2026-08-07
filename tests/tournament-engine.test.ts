@@ -131,6 +131,18 @@ describe("tournament engine", () => {
     });
   });
 
+  it.each(["fixed-partner-americano", "fixed-partner-mexicano"] as const)(
+    "keeps entered fixed partner pairs together when %s starts randomly",
+    (format) => {
+      const rounds = createTournamentRounds({ format, players: sixteenPlayers, rounds: 5, courts: 4, firstRoundOrder: "random", randomSeed: 7 });
+      const expectedPairIds = createFixedPartnerTeams(sixteenPlayers).map((team) => team.id).sort();
+      const firstRoundPairIds = rounds[0].matches.flatMap((match) => [match.teamA.id, match.teamB.id]).sort();
+
+      expect(firstRoundPairIds).toEqual(expectedPairIds);
+      expect(rounds[0].matches[0].teamA.playerIds).not.toEqual(["p1", "p2"]);
+    },
+  );
+
   it("keeps fixed partners through all fixed partner Americano rounds", () => {
     const rounds = createTournamentRounds({ format: "fixed-partner-americano", players, rounds: 3, courts: 2 });
     const expectedTeamIds = createFixedPartnerTeams(players).map((team) => team.id).sort();

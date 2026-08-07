@@ -60,6 +60,7 @@
 - Added fixed scoring with organiser choice between playing to an exact score and using an exact combined score.
 - Fixed GitHub Pages live/history navigation by using basePath-aware tournament links.
 - Changed live and read-only match cards to show participants side by side with `vs`.
+- Kept entered fixed-partner pairs together when randomizing Fast Makker Americano and Fast Makker Mexicano starts.
 - Applied fixed-score validation to standard tournaments and Team vs. Team sets.
 - Added pair-based player entry for fixed-partner formats and Team vs. Team.
 - Limited fixed-partner court count to one court per two available pairs.

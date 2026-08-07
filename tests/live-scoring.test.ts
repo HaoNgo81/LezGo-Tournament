@@ -104,6 +104,20 @@ describe("live scoring state", () => {
     });
   });
 
+  it.each(["Fast Makker Americano", "Fast Makker Mexicano"] as const)(
+    "keeps entered fixed partner pairs together for random %s starts",
+    (format) => {
+      const state = createStandardTournament(format, sixteenPlayerText, "", "", { firstRoundOrder: "random" });
+      const enteredPairIds = createTournamentRounds({ format: "fixed-partner-americano", players: state.players, rounds: 1, courts: 4, firstRoundOrder: "manual" })[0]
+        .matches
+        .flatMap((match) => [match.teamA.id, match.teamB.id])
+        .sort();
+      const firstRoundPairIds = state.rounds[0].matches.flatMap((match) => [match.teamA.id, match.teamB.id]).sort();
+
+      expect(firstRoundPairIds).toEqual(enteredPairIds);
+    },
+  );
+
   it("marks matches as not played before scoring", () => {
     const state = createMockLiveTournamentState();
 
@@ -310,6 +324,7 @@ function createStandardTournament(
   playerText: string,
   femalePlayerText: string,
   malePlayerText: string,
+  overrides: Partial<Pick<Parameters<typeof createTournamentFromSetup>[0], "firstRoundOrder">> = {},
 ): LiveTournamentState {
   return createTournamentFromSetup({
     name: `${format} 16/4`,
@@ -320,7 +335,7 @@ function createStandardTournament(
     courts: 4,
     rounds: 5,
     scoringMode: "Fri scoring",
-    firstRoundOrder: "manual",
+    firstRoundOrder: overrides.firstRoundOrder ?? "manual",
     rankingMode: "matchPointsFirst",
   });
 }
