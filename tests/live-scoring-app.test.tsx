@@ -44,6 +44,26 @@ describe("LiveScoringApp score sheet", () => {
     expect(screen.getByRole("textbox", { name: "Hold B scorepoint" })).toHaveValue("12");
   });
 
+  it("calculates the opponent score from one input for fixed total scoring", async () => {
+    saveActiveTournament({
+      ...createMockLiveTournamentState(),
+      scoringMode: "Fast antal point",
+      fixedScoreRule: "total",
+      fixedScorePoints: 24,
+    });
+    render(<LiveScoringApp />);
+
+    fireEvent.click(await screen.findAllByRole("button", { name: "Registrer" }).then((buttons) => buttons[0]));
+    fireEvent.change(screen.getByRole("textbox", { name: "Hold A scorepoint" }), { target: { value: "18" } });
+
+    expect(screen.getByLabelText("Hold B scorepoint")).toHaveTextContent("6");
+    expect(screen.queryByRole("textbox", { name: "Hold B scorepoint" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Gem" }));
+
+    expect(await screen.findByText("18 - 6")).toBeInTheDocument();
+  });
+
   it("opens the next Mexicano round from the live player standings", async () => {
     saveActiveTournament(createStandardTournament("Mexicano"));
     render(<LiveScoringApp />);

@@ -290,7 +290,7 @@ export function LiveScoringApp() {
       </section>
 
       {selectedMatch ? (
-        <ScoreSheet liveMatch={selectedMatch} players={state.players} onClose={() => setSelectedMatchId(null)} onSave={handleSave} />
+        <ScoreSheet liveMatch={selectedMatch} players={state.players} state={state} onClose={() => setSelectedMatchId(null)} onSave={handleSave} />
       ) : null}
     </div>
   );
@@ -971,16 +971,21 @@ function LiveMatchCard({ liveMatch, players, onSelect }: { liveMatch: LiveMatchV
   );
 }
 
-function ScoreSheet({ liveMatch, players, onClose, onSave }: { liveMatch: LiveMatchView; players: TournamentPlayer[]; onClose: () => void; onSave: (result: MatchResult) => void }) {
+function ScoreSheet({ liveMatch, players, state, onClose, onSave }: { liveMatch: LiveMatchView; players: TournamentPlayer[]; state: LiveTournamentState; onClose: () => void; onSave: (result: MatchResult) => void }) {
+  const fixedTotalPoints = state.scoringMode === "Fast antal point" && state.fixedScoreRule === "total" ? state.fixedScorePoints : undefined;
   const [teamAPoints, setTeamAPoints] = useState(liveMatch.result?.teamAPoints.toString() ?? "");
-  const [teamBPoints, setTeamBPoints] = useState(liveMatch.result?.teamBPoints.toString() ?? "");
+  const [teamBPoints, setTeamBPoints] = useState(liveMatch.result?.teamBPoints.toString() ?? (fixedTotalPoints !== undefined && teamAPoints !== "" ? String(fixedTotalPoints - Number(teamAPoints)) : ""));
+  const teamANumber = Number(teamAPoints);
+  const calculatedTeamBPoints = fixedTotalPoints !== undefined && teamAPoints !== "" && Number.isInteger(teamANumber) ? fixedTotalPoints - teamANumber : null;
+  const fixedTotalError = calculatedTeamBPoints !== null && (calculatedTeamBPoints < 0 || teamANumber < 0);
+  const isFixedTotalScoring = fixedTotalPoints !== undefined;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     onSave({
       matchId: liveMatch.match.id,
-      teamAPoints: Number(teamAPoints),
-      teamBPoints: Number(teamBPoints),
+      teamAPoints: teamANumber,
+      teamBPoints: isFixedTotalScoring ? Number(calculatedTeamBPoints) : Number(teamBPoints),
     });
   }
 
@@ -994,17 +999,39 @@ function ScoreSheet({ liveMatch, players, onClose, onSave }: { liveMatch: LiveMa
           </div>
           <button className="btn-secondary" type="button" onClick={onClose}>Luk</button>
         </div>
+        {isFixedTotalScoring ? (
+          <p className="rounded-md bg-[var(--primary-soft)] p-3 text-sm font-bold text-[var(--primary-strong)]">
+            Fast samlet score: indtast én score. Modstanderens score beregnes automatisk til samlet {fixedTotalPoints}.
+          </p>
+        ) : null}
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="grid gap-2 text-base font-bold">
             {formatTeam(liveMatch.match.teamA.playerIds, players)}
-            <input required inputMode="numeric" pattern="[0-9]*" className="field-control min-h-16 text-center text-3xl font-black" value={teamAPoints} onChange={(event) => setTeamAPoints(event.target.value)} aria-label="Hold A scorepoint" />
+            <input
+              required
+              inputMode="numeric"
+              max={fixedTotalPoints}
+              min="0"
+              pattern="[0-9]*"
+              className="field-control min-h-16 text-center text-3xl font-black"
+              value={teamAPoints}
+              onChange={(event) => setTeamAPoints(event.target.value)}
+              aria-label="Hold A scorepoint"
+            />
           </label>
           <label className="grid gap-2 text-base font-bold">
             {formatTeam(liveMatch.match.teamB.playerIds, players)}
-            <input required inputMode="numeric" pattern="[0-9]*" className="field-control min-h-16 text-center text-3xl font-black" value={teamBPoints} onChange={(event) => setTeamBPoints(event.target.value)} aria-label="Hold B scorepoint" />
+            {isFixedTotalScoring ? (
+              <output className="field-control flex min-h-16 items-center justify-center text-center text-3xl font-black" aria-label="Hold B scorepoint">
+                {calculatedTeamBPoints ?? "-"}
+              </output>
+            ) : (
+              <input required inputMode="numeric" min="0" pattern="[0-9]*" className="field-control min-h-16 text-center text-3xl font-black" value={teamBPoints} onChange={(event) => setTeamBPoints(event.target.value)} aria-label="Hold B scorepoint" />
+            )}
           </label>
         </div>
-        <button className="min-h-14 w-full rounded-md bg-[var(--primary)] px-5 text-lg font-black text-white" type="submit">Gem</button>
+        {fixedTotalError ? <p className="rounded-md bg-red-50 p-3 font-bold text-red-700">Scoren skal være mellem 0 og {fixedTotalPoints}.</p> : null}
+        <button className="min-h-14 w-full rounded-md bg-[var(--primary)] px-5 text-lg font-black text-white disabled:bg-gray-300" type="submit" disabled={fixedTotalError}>Gem</button>
       </form>
     </div>
   );

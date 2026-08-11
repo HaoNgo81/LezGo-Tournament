@@ -18,7 +18,7 @@ import {
   tickRoundTimer,
   type LiveTournamentState,
 } from "../lib/live-scoring";
-import { createTournamentFromSetup, type TournamentSetupFormat } from "../lib/tournament-setup";
+import { createTournamentFromSetup, type ScoringMode, type TournamentSetupFormat } from "../lib/tournament-setup";
 
 const sixteenPlayerText = Array.from({ length: 16 }, (_, index) => `Spiller ${index + 1}`).join("\n");
 const eightFemalePlayerText = Array.from({ length: 8 }, (_, index) => `Kvinde ${index + 1}`).join("\n");
@@ -66,6 +66,42 @@ describe("live scoring state", () => {
     expect(completedState.rounds.every((round) => round.matches.length === 4)).toBe(true);
     expect(calculateLiveStandings(completedState)).toHaveLength(8);
     expect(getRoundProgress(completedState)).toMatchObject({ completedMatches: 4, totalMatches: 4, isComplete: true });
+  });
+
+  it.each([
+    ["Fri scoring", undefined, undefined, [[17, 13], [10, 10], [21, 18], [8, 7]]],
+    ["Fast antal point", "total", 24, [[18, 6], [13, 11], [12, 12], [0, 24]]],
+    ["Spil på tid", undefined, undefined, [[11, 7], [8, 8], [15, 13], [6, 4]]],
+  ] as const)("completes Americano 16 players, 4 courts, 8 rounds with %s", (scoringMode, fixedScoreRule, fixedScorePoints, roundScores) => {
+    const initialState = createAmericanoTournament(scoringMode, fixedScoreRule, fixedScorePoints);
+    const completedState = scoreAllConfiguredRounds(initialState, roundScores);
+    const playCounts = new Map<string, number>();
+
+    for (const round of completedState.rounds) {
+      const roundPlayerIds = round.matches.flatMap((match) => [...match.teamA.playerIds, ...match.teamB.playerIds]);
+      const uniqueRoundPlayerIds = new Set(roundPlayerIds);
+
+      expect(round.matches).toHaveLength(4);
+      expect(roundPlayerIds).toHaveLength(16);
+      expect(uniqueRoundPlayerIds.size).toBe(16);
+      expect([...uniqueRoundPlayerIds].sort()).toEqual(completedState.players.map((player) => player.id).sort());
+
+      for (const match of round.matches) {
+        expect(match.teamA.playerIds).toHaveLength(2);
+        expect(match.teamB.playerIds).toHaveLength(2);
+        expect(new Set([...match.teamA.playerIds, ...match.teamB.playerIds]).size).toBe(4);
+      }
+
+      for (const playerId of roundPlayerIds) {
+        playCounts.set(playerId, (playCounts.get(playerId) ?? 0) + 1);
+      }
+    }
+
+    expect(completedState.configuredRounds).toBe(8);
+    expect(completedState.rounds).toHaveLength(8);
+    expect(completedState.results).toHaveLength(32);
+    expect([...playCounts.values()]).toEqual(Array(16).fill(8));
+    expect(calculateLiveStandings(completedState)).toHaveLength(16);
   });
 
   it("creates the next Mexicano round from the current player standings", () => {
@@ -197,6 +233,22 @@ describe("live scoring state", () => {
     expect(standings[1]).toMatchObject({ id: "p4", matchPoints: 3, pointsFor: 20 });
   });
 
+  it.each([
+    ["Fri scoring", { scoringMode: "Fri scoring" as const }],
+    ["Fast scoring", { scoringMode: "Fast antal point" as const, fixedScoreRule: "total" as const, fixedScorePoints: 24 }],
+    ["Spil på tid", { scoringMode: "Spil på tid" as const, timeLimitMinutes: 12 }],
+  ] as const)("edits %s results without double-counting player points", (_label, overrides) => {
+    const state = { ...createMockLiveTournamentState(), ...overrides };
+    const matchId = getLiveMatches(state)[0].match.id;
+    const firstSave = saveMatchResult(state, { matchId, teamAPoints: 15, teamBPoints: 9 });
+    const secondSave = saveMatchResult(firstSave, { matchId, teamAPoints: 17, teamBPoints: 7 });
+    const standings = calculateLiveStandings(secondSave);
+
+    expect(secondSave.results).toHaveLength(1);
+    expect(standings.find((row) => row.id === "p1")).toMatchObject({ pointsFor: 17 });
+    expect(standings.find((row) => row.id === "p3")).toMatchObject({ pointsFor: 7 });
+  });
+
   it("runs timed scoring with 15 second countdown before the round clock", () => {
     const state = { ...createMockLiveTournamentState(), scoringMode: "Spil på tid" as const, timeLimitMinutes: 1 };
 
@@ -318,7 +370,34 @@ describe("live scoring state", () => {
     expect(() => saveMatchResult(state, { matchId, teamAPoints: 12, teamBPoints: 10 })).toThrow("tilsammen være 21");
     expect(saveMatchResult(state, { matchId, teamAPoints: 11, teamBPoints: 10 }).results[0]).toMatchObject({ teamAPoints: 11, teamBPoints: 10 });
   });
+  it("rejects invalid fixed total Americano scores before they reach standings", () => {
+    const state = createAmericanoTournament("Fast antal point", "total", 24);
+    const matchId = getLiveMatches(state)[0].match.id;
+
+    expect(() => saveMatchResult(state, { matchId, teamAPoints: -1, teamBPoints: 25 })).toThrow("Resultat");
+    expect(() => saveMatchResult(state, { matchId, teamAPoints: 25, teamBPoints: -1 })).toThrow("Resultat");
+    expect(() => saveMatchResult(state, { matchId, teamAPoints: 13.5, teamBPoints: 10.5 })).toThrow("Resultat");
+    expect(() => saveMatchResult(state, { matchId, teamAPoints: 25, teamBPoints: 0 })).toThrow("24");
+  });
 });
+
+function createAmericanoTournament(scoringMode: ScoringMode, fixedScoreRule?: "total", fixedScorePoints?: number): LiveTournamentState {
+  return createTournamentFromSetup({
+    name: `Americano 16/4/8 ${scoringMode}`,
+    format: "Americano",
+    playerText: sixteenPlayerText,
+    femalePlayerText: "",
+    malePlayerText: "",
+    courts: 4,
+    rounds: 8,
+    scoringMode,
+    fixedScoreRule,
+    fixedScorePoints,
+    timeLimitMinutes: scoringMode === "Spil på tid" ? 12 : undefined,
+    firstRoundOrder: "manual",
+    rankingMode: "partiPointsFirst",
+  });
+}
 
 function createStandardTournament(
   format: TournamentSetupFormat,
@@ -341,22 +420,22 @@ function createStandardTournament(
   });
 }
 
-function scoreActiveRound(state: LiveTournamentState): LiveTournamentState {
+function scoreActiveRound(state: LiveTournamentState, scores: ReadonlyArray<readonly [number, number]> = [[21, 10], [21, 11], [21, 12], [21, 13]]): LiveTournamentState {
   return getLiveMatches(state).reduce((currentState, liveMatch, index) => (
     saveMatchResult(currentState, {
       matchId: liveMatch.match.id,
-      teamAPoints: 21,
-      teamBPoints: 10 + index,
+      teamAPoints: scores[index % scores.length][0],
+      teamBPoints: scores[index % scores.length][1],
     })
   ), state);
 }
 
-function scoreAllConfiguredRounds(state: LiveTournamentState): LiveTournamentState {
+function scoreAllConfiguredRounds(state: LiveTournamentState, scores: ReadonlyArray<readonly [number, number]> = [[21, 10], [21, 11], [21, 12], [21, 13]]): LiveTournamentState {
   let currentState = state;
   const configuredRounds = currentState.configuredRounds ?? currentState.rounds.length;
 
   for (let roundNumber = 1; roundNumber <= configuredRounds; roundNumber += 1) {
-    currentState = scoreActiveRound(currentState);
+    currentState = scoreActiveRound(currentState, scores);
 
     if (roundNumber < configuredRounds) {
       currentState = goToNextRound(currentState);

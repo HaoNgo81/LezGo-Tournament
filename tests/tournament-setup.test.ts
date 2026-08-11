@@ -94,6 +94,28 @@ describe("tournament setup", () => {
     expect(tournament).toMatchObject({ scoringMode: "Spil på tid", timeLimitMinutes: 12 });
   });
 
+  it("keeps timed Americano free of fixed-score settings", () => {
+    const tournament = createTournamentFromSetup({
+      name: "Tid uden fast score",
+      format: "Americano",
+      playerText,
+      femalePlayerText: "",
+      malePlayerText: "",
+      courts: 2,
+      rounds: 2,
+      scoringMode: "Spil på tid",
+      fixedScoreRule: "total",
+      fixedScorePoints: 24,
+      timeLimitMinutes: 12,
+      firstRoundOrder: "manual",
+      rankingMode: "matchPointsFirst",
+    });
+
+    expect(tournament.scoringMode).toBe("Spil på tid");
+    expect(tournament.fixedScoreRule).toBeUndefined();
+    expect(tournament.fixedScorePoints).toBeUndefined();
+  });
+
   it("stores target score settings for fixed scoring", () => {
     const tournament = createTournamentFromSetup({
       name: "Fast Americano",

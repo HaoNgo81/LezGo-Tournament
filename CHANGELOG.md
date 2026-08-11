@@ -69,6 +69,8 @@
 - Put Puljespil and Team vs. Team on standby in the new-tournament UI.
 - Stored up to five active standard tournaments and let the list choose which one opens live scoring.
 - Clarified timed scoring inputs as minutes.
+- Added one-input fixed-total score registration for Americano live matches with automatic opponent score calculation.
+- Added 16-player, 4-court, 8-round Americano regression coverage for free, fixed-total, and timed scoring.
 - Applied fixed-score validation to standard tournaments and Team vs. Team sets.
 - Added pair-based player entry for fixed-partner formats and Team vs. Team.
 - Limited fixed-partner court count to one court per two available pairs.
