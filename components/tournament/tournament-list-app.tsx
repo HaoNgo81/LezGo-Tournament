@@ -8,12 +8,14 @@ import {
   deleteCompletedTournament,
   loadActiveTeamVsTeamTournament,
   loadActiveTournament,
+  loadActiveTournaments,
   loadCompletedTeamVsTeamTournaments,
   loadCompletedTournaments,
   reopenCompletedTeamVsTeamTournament,
   reopenCompletedTournament,
   restoreCompletedTeamVsTeamTournament,
   restoreCompletedTournament,
+  selectActiveTournament,
   type CompletedTeamVsTeamTournament,
   type CompletedTournament,
   type TeamVsTeamTournamentState,
@@ -25,10 +27,17 @@ import { useHasHydrated } from "@/hooks/use-has-hydrated";
 export function TournamentListApp() {
   const hasHydrated = useHasHydrated();
   const [activeTournament, setActiveTournament] = useState<LiveTournamentState | null>(null);
+  const [activeTournamentList, setActiveTournamentList] = useState<LiveTournamentState[]>([]);
   const [activeTeamVsTeamTournament, setActiveTeamVsTeamTournament] = useState<TeamVsTeamTournamentState | null>(null);
   const [completedTournaments, setCompletedTournaments] = useState<CompletedTournament[]>([]);
   const [completedTeamVsTeamTournaments, setCompletedTeamVsTeamTournaments] = useState<CompletedTeamVsTeamTournament[]>([]);
-  const activeTournaments = useMemo(() => (activeTournament && activeTournament.status === "active" ? [activeTournament] : []), [activeTournament]);
+  const activeTournaments = useMemo(() => {
+    if (activeTournamentList.length) {
+      return activeTournamentList;
+    }
+
+    return activeTournament && activeTournament.status === "active" ? [activeTournament] : [];
+  }, [activeTournament, activeTournamentList]);
   const activeTeamVsTeamTournaments = useMemo(() => (activeTeamVsTeamTournament && activeTeamVsTeamTournament.status === "active" ? [activeTeamVsTeamTournament] : []), [activeTeamVsTeamTournament]);
 
   useEffect(() => {
@@ -38,6 +47,7 @@ export function TournamentListApp() {
 
     const timeoutId = window.setTimeout(() => {
       setActiveTournament(loadActiveTournament());
+      setActiveTournamentList(loadActiveTournaments());
       setActiveTeamVsTeamTournament(loadActiveTeamVsTeamTournament());
       setCompletedTournaments(loadCompletedTournaments());
       setCompletedTeamVsTeamTournaments(loadCompletedTeamVsTeamTournaments());
@@ -52,6 +62,10 @@ export function TournamentListApp() {
 
   function handleOpenFinished(id: string) {
     restoreCompletedTournament(id);
+  }
+
+  function handleOpenActive(tournament: LiveTournamentState) {
+    selectActiveTournament(createActiveTournamentId(tournament));
   }
 
   function handleReopenFinished(id: string) {
@@ -82,7 +96,7 @@ export function TournamentListApp() {
             <article key={tournament.tournamentName} className="app-card p-4 sm:p-5">
               <h3 className="text-xl font-black">{tournament.tournamentName}</h3>
               <p className="mt-1 font-bold text-[var(--muted)]">{formatLiveTournamentSummary(tournament)}</p>
-              <Link className="btn-outline-primary mt-4" href="/live">Åbn live</Link>
+              <Link className="btn-outline-primary mt-4" href="/live" onClick={() => handleOpenActive(tournament)}>Åbn live</Link>
             </article>
           )) : null}
           {activeTeamVsTeamTournaments.length ? activeTeamVsTeamTournaments.map((tournament) => <TeamVsTeamCard key={tournament.name} tournament={tournament} />) : null}
@@ -258,4 +272,8 @@ function formatTournamentType(format: LiveTournamentState["format"]): string {
   };
 
   return labels[format];
+}
+
+function createActiveTournamentId(tournament: LiveTournamentState): string {
+  return `${tournament.tournamentName.trim().toLocaleLowerCase("da")}-${tournament.format}`;
 }

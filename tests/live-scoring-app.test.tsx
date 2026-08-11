@@ -24,6 +24,14 @@ describe("LiveScoringApp score sheet", () => {
     expect(screen.getByRole("textbox", { name: "Hold B scorepoint" })).toBeRequired();
   });
 
+  it("shows live score heading and a direct TV-screen link", async () => {
+    saveActiveTournament(createMockLiveTournamentState());
+    render(<LiveScoringApp />);
+
+    expect(await screen.findByRole("heading", { name: "Live score" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "TV-skærm" })).toHaveAttribute("href", "/tv");
+  });
+
   it("shows an existing score when a result is edited", async () => {
     const state = createMockLiveTournamentState();
     const matchId = state.rounds[0].matches[0].id;

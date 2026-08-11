@@ -232,6 +232,7 @@ export function LiveScoringApp() {
         <p className="mt-1 text-sm font-bold text-[var(--muted)]">{state.players.length} spillere · {state.configuredRounds ?? state.rounds.length} runder</p>
         <div className="mt-4 action-grid">
           <Link className="btn-outline-primary" href="/share">Del turnering</Link>
+          <Link className="btn-outline-primary" href="/tv">TV-skærm</Link>
           <Link className="btn-outline-primary" href="/finish">Afslut turnering</Link>
         </div>
       </div>
@@ -282,7 +283,7 @@ export function LiveScoringApp() {
 
       <section className="flex flex-col gap-3">
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <h2 className="text-xl font-black">Løbende stilling</h2>
+          <h2 className="text-xl font-black">Live score</h2>
           <p className="text-sm font-bold text-[var(--muted)]">{rankingModeLabels[state.rankingMode]}</p>
         </div>
         <StandingsTable standings={standings} />
@@ -377,6 +378,7 @@ function PoolPlayLiveView({
         </p>
         <div className="mt-4 action-grid">
           <Link className="btn-outline-primary" href="/share">Del turnering</Link>
+          <Link className="btn-outline-primary" href="/tv">TV-skærm</Link>
           <Link className="btn-outline-primary" href="/finish">Afslut turnering</Link>
         </div>
       </div>

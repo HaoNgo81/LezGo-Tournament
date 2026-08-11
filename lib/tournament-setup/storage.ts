@@ -3,9 +3,11 @@ import { getTeamVsTeamMaxRounds, teamVsTeamPlayerOptions, type TeamVsTeamMatchFo
 import type { TeamVsTeamTournamentState } from "./team-vs-team-setup";
 
 const activeTournamentStorageKey = "lezgo.activeTournament.v1";
+const activeTournamentsStorageKey = "lezgo.activeTournaments.v1";
 const activeTeamVsTeamStorageKey = "lezgo.activeTeamVsTeam.v1";
 const completedTournamentsStorageKey = "lezgo.completedTournaments.v1";
 const completedTeamVsTeamTournamentsStorageKey = "lezgo.completedTeamVsTeamTournaments.v1";
+const maxActiveTournaments = 5;
 
 export interface CompletedTournament {
   id: string;
@@ -22,6 +24,14 @@ export interface CompletedTeamVsTeamTournament {
 export function saveActiveTournament(state: LiveTournamentState): void {
   window.localStorage.setItem(activeTournamentStorageKey, JSON.stringify(state));
   window.localStorage.removeItem(activeTeamVsTeamStorageKey);
+
+  if (state.status !== "active") {
+    return;
+  }
+
+  const tournamentId = createActiveTournamentId(state);
+  const activeTournaments = loadActiveTournaments().filter((tournament) => createActiveTournamentId(tournament) !== tournamentId);
+  window.localStorage.setItem(activeTournamentsStorageKey, JSON.stringify([state, ...activeTournaments].slice(0, maxActiveTournaments)));
 }
 
 export function loadActiveTournament(): LiveTournamentState | null {
@@ -32,7 +42,7 @@ export function loadActiveTournament(): LiveTournamentState | null {
   const savedState = window.localStorage.getItem(activeTournamentStorageKey);
 
   if (!savedState) {
-    return null;
+    return loadActiveTournaments()[0] ?? null;
   }
 
   try {
@@ -43,9 +53,45 @@ export function loadActiveTournament(): LiveTournamentState | null {
   }
 }
 
+export function loadActiveTournaments(): LiveTournamentState[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  const savedTournaments = window.localStorage.getItem(activeTournamentsStorageKey);
+
+  if (!savedTournaments) {
+    const selectedTournament = loadSelectedActiveTournament();
+    return selectedTournament?.status === "active" ? [selectedTournament] : [];
+  }
+
+  try {
+    return (JSON.parse(savedTournaments) as LiveTournamentState[])
+      .map(normalizeActiveTournamentState)
+      .filter((state) => state.status === "active")
+      .slice(0, maxActiveTournaments);
+  } catch {
+    window.localStorage.removeItem(activeTournamentsStorageKey);
+    return [];
+  }
+}
+
+export function selectActiveTournament(id: string): LiveTournamentState | null {
+  const tournament = loadActiveTournaments().find((state) => createActiveTournamentId(state) === id);
+
+  if (!tournament) {
+    return null;
+  }
+
+  window.localStorage.setItem(activeTournamentStorageKey, JSON.stringify(tournament));
+  window.localStorage.removeItem(activeTeamVsTeamStorageKey);
+  return tournament;
+}
+
 export function saveActiveTeamVsTeamTournament(state: TeamVsTeamTournamentState): void {
   window.localStorage.setItem(activeTeamVsTeamStorageKey, JSON.stringify(state));
   window.localStorage.removeItem(activeTournamentStorageKey);
+  window.localStorage.removeItem(activeTournamentsStorageKey);
 }
 
 export function loadActiveTeamVsTeamTournament(): TeamVsTeamTournamentState | null {
@@ -246,6 +292,21 @@ function normalizeActiveTournamentState(state: LiveTournamentState): LiveTournam
   };
 }
 
+function loadSelectedActiveTournament(): LiveTournamentState | null {
+  const savedState = window.localStorage.getItem(activeTournamentStorageKey);
+
+  if (!savedState) {
+    return null;
+  }
+
+  try {
+    return normalizeActiveTournamentState(JSON.parse(savedState) as LiveTournamentState);
+  } catch {
+    window.localStorage.removeItem(activeTournamentStorageKey);
+    return null;
+  }
+}
+
 function normalizeActiveTeamVsTeamState(state: TeamVsTeamTournamentState): TeamVsTeamTournamentState {
   const rawState = state as Partial<TeamVsTeamTournamentState>;
   const playersPerTeam = isPlayersPerTeam(rawState.playersPerTeam) ? rawState.playersPerTeam : 4;
@@ -300,6 +361,10 @@ function isMatchFormat(value: unknown): value is TeamVsTeamMatchFormat {
 
 function createCompletedTournamentId(state: LiveTournamentState): string {
   return `${state.tournamentName.trim().toLocaleLowerCase("da")}-${state.finishedAt ?? "active"}`;
+}
+
+function createActiveTournamentId(state: LiveTournamentState): string {
+  return `${state.tournamentName.trim().toLocaleLowerCase("da")}-${state.format}`;
 }
 
 function createCompletedTeamVsTeamTournamentId(state: TeamVsTeamTournamentState, finishedAt: string): string {

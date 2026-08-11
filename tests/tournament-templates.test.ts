@@ -37,6 +37,30 @@ describe("tournament templates", () => {
     expect(findTournamentTemplate("fredag-tid")).toMatchObject({ format: "Mexicano", scoringMode: "Spil på tid" });
   });
 
+  it("stores fixed-score settings for templates", () => {
+    saveTournamentTemplate(
+      {
+        title: "Chopstick",
+        format: "Fast Makker Mexicano",
+        scoringMode: "Fast antal point",
+        fixedScoreRule: "target",
+        fixedScorePoints: 6,
+        courts: 4,
+        rounds: 20,
+        firstRoundOrder: "random",
+        rankingMode: "matchPointsFirst",
+      },
+      "chopstick",
+    );
+
+    expect(findTournamentTemplate("chopstick")).toMatchObject({
+      format: "Fast Makker Mexicano",
+      scoringMode: "Fast antal point",
+      fixedScoreRule: "target",
+      fixedScorePoints: 6,
+    });
+  });
+
   it("deletes a template", () => {
     saveTournamentTemplate(
       {

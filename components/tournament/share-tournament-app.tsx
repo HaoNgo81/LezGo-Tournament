@@ -61,7 +61,7 @@ export function ShareTournamentApp() {
             Åbn QR
           </Link>
           <Link className="btn-outline-primary" href="/tv">
-            Åbn TV
+            Åbn TV-skærm
           </Link>
         </div>
 

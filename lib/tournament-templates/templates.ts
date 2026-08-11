@@ -1,5 +1,5 @@
 ﻿import type { StandingsRankingMode } from "../tournament-engine";
-import type { ScoringMode, TournamentSetupFormat } from "../tournament-setup";
+import { validateScoringSettings, type FixedScoreRule, type ScoringMode, type TournamentSetupFormat } from "../tournament-setup";
 
 const templateStorageKey = "lezgo.tournamentTemplates.v1";
 
@@ -14,6 +14,8 @@ export interface TournamentTemplate {
   rounds: number;
   firstRoundOrder: "manual" | "random";
   rankingMode: StandingsRankingMode;
+  fixedScoreRule?: FixedScoreRule;
+  fixedScorePoints?: number;
   timeLimitMinutes?: number;
 }
 
@@ -25,12 +27,14 @@ export interface TournamentTemplateInput {
   rounds: number;
   firstRoundOrder: "manual" | "random";
   rankingMode: StandingsRankingMode;
+  fixedScoreRule?: FixedScoreRule;
+  fixedScorePoints?: number;
   timeLimitMinutes?: number;
 }
 
 export function createDefaultTournamentTemplates(): TournamentTemplate[] {
   return [
-    createTemplate({ title: "8 spillere / 2 baner", format: "Americano", scoringMode: "Fast antal point", courts: 2, rounds: 2, firstRoundOrder: "manual", rankingMode: "matchPointsFirst" }, "template-americano-8"),
+    createTemplate({ title: "8 spillere / 2 baner", format: "Americano", scoringMode: "Fast antal point", fixedScoreRule: "target", fixedScorePoints: 21, courts: 2, rounds: 2, firstRoundOrder: "manual", rankingMode: "matchPointsFirst" }, "template-americano-8"),
     createTemplate({ title: "12 spillere / 3 baner", format: "Mexicano", scoringMode: "Spil på tid", courts: 3, rounds: 3, firstRoundOrder: "manual", rankingMode: "partiPointsFirst", timeLimitMinutes: 15 }, "template-mexicano-12"),
   ];
 }
@@ -106,6 +110,8 @@ function createTemplate(input: TournamentTemplateInput, id = createTemplateId(in
     throw new Error("Puljespil og Team vs. Team kræver egne opsætningsfelter og kan ikke gemmes som standardskabelon.");
   }
 
+  validateScoringSettings(input.scoringMode, input);
+
   return {
     id,
     title,
@@ -115,6 +121,8 @@ function createTemplate(input: TournamentTemplateInput, id = createTemplateId(in
     rounds: input.rounds,
     firstRoundOrder: input.firstRoundOrder,
     rankingMode: input.rankingMode,
+    fixedScoreRule: input.scoringMode === "Fast antal point" ? input.fixedScoreRule : undefined,
+    fixedScorePoints: input.scoringMode === "Fast antal point" ? input.fixedScorePoints : undefined,
     timeLimitMinutes: input.scoringMode === "Spil på tid" ? input.timeLimitMinutes : undefined,
   };
 }

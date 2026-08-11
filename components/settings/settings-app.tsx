@@ -72,7 +72,7 @@ export function SettingsApp() {
               <input className="field-control" min="1" type="number" value={settings.rounds} onChange={(event) => setSettings({ ...settings, rounds: Number(event.target.value) })} />
             </label>
             <label className="grid gap-2 text-lg font-bold">
-              Spilletid
+              Spilletid (minutter)
               <input className="field-control" min="1" type="number" value={settings.timeLimitMinutes} onChange={(event) => setSettings({ ...settings, timeLimitMinutes: Number(event.target.value) })} />
             </label>
           </div>

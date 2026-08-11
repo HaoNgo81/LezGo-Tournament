@@ -5,6 +5,7 @@ import {
   deleteCompletedTournament,
   loadActiveTeamVsTeamTournament,
   loadActiveTournament,
+  loadActiveTournaments,
   loadCompletedTeamVsTeamTournaments,
   loadCompletedTournaments,
   reopenCompletedTeamVsTeamTournament,
@@ -13,6 +14,7 @@ import {
   saveActiveTournament,
   restoreCompletedTeamVsTeamTournament,
   restoreCompletedTournament,
+  selectActiveTournament,
   saveCompletedTeamVsTeamTournament,
   saveCompletedTournament,
 } from "../lib/tournament-setup";
@@ -149,6 +151,22 @@ describe("tournament storage", () => {
 
     expect(loadActiveTournament()).toBeNull();
     expect(loadActiveTeamVsTeamTournament()?.name).toBe("Klubkamp");
+  });
+
+  it("stores up to five active standard tournaments and selects one for live scoring", () => {
+    Array.from({ length: 6 }, (_, index) => ({
+      ...createMockLiveTournamentState(),
+      tournamentName: `Aktiv ${index + 1}`,
+    })).forEach(saveActiveTournament);
+
+    const activeTournaments = loadActiveTournaments();
+
+    expect(activeTournaments).toHaveLength(5);
+    expect(activeTournaments.map((tournament) => tournament.tournamentName)).toEqual(["Aktiv 6", "Aktiv 5", "Aktiv 4", "Aktiv 3", "Aktiv 2"]);
+
+    selectActiveTournament("aktiv 3-americano");
+
+    expect(loadActiveTournament()?.tournamentName).toBe("Aktiv 3");
   });
 
   it("normalizes older Team vs. Team results from local storage", () => {

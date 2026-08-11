@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { PrimaryButton } from "@/components/ui/primary-button";
 import { Section } from "@/components/ui/section";
@@ -32,7 +32,7 @@ import {
 import { loadTournamentSettings } from "@/lib/tournament-settings";
 import { findTournamentTemplate } from "@/lib/tournament-templates";
 
-const formatOptions = [...tournamentTypes] as TournamentSetupFormat[];
+const formatOptions = tournamentTypes.filter((type) => type !== "Puljespil" && type !== "Team vs. Team") as TournamentSetupFormat[];
 
 const rankingModeOptions: Array<{ label: string; value: StandingsRankingMode }> = [
   { label: "Flest matchpoint", value: "matchPointsFirst" },
@@ -46,18 +46,18 @@ const defaultMaleText = ["Hassan", "Noah", "Emil", "Jonas"].join("\n");
 export function TournamentSetupForm() {
   const router = useRouter();
   const initialSettings = useMemo(() => loadTournamentSettings(), []);
-  const initialTemplate = useMemo(() => getInitialTemplate(), []);
-  const [name, setName] = useState(initialTemplate?.title ?? "Fredag Americano");
-  const [format, setFormat] = useState<TournamentSetupFormat>(initialTemplate?.format ?? "Americano");
-  const [scoringMode, setScoringMode] = useState<ScoringMode>(initialTemplate?.scoringMode ?? initialSettings.scoringMode);
+  const appliedTemplateId = useRef<string | null>(null);
+  const [name, setName] = useState("Fredag Americano");
+  const [format, setFormat] = useState<TournamentSetupFormat>("Americano");
+  const [scoringMode, setScoringMode] = useState<ScoringMode>(initialSettings.scoringMode);
   const [fixedScoreRule, setFixedScoreRule] = useState<FixedScoreRule>("target");
   const [fixedScorePoints, setFixedScorePoints] = useState(21);
-  const [timeLimitMinutes, setTimeLimitMinutes] = useState(initialTemplate?.timeLimitMinutes ?? initialSettings.timeLimitMinutes);
+  const [timeLimitMinutes, setTimeLimitMinutes] = useState(initialSettings.timeLimitMinutes);
   const [playerText, setPlayerText] = useState(defaultPlayerText);
   const [femalePlayerText, setFemalePlayerText] = useState(defaultFemaleText);
   const [malePlayerText, setMalePlayerText] = useState(defaultMaleText);
-  const [courts, setCourts] = useState(initialTemplate?.courts ?? initialSettings.courts);
-  const [rounds, setRounds] = useState(initialTemplate?.rounds ?? initialSettings.rounds);
+  const [courts, setCourts] = useState(initialSettings.courts);
+  const [rounds, setRounds] = useState(initialSettings.rounds);
   const [teamCount, setTeamCount] = useState<TeamVsTeamTeamCount>(2);
   const [competitionMode, setCompetitionMode] = useState<TeamVsTeamCompetitionMode>("knockout");
   const [drawMode, setDrawMode] = useState<TeamVsTeamDrawMode>("manual");
@@ -70,14 +70,33 @@ export function TournamentSetupForm() {
   const [poolAdvancementMode, setPoolAdvancementMode] = useState<PoolAdvancementMode>("crossMatches");
   const [poolUnmatchedResolution, setPoolUnmatchedResolution] = useState<PoolUnmatchedResolution>("bye");
   const [poolTeamPlayersPerTeam, setPoolTeamPlayersPerTeam] = useState<PoolTeamPlayers>(4);
-  const [firstRoundOrder, setFirstRoundOrder] = useState<"manual" | "random">(initialTemplate?.firstRoundOrder ?? "manual");
-  const [rankingMode, setRankingMode] = useState<StandingsRankingMode>(initialTemplate?.rankingMode ?? initialSettings.rankingMode);
+  const [rankingMode, setRankingMode] = useState<StandingsRankingMode>(initialSettings.rankingMode);
   const [error, setError] = useState("");
   const isTeamVsTeam = format === "Team vs. Team";
   const isPoolPlay = format === "Puljespil";
   const isFixedPartner = format === "Fast Makker Americano" || format === "Fast Makker Mexicano";
   const fixedPartnerPairs = getFixedPartnerPairs(playerText);
   const teamRounds = playersPerTeam === 4 ? 3 : 2;
+
+  useEffect(() => {
+    const template = getInitialTemplate();
+
+    if (!template || appliedTemplateId.current === template.id) {
+      return;
+    }
+
+    appliedTemplateId.current = template.id;
+    setName(template.title);
+    setFormat(template.format);
+    setScoringMode(template.scoringMode);
+    setFixedScoreRule(template.fixedScoreRule ?? "target");
+    setFixedScorePoints(template.fixedScorePoints ?? 21);
+    setTimeLimitMinutes(template.timeLimitMinutes ?? initialSettings.timeLimitMinutes);
+    setCourts(template.courts);
+    setRounds(template.rounds);
+    setRankingMode(template.rankingMode);
+    setError("");
+  }, [initialSettings.timeLimitMinutes]);
 
   const playerCount = useMemo(() => {
     if (isTeamVsTeam) {
@@ -153,7 +172,7 @@ export function TournamentSetupForm() {
         fixedScoreRule,
         fixedScorePoints,
         timeLimitMinutes,
-        firstRoundOrder,
+        firstRoundOrder: "manual",
         rankingMode,
       });
 
@@ -233,7 +252,7 @@ export function TournamentSetupForm() {
           ) : null}
           {scoringMode === "Spil på tid" ? (
             <label className="grid gap-2 text-lg font-bold">
-              Spilletid pr. runde
+              Spilletid pr. runde (minutter)
               <input className="field-control" min="1" type="number" value={timeLimitMinutes} onChange={(event) => setTimeLimitMinutes(Number(event.target.value))} />
             </label>
           ) : null}
@@ -297,7 +316,7 @@ export function TournamentSetupForm() {
                   {rankingModeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
               </label>
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <label className="grid gap-2 text-lg font-bold">
                   Deltagertype
                   <select className="field-control" value={poolParticipantType} onChange={(event) => setPoolParticipantType(event.target.value as PoolParticipantType)}>
@@ -360,13 +379,6 @@ export function TournamentSetupForm() {
                 <label className="grid gap-2 text-lg font-bold">
                   Runder
                   <input className="field-control" min="1" type="number" value={rounds} onChange={(event) => setRounds(Number(event.target.value))} />
-                </label>
-                <label className="grid gap-2 text-lg font-bold">
-                  Runde 1
-                  <select className="field-control" value={firstRoundOrder} onChange={(event) => setFirstRoundOrder(event.target.value as "manual" | "random")}>
-                    <option value="manual">Manuel rækkefølge</option>
-                    <option value="random">Tilfældig</option>
-                  </select>
                 </label>
               </div>
             </>
@@ -434,7 +446,7 @@ export function TournamentSetupForm() {
           <p><strong>Format:</strong> {format}</p>
           <p><strong>Scoring:</strong> {scoringMode}</p>
           {scoringMode === "Fast antal point" ? <p><strong>Fast score:</strong> {fixedScoreRule === "target" ? `Spil til ${fixedScorePoints}` : `${fixedScorePoints} samlet`}</p> : null}
-          {scoringMode === "Spil på tid" ? <p><strong>Spilletid:</strong> {timeLimitMinutes} min.</p> : null}
+          {scoringMode === "Spil på tid" ? <p><strong>Spilletid:</strong> {timeLimitMinutes} minutter</p> : null}
           <p><strong>{isTeamVsTeam ? "Hold" : participantSummaryLabel(format, poolParticipantType)}:</strong> {isTeamVsTeam ? teamCount : playerCount}</p>
           {isTeamVsTeam ? <p><strong>Afvikling:</strong> {competitionMode === "pool" ? "Puljespil · alle mødes én gang" : `Knockout · ${drawMode === "manual" ? "manuel" : "tilfældig"} fordeling`}</p> : null}
           {isPoolPlay ? <p><strong>Puljer:</strong> {poolCount} · {participantsPerPool} pr. pulje</p> : null}

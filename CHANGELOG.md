@@ -61,6 +61,14 @@
 - Fixed GitHub Pages live/history navigation by using basePath-aware tournament links.
 - Changed live and read-only match cards to show participants side by side with `vs`.
 - Kept entered fixed-partner pairs together when randomizing Fast Makker Americano and Fast Makker Mexicano starts.
+- Applied tournament templates after hydration, including fixed-score settings.
+- Renamed the live standings section to Live score and added a direct TV-screen action.
+- Allowed both horizontal and vertical app orientation in the web manifest.
+- Started Mexicano and Fast Makker Mexicano from entered ranking order even when older saved setup data says random.
+- Removed first-round order selection from the active standard tournament setup and templates.
+- Put Puljespil and Team vs. Team on standby in the new-tournament UI.
+- Stored up to five active standard tournaments and let the list choose which one opens live scoring.
+- Clarified timed scoring inputs as minutes.
 - Applied fixed-score validation to standard tournaments and Team vs. Team sets.
 - Added pair-based player entry for fixed-partner formats and Team vs. Team.
 - Limited fixed-partner court count to one court per two available pairs.

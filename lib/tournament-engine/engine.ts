@@ -13,9 +13,8 @@ import {
   createGreedyAmericanoRound,
   createMexicanoRoundFromRanking,
   createMixedAmericanoRound,
-  orderedPlayers,
 } from "./round-generation";
-import { canonicalPairKey, seededShuffle } from "./utils";
+import { canonicalPairKey } from "./utils";
 
 interface ByeTracker {
   pauseCounts: Map<string, number>;
@@ -28,7 +27,7 @@ export function createTournamentRounds(config: TournamentEngineConfig): Tourname
   assertCourts(config.courts);
   assertUniquePlayerIds(config.players);
 
-  const players = orderedPlayers(config.players, config.firstRoundOrder, config.randomSeed);
+  const players = [...config.players];
 
   switch (config.format) {
     case "americano":
@@ -36,9 +35,9 @@ export function createTournamentRounds(config: TournamentEngineConfig): Tourname
     case "mexicano":
       return [createNextMexicanoRoundFromPlayerRanking(players, 1, config.courts)];
     case "fixed-partner-americano":
-      return createFixedPartnerRounds(orderedFixedPartnerTeams(config), config.rounds, false, config.courts);
+      return createFixedPartnerRounds(createFixedPartnerTeams(players), config.rounds, false, config.courts);
     case "fixed-partner-mexicano":
-      return [createNextFixedMexicanoRoundFromTeamRanking(orderedFixedPartnerTeams(config), 1, config.courts)];
+      return [createNextFixedMexicanoRoundFromTeamRanking(createFixedPartnerTeams(players), 1, config.courts)];
     case "mixed-americano":
       return createMixedAmericanoRounds(players, config.rounds, config.courts);
     case "pool-play":
@@ -46,12 +45,6 @@ export function createTournamentRounds(config: TournamentEngineConfig): Tourname
     default:
       return assertNever(config.format);
   }
-}
-
-function orderedFixedPartnerTeams(config: TournamentEngineConfig): Team[] {
-  const teams = createFixedPartnerTeams(config.players);
-
-  return config.firstRoundOrder === "random" ? seededShuffle(teams, config.randomSeed) : teams;
 }
 
 export function createNextMexicanoRoundFromPlayerRanking(playersByRanking: TournamentEngineConfig["players"], roundNumber: number, courts?: number): TournamentRound {

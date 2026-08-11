@@ -13,7 +13,7 @@ import {
   type TournamentTemplateInput,
 } from "@/lib/tournament-templates";
 import type { StandingsRankingMode } from "@/lib/tournament-engine";
-import type { ScoringMode } from "@/lib/tournament-setup";
+import type { FixedScoreRule, ScoringMode } from "@/lib/tournament-setup";
 import { useHasHydrated } from "@/hooks/use-has-hydrated";
 
 const formatOptions = tournamentTypes.filter((type) => type !== "Team vs. Team" && type !== "Puljespil") as TournamentTemplateInput["format"][];
@@ -29,6 +29,8 @@ const defaultDraft: TournamentTemplateInput = {
   rounds: 2,
   firstRoundOrder: "manual",
   rankingMode: "matchPointsFirst",
+  fixedScoreRule: "target",
+  fixedScorePoints: 21,
   timeLimitMinutes: 15,
 };
 
@@ -80,6 +82,8 @@ export function TemplatesApp() {
       rounds: template.rounds,
       firstRoundOrder: template.firstRoundOrder,
       rankingMode: template.rankingMode,
+      fixedScoreRule: template.fixedScoreRule ?? "target",
+      fixedScorePoints: template.fixedScorePoints ?? 21,
       timeLimitMinutes: template.timeLimitMinutes ?? 15,
     });
     setEditingId(template.id);
@@ -124,11 +128,26 @@ export function TemplatesApp() {
             </label>
             {draft.scoringMode === "Spil på tid" ? (
               <label className="grid gap-2 text-lg font-bold">
-                Spilletid
+                Spilletid (minutter)
                 <input className="field-control" min="1" type="number" value={draft.timeLimitMinutes ?? 15} onChange={(event) => setDraft({ ...draft, timeLimitMinutes: Number(event.target.value) })} />
               </label>
             ) : null}
-            <div className="action-grid">
+            {draft.scoringMode === "Fast antal point" ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="grid gap-2 text-lg font-bold">
+                  Fast scoretype
+                  <select className="field-control" value={draft.fixedScoreRule ?? "target"} onChange={(event) => setDraft({ ...draft, fixedScoreRule: event.target.value as FixedScoreRule })}>
+                    <option value="target">Spil til et antal scorepoint</option>
+                    <option value="total">Fast samlet antal scorepoint</option>
+                  </select>
+                </label>
+                <label className="grid gap-2 text-lg font-bold">
+                  Antal scorepoint
+                  <input className="field-control" min="1" type="number" value={draft.fixedScorePoints ?? 21} onChange={(event) => setDraft({ ...draft, fixedScorePoints: Number(event.target.value) })} />
+                </label>
+              </div>
+            ) : null}
+            <div className="grid gap-3 sm:grid-cols-2">
               <label className="grid gap-2 text-lg font-bold">
                 Baner
                 <input className="field-control" min="1" type="number" value={draft.courts} onChange={(event) => setDraft({ ...draft, courts: Number(event.target.value) })} />
@@ -136,13 +155,6 @@ export function TemplatesApp() {
               <label className="grid gap-2 text-lg font-bold">
                 Runder
                 <input className="field-control" min="1" type="number" value={draft.rounds} onChange={(event) => setDraft({ ...draft, rounds: Number(event.target.value) })} />
-              </label>
-              <label className="grid gap-2 text-lg font-bold">
-                Runde 1
-                <select className="field-control" value={draft.firstRoundOrder} onChange={(event) => setDraft({ ...draft, firstRoundOrder: event.target.value as "manual" | "random" })}>
-                  <option value="manual">Manuel rækkefølge</option>
-                  <option value="random">Tilfældig</option>
-                </select>
               </label>
             </div>
             <label className="grid gap-2 text-lg font-bold">

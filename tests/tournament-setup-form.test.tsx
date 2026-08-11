@@ -1,7 +1,7 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TournamentSetupForm } from "../components/tournament/tournament-setup-form";
-import { loadActiveTournament } from "../lib/tournament-setup";
+import { saveTournamentTemplate } from "../lib/tournament-templates";
 
 const { push } = vi.hoisted(() => ({ push: vi.fn() }));
 
@@ -16,44 +16,37 @@ describe("tournament setup form", () => {
     push.mockClear();
   });
 
-  it("opens the active Team vs. Team tournament after creation", () => {
+  it("keeps Puljespil and Team vs. Team on standby in the setup UI", () => {
     render(<TournamentSetupForm />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Team vs. Team" }));
-
-    for (let team = 1; team <= 2; team += 1) {
-      for (let pair = 1; pair <= 2; pair += 1) {
-        for (let player = 1; player <= 2; player += 1) {
-          fireEvent.change(screen.getByRole("textbox", { name: `Hold ${team}, par ${pair}, spiller ${player}` }), {
-            target: { value: `H${team}P${pair}${player}` },
-          });
-        }
-      }
-    }
-
-    fireEvent.click(screen.getByRole("button", { name: "Start turnering" }));
-
-    expect(push).toHaveBeenCalledWith("/team-vs-team");
+    expect(screen.queryByRole("button", { name: "Puljespil" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Team vs. Team" })).not.toBeInTheDocument();
   });
 
-  it("creates a pool-play tournament and opens live scoring", () => {
+  it("applies tournament template values from the start link", async () => {
+    saveTournamentTemplate(
+      {
+        title: "Chopstick",
+        format: "Fast Makker Mexicano",
+        scoringMode: "Fast antal point",
+        fixedScoreRule: "target",
+        fixedScorePoints: 6,
+        courts: 4,
+        rounds: 20,
+        firstRoundOrder: "random",
+        rankingMode: "matchPointsFirst",
+      },
+      "chopstick",
+    );
+    window.history.pushState({}, "", "/new-tournament?template=chopstick");
+
     render(<TournamentSetupForm />);
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Puljespil" })[0]);
-    fireEvent.click(screen.getByRole("button", { name: "Start turnering" }));
-
-    const activeTournament = loadActiveTournament();
-
-    expect(push).toHaveBeenCalledWith("/live");
-    expect(activeTournament).toMatchObject({
-      format: "pool-play",
-      poolPlay: {
-        phase: "initial",
-        advancementMode: "crossMatches",
-        unmatchedResolution: "bye",
-      },
-    });
-    expect(activeTournament?.poolPlay?.initialStage.pools).toHaveLength(2);
-    expect(activeTournament?.poolPlay?.initialStage.pools[0].participantIds).toHaveLength(4);
+    expect(await screen.findByDisplayValue("Chopstick")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Fast Makker Mexicano" })).toHaveClass("border-[var(--primary)]");
+    expect(screen.getByRole("spinbutton", { name: "Baner" })).toHaveValue(4);
+    expect(screen.getByRole("spinbutton", { name: "Runder" })).toHaveValue(20);
+    expect(screen.getByRole("spinbutton", { name: "Antal scorepoint" })).toHaveValue(6);
+    expect(screen.queryByRole("combobox", { name: "Runde 1" })).not.toBeInTheDocument();
   });
 });

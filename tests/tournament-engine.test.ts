@@ -58,8 +58,7 @@ describe("tournament engine", () => {
   it.each([
     ["americano", sixteenPlayers],
     ["mixed-americano", sixteenMixedPlayers],
-    ["fixed-partner-americano", sixteenPlayers],
-  ] as const)("fills 4 courts for every generated %s round with 16 players", (format, formatPlayers) => {
+  ] as const)("fills 4 courts for 5 generated %s rounds with 16 players", (format, formatPlayers) => {
     const rounds = createTournamentRounds({ format, players: formatPlayers, rounds: 5, courts: 4, firstRoundOrder: "manual" });
 
     expect(rounds).toHaveLength(5);
@@ -74,6 +73,16 @@ describe("tournament engine", () => {
     const rounds = createTournamentRounds({ format, players: sixteenPlayers, rounds: 5, courts: 4, firstRoundOrder: "manual" });
 
     expect(rounds).toHaveLength(1);
+    expect(rounds[0].matches).toHaveLength(4);
+    expect(rounds[0].byePlayerIds ?? []).toHaveLength(0);
+  });
+
+  it.each([
+    "fixed-partner-americano",
+    "fixed-partner-mexicano",
+  ] as const)("fills 4 courts for %s with 8 entered pairs", (format) => {
+    const rounds = createTournamentRounds({ format, players: sixteenPlayers, rounds: 5, courts: 4, firstRoundOrder: "manual" });
+
     expect(rounds[0].matches).toHaveLength(4);
     expect(rounds[0].byePlayerIds ?? []).toHaveLength(0);
   });
@@ -115,6 +124,24 @@ describe("tournament engine", () => {
     }
   });
 
+  it("creates first Mexicano round from entered order as 1+3 vs 2+4 on court 1", () => {
+    const [round] = createTournamentRounds({ format: "mexicano", players: sixteenPlayers, rounds: 5, courts: 4, firstRoundOrder: "random", randomSeed: 7 });
+
+    for (let courtIndex = 0; courtIndex < 4; courtIndex += 1) {
+      const baseRank = courtIndex * 4;
+
+      expect(round.matches[courtIndex]).toMatchObject({
+        courtNumber: courtIndex + 1,
+        teamA: {
+          playerIds: [sixteenPlayers[baseRank].id, sixteenPlayers[baseRank + 2].id],
+        },
+        teamB: {
+          playerIds: [sixteenPlayers[baseRank + 1].id, sixteenPlayers[baseRank + 3].id],
+        },
+      });
+    }
+  });
+
   it("creates Fast Makker Mexicano rounds as rank 1 vs 2, 3 vs 4, and so on", () => {
     const teamsByRanking = createFixedPartnerTeams(players);
     const round = createNextFixedMexicanoRoundFromTeamRanking(teamsByRanking, 2, 2);
@@ -132,16 +159,34 @@ describe("tournament engine", () => {
   });
 
   it.each(["fixed-partner-americano", "fixed-partner-mexicano"] as const)(
-    "keeps entered fixed partner pairs together when %s starts randomly",
+    "starts %s from the entered pair order even when old random settings exist",
     (format) => {
       const rounds = createTournamentRounds({ format, players: sixteenPlayers, rounds: 5, courts: 4, firstRoundOrder: "random", randomSeed: 7 });
       const expectedPairIds = createFixedPartnerTeams(sixteenPlayers).map((team) => team.id).sort();
       const firstRoundPairIds = rounds[0].matches.flatMap((match) => [match.teamA.id, match.teamB.id]).sort();
 
       expect(firstRoundPairIds).toEqual(expectedPairIds);
-      expect(rounds[0].matches[0].teamA.playerIds).not.toEqual(["p1", "p2"]);
+      expect(rounds[0].matches[0].teamA.playerIds).toEqual(["p1", "p2"]);
     },
   );
+
+  it("creates first Fast Makker Mexicano round as pair 1 vs pair 2 on court 1", () => {
+    const [round] = createTournamentRounds({ format: "fixed-partner-mexicano", players: sixteenPlayers, rounds: 20, courts: 4, firstRoundOrder: "random", randomSeed: 7 });
+
+    for (let courtIndex = 0; courtIndex < 4; courtIndex += 1) {
+      const basePlayer = courtIndex * 4;
+
+      expect(round.matches[courtIndex]).toMatchObject({
+        courtNumber: courtIndex + 1,
+        teamA: {
+          playerIds: [sixteenPlayers[basePlayer].id, sixteenPlayers[basePlayer + 1].id],
+        },
+        teamB: {
+          playerIds: [sixteenPlayers[basePlayer + 2].id, sixteenPlayers[basePlayer + 3].id],
+        },
+      });
+    }
+  });
 
   it("keeps fixed partners through all fixed partner Americano rounds", () => {
     const rounds = createTournamentRounds({ format: "fixed-partner-americano", players, rounds: 3, courts: 2 });

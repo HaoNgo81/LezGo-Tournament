@@ -2,7 +2,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { TournamentListApp } from "../components/tournament/tournament-list-app";
 import { advanceLivePoolPlayState, finishTournament, saveNextPoolPhaseResult } from "../lib/live-scoring";
-import { createPoolTournamentFromSetup, createTournamentFromSetup, saveActiveTournament, saveCompletedTournament } from "../lib/tournament-setup";
+import { createPoolTournamentFromSetup, createTournamentFromSetup, loadActiveTournament, saveActiveTournament, saveCompletedTournament } from "../lib/tournament-setup";
 
 const sixteenPlayerText = Array.from({ length: 16 }, (_, index) => `Spiller ${index + 1}`).join("\n");
 
@@ -43,6 +43,30 @@ describe("TournamentListApp pool play", () => {
 
     expect(await screen.findByText("Fast Makker Mexicano 16/4")).toBeInTheDocument();
     expect(screen.getByText(/Afsluttet .* 16 spillere/)).toBeInTheDocument();
+  });
+
+  it("shows up to five active standard tournaments and opens the selected one", async () => {
+    Array.from({ length: 5 }, (_, index) => createTournamentFromSetup({
+      name: `Aktiv ${index + 1}`,
+      format: "Americano",
+      playerText: sixteenPlayerText,
+      femalePlayerText: "",
+      malePlayerText: "",
+      courts: 4,
+      rounds: 5,
+      scoringMode: "Fri scoring",
+      firstRoundOrder: "manual",
+      rankingMode: "matchPointsFirst",
+    })).forEach(saveActiveTournament);
+
+    render(<TournamentListApp />);
+
+    expect(await screen.findByText("Aktiv 5")).toBeInTheDocument();
+    expect(screen.getByText("Aktiv 1")).toBeInTheDocument();
+
+    screen.getAllByRole("link", { name: "Åbn live" }).at(-1)?.click();
+
+    expect(loadActiveTournament()?.tournamentName).toBe("Aktiv 1");
   });
 });
 
