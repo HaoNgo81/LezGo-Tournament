@@ -18,6 +18,7 @@ export function AppShell({ title, subtitle, children, backHref = "/", primaryAct
   const { t } = useAppTranslation();
   const translatedTitle = translateKnownShellText(title, t);
   const translatedSubtitle = subtitle ? translateKnownShellText(subtitle, t) : undefined;
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
   return (
     <main className="safe-screen mx-auto flex w-full max-w-4xl flex-col gap-6">
@@ -28,7 +29,7 @@ export function AppShell({ title, subtitle, children, backHref = "/", primaryAct
           </Link>
         ) : null}
         <div className="max-w-3xl">
-          <Image className="h-auto w-full max-w-[min(100%,24rem)]" src="/lezgo-padel-logo.png" width={1399} height={184} priority alt={t("appBrand")} />
+          <Image className="h-auto w-full max-w-[min(100%,24rem)]" src={`${basePath}/lezgo-padel-logo.png`} width={1399} height={184} priority unoptimized alt={t("appBrand")} />
           <h1 className="mt-2 text-2xl font-black leading-tight text-[var(--foreground)] sm:text-4xl">{translatedTitle}</h1>
           {translatedSubtitle ? <p className="mt-2 max-w-2xl text-base font-bold leading-7 text-[var(--muted)] sm:text-lg">{translatedSubtitle}</p> : null}
         </div>

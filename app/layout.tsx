@@ -4,6 +4,8 @@ import { AppPreferences } from "@/components/preferences/app-preferences";
 import { ServiceWorkerRegistration } from "@/components/pwa/service-worker-registration";
 import "./globals.css";
 
+const basePath = process.env.GITHUB_PAGES === "true" ? "/LezGo-Tournament" : "";
+
 export const metadata: Metadata = {
   title: "LEZGO PADEL",
   description: "Mobile-first padel tournament app",
@@ -13,8 +15,8 @@ export const metadata: Metadata = {
     title: "LEZGO PADEL",
   },
   icons: {
-    icon: "/app-icon-192.png",
-    apple: "/app-icon-192.png",
+    icon: `${basePath}/app-icon-192.png`,
+    apple: `${basePath}/app-icon-192.png`,
   },
 };
 

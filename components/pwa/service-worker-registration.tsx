@@ -8,7 +8,8 @@ export function ServiceWorkerRegistration() {
       return;
     }
 
-    void navigator.serviceWorker.register("/sw.js");
+    const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+    void navigator.serviceWorker.register(`${basePath}/sw.js`);
   }, []);
 
   return null;
