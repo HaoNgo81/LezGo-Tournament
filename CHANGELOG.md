@@ -71,6 +71,19 @@
 - Clarified timed scoring inputs as minutes.
 - Added one-input fixed-total score registration for Americano live matches with automatic opponent score calculation.
 - Added 16-player, 4-court, 8-round Americano regression coverage for free, fixed-total, and timed scoring.
+- Added shared fixed-total score calculation and kept invalid Fast Makker Americano saves inside the live UI instead of crashing the page.
+- Kept fixed target-score validation errors inside the live UI instead of showing the Next.js runtime error page.
+- Added cyclic Americano and Fast Makker Americano rotation so pairings/opponents restart cleanly after each complete cycle.
+- Added selectable timer alarm sounds with settings persistence and safe preview/playback.
+- Balanced courts for Americano and Fast Makker Americano without changing generated matchups.
+- Repeated the selected timed-round alarm three times from a single expiry trigger.
+- Locked Mixed Americano tests for mixed-pair invariants, 8-round partner cycles, court balance, scoring, and result editing.
+- Extended Mixed Americano coverage to the 10-round, 16-player, 4-court main scenario with cycle restart, scoring modes, and player court-history checks.
+- Displayed Mixed Americano teams in male/female order while preserving mixed-pair rotation rules.
+- Rebalanced older saved Mixed Americano court assignments on load so legacy tournaments no longer keep players locked to one court.
+- Rebalanced older saved Fast Makker Americano court assignments on load using fixed-pair history without changing opponent cycles.
+- Locked Mexicano and Fast Makker Mexicano live ranking mode after tournament start and verified ranking-driven court assignment without court balancing.
+- Regenerated unplayed future Mexicano and Fast Makker Mexicano rounds after previous result edits while preserving already scored future rounds.
 - Applied fixed-score validation to standard tournaments and Team vs. Team sets.
 - Added pair-based player entry for fixed-partner formats and Team vs. Team.
 - Limited fixed-partner court count to one court per two available pairs.

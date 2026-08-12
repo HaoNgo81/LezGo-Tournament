@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import { AppPreferences } from "@/components/preferences/app-preferences";
 import { ServiceWorkerRegistration } from "@/components/pwa/service-worker-registration";
 import "./globals.css";
 
@@ -10,6 +11,10 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: "LEZGO PADEL",
+  },
+  icons: {
+    icon: "/app-icon-192.png",
+    apple: "/app-icon-192.png",
   },
 };
 
@@ -25,6 +30,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
     <html lang="da">
       <body>
         <ServiceWorkerRegistration />
+        <AppPreferences />
         {children}
       </body>
     </html>

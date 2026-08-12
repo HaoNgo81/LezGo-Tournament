@@ -5,9 +5,11 @@ import Link from "next/link";
 import { createMockLiveTournamentState, type LiveTournamentState } from "@/lib/live-scoring";
 import { createQrCodeMatrix, createShareUrl } from "@/lib/sharing";
 import { loadActiveTournament } from "@/lib/tournament-setup";
+import { useAppTranslation } from "@/lib/preferences/client";
 import { useHasHydrated } from "@/hooks/use-has-hydrated";
 
 export function ShareTournamentApp() {
+  const { t } = useAppTranslation();
   const hasHydrated = useHasHydrated();
   const [state, setState] = useState<LiveTournamentState>(() => createMockLiveTournamentState());
   const [origin, setOrigin] = useState("http://localhost:3000");
@@ -29,19 +31,19 @@ export function ShareTournamentApp() {
   }, [hasHydrated]);
 
   if (!hasHydrated) {
-    return <div className="app-card p-4 font-bold text-[var(--muted)]">Indlæser deling...</div>;
+    return <div className="app-card p-4 font-bold text-[var(--muted)]">{t("loadingShare")}</div>;
   }
 
   async function handleCopy() {
     await navigator.clipboard.writeText(shareUrl);
-    setCopyStatus("Link kopieret.");
+    setCopyStatus(t("linkCopied"));
   }
 
   return (
     <div className="grid gap-5">
       <section className="grid gap-4 app-card p-4">
         <div>
-          <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">Del turnering</p>
+          <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{t("shareTournament")}</p>
           <h2 className="mt-1 text-2xl font-black">{state.tournamentName}</h2>
           <p className="mt-1 text-sm font-bold text-[var(--muted)]">QR-koden åbner spillerens read-only visning.</p>
         </div>
@@ -55,13 +57,13 @@ export function ShareTournamentApp() {
 
         <div className="action-grid">
           <button className="btn-primary" type="button" onClick={handleCopy}>
-            Kopier link
+            {t("copyLink")}
           </button>
           <Link className="btn-outline-primary" href="/qr">
-            Åbn QR
+            {t("openQr")}
           </Link>
           <Link className="btn-outline-primary" href="/tv">
-            Åbn TV-skærm
+            {t("openTvScreen")}
           </Link>
         </div>
 

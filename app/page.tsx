@@ -1,14 +1,19 @@
+"use client";
+
 import { AppShell } from "@/components/layout/app-shell";
 import { LargeAction } from "@/components/ui/large-action";
+import { useAppTranslation } from "@/lib/preferences/client";
 
 export default function HomePage() {
+  const { t } = useAppTranslation();
+
   return (
-    <AppShell title="LEZGO PADEL" subtitle="Hurtig turneringsstyring til telefon og tablet." backHref="">
+    <AppShell title={t("appBrand")} subtitle={t("appSubtitle")} backHref="">
       <nav className="grid gap-4">
-        <LargeAction href="/new-tournament" title="Ny turnering" description="Vælg format, indstillinger og spillere." icon="+" />
-        <LargeAction href="/templates" title="Turneringsskabeloner" description="Opret, rediger, slet eller start fra skabelon." icon="=" />
-        <LargeAction href="/tournaments" title="Turneringer" description="Aktive, kommende, afsluttede og tidligere." icon=">" />
-        <LargeAction href="/settings" title="Indstillinger" description="Kun de nødvendige valg." icon="*" />
+        <LargeAction href="/new-tournament" title={t("newTournamentTitle")} description={t("homeNewTournamentDescription")} icon="+" />
+        <LargeAction href="/templates" title={t("homeTemplatesTitle")} description={t("homeTemplatesDescription")} icon="=" />
+        <LargeAction href="/tournaments" title={t("tournaments")} description={t("homeTournamentsDescription")} icon=">" />
+        <LargeAction href="/settings" title={t("settings")} description={t("homeSettingsDescription")} icon="*" />
       </nav>
     </AppShell>
   );

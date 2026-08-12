@@ -1,5 +1,8 @@
 import type { StandingsRankingMode } from "../tournament-engine";
+import { normalizeLanguage, type AppLanguage } from "../i18n/translations";
+import { createDefaultTheme, normalizeTheme, type AppTheme } from "../theme/theme";
 import type { ScoringMode } from "../tournament-setup";
+import { normalizeAlarmSoundId, type AlarmSoundId } from "./alarm-sounds";
 
 const settingsStorageKey = "lezgo.tournamentSettings.v1";
 
@@ -9,6 +12,9 @@ export interface TournamentSettings {
   rounds: number;
   rankingMode: StandingsRankingMode;
   timeLimitMinutes: number;
+  alarmSound: AlarmSoundId;
+  language: AppLanguage;
+  theme: AppTheme;
 }
 
 export function createDefaultTournamentSettings(): TournamentSettings {
@@ -18,6 +24,9 @@ export function createDefaultTournamentSettings(): TournamentSettings {
     rounds: 2,
     rankingMode: "matchPointsFirst",
     timeLimitMinutes: 15,
+    alarmSound: "standard",
+    language: "da",
+    theme: createDefaultTheme(),
   };
 }
 
@@ -42,7 +51,7 @@ export function loadTournamentSettings(): TournamentSettings {
   }
 }
 
-export function saveTournamentSettings(input: TournamentSettings): TournamentSettings {
+export function saveTournamentSettings(input: Partial<TournamentSettings>): TournamentSettings {
   const settings = normalizeTournamentSettings(input);
 
   if (typeof window !== "undefined") {
@@ -60,6 +69,9 @@ function normalizeTournamentSettings(input: Partial<TournamentSettings>): Tourna
     rounds: input.rounds ?? defaults.rounds,
     rankingMode: input.rankingMode ?? defaults.rankingMode,
     timeLimitMinutes: input.timeLimitMinutes ?? defaults.timeLimitMinutes,
+    alarmSound: normalizeAlarmSoundId(input.alarmSound),
+    language: normalizeLanguage(input.language),
+    theme: normalizeTheme(input.theme),
   };
 
   if (!Number.isInteger(settings.courts) || settings.courts < 1) {

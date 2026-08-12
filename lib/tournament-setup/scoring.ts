@@ -7,6 +7,30 @@ export interface FixedScoreSettings {
   fixedScorePoints?: number;
 }
 
+export interface FixedTotalScore {
+  teamAPoints: number;
+  teamBPoints: number;
+}
+
+export function calculateFixedTotalScore(fixedScoreTotal: number, enteredScore: number): FixedTotalScore {
+  if (!Number.isInteger(fixedScoreTotal) || fixedScoreTotal < 1) {
+    throw new Error("Vælg et fast samlet antal scorepoint på mindst 1.");
+  }
+
+  if (!Number.isInteger(enteredScore)) {
+    throw new Error("Score skal være et helt tal.");
+  }
+
+  if (enteredScore < 0 || enteredScore > fixedScoreTotal) {
+    throw new Error(`Scoren skal være mellem 0 og ${fixedScoreTotal}.`);
+  }
+
+  return {
+    teamAPoints: enteredScore,
+    teamBPoints: fixedScoreTotal - enteredScore,
+  };
+}
+
 export function validateScoringSettings(scoringMode: ScoringMode, settings: FixedScoreSettings): void {
   if (scoringMode !== "Fast antal point") {
     return;

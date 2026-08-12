@@ -7,9 +7,11 @@ import { Section } from "@/components/ui/section";
 import { createMockLiveTournamentState, type LiveTournamentState } from "@/lib/live-scoring";
 import { createReadOnlyTournamentView, createTeamVsTeamReadOnlyView, type ReadOnlyTournamentView, type TeamVsTeamReadOnlyView } from "@/lib/read-only-views";
 import { loadActiveTeamVsTeamTournament, loadActiveTournament, type TeamVsTeamTournamentState } from "@/lib/tournament-setup";
+import { useAppTranslation } from "@/lib/preferences/client";
 import { useHasHydrated } from "@/hooks/use-has-hydrated";
 
 export function QrTournamentApp() {
+  const { t } = useAppTranslation();
   const [teamVsTeamState, setTeamVsTeamState] = useState<TeamVsTeamTournamentState | null>(null);
   const [state, setState] = useState<LiveTournamentState>(() => createMockLiveTournamentState());
   const hasHydrated = useHasHydrated();
@@ -28,7 +30,7 @@ export function QrTournamentApp() {
   }, [hasHydrated]);
 
   if (!hasHydrated) {
-    return <div className="app-card p-4 font-bold text-[var(--muted)]">Indlæser turnering...</div>;
+    return <div className="app-card p-4 font-bold text-[var(--muted)]">{t("loadingTournament")}</div>;
   }
 
   if (teamVsTeamState) {
@@ -39,6 +41,7 @@ export function QrTournamentApp() {
 }
 
 function StandardQrView({ state }: { state: LiveTournamentState }) {
+  const { t } = useAppTranslation();
   const view = useMemo(() => createReadOnlyTournamentView(state), [state]);
 
   if (view.poolPlay) {
@@ -49,13 +52,13 @@ function StandardQrView({ state }: { state: LiveTournamentState }) {
     <div className="grid gap-5">
       <Section title={view.tournamentName}>
         <div className="grid gap-3 app-card p-4 text-lg leading-8">
-          <p><strong>Runde:</strong> {view.activeRoundNumber} / {view.totalRounds}</p>
-          <p><strong>Spillere:</strong> {view.players}</p>
-          <p><strong>Baner:</strong> {view.courts}</p>
+          <p><strong>{t("round")}:</strong> {view.activeRoundNumber} / {view.totalRounds}</p>
+          <p><strong>{t("players")}:</strong> {view.players}</p>
+          <p><strong>{t("courts")}:</strong> {view.courts}</p>
         </div>
       </Section>
 
-      <Section title="Alle spillere">
+      <Section title={t("allPlayers")}>
         <div className="grid gap-3">
           {view.playerInfo.map((player) => (
             <article key={player.playerId} className="app-card p-4 shadow-sm">
@@ -75,15 +78,15 @@ function StandardQrView({ state }: { state: LiveTournamentState }) {
         </div>
       </Section>
 
-      <Section title="Kampe i aktiv runde">
+      <Section title={t("matchesInActiveRound")}>
         <MatchCards matches={view.matches} />
       </Section>
 
-      <Section title="Hele stillingen">
+      <Section title={t("fullStandings")}>
         <StandingsTable standings={view.standings} />
       </Section>
 
-      <Section title="Runder">
+      <Section title={t("rounds")}>
         <div className="grid gap-3">
           {view.rounds.map((round) => (
             <article key={round.roundNumber} className="app-card p-4">

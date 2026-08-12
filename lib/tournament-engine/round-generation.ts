@@ -76,13 +76,22 @@ export function createFixedPartnerRound(teams: Team[], roundNumber: number, mexi
   return { roundNumber, matches };
 }
 
+export function createFixedPartnerAmericanoRound(teams: Team[], roundNumber: number): TournamentRound {
+  const pairings = createRoundRobinPairings(orderedForAdjacentOpening(teams), roundNumber);
+
+  return {
+    roundNumber,
+    matches: pairings.map(([teamA, teamB], index) => makeMatch(roundNumber, index + 1, teamA, teamB)),
+  };
+}
+
 export function createMixedAmericanoRound(females: TournamentPlayer[], males: TournamentPlayer[], roundNumber: number): TournamentRound {
   const rotatedMales = rotatePlayers(males, roundNumber - 1);
-  const femaleMaleTeams: Team[] = females.map((female, index) => makeTeam(roundNumber, female, rotatedMales[index]));
+  const mixedTeams: Team[] = females.map((female, index) => makeTeam(roundNumber, rotatedMales[index], female));
   const matches: TournamentMatch[] = [];
 
-  for (let index = 0; index < femaleMaleTeams.length; index += 2) {
-    matches.push(makeMatch(roundNumber, index / 2 + 1, femaleMaleTeams[index], femaleMaleTeams[index + 1]));
+  for (let index = 0; index < mixedTeams.length; index += 2) {
+    matches.push(makeMatch(roundNumber, index / 2 + 1, mixedTeams[index], mixedTeams[index + 1]));
   }
 
   return { roundNumber, matches };
@@ -105,6 +114,18 @@ export function createGreedyAmericanoRound(players: TournamentPlayer[], roundNum
     previousPairKeys.add(canonicalPairKey([first.id, partner.id]));
   }
 
+  const matches: TournamentMatch[] = [];
+
+  for (let index = 0; index < teams.length; index += 2) {
+    matches.push(makeMatch(roundNumber, index / 2 + 1, teams[index], teams[index + 1]));
+  }
+
+  return { roundNumber, matches };
+}
+
+export function createCycledAmericanoRound(players: TournamentPlayer[], roundNumber: number): TournamentRound {
+  const pairings = createRoundRobinPairings(orderedForAdjacentOpening(players), roundNumber);
+  const teams = pairings.map(([playerA, playerB]) => makeTeam(roundNumber, playerA, playerB));
   const matches: TournamentMatch[] = [];
 
   for (let index = 0; index < teams.length; index += 2) {
@@ -141,6 +162,47 @@ function rotateTeams(teams: Team[], roundOffset: number): Team[] {
   const rotating = teams.slice(1);
   const normalizedOffset = roundOffset % rotating.length;
   return [fixed, ...rotating.slice(normalizedOffset), ...rotating.slice(0, normalizedOffset)];
+}
+
+function orderedForAdjacentOpening<T>(items: T[]): T[] {
+  const left: T[] = [];
+  const right: T[] = [];
+
+  for (let index = 0; index < items.length; index += 2) {
+    left.push(items[index]);
+    if (items[index + 1]) {
+      right.unshift(items[index + 1]);
+    }
+  }
+
+  return [...left, ...right];
+}
+
+function createRoundRobinPairings<T>(items: T[], roundNumber: number): Array<[T, T]> {
+  if (items.length % 2 !== 0) {
+    throw new Error("Round-robin rotation kraever et lige antal deltagere.");
+  }
+
+  if (items.length < 2) {
+    return [];
+  }
+
+  const cycleLength = items.length - 1;
+  const normalizedOffset = (roundNumber - 1) % cycleLength;
+  const fixed = items[0];
+  const rotating = items.slice(1);
+  const rotated = [
+    fixed,
+    ...rotating.slice(normalizedOffset),
+    ...rotating.slice(0, normalizedOffset),
+  ];
+  const pairings: Array<[T, T]> = [];
+
+  for (let index = 0; index < rotated.length / 2; index += 1) {
+    pairings.push([rotated[index], rotated[rotated.length - 1 - index]]);
+  }
+
+  return pairings;
 }
 
 

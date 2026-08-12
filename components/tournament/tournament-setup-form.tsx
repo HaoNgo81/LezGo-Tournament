@@ -4,7 +4,9 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { PrimaryButton } from "@/components/ui/primary-button";
 import { Section } from "@/components/ui/section";
-import { scoringModes, tournamentTypes } from "@/lib/mock/tournament-data";
+import { useAppTranslation } from "@/lib/preferences/client";
+import type { TranslationKey } from "@/lib/i18n/translations";
+import { tournamentTypes } from "@/lib/mock/tournament-data";
 import {
   createPoolTournamentFromSetup,
   createTeamVsTeamTournamentFromSetup,
@@ -34,28 +36,36 @@ import { findTournamentTemplate } from "@/lib/tournament-templates";
 
 const formatOptions = tournamentTypes.filter((type) => type !== "Puljespil" && type !== "Team vs. Team") as TournamentSetupFormat[];
 
-const rankingModeOptions: Array<{ label: string; value: StandingsRankingMode }> = [
-  { label: "Flest matchpoint", value: "matchPointsFirst" },
-  { label: "Flest scorepoint", value: "partiPointsFirst" },
+const rankingModeOptions: Array<{ labelKey: "mostMatchPoints" | "mostScorePoints"; value: StandingsRankingMode }> = [
+  { labelKey: "mostMatchPoints", value: "matchPointsFirst" },
+  { labelKey: "mostScorePoints", value: "partiPointsFirst" },
 ];
 
-const defaultPlayerText = ["Anna", "Hassan", "Maja", "Noah", "Sofia", "Emil", "Clara", "Jonas"].join("\n");
-const defaultFemaleText = ["Anna", "Maja", "Sofia", "Clara"].join("\n");
-const defaultMaleText = ["Hassan", "Noah", "Emil", "Jonas"].join("\n");
+type ScoringChoice = "target" | "total" | "timed";
+
+const scoringChoices: Array<{ labelKey: "playToScorePoints" | "totalScorePoints" | "timeFreeScoring"; value: ScoringChoice }> = [
+  { labelKey: "playToScorePoints", value: "target" },
+  { labelKey: "totalScorePoints", value: "total" },
+  { labelKey: "timeFreeScoring", value: "timed" },
+];
+
+const automaticTournamentNames = new Set<string>(formatOptions);
 
 export function TournamentSetupForm() {
+  const { t } = useAppTranslation();
   const router = useRouter();
   const initialSettings = useMemo(() => loadTournamentSettings(), []);
+  const initialScoringMode = initialSettings.scoringMode === "Fri scoring" ? "Fast antal point" : initialSettings.scoringMode;
   const appliedTemplateId = useRef<string | null>(null);
-  const [name, setName] = useState("Fredag Americano");
+  const [name, setName] = useState("Americano");
   const [format, setFormat] = useState<TournamentSetupFormat>("Americano");
-  const [scoringMode, setScoringMode] = useState<ScoringMode>(initialSettings.scoringMode);
+  const [scoringMode, setScoringMode] = useState<ScoringMode>(initialScoringMode);
   const [fixedScoreRule, setFixedScoreRule] = useState<FixedScoreRule>("target");
   const [fixedScorePoints, setFixedScorePoints] = useState(21);
   const [timeLimitMinutes, setTimeLimitMinutes] = useState(initialSettings.timeLimitMinutes);
-  const [playerText, setPlayerText] = useState(defaultPlayerText);
-  const [femalePlayerText, setFemalePlayerText] = useState(defaultFemaleText);
-  const [malePlayerText, setMalePlayerText] = useState(defaultMaleText);
+  const [playerText, setPlayerText] = useState("");
+  const [femalePlayerText, setFemalePlayerText] = useState("");
+  const [malePlayerText, setMalePlayerText] = useState("");
   const [courts, setCourts] = useState(initialSettings.courts);
   const [rounds, setRounds] = useState(initialSettings.rounds);
   const [teamCount, setTeamCount] = useState<TeamVsTeamTeamCount>(2);
@@ -77,6 +87,7 @@ export function TournamentSetupForm() {
   const isFixedPartner = format === "Fast Makker Americano" || format === "Fast Makker Mexicano";
   const fixedPartnerPairs = getFixedPartnerPairs(playerText);
   const teamRounds = playersPerTeam === 4 ? 3 : 2;
+  const scoringChoice = getScoringChoice(scoringMode, fixedScoreRule);
 
   useEffect(() => {
     const template = getInitialTemplate();
@@ -187,6 +198,22 @@ export function TournamentSetupForm() {
     setTeamDrafts((currentTeams) => currentTeams.map((team, index) => (index === teamIndex ? nextTeam : team)));
   }
 
+  function handleFormatChange(nextFormat: TournamentSetupFormat) {
+    setFormat(nextFormat);
+    setName((currentName) => (isAutomaticTournamentName(currentName) ? nextFormat : currentName));
+    setError("");
+  }
+
+  function handleScoringChoiceChange(nextChoice: ScoringChoice) {
+    if (nextChoice === "timed") {
+      setScoringMode("Spil på tid");
+      return;
+    }
+
+    setScoringMode("Fast antal point");
+    setFixedScoreRule(nextChoice);
+  }
+
   function updateFixedPartnerPlayer(pairIndex: number, playerIndex: number, playerName: string) {
     const names = getFixedPartnerPlayerNames(playerText);
     names[pairIndex * 2 + playerIndex] = playerName;
@@ -205,54 +232,42 @@ export function TournamentSetupForm() {
 
   return (
     <form className="grid gap-5" onSubmit={handleSubmit}>
-      <Section title="1. Turneringsform">
+      <Section title={`1. ${t("tournamentFormat")}`}>
         <div className="grid gap-3 sm:grid-cols-2">
           {formatOptions.map((option) => (
             <button
               key={option}
               className={`min-h-16 rounded-md border p-4 text-left text-lg font-black transition focus:outline-none focus:ring-4 focus:ring-green-100 ${format === option ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary-strong)]" : "border-[var(--line)] bg-white"}`}
               type="button"
-              onClick={() => {
-                setFormat(option);
-                setError("");
-              }}
+              onClick={() => handleFormatChange(option)}
             >
-              {option}
+              {getFormatDisplayName(option, t)}
             </button>
           ))}
         </div>
       </Section>
 
-      <Section title="2. Turneringsindstillinger">
+      <Section title={`2. ${t("tournamentSettings")}`}>
         <div className="app-card grid gap-3 p-4 sm:p-5">
           <label className="grid gap-2 text-lg font-bold">
-            Navn
+            {t("name")}
             <input className="field-control" value={name} onChange={(event) => setName(event.target.value)} />
           </label>
           <label className="grid gap-2 text-lg font-bold">
             Scoring
-            <select className="field-control" value={scoringMode} onChange={(event) => setScoringMode(event.target.value as ScoringMode)}>
-              {scoringModes.map((mode) => <option key={mode}>{mode}</option>)}
+            <select className="field-control" value={scoringChoice} onChange={(event) => handleScoringChoiceChange(event.target.value as ScoringChoice)}>
+              {scoringChoices.map((choice) => <option key={choice.value} value={choice.value}>{t(choice.labelKey)}</option>)}
             </select>
           </label>
           {scoringMode === "Fast antal point" ? (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="grid gap-2 text-lg font-bold">
-                Fast scoretype
-                <select className="field-control" value={fixedScoreRule} onChange={(event) => setFixedScoreRule(event.target.value as FixedScoreRule)}>
-                  <option value="target">Spil til et antal scorepoint</option>
-                  <option value="total">Fast samlet antal scorepoint</option>
-                </select>
-              </label>
-              <label className="grid gap-2 text-lg font-bold">
-                Antal scorepoint
-                <input className="field-control" min="1" type="number" value={fixedScorePoints} onChange={(event) => setFixedScorePoints(Number(event.target.value))} />
-              </label>
-            </div>
+            <label className="grid gap-2 text-lg font-bold">
+              {fixedScoreRule === "total" ? t("totalScorePointsCount") : t("numberOfScorePoints")}
+              <input className="field-control" min="1" type="number" value={fixedScorePoints} onChange={(event) => setFixedScorePoints(Number(event.target.value))} />
+            </label>
           ) : null}
           {scoringMode === "Spil på tid" ? (
             <label className="grid gap-2 text-lg font-bold">
-              Spilletid pr. runde (minutter)
+              {t("timeLimitMinutes")}
               <input className="field-control" min="1" type="number" value={timeLimitMinutes} onChange={(event) => setTimeLimitMinutes(Number(event.target.value))} />
             </label>
           ) : null}
@@ -311,9 +326,9 @@ export function TournamentSetupForm() {
           ) : isPoolPlay ? (
             <>
               <label className="grid gap-2 text-lg font-bold">
-                Stilling sorteres efter
+                {t("rankingSort")}
                 <select className="field-control" value={rankingMode} onChange={(event) => setRankingMode(event.target.value as StandingsRankingMode)}>
-                  {rankingModeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  {rankingModeOptions.map((option) => <option key={option.value} value={option.value}>{t(option.labelKey)}</option>)}
                 </select>
               </label>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -366,18 +381,18 @@ export function TournamentSetupForm() {
           ) : (
             <>
               <label className="grid gap-2 text-lg font-bold">
-                Stilling sorteres efter
+                {t("rankingSort")}
                 <select className="field-control" value={rankingMode} onChange={(event) => setRankingMode(event.target.value as StandingsRankingMode)}>
-                  {rankingModeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  {rankingModeOptions.map((option) => <option key={option.value} value={option.value}>{t(option.labelKey)}</option>)}
                 </select>
               </label>
               <div className="grid gap-3 sm:grid-cols-3">
                 <label className="grid gap-2 text-lg font-bold">
-                  Baner
+                  {t("courts")}
                   <input className="field-control" min="1" type="number" value={courts} onChange={(event) => setCourts(Number(event.target.value))} />
                 </label>
                 <label className="grid gap-2 text-lg font-bold">
-                  Runder
+                  {t("rounds")}
                   <input className="field-control" min="1" type="number" value={rounds} onChange={(event) => setRounds(Number(event.target.value))} />
                 </label>
               </div>
@@ -395,16 +410,16 @@ export function TournamentSetupForm() {
           </div>
         </Section>
       ) : (
-        <Section title={`3. ${participantSectionTitle(format, poolParticipantType)}`}>
+        <Section title={`3. ${participantSectionTitle(format, poolParticipantType, t)}`}>
           {format === "Mixed Americano" ? (
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="grid gap-2 text-lg font-bold">
                 Kvinder
-                <textarea className="field-control min-h-64 resize-y text-xl leading-8" value={femalePlayerText} onChange={(event) => setFemalePlayerText(event.target.value)} />
+                <textarea className="field-control min-h-64 resize-y text-xl leading-8" placeholder={t("oneNamePerLine")} value={femalePlayerText} onChange={(event) => setFemalePlayerText(event.target.value)} />
               </label>
               <label className="grid gap-2 text-lg font-bold">
                 Mænd
-                <textarea className="field-control min-h-64 resize-y text-xl leading-8" value={malePlayerText} onChange={(event) => setMalePlayerText(event.target.value)} />
+                <textarea className="field-control min-h-64 resize-y text-xl leading-8" placeholder={t("oneNamePerLine")} value={malePlayerText} onChange={(event) => setMalePlayerText(event.target.value)} />
               </label>
             </div>
           ) : isFixedPartner ? (
@@ -424,6 +439,7 @@ export function TournamentSetupForm() {
                         <input
                           aria-label={`Par ${pairIndex + 1}, spiller ${playerIndex + 1}`}
                           className="field-control"
+                          placeholder="Spillernavn"
                           value={playerName}
                           onChange={(event) => updateFixedPartnerPlayer(pairIndex, playerIndex, event.target.value)}
                         />
@@ -435,34 +451,34 @@ export function TournamentSetupForm() {
               <button className="min-h-12 rounded-md border border-[var(--line)] bg-white px-4 font-black" type="button" onClick={addFixedPartnerPair}>Tilføj par</button>
             </div>
           ) : (
-            <textarea className="field-control min-h-64 resize-y text-xl leading-8" value={playerText} onChange={(event) => setPlayerText(event.target.value)} aria-label={`${participantTextareaLabel(format, poolParticipantType)}, et navn pr. linje`} />
+            <textarea className="field-control min-h-64 resize-y text-xl leading-8" placeholder={t("oneNamePerLine")} value={playerText} onChange={(event) => setPlayerText(event.target.value)} aria-label={`${participantTextareaLabel(format, poolParticipantType, t)}, ${t("oneNamePerLine")}`} />
           )}
         </Section>
       )}
 
-      <Section title="4. Gennemse">
+      <Section title={`4. ${t("review")}`}>
         <div className="app-card grid gap-1 p-4 text-lg leading-8 sm:p-5">
-          <p><strong>Navn:</strong> {name || "-"}</p>
-          <p><strong>Format:</strong> {format}</p>
-          <p><strong>Scoring:</strong> {scoringMode}</p>
-          {scoringMode === "Fast antal point" ? <p><strong>Fast score:</strong> {fixedScoreRule === "target" ? `Spil til ${fixedScorePoints}` : `${fixedScorePoints} samlet`}</p> : null}
+          <p><strong>{t("name")}:</strong> {name || "-"}</p>
+          <p><strong>{t("format")}:</strong> {getFormatDisplayName(format, t)}</p>
+          <p><strong>{t("scoring")}:</strong> {t(scoringChoices.find((choice) => choice.value === scoringChoice)?.labelKey ?? "playToScorePoints")}</p>
+          {scoringMode === "Fast antal point" ? <p><strong>{t("fixedScore")}:</strong> {fixedScoreRule === "target" ? `${t("playToScorePoints")} ${fixedScorePoints}` : `${fixedScorePoints} ${t("totalScorePoints").toLowerCase()}`}</p> : null}
           {scoringMode === "Spil på tid" ? <p><strong>Spilletid:</strong> {timeLimitMinutes} minutter</p> : null}
-          <p><strong>{isTeamVsTeam ? "Hold" : participantSummaryLabel(format, poolParticipantType)}:</strong> {isTeamVsTeam ? teamCount : playerCount}</p>
+          <p><strong>{isTeamVsTeam ? "Hold" : participantSummaryLabel(format, poolParticipantType, t)}:</strong> {isTeamVsTeam ? teamCount : playerCount}</p>
           {isTeamVsTeam ? <p><strong>Afvikling:</strong> {competitionMode === "pool" ? "Puljespil · alle mødes én gang" : `Knockout · ${drawMode === "manual" ? "manuel" : "tilfældig"} fordeling`}</p> : null}
           {isPoolPlay ? <p><strong>Puljer:</strong> {poolCount} · {participantsPerPool} pr. pulje</p> : null}
           {isPoolPlay ? <p><strong>Progression:</strong> {poolAdvancementMode === "crossMatches" ? "Krydskampe" : "Placeringspuljer"} · {poolUnmatchedResolution === "bye" ? "oversidning" : "walkover"}</p> : null}
           {isPoolPlay && poolParticipantType === "team" ? <p><strong>Spillere pr. hold:</strong> {poolTeamPlayersPerTeam}</p> : null}
           {isTeamVsTeam ? <p><strong>Spillere pr. hold:</strong> {playersPerTeam}</p> : null}
           {isTeamVsTeam ? <p><strong>Holdkaptajner:</strong> {teamDrafts.slice(0, teamCount).map((team) => `${team.name || "Hold"}: ${getTeamVsTeamCaptainName(team)}`).join(" · ")}</p> : null}
-          {!isTeamVsTeam && !isPoolPlay ? <p><strong>Baner:</strong> {courts}</p> : null}
-          {!isTeamVsTeam && !isPoolPlay ? <p><strong>Runder:</strong> {rounds}</p> : isTeamVsTeam ? <p><strong>Holdkamp:</strong> {teamRounds} runder · 2 kampe pr. runde · {teamMatchFormat === "oneSet" ? "1 sæt" : "bedst af 3 sæt"}</p> : null}
-          {!isTeamVsTeam ? <p><strong>Stilling:</strong> {rankingModeOptions.find((option) => option.value === rankingMode)?.label}</p> : null}
+          {!isTeamVsTeam && !isPoolPlay ? <p><strong>{t("courts")}:</strong> {courts}</p> : null}
+          {!isTeamVsTeam && !isPoolPlay ? <p><strong>{t("rounds")}:</strong> {rounds}</p> : isTeamVsTeam ? <p><strong>Holdkamp:</strong> {teamRounds} runder · 2 kampe pr. runde · {teamMatchFormat === "oneSet" ? "1 sæt" : "bedst af 3 sæt"}</p> : null}
+          {!isTeamVsTeam ? <p><strong>Ranking:</strong> {t(rankingModeOptions.find((option) => option.value === rankingMode)?.labelKey ?? "mostMatchPoints")}</p> : null}
         </div>
       </Section>
 
-      <Section title="5. Start turnering">
+      <Section title={`5. ${t("startTournament")}`}>
         {error ? <p className="mb-3 rounded-md bg-red-50 p-3 font-bold text-red-700">{error}</p> : null}
-        <PrimaryButton type="submit">Start turnering</PrimaryButton>
+        <PrimaryButton type="submit">{t("startTournament")}</PrimaryButton>
       </Section>
     </form>
   );
@@ -536,6 +552,30 @@ function createDefaultTeams(count: 8, playersPerTeam: 8): TeamVsTeamTeam[] {
   }));
 }
 
+function getScoringChoice(scoringMode: ScoringMode, fixedScoreRule: FixedScoreRule): ScoringChoice {
+  if (scoringMode === "Spil på tid") {
+    return "timed";
+  }
+
+  return fixedScoreRule === "total" ? "total" : "target";
+}
+
+function isAutomaticTournamentName(name: string): boolean {
+  const trimmedName = name.trim();
+  return trimmedName === "" || automaticTournamentNames.has(trimmedName);
+}
+
+function getFormatDisplayName(format: TournamentSetupFormat, t: (key: TranslationKey) => string): string {
+  switch (format) {
+    case "Fast Makker Americano":
+      return t("fixedPartnerAmericano");
+    case "Fast Makker Mexicano":
+      return t("fixedPartnerMexicano");
+    default:
+      return format;
+  }
+}
+
 function countLines(text: string): number {
   return text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).length;
 }
@@ -581,14 +621,14 @@ function poolParticipantTotalLabel(participantType: PoolParticipantType): string
   }
 }
 
-function participantSectionTitle(format: TournamentSetupFormat, poolParticipantType: PoolParticipantType): string {
+function participantSectionTitle(format: TournamentSetupFormat, poolParticipantType: PoolParticipantType, t: (key: TranslationKey) => string): string {
   if (format !== "Puljespil") {
-    return "Spillere";
+    return t("players");
   }
 
   switch (poolParticipantType) {
     case "player":
-      return "Spillere";
+      return t("players");
     case "pair":
       return "Par";
     case "team":
@@ -596,14 +636,14 @@ function participantSectionTitle(format: TournamentSetupFormat, poolParticipantT
   }
 }
 
-function participantTextareaLabel(format: TournamentSetupFormat, poolParticipantType: PoolParticipantType): string {
+function participantTextareaLabel(format: TournamentSetupFormat, poolParticipantType: PoolParticipantType, t: (key: TranslationKey) => string): string {
   if (format !== "Puljespil") {
-    return "Spillere";
+    return t("players");
   }
 
-  return participantSectionTitle(format, poolParticipantType);
+  return participantSectionTitle(format, poolParticipantType, t);
 }
 
-function participantSummaryLabel(format: TournamentSetupFormat, poolParticipantType: PoolParticipantType): string {
-  return participantTextareaLabel(format, poolParticipantType);
+function participantSummaryLabel(format: TournamentSetupFormat, poolParticipantType: PoolParticipantType, t: (key: TranslationKey) => string): string {
+  return participantTextareaLabel(format, poolParticipantType, t);
 }

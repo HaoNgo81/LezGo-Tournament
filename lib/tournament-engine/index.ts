@@ -16,6 +16,8 @@ export {
   createNextFixedMexicanoRoundFromTeamRanking,
   createNextMexicanoRoundFromPlayerRanking,
   createTournamentRounds,
+  rebalanceFixedPartnerAmericanoCourts,
+  rebalanceMixedAmericanoCourts,
 } from "./engine";
 
 export { createFixedPartnerTeams } from "./round-generation";

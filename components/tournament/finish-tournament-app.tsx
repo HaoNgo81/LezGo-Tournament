@@ -17,14 +17,17 @@ import {
   saveCompletedTournament,
 } from "@/lib/tournament-setup";
 import { StandingsTable } from "@/components/tournament/standings-table";
+import { useAppTranslation } from "@/lib/preferences/client";
+import type { TranslationKey } from "@/lib/i18n/translations";
 import { useHasHydrated } from "@/hooks/use-has-hydrated";
 
 const rankingModeLabels = {
-  matchPointsFirst: "Flest matchpoint",
-  partiPointsFirst: "Flest scorepoint",
+  matchPointsFirst: "mostMatchPoints",
+  partiPointsFirst: "mostScorePoints",
 } as const;
 
 export function FinishTournamentApp() {
+  const { t } = useAppTranslation();
   const [state, setState] = useState<LiveTournamentState>(() => createMockLiveTournamentState());
   const hasHydrated = useHasHydrated();
   const standings = useMemo(() => calculateLiveStandings(state), [state]);
@@ -44,7 +47,7 @@ export function FinishTournamentApp() {
   }, [hasHydrated]);
 
   if (!hasHydrated) {
-    return <div className="app-card p-4 font-bold text-[var(--muted)]">Indlæser turnering...</div>;
+    return <div className="app-card p-4 font-bold text-[var(--muted)]">{t("loadingTournament")}</div>;
   }
 
   function handleFinish() {
@@ -72,27 +75,27 @@ export function FinishTournamentApp() {
   return (
     <div className="grid gap-5">
       <section className="app-card grid gap-3 p-4 sm:p-5">
-        <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{isFinished ? "Turneringen er afsluttet" : "Afslut turnering"}</p>
+        <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{isFinished ? t("completedTournament") : t("finishTournament")}</p>
         <h2 className="text-2xl font-black">{state.tournamentName}</h2>
         <p className="text-sm font-bold text-[var(--muted)]">
-          Slutstilling sorteres efter {rankingModeLabels[state.rankingMode].toLocaleLowerCase("da")}. Resultater kan stadig rettes fra live-skærmen efter afslutning.
+          {t("finalStandings")} sorteres efter {t(rankingModeLabels[state.rankingMode] as TranslationKey).toLocaleLowerCase("da")}.
         </p>
         <div className="action-grid">
           <Link className="btn-secondary min-h-14 text-lg" href="/live">
-            Ret resultater
+            {t("editScore")}
           </Link>
           <button className="btn-outline-primary min-h-14 text-lg" type="button" onClick={handleDownloadPdf}>
             Download PDF
           </button>
           <button className="min-h-14 rounded-md bg-red-600 px-5 text-lg font-black text-white disabled:bg-gray-300" type="button" disabled={isFinished} onClick={handleFinish}>
-            {isFinished ? "Afsluttet" : "Afslut turnering nu"}
+            {isFinished ? t("completed") : t("finishTournament")}
           </button>
         </div>
       </section>
 
       {poolSummary ? <PoolPlayFinishSummary summary={poolSummary} /> : (
         <section className="grid gap-3">
-          <h2 className="text-xl font-black">Slutstilling</h2>
+          <h2 className="text-xl font-black">{t("finalStandings")}</h2>
           <StandingsTable standings={standings} />
         </section>
       )}

@@ -17,7 +17,9 @@ import {
   selectActiveTournament,
   saveCompletedTeamVsTeamTournament,
   saveCompletedTournament,
+  createTournamentFromSetup,
 } from "../lib/tournament-setup";
+import type { LiveTournamentState } from "../lib/live-scoring";
 
 const finishedTeamVsTeamState = {
   name: "Klubkamp",
@@ -124,6 +126,49 @@ describe("tournament storage", () => {
     expect(completedTournament.state.poolPlay?.initialResults).toEqual([]);
     expect(completedTournament.state.poolPlay?.nextStageResults).toEqual([]);
     expect(completedTournament.state.poolPlay?.finalResults).toEqual([]);
+  });
+
+  it("rebalances older saved Mixed Americano court assignments on load", () => {
+    const legacyState = createLegacyLockedMixedAmericanoState();
+    const beforeHistories = countPlayerCourts(legacyState);
+
+    expect(getCourtSpread(beforeHistories.get("f1") ?? new Map(), 4)).toBe(10);
+    expect(getLongestSameCourtStreak(getPlayerCourtSequence(legacyState, "f1"))).toBe(10);
+
+    window.localStorage.setItem("lezgo.activeTournament.v1", JSON.stringify(legacyState));
+
+    const loadedState = loadActiveTournament();
+    const afterHistories = countPlayerCourts(loadedState as LiveTournamentState);
+
+    expect(loadedState?.format).toBe("mixed-americano");
+    expect(loadedState?.results[0]).toEqual(legacyState.results[0]);
+
+    for (const player of loadedState?.players ?? []) {
+      expect(getCourtSpread(afterHistories.get(player.id) ?? new Map(), 4)).toBeLessThanOrEqual(1);
+      expect(getLongestSameCourtStreak(getPlayerCourtSequence(loadedState as LiveTournamentState, player.id))).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it("rebalances older saved Fast Makker Americano court assignments on load without changing pairs", () => {
+    const legacyState = createLegacyLockedFixedPartnerAmericanoState();
+    const lockedTeamId = getFixedPartnerTeamIds(legacyState)[0];
+    const beforeHistories = countTeamCourts(legacyState);
+
+    expect(getCourtSpread(beforeHistories.get(lockedTeamId) ?? new Map(), 4)).toBe(10);
+    expect(getLongestSameCourtStreak(getTeamCourtSequence(legacyState, lockedTeamId))).toBe(10);
+
+    window.localStorage.setItem("lezgo.activeTournament.v1", JSON.stringify(legacyState));
+
+    const loadedState = loadActiveTournament();
+    const afterHistories = countTeamCourts(loadedState as LiveTournamentState);
+
+    expect(loadedState?.format).toBe("fixed-partner-americano");
+    expect(loadedState?.results[0]).toEqual(legacyState.results[0]);
+
+    for (const teamId of getFixedPartnerTeamIds(loadedState as LiveTournamentState)) {
+      expect(getCourtSpread(afterHistories.get(teamId) ?? new Map(), 4)).toBeLessThanOrEqual(2);
+      expect(getLongestSameCourtStreak(getTeamCourtSequence(loadedState as LiveTournamentState, teamId))).toBeLessThanOrEqual(2);
+    }
   });
 
   it("stores, restores, reopens, and deletes completed Team vs. Team tournaments", () => {
@@ -264,4 +309,159 @@ function createLegacyPoolPlayState(name: string) {
       },
     },
   };
+}
+
+function createLegacyLockedMixedAmericanoState(): LiveTournamentState {
+  const state = createTournamentFromSetup({
+    name: "Legacy mixed",
+    format: "Mixed Americano",
+    playerText: "",
+    femalePlayerText: Array.from({ length: 8 }, (_, index) => `Kvinde ${index + 1}`).join("\n"),
+    malePlayerText: Array.from({ length: 8 }, (_, index) => `Mand ${index + 1}`).join("\n"),
+    courts: 4,
+    rounds: 10,
+    scoringMode: "Fri scoring",
+    firstRoundOrder: "manual",
+    rankingMode: "matchPointsFirst",
+  });
+
+  const lockedRounds = state.rounds.map((round) => ({
+    ...round,
+    matches: round.matches.map((match) => {
+      const femaleIndex = Math.min(...[...match.teamA.playerIds, ...match.teamB.playerIds]
+        .filter((playerId) => playerId.startsWith("f"))
+        .map((playerId) => Number(playerId.slice(1))));
+      const lockedCourtNumber = Math.ceil(femaleIndex / 2);
+
+      return {
+        ...match,
+        id: `legacy-r${round.roundNumber}-c${lockedCourtNumber}`,
+        courtNumber: lockedCourtNumber,
+      };
+    }),
+  }));
+
+  return {
+    ...state,
+    rounds: lockedRounds,
+    results: [{ matchId: lockedRounds[0].matches[0].id, teamAPoints: 17, teamBPoints: 7 }],
+  };
+}
+
+function createLegacyLockedFixedPartnerAmericanoState(): LiveTournamentState {
+  const state = createTournamentFromSetup({
+    name: "Legacy fast makker",
+    format: "Fast Makker Americano",
+    playerText: Array.from({ length: 16 }, (_, index) => `Spiller ${index + 1}`).join("\n"),
+    femalePlayerText: "",
+    malePlayerText: "",
+    courts: 4,
+    rounds: 10,
+    scoringMode: "Fri scoring",
+    firstRoundOrder: "manual",
+    rankingMode: "matchPointsFirst",
+  });
+
+  const lockedRounds = state.rounds.map((round) => ({
+    ...round,
+    matches: round.matches.map((match) => {
+      const firstTeamIndex = Math.min(Number(match.teamA.playerIds[0].slice(1)), Number(match.teamB.playerIds[0].slice(1)));
+      const lockedCourtNumber = Math.ceil(firstTeamIndex / 4);
+
+      return {
+        ...match,
+        id: `legacy-fixed-r${round.roundNumber}-c${lockedCourtNumber}`,
+        courtNumber: lockedCourtNumber,
+      };
+    }),
+  }));
+
+  return {
+    ...state,
+    rounds: lockedRounds,
+    results: [{ matchId: lockedRounds[0].matches[0].id, teamAPoints: 17, teamBPoints: 7 }],
+  };
+}
+
+function countPlayerCourts(state: LiveTournamentState): Map<string, Map<number, number>> {
+  const histories = new Map<string, Map<number, number>>();
+
+  for (const round of state.rounds) {
+    for (const match of round.matches) {
+      for (const playerId of [...match.teamA.playerIds, ...match.teamB.playerIds]) {
+        const history = histories.get(playerId) ?? new Map<number, number>();
+        history.set(match.courtNumber, (history.get(match.courtNumber) ?? 0) + 1);
+        histories.set(playerId, history);
+      }
+    }
+  }
+
+  return histories;
+}
+
+function countTeamCourts(state: LiveTournamentState): Map<string, Map<number, number>> {
+  const histories = new Map<string, Map<number, number>>();
+
+  for (const round of state.rounds) {
+    for (const match of round.matches) {
+      for (const teamId of [match.teamA.id, match.teamB.id]) {
+        const history = histories.get(teamId) ?? new Map<number, number>();
+        history.set(match.courtNumber, (history.get(match.courtNumber) ?? 0) + 1);
+        histories.set(teamId, history);
+      }
+    }
+  }
+
+  return histories;
+}
+
+function getFixedPartnerTeamIds(state: LiveTournamentState): string[] {
+  return Array.from(new Set(state.rounds.flatMap((round) => round.matches.flatMap((match) => [match.teamA.id, match.teamB.id]))));
+}
+
+function getPlayerCourtSequence(state: LiveTournamentState, playerId: string): number[] {
+  const sequence: number[] = [];
+
+  for (const round of state.rounds) {
+    const match = round.matches.find((candidate) => [...candidate.teamA.playerIds, ...candidate.teamB.playerIds].includes(playerId));
+
+    if (match) {
+      sequence.push(match.courtNumber);
+    }
+  }
+
+  return sequence;
+}
+
+function getTeamCourtSequence(state: LiveTournamentState, teamId: string): number[] {
+  const sequence: number[] = [];
+
+  for (const round of state.rounds) {
+    const match = round.matches.find((candidate) => candidate.teamA.id === teamId || candidate.teamB.id === teamId);
+
+    if (match) {
+      sequence.push(match.courtNumber);
+    }
+  }
+
+  return sequence;
+}
+
+function getCourtSpread(history: Map<number, number>, courts: number): number {
+  const counts = Array.from({ length: courts }, (_, index) => history.get(index + 1) ?? 0);
+  return Math.max(...counts) - Math.min(...counts);
+}
+
+function getLongestSameCourtStreak(sequence: number[]): number {
+  let longestStreak = 0;
+  let currentStreak = 0;
+  let previousCourt = 0;
+
+  for (const court of sequence) {
+    currentStreak = court === previousCourt ? currentStreak + 1 : 1;
+    longestStreak = Math.max(longestStreak, currentStreak);
+    previousCourt = court;
+  }
+
+  return longestStreak;
 }

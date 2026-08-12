@@ -195,12 +195,13 @@ export function saveMatchResult(state: LiveTournamentState, result: MatchResult)
   assertMatchExists(state, result.matchId);
 
   const results = state.results.filter((savedResult) => savedResult.matchId !== result.matchId);
-
-  return {
+  const nextState = {
     ...state,
     startedMatchIds: (state.startedMatchIds ?? []).filter((matchId) => matchId !== result.matchId),
     results: [...results, result],
   };
+
+  return refreshUnplayedMexicanoRounds(nextState, result.matchId);
 }
 
 export function startRoundTimer(state: LiveTournamentState): LiveTournamentState {
@@ -370,6 +371,44 @@ function createNextDynamicRound(state: LiveTournamentState, roundNumber: number)
   }
 
   throw new Error(`Runde ${roundNumber} er ikke oprettet.`);
+}
+
+function refreshUnplayedMexicanoRounds(state: LiveTournamentState, editedMatchId: string): LiveTournamentState {
+  if (state.format !== "mexicano" && state.format !== "fixed-partner-mexicano") {
+    return state;
+  }
+
+  const editedRoundNumber = state.rounds.find((round) => round.matches.some((match) => match.id === editedMatchId))?.roundNumber;
+
+  if (!editedRoundNumber) {
+    return state;
+  }
+
+  const resultMatchIds = new Set(state.results.map((result) => result.matchId));
+  const rounds: TournamentRound[] = [];
+  let workingState = state;
+  let preserveRemainingRounds = false;
+
+  for (const round of state.rounds) {
+    if (round.roundNumber <= editedRoundNumber || preserveRemainingRounds) {
+      rounds.push(round);
+      continue;
+    }
+
+    if (round.matches.some((match) => resultMatchIds.has(match.id))) {
+      preserveRemainingRounds = true;
+      rounds.push(round);
+      continue;
+    }
+
+    workingState = { ...workingState, rounds };
+    rounds.push(createNextDynamicRound(workingState, round.roundNumber));
+  }
+
+  return {
+    ...state,
+    rounds,
+  };
 }
 
 

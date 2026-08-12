@@ -6,9 +6,11 @@ import { StandingsTable } from "@/components/tournament/standings-table";
 import { createMockLiveTournamentState, type LiveTournamentState } from "@/lib/live-scoring";
 import { createReadOnlyTournamentView, createTeamVsTeamReadOnlyView, type ReadOnlyTournamentView, type TeamVsTeamReadOnlyView } from "@/lib/read-only-views";
 import { loadActiveTeamVsTeamTournament, loadActiveTournament, type TeamVsTeamTournamentState } from "@/lib/tournament-setup";
+import { useAppTranslation } from "@/lib/preferences/client";
 import { useHasHydrated } from "@/hooks/use-has-hydrated";
 
 export function TvTournamentApp() {
+  const { t } = useAppTranslation();
   const [teamVsTeamState, setTeamVsTeamState] = useState<TeamVsTeamTournamentState | null>(null);
   const [state, setState] = useState<LiveTournamentState>(() => createMockLiveTournamentState());
   const hasHydrated = useHasHydrated();
@@ -27,7 +29,7 @@ export function TvTournamentApp() {
   }, [hasHydrated]);
 
   if (!hasHydrated) {
-    return <div className="app-card p-4 font-bold text-[var(--muted)]">Indlæser turnering...</div>;
+    return <div className="app-card p-4 font-bold text-[var(--muted)]">{t("loadingTournament")}</div>;
   }
 
   if (teamVsTeamState) {
@@ -38,6 +40,7 @@ export function TvTournamentApp() {
 }
 
 function StandardTvView({ state }: { state: LiveTournamentState }) {
+  const { t } = useAppTranslation();
   const view = useMemo(() => createReadOnlyTournamentView(state), [state]);
 
   if (view.poolPlay) {
@@ -52,19 +55,19 @@ function StandardTvView({ state }: { state: LiveTournamentState }) {
           <h1 className="mt-2 text-4xl font-black md:text-6xl">{view.tournamentName}</h1>
         </div>
         <div className="grid grid-cols-2 gap-4 text-right md:grid-cols-4">
-          <div><p className="text-white/60">Runde</p><p className="text-4xl font-black">{view.activeRoundNumber} / {view.totalRounds}</p></div>
-          <div><p className="text-white/60">Spillere</p><p className="text-4xl font-black">{view.players}</p></div>
-          <div><p className="text-white/60">Baner</p><p className="text-4xl font-black">{view.courts}</p></div>
+          <div><p className="text-white/60">{t("round")}</p><p className="text-4xl font-black">{view.activeRoundNumber} / {view.totalRounds}</p></div>
+          <div><p className="text-white/60">{t("players")}</p><p className="text-4xl font-black">{view.players}</p></div>
+          <div><p className="text-white/60">{t("courts")}</p><p className="text-4xl font-black">{view.courts}</p></div>
         </div>
       </header>
       {view.byePlayers.length ? <p className="mt-5 rounded-md bg-[#f7d046] p-3 text-lg font-black text-[#0f1b14]">Pause: {view.byePlayers.join(" / ")}</p> : null}
       <section className="mt-6 grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
         <div className="[&_article]:bg-white [&_article]:text-[var(--foreground)]">
-          <h2 className="mb-3 text-2xl font-black">Alle baner</h2>
+          <h2 className="mb-3 text-2xl font-black">{t("allCourts")}</h2>
           <MatchCards matches={view.matches} />
         </div>
         <div className="[&_table]:bg-white [&_table]:text-[var(--foreground)]">
-          <h2 className="mb-3 text-2xl font-black">Hele stillingen</h2>
+          <h2 className="mb-3 text-2xl font-black">{t("fullStandings")}</h2>
           <StandingsTable standings={view.standings} />
         </div>
       </section>

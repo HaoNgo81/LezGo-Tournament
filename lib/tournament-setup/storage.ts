@@ -1,4 +1,5 @@
 import type { LiveTournamentState } from "../live-scoring";
+import { rebalanceFixedPartnerAmericanoCourts, rebalanceMixedAmericanoCourts } from "../tournament-engine";
 import { getTeamVsTeamMaxRounds, teamVsTeamPlayerOptions, type TeamVsTeamMatchFormat, type TeamVsTeamMatchResult, type TeamVsTeamPlayersPerTeam, type TeamVsTeamRoundResult, type TeamVsTeamSetResult } from "../team-vs-team";
 import type { TeamVsTeamTournamentState } from "./team-vs-team-setup";
 
@@ -268,28 +269,42 @@ export function loadCompletedTeamVsTeamTournaments(): CompletedTeamVsTeamTournam
 }
 
 function normalizeActiveTournamentState(state: LiveTournamentState): LiveTournamentState {
-  if (!state.poolPlay) {
-    return state;
+  const normalizedState = normalizeStandardTournamentCourts(state);
+
+  if (!normalizedState.poolPlay) {
+    return normalizedState;
   }
 
   return {
-    ...state,
+    ...normalizedState,
     poolPlay: {
-      ...state.poolPlay,
-      initialResults: Array.isArray(state.poolPlay.initialResults) ? state.poolPlay.initialResults : [],
-      nextStageResults: Array.isArray(state.poolPlay.nextStageResults) ? state.poolPlay.nextStageResults : [],
-      finalResults: Array.isArray(state.poolPlay.finalResults) ? state.poolPlay.finalResults : [],
-      placementTiebreakResults: Array.isArray(state.poolPlay.placementTiebreakResults) ? state.poolPlay.placementTiebreakResults : [],
-      ...(state.poolPlay.crossMatchStage ? {
+      ...normalizedState.poolPlay,
+      initialResults: Array.isArray(normalizedState.poolPlay.initialResults) ? normalizedState.poolPlay.initialResults : [],
+      nextStageResults: Array.isArray(normalizedState.poolPlay.nextStageResults) ? normalizedState.poolPlay.nextStageResults : [],
+      finalResults: Array.isArray(normalizedState.poolPlay.finalResults) ? normalizedState.poolPlay.finalResults : [],
+      placementTiebreakResults: Array.isArray(normalizedState.poolPlay.placementTiebreakResults) ? normalizedState.poolPlay.placementTiebreakResults : [],
+      ...(normalizedState.poolPlay.crossMatchStage ? {
         crossMatchStage: {
-          ...state.poolPlay.crossMatchStage,
-          unmatchedPlacementGroups: Array.isArray(state.poolPlay.crossMatchStage.unmatchedPlacementGroups)
-            ? state.poolPlay.crossMatchStage.unmatchedPlacementGroups
+          ...normalizedState.poolPlay.crossMatchStage,
+          unmatchedPlacementGroups: Array.isArray(normalizedState.poolPlay.crossMatchStage.unmatchedPlacementGroups)
+            ? normalizedState.poolPlay.crossMatchStage.unmatchedPlacementGroups
             : [],
         },
       } : {}),
     },
   };
+}
+
+function normalizeStandardTournamentCourts(state: LiveTournamentState): LiveTournamentState {
+  if (state.format === "mixed-americano") {
+    return { ...state, rounds: rebalanceMixedAmericanoCourts(state.rounds) };
+  }
+
+  if (state.format === "fixed-partner-americano") {
+    return { ...state, rounds: rebalanceFixedPartnerAmericanoCourts(state.rounds) };
+  }
+
+  return state;
 }
 
 function loadSelectedActiveTournament(): LiveTournamentState | null {

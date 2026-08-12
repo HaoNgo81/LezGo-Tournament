@@ -19,12 +19,35 @@ import {
   type LiveTournamentState,
 } from "../lib/live-scoring";
 import { createTournamentFromSetup, type ScoringMode, type TournamentSetupFormat } from "../lib/tournament-setup";
+import { calculateFixedTotalScore } from "../lib/tournament-setup/scoring";
 
 const sixteenPlayerText = Array.from({ length: 16 }, (_, index) => `Spiller ${index + 1}`).join("\n");
 const eightFemalePlayerText = Array.from({ length: 8 }, (_, index) => `Kvinde ${index + 1}`).join("\n");
 const eightMalePlayerText = Array.from({ length: 8 }, (_, index) => `Mand ${index + 1}`).join("\n");
 
 describe("live scoring state", () => {
+  it.each([
+    [0, 24],
+    [1, 23],
+    [6, 18],
+    [10, 14],
+    [12, 12],
+    [13, 11],
+    [17, 7],
+    [18, 6],
+    [23, 1],
+    [24, 0],
+  ])("calculates fixed total 24 score %s-%s", (enteredScore, remainingScore) => {
+    expect(calculateFixedTotalScore(24, enteredScore)).toEqual({
+      teamAPoints: enteredScore,
+      teamBPoints: remainingScore,
+    });
+  });
+
+  it.each([-1, 25, 100, 12.5])("rejects invalid fixed total input %s", (enteredScore) => {
+    expect(() => calculateFixedTotalScore(24, enteredScore)).toThrow();
+  });
+
   it.each([
     ["Americano", sixteenPlayerText, "", "", 16],
     ["Mexicano", sixteenPlayerText, "", "", 16],
@@ -104,6 +127,292 @@ describe("live scoring state", () => {
     expect(calculateLiveStandings(completedState)).toHaveLength(16);
   });
 
+  it("generates 20 four-court Americano rounds across partner cycles", () => {
+    const state = createTournamentFromSetup({
+      name: "Americano 20 round cycle test",
+      format: "Americano",
+      playerText: sixteenPlayerText,
+      femalePlayerText: "",
+      malePlayerText: "",
+      courts: 4,
+      rounds: 20,
+      scoringMode: "Spil på tid",
+      timeLimitMinutes: 1,
+      firstRoundOrder: "manual",
+      rankingMode: "matchPointsFirst",
+    });
+    const partnerCounts = new Map<string, number>();
+
+    for (const round of state.rounds) {
+      const roundPlayerIds = round.matches.flatMap((match) => [...match.teamA.playerIds, ...match.teamB.playerIds]);
+      expect(round.matches).toHaveLength(4);
+      expect(roundPlayerIds).toHaveLength(16);
+      expect(new Set(roundPlayerIds).size).toBe(16);
+
+      for (const match of round.matches) {
+        for (const pair of [match.teamA.playerIds, match.teamB.playerIds]) {
+          const key = [...pair].sort().join("-");
+          partnerCounts.set(key, (partnerCounts.get(key) ?? 0) + 1);
+        }
+      }
+    }
+
+    expect(state.rounds).toHaveLength(20);
+    expect(partnerCounts.size).toBe(120);
+    expect(Math.min(...partnerCounts.values())).toBeGreaterThanOrEqual(1);
+    expect(Math.max(...partnerCounts.values())).toBeLessThanOrEqual(2);
+  });
+
+  it("generates fixed partner Americano opponent cycles for 8 pairs", () => {
+    const state = createTournamentFromSetup({
+      name: "Fast Makker Americano cycle test",
+      format: "Fast Makker Americano",
+      playerText: sixteenPlayerText,
+      femalePlayerText: "",
+      malePlayerText: "",
+      courts: 4,
+      rounds: 16,
+      scoringMode: "Spil på tid",
+      timeLimitMinutes: 1,
+      firstRoundOrder: "manual",
+      rankingMode: "matchPointsFirst",
+    });
+    const firstCycleCounts = countFixedPartnerOpponentPairs(state.rounds.slice(0, 7));
+    const secondCycleCounts = countFixedPartnerOpponentPairs(state.rounds.slice(7, 14));
+    const firstTwoCycleCounts = countFixedPartnerOpponentPairs(state.rounds.slice(0, 14));
+    const firstMatchupKey = [...state.rounds[0].matches[0].teamA.playerIds, ...state.rounds[0].matches[0].teamB.playerIds].sort().join("-");
+    const thirdCycleCounts = countFixedPartnerOpponentPairs(state.rounds.slice(14, 16));
+
+    expect(state.rounds).toHaveLength(16);
+    expect(firstCycleCounts.size).toBe(28);
+    expect([...firstCycleCounts.values()]).toEqual(Array(28).fill(1));
+    expect(secondCycleCounts.size).toBe(28);
+    expect([...secondCycleCounts.values()]).toEqual(Array(28).fill(1));
+    expect(firstTwoCycleCounts.size).toBe(28);
+    expect([...firstTwoCycleCounts.values()]).toEqual(Array(28).fill(2));
+    expect(thirdCycleCounts.get(firstMatchupKey)).toBe(1);
+  });
+
+  it("balances Americano courts for 8 players on 2 courts", () => {
+    const state = createTournamentFromSetup({
+      name: "Americano court balance 8/2",
+      format: "Americano",
+      playerText: Array.from({ length: 8 }, (_, index) => `Spiller ${index + 1}`).join("\n"),
+      femalePlayerText: "",
+      malePlayerText: "",
+      courts: 2,
+      rounds: 12,
+      scoringMode: "Fri scoring",
+      firstRoundOrder: "manual",
+      rankingMode: "matchPointsFirst",
+    });
+    const histories = countPlayerCourts(state.rounds);
+
+    expect(getCourtSpread(histories.get("p1") ?? new Map())).toBeLessThanOrEqual(2);
+    for (const history of histories.values()) {
+      expect(getCourtSpread(history)).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it("balances Americano courts for 16 players on 4 courts", () => {
+    const state = createTournamentFromSetup({
+      name: "Americano court balance 16/4",
+      format: "Americano",
+      playerText: sixteenPlayerText,
+      femalePlayerText: "",
+      malePlayerText: "",
+      courts: 4,
+      rounds: 16,
+      scoringMode: "Fri scoring",
+      firstRoundOrder: "manual",
+      rankingMode: "matchPointsFirst",
+    });
+    const histories = countPlayerCourts(state.rounds);
+
+    for (const history of histories.values()) {
+      expect(getCourtSpread(history)).toBeLessThanOrEqual(4);
+    }
+  });
+
+  it("balances Fast Makker Americano courts per fixed pair", () => {
+    const state = createTournamentFromSetup({
+      name: "Fast Makker Americano court balance",
+      format: "Fast Makker Americano",
+      playerText: sixteenPlayerText,
+      femalePlayerText: "",
+      malePlayerText: "",
+      courts: 4,
+      rounds: 16,
+      scoringMode: "Fri scoring",
+      firstRoundOrder: "manual",
+      rankingMode: "matchPointsFirst",
+    });
+    const histories = countTeamCourts(state.rounds);
+
+    for (const history of histories.values()) {
+      expect(getCourtSpread(history)).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it("runs Fast Makker Americano court rotation for 8 pairs across 10 rounds", () => {
+    const state = createFixedPartnerAmericanoTournament(10);
+    const histories = countTeamCourts(state.rounds);
+    const sequences = countTeamCourtSequences(state.rounds);
+    const teamIds = [...histories.keys()];
+
+    expect(teamIds).toHaveLength(8);
+
+    for (const round of state.rounds) {
+      expect(round.matches).toHaveLength(4);
+      expect(new Set(round.matches.flatMap((match) => [match.teamA.id, match.teamB.id])).size).toBe(8);
+      expect(round.matches.map((match) => match.courtNumber).sort()).toEqual([1, 2, 3, 4]);
+    }
+
+    for (const teamId of teamIds) {
+      expect(getCourtSpread(histories.get(teamId) ?? new Map(), 4)).toBeLessThanOrEqual(2);
+      expect(getLongestSameCourtStreak(sequences.get(teamId) ?? [])).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it("keeps Fast Makker Americano opponent and court cycles across 14 rounds", () => {
+    const state = createFixedPartnerAmericanoTournament(14);
+    const firstCycleCounts = countFixedPartnerOpponentPairs(state.rounds.slice(0, 7));
+    const secondCycleCounts = countFixedPartnerOpponentPairs(state.rounds.slice(7, 14));
+    const fullCycleCounts = countFixedPartnerOpponentPairs(state.rounds);
+    const histories = countTeamCourts(state.rounds);
+
+    expect(firstCycleCounts.size).toBe(28);
+    expect([...firstCycleCounts.values()]).toEqual(Array(28).fill(1));
+    expect(secondCycleCounts.size).toBe(28);
+    expect([...secondCycleCounts.values()]).toEqual(Array(28).fill(1));
+    expect(fullCycleCounts.size).toBe(28);
+    expect([...fullCycleCounts.values()]).toEqual(Array(28).fill(2));
+
+    for (const history of histories.values()) {
+      expect(getCourtSpread(history, 4)).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it("runs the 10-round Mixed Americano main scenario", () => {
+    const state = createMixedAmericanoTournament(10);
+    const partnerCounts = countMixedPartnerPairs(state);
+    const firstCyclePartners = countMixedPartnerSets(state.rounds.slice(0, 8));
+    const secondCyclePartners = countMixedPartnerSets(state.rounds.slice(8, 10));
+    const playCounts = countPlayerAppearances(state.rounds);
+    const courtHistories = countPlayerCourts(state.rounds);
+    const courtSequences = countPlayerCourtSequences(state.rounds);
+    const playerById = new Map(state.players.map((player) => [player.id, player]));
+    const maleIds = state.players.filter((player) => player.gender === "male").map((player) => player.id);
+    const femaleIds = state.players.filter((player) => player.gender === "female").map((player) => player.id);
+
+    expect(state.players).toHaveLength(16);
+    expect(maleIds).toHaveLength(8);
+    expect(femaleIds).toHaveLength(8);
+    expect(state.rounds).toHaveLength(10);
+    expect(state.rounds.flatMap((round) => round.matches)).toHaveLength(40);
+
+    for (const round of state.rounds) {
+      const roundPlayerIds = round.matches.flatMap((match) => [...match.teamA.playerIds, ...match.teamB.playerIds]);
+      expect(round.matches).toHaveLength(4);
+      expect(roundPlayerIds).toHaveLength(16);
+      expect(new Set(roundPlayerIds).size).toBe(16);
+      expect(roundPlayerIds.sort()).toEqual(state.players.map((player) => player.id).sort());
+      expect(round.matches.map((match) => match.courtNumber).sort()).toEqual([1, 2, 3, 4]);
+      expect(roundPlayerIds.filter((playerId) => playerById.get(playerId)?.gender === "male")).toHaveLength(8);
+      expect(roundPlayerIds.filter((playerId) => playerById.get(playerId)?.gender === "female")).toHaveLength(8);
+
+      for (const match of round.matches) {
+        const matchPlayerIds = [...match.teamA.playerIds, ...match.teamB.playerIds];
+        expect(match.roundNumber).toBe(round.roundNumber);
+        expect(match.courtNumber).toBeGreaterThanOrEqual(1);
+        expect(match.courtNumber).toBeLessThanOrEqual(4);
+        expect(new Set(matchPlayerIds).size).toBe(4);
+        expect(matchPlayerIds.filter((playerId) => playerById.get(playerId)?.gender === "male")).toHaveLength(2);
+        expect(matchPlayerIds.filter((playerId) => playerById.get(playerId)?.gender === "female")).toHaveLength(2);
+        expect(isMixedTeam(match.teamA.playerIds, state.players)).toBe(true);
+        expect(isMixedTeam(match.teamB.playerIds, state.players)).toBe(true);
+        expect(playerById.get(match.teamA.playerIds[0])?.gender).toBe("male");
+        expect(playerById.get(match.teamA.playerIds[1])?.gender).toBe("female");
+        expect(playerById.get(match.teamB.playerIds[0])?.gender).toBe("male");
+        expect(playerById.get(match.teamB.playerIds[1])?.gender).toBe("female");
+      }
+    }
+
+    expect([...playCounts.values()]).toEqual(Array(16).fill(10));
+    expect(partnerCounts.size).toBe(64);
+    expect(Math.min(...partnerCounts.values())).toBeGreaterThanOrEqual(1);
+    expect(Math.max(...partnerCounts.values())).toBeLessThanOrEqual(2);
+
+    for (const playerId of maleIds) {
+      expect(firstCyclePartners.get(playerId)?.size).toBe(8);
+      expect(secondCyclePartners.get(playerId)?.size).toBe(2);
+    }
+
+    for (const playerId of femaleIds) {
+      expect(firstCyclePartners.get(playerId)?.size).toBe(8);
+      expect(secondCyclePartners.get(playerId)?.size).toBe(2);
+    }
+
+    for (const player of state.players) {
+      const history = courtHistories.get(player.id) ?? new Map();
+      const sequence = courtSequences.get(player.id) ?? [];
+      expect(getCourtSpread(history, 4)).toBeLessThanOrEqual(1);
+      expect(getLongestSameCourtStreak(sequence)).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it.each([
+    ["Fri scoring", undefined, [[17, 14], [12, 12], [24, 20], [0, 3]]],
+    ["Fast antal point", "total", [[17, 7], [12, 12], [24, 0], [0, 24]]],
+    ["Spil på tid", undefined, [[17, 14], [12, 12], [24, 20], [0, 3]]],
+  ] as const)("completes Mixed Americano 10-round scoring with %s", (scoringMode, fixedScoreRule, roundScores) => {
+    const state = createMixedAmericanoTournament(10, scoringMode, fixedScoreRule, fixedScoreRule === "total" ? 24 : undefined);
+    const completedState = scoreAllConfiguredRounds(state, roundScores);
+
+    expect(completedState.configuredRounds).toBe(10);
+    expect(completedState.rounds).toHaveLength(10);
+    expect(completedState.results).toHaveLength(40);
+    expect(calculateLiveStandings(completedState)).toHaveLength(16);
+    expect(getRoundProgress(completedState)).toMatchObject({ completedMatches: 4, totalMatches: 4, isComplete: true });
+  });
+
+  it("continues Mixed Americano into new partner cycles", () => {
+    const state = createMixedAmericanoTournament(18);
+    const partnerCounts = countMixedPartnerPairs(state);
+
+    expect(state.rounds).toHaveLength(18);
+
+    for (const round of state.rounds) {
+      const roundPlayerIds = round.matches.flatMap((match) => [...match.teamA.playerIds, ...match.teamB.playerIds]);
+      expect(round.matches).toHaveLength(4);
+      expect(new Set(roundPlayerIds).size).toBe(16);
+
+      for (const match of round.matches) {
+        expect(isMixedTeam(match.teamA.playerIds, state.players)).toBe(true);
+        expect(isMixedTeam(match.teamB.playerIds, state.players)).toBe(true);
+      }
+    }
+
+    expect(partnerCounts.size).toBe(64);
+    expect(Math.min(...partnerCounts.values())).toBeGreaterThanOrEqual(2);
+    expect(Math.max(...partnerCounts.values())).toBeLessThanOrEqual(3);
+  });
+
+  it("scores and edits Mixed Americano results with individual standings", () => {
+    const state = createMixedAmericanoTournament(8);
+    const matchId = getLiveMatches(state)[0].match.id;
+    const savedState = saveMatchResult(state, { matchId, teamAPoints: 15, teamBPoints: 9 });
+    const editedState = saveMatchResult(savedState, { matchId, teamAPoints: 17, teamBPoints: 7 });
+    const standings = calculateLiveStandings(editedState);
+
+    expect(editedState.results).toHaveLength(1);
+    expect(standings).toHaveLength(16);
+    expect(standings.find((row) => row.id === "f1")).toMatchObject({ pointsFor: 17 });
+    expect(standings.find((row) => row.id === "m1")).toMatchObject({ pointsFor: 17 });
+    expect(standings.find((row) => row.id === "f2")).toMatchObject({ pointsFor: 7 });
+    expect(standings.find((row) => row.id === "m2")).toMatchObject({ pointsFor: 7 });
+  });
+
   it("creates the next Mexicano round from the current player standings", () => {
     const scoredState = scoreActiveRound(createStandardTournament("Mexicano", sixteenPlayerText, "", ""));
     const standings = calculateLiveStandings(scoredState);
@@ -138,6 +447,75 @@ describe("live scoring state", () => {
       teamA: { id: standings[2].id },
       teamB: { id: standings[3].id },
     });
+  });
+
+  it.each([
+    ["matchPointsFirst", ["p3+p4", "p5+p6"]],
+    ["partiPointsFirst", ["p3+p4", "p1+p2"]],
+  ] as const)("places Fast Makker Mexicano courts by %s ranking without court balancing", (rankingMode, expectedCourtOneTeamIds) => {
+    const state = createStandardTournament("Fast Makker Mexicano", sixteenPlayerText, "", "", { rankingMode });
+    const [match1, match2, match3, match4] = getLiveMatches(state);
+    const scoredState = [
+      { matchId: match1.match.id, teamAPoints: 40, teamBPoints: 41 },
+      { matchId: match2.match.id, teamAPoints: 6, teamBPoints: 0 },
+      { matchId: match3.match.id, teamAPoints: 5, teamBPoints: 0 },
+      { matchId: match4.match.id, teamAPoints: 4, teamBPoints: 0 },
+    ].reduce((currentState, result) => saveMatchResult(currentState, result), state);
+    const standings = calculateLiveStandings(scoredState);
+    const nextState = goToNextRound(scoredState);
+
+    expect([standings[0].id, standings[1].id]).toEqual(expectedCourtOneTeamIds);
+    expect(nextState.rounds[1].matches.map((match) => match.courtNumber)).toEqual([1, 2, 3, 4]);
+    expect([nextState.rounds[1].matches[0].teamA.id, nextState.rounds[1].matches[0].teamB.id]).toEqual(expectedCourtOneTeamIds);
+
+    for (let matchIndex = 0; matchIndex < nextState.rounds[1].matches.length; matchIndex += 1) {
+      const match = nextState.rounds[1].matches[matchIndex];
+      expect(match.teamA.id).toBe(standings[matchIndex * 2].id);
+      expect(match.teamB.id).toBe(standings[matchIndex * 2 + 1].id);
+    }
+  });
+
+  it.each([
+    "matchPointsFirst",
+    "partiPointsFirst",
+  ] as const)("updates Fast Makker Mexicano standings and unplayed next round after editing a previous %s result", (rankingMode) => {
+    const state = createStandardTournament("Fast Makker Mexicano", sixteenPlayerText, "", "", { rankingMode });
+    const scoredState = scoreActiveRound(state, [[17, 7], [16, 8], [15, 9], [14, 10]]);
+    const roundTwoState = goToNextRound(scoredState);
+    const originalRoundTwoCourtOne = [roundTwoState.rounds[1].matches[0].teamA.id, roundTwoState.rounds[1].matches[0].teamB.id];
+    const editedState = saveMatchResult(goToPreviousRound(roundTwoState), {
+      matchId: state.rounds[0].matches[0].id,
+      teamAPoints: 0,
+      teamBPoints: 24,
+    });
+    const editedStandings = calculateLiveStandings(editedState);
+    const editedRoundTwoCourtOne = [editedState.rounds[1].matches[0].teamA.id, editedState.rounds[1].matches[0].teamB.id];
+
+    expect(editedState.results).toHaveLength(4);
+    expect(editedState.results.find((result) => result.matchId === state.rounds[0].matches[0].id)).toMatchObject({ teamAPoints: 0, teamBPoints: 24 });
+    expect(editedRoundTwoCourtOne).toEqual([editedStandings[0].id, editedStandings[1].id]);
+    expect(editedRoundTwoCourtOne).not.toEqual(originalRoundTwoCourtOne);
+  });
+
+  it("keeps already scored Fast Makker Mexicano future rounds when an earlier result is edited", () => {
+    const state = createStandardTournament("Fast Makker Mexicano", sixteenPlayerText, "", "");
+    const scoredRoundOne = scoreActiveRound(state, [[17, 7], [16, 8], [15, 9], [14, 10]]);
+    const roundTwoState = goToNextRound(scoredRoundOne);
+    const originalRoundTwoMatches = roundTwoState.rounds[1].matches.map((match) => [match.teamA.id, match.teamB.id]);
+    const scoredRoundTwo = saveMatchResult(roundTwoState, {
+      matchId: roundTwoState.rounds[1].matches[0].id,
+      teamAPoints: 12,
+      teamBPoints: 12,
+    });
+    const editedState = saveMatchResult(goToPreviousRound(scoredRoundTwo), {
+      matchId: state.rounds[0].matches[0].id,
+      teamAPoints: 0,
+      teamBPoints: 24,
+    });
+
+    expect(editedState.rounds[1].matches.map((match) => [match.teamA.id, match.teamB.id])).toEqual(originalRoundTwoMatches);
+    expect(editedState.results.find((result) => result.matchId === roundTwoState.rounds[1].matches[0].id)).toMatchObject({ teamAPoints: 12, teamBPoints: 12 });
+    expect(calculateLiveStandings(editedState).find((row) => row.id === roundTwoState.rounds[1].matches[0].teamA.id)?.pointsFor).toBeGreaterThanOrEqual(12);
   });
 
   it.each(["Fast Makker Americano", "Fast Makker Mexicano"] as const)(
@@ -399,12 +777,50 @@ function createAmericanoTournament(scoringMode: ScoringMode, fixedScoreRule?: "t
   });
 }
 
+function createFixedPartnerAmericanoTournament(rounds: number): LiveTournamentState {
+  return createTournamentFromSetup({
+    name: `Fast Makker Americano 8 pairs/${rounds}`,
+    format: "Fast Makker Americano",
+    playerText: sixteenPlayerText,
+    femalePlayerText: "",
+    malePlayerText: "",
+    courts: 4,
+    rounds,
+    scoringMode: "Fri scoring",
+    firstRoundOrder: "manual",
+    rankingMode: "matchPointsFirst",
+  });
+}
+
+function createMixedAmericanoTournament(
+  rounds: number,
+  scoringMode: ScoringMode = "Fri scoring",
+  fixedScoreRule?: "total",
+  fixedScorePoints?: number,
+): LiveTournamentState {
+  return createTournamentFromSetup({
+    name: `Mixed Americano 16/4/${rounds}`,
+    format: "Mixed Americano",
+    playerText: "",
+    femalePlayerText: eightFemalePlayerText,
+    malePlayerText: eightMalePlayerText,
+    courts: 4,
+    rounds,
+    scoringMode,
+    fixedScoreRule,
+    fixedScorePoints,
+    timeLimitMinutes: scoringMode === "Spil på tid" ? 1 : undefined,
+    firstRoundOrder: "manual",
+    rankingMode: "matchPointsFirst",
+  });
+}
+
 function createStandardTournament(
   format: TournamentSetupFormat,
   playerText: string,
   femalePlayerText: string,
   malePlayerText: string,
-  overrides: Partial<Pick<Parameters<typeof createTournamentFromSetup>[0], "firstRoundOrder">> = {},
+  overrides: Partial<Pick<Parameters<typeof createTournamentFromSetup>[0], "firstRoundOrder" | "rankingMode">> = {},
 ): LiveTournamentState {
   return createTournamentFromSetup({
     name: `${format} 16/4`,
@@ -416,7 +832,7 @@ function createStandardTournament(
     rounds: 5,
     scoringMode: "Fri scoring",
     firstRoundOrder: overrides.firstRoundOrder ?? "manual",
-    rankingMode: "matchPointsFirst",
+    rankingMode: overrides.rankingMode ?? "matchPointsFirst",
   });
 }
 
@@ -443,6 +859,152 @@ function scoreAllConfiguredRounds(state: LiveTournamentState, scores: ReadonlyAr
   }
 
   return currentState;
+}
+
+function countFixedPartnerOpponentPairs(rounds: LiveTournamentState["rounds"]): Map<string, number> {
+  const counts = new Map<string, number>();
+
+  for (const round of rounds) {
+    for (const match of round.matches) {
+      const key = [...match.teamA.playerIds, ...match.teamB.playerIds].sort().join("-");
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+  }
+
+  return counts;
+}
+
+function countMixedPartnerPairs(state: LiveTournamentState): Map<string, number> {
+  const counts = new Map<string, number>();
+
+  for (const round of state.rounds) {
+    for (const match of round.matches) {
+      for (const pair of [match.teamA.playerIds, match.teamB.playerIds]) {
+        const key = [...pair].sort().join("-");
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+      }
+    }
+  }
+
+  return counts;
+}
+
+function countMixedPartnerSets(rounds: LiveTournamentState["rounds"]): Map<string, Set<string>> {
+  const partners = new Map<string, Set<string>>();
+
+  for (const round of rounds) {
+    for (const match of round.matches) {
+      for (const pair of [match.teamA.playerIds, match.teamB.playerIds]) {
+        const [firstPlayerId, secondPlayerId] = pair;
+        const firstPartners = partners.get(firstPlayerId) ?? new Set<string>();
+        const secondPartners = partners.get(secondPlayerId) ?? new Set<string>();
+        firstPartners.add(secondPlayerId);
+        secondPartners.add(firstPlayerId);
+        partners.set(firstPlayerId, firstPartners);
+        partners.set(secondPlayerId, secondPartners);
+      }
+    }
+  }
+
+  return partners;
+}
+
+function countPlayerAppearances(rounds: LiveTournamentState["rounds"]): Map<string, number> {
+  const counts = new Map<string, number>();
+
+  for (const round of rounds) {
+    for (const match of round.matches) {
+      for (const playerId of [...match.teamA.playerIds, ...match.teamB.playerIds]) {
+        counts.set(playerId, (counts.get(playerId) ?? 0) + 1);
+      }
+    }
+  }
+
+  return counts;
+}
+
+function countPlayerCourts(rounds: LiveTournamentState["rounds"]): Map<string, Map<number, number>> {
+  const histories = new Map<string, Map<number, number>>();
+
+  for (const round of rounds) {
+    for (const match of round.matches) {
+      for (const playerId of [...match.teamA.playerIds, ...match.teamB.playerIds]) {
+        incrementCourtHistory(histories, playerId, match.courtNumber);
+      }
+    }
+  }
+
+  return histories;
+}
+
+function countPlayerCourtSequences(rounds: LiveTournamentState["rounds"]): Map<string, number[]> {
+  const sequences = new Map<string, number[]>();
+
+  for (const round of rounds) {
+    for (const match of round.matches) {
+      for (const playerId of [...match.teamA.playerIds, ...match.teamB.playerIds]) {
+        sequences.set(playerId, [...(sequences.get(playerId) ?? []), match.courtNumber]);
+      }
+    }
+  }
+
+  return sequences;
+}
+
+function countTeamCourts(rounds: LiveTournamentState["rounds"]): Map<string, Map<number, number>> {
+  const histories = new Map<string, Map<number, number>>();
+
+  for (const round of rounds) {
+    for (const match of round.matches) {
+      incrementCourtHistory(histories, match.teamA.id, match.courtNumber);
+      incrementCourtHistory(histories, match.teamB.id, match.courtNumber);
+    }
+  }
+
+  return histories;
+}
+
+function countTeamCourtSequences(rounds: LiveTournamentState["rounds"]): Map<string, number[]> {
+  const sequences = new Map<string, number[]>();
+
+  for (const round of rounds) {
+    for (const match of round.matches) {
+      sequences.set(match.teamA.id, [...(sequences.get(match.teamA.id) ?? []), match.courtNumber]);
+      sequences.set(match.teamB.id, [...(sequences.get(match.teamB.id) ?? []), match.courtNumber]);
+    }
+  }
+
+  return sequences;
+}
+
+function incrementCourtHistory(histories: Map<string, Map<number, number>>, id: string, courtNumber: number): void {
+  const history = histories.get(id) ?? new Map<number, number>();
+  history.set(courtNumber, (history.get(courtNumber) ?? 0) + 1);
+  histories.set(id, history);
+}
+
+function getCourtSpread(history: Map<number, number>, courts = history.size): number {
+  const counts = Array.from({ length: courts }, (_, index) => history.get(index + 1) ?? 0);
+  return Math.max(...counts) - Math.min(...counts);
+}
+
+function getLongestSameCourtStreak(sequence: number[]): number {
+  let longestStreak = 0;
+  let currentStreak = 0;
+  let previousCourt = 0;
+
+  for (const court of sequence) {
+    currentStreak = court === previousCourt ? currentStreak + 1 : 1;
+    longestStreak = Math.max(longestStreak, currentStreak);
+    previousCourt = court;
+  }
+
+  return longestStreak;
+}
+
+function isMixedTeam(playerIds: readonly string[], players: LiveTournamentState["players"]): boolean {
+  const genders = playerIds.map((playerId) => players.find((player) => player.id === playerId)?.gender);
+  return genders.filter((gender) => gender === "female").length === 1 && genders.filter((gender) => gender === "male").length === 1;
 }
 
 
