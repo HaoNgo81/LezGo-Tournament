@@ -31,8 +31,17 @@ interface ShadowSaveResponse {
 }
 
 const metadataStorageKey = "lezgo.shadowSaveMetadata.v1";
+export const shadowSaveMetadataChangedEvent = "lezgo:shadow-save-metadata-changed";
 const shadowSaveTimeoutMs = 10000;
 const inFlightLocalIds = new Set<string>();
+
+export function createStandardShadowSaveLocalId(state: LiveTournamentState): string {
+  return `${state.tournamentName.trim().toLocaleLowerCase("da")}-${state.format}`;
+}
+
+export function createTeamVsTeamShadowSaveLocalId(state: TeamVsTeamTournamentState): string {
+  return `${state.name.trim().toLocaleLowerCase("da")}-team-vs-team`;
+}
 
 export function queueStandardTournamentShadowSave(localId: string, state: LiveTournamentState): void {
   queueShadowSave({
@@ -48,6 +57,14 @@ export function queueTeamVsTeamShadowSave(localId: string, state: TeamVsTeamTour
     localId,
     state,
   });
+}
+
+export function retryStandardTournamentShadowSave(localId: string, state: LiveTournamentState): void {
+  retryShadowSave(localId, "standard", state);
+}
+
+export function retryTeamVsTeamShadowSave(localId: string, state: TeamVsTeamTournamentState): void {
+  retryShadowSave(localId, "team-vs-team", state);
 }
 
 export function markLocalShadowSave(localId: string, kind: ShadowSaveKind, savedAt = new Date().toISOString()): ShadowSaveMetadata {
@@ -98,6 +115,23 @@ function queueShadowSave({ kind, localId, state }: { kind: ShadowSaveKind; local
   window.setTimeout(() => {
     void performShadowSave({ kind, localId, state }).finally(() => inFlightLocalIds.delete(localId));
   }, 0);
+}
+
+function retryShadowSave(localId: string, kind: ShadowSaveKind, state: unknown): void {
+  const metadata = loadShadowSaveMetadata(localId);
+
+  if (metadata?.status === "conflict") {
+    return;
+  }
+
+  saveShadowSaveMetadata({
+    ...metadata,
+    localId,
+    kind,
+    status: isShadowSaveEnabled() ? "syncing" : "local-only",
+    lastError: undefined,
+  });
+  queueShadowSave({ kind, localId, state });
 }
 
 async function performShadowSave({ kind, localId, state }: { kind: ShadowSaveKind; localId: string; state: unknown }): Promise<void> {
@@ -172,6 +206,7 @@ function saveShadowSaveMetadata(metadata: ShadowSaveMetadata): void {
   const metadataMap = loadShadowSaveMetadataMap();
   metadataMap[metadata.localId] = metadata;
   window.localStorage.setItem(metadataStorageKey, JSON.stringify(metadataMap));
+  window.dispatchEvent(new CustomEvent(shadowSaveMetadataChangedEvent, { detail: metadata }));
 }
 
 function loadShadowSaveMetadataMap(): Record<string, ShadowSaveMetadata> {

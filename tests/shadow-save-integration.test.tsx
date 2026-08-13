@@ -1,8 +1,12 @@
+import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { SyncStatusPanel } from "../components/tournament/sync-status-panel";
 import { createMockLiveTournamentState } from "../lib/live-scoring";
 import {
+  analyzeLocalStorageMigrationReadiness,
   loadActiveTournament,
   loadShadowSaveMetadata,
+  retryStandardTournamentShadowSave,
   saveActiveTeamVsTeamTournament,
   saveActiveTournament,
 } from "../lib/tournament-setup";
@@ -40,6 +44,16 @@ describe("STEP 10 shadow-save integration", () => {
       status: "local-only",
     });
     expect(loadShadowSaveMetadata("mock americano-americano")?.supabaseTournamentId).toBeUndefined();
+  });
+
+  it("renders a discrete sync status without changing tournament state", () => {
+    const state = createMockLiveTournamentState();
+    saveActiveTournament(state);
+
+    render(<SyncStatusPanel kind="standard" localId="mock americano-americano" state={state} />);
+
+    expect(screen.getByLabelText("Sync status")).toHaveTextContent("Kun gemt lokalt");
+    expect(loadActiveTournament()).toEqual(state);
   });
 
   it("stores Supabase mapping and reuses the same tournament id on later saves", async () => {
@@ -82,6 +96,28 @@ describe("STEP 10 shadow-save integration", () => {
       status: "error",
       lastError: "offline",
     });
+  });
+
+  it("retries a failed shadow-save with the existing mapping", async () => {
+    process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE = "1";
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: false, error: "offline" }), { status: 500 }))
+      .mockResolvedValueOnce(createShadowSaveResponse({ tournamentId: "00000000-0000-4000-8000-000000000050", updatedAt: "2026-08-13T09:00:00.000Z" }));
+    vi.stubGlobal("fetch", fetchMock);
+    const state = createMockLiveTournamentState();
+
+    saveActiveTournament(state);
+    await flushShadowSaveQueue();
+    retryStandardTournamentShadowSave("mock americano-americano", state);
+    await flushShadowSaveQueue();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(loadShadowSaveMetadata("mock americano-americano")).toMatchObject({
+      status: "synced",
+      supabaseTournamentId: "00000000-0000-4000-8000-000000000050",
+    });
+    expect(loadActiveTournament()).toEqual(state);
   });
 
   it("marks conflicts without changing localStorage or overwriting the mapping", async () => {
@@ -144,6 +180,48 @@ describe("STEP 10 shadow-save integration", () => {
       kind: "team-vs-team",
       status: "synced",
       supabaseTournamentId: "00000000-0000-4000-8000-000000000040",
+    });
+  });
+
+  it("runs a zero-write migration dry-run across local tournaments", () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    saveActiveTournament(createMockLiveTournamentState());
+
+    const report = analyzeLocalStorageMigrationReadiness("2026-08-13T09:00:00.000Z");
+
+    expect(report.totals).toMatchObject({
+      localTournaments: 1,
+      canMigrateSafely: 1,
+      alreadyInSupabase: 0,
+      conflicts: 0,
+      invalid: 0,
+    });
+    expect(report.entries[0]).toMatchObject({
+      classification: "local-only",
+      localId: "mock americano-americano",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("classifies corrupt shadow-save mappings without attempting recovery", () => {
+    saveActiveTournament(createMockLiveTournamentState());
+    window.localStorage.setItem("lezgo.shadowSaveMetadata.v1", JSON.stringify({
+      "mock americano-americano": {
+        localId: "mock americano-americano",
+        kind: "standard",
+        status: "synced",
+        lastLocalSaveAt: "2026-08-13T09:00:00.000Z",
+        lastSuccessfulShadowSaveAt: "2026-08-13T09:00:00.000Z",
+      },
+    }));
+
+    const report = analyzeLocalStorageMigrationReadiness("2026-08-13T09:00:00.000Z");
+
+    expect(report.totals.invalid).toBe(1);
+    expect(report.entries[0]).toMatchObject({
+      classification: "invalid/unmappable",
+      reason: "Mapping mangler eller er korrupt.",
     });
   });
 });

@@ -2,7 +2,7 @@ import type { LiveTournamentState } from "../live-scoring";
 import { rebalanceFixedPartnerAmericanoCourts, rebalanceMixedAmericanoCourts } from "../tournament-engine";
 import { getTeamVsTeamMaxRounds, teamVsTeamPlayerOptions, type TeamVsTeamMatchFormat, type TeamVsTeamMatchResult, type TeamVsTeamPlayersPerTeam, type TeamVsTeamRoundResult, type TeamVsTeamSetResult } from "../team-vs-team";
 import type { TeamVsTeamTournamentState } from "./team-vs-team-setup";
-import { markLocalShadowSave, queueStandardTournamentShadowSave, queueTeamVsTeamShadowSave } from "./shadow-save";
+import { createStandardShadowSaveLocalId, createTeamVsTeamShadowSaveLocalId, markLocalShadowSave, queueStandardTournamentShadowSave, queueTeamVsTeamShadowSave } from "./shadow-save";
 
 const activeTournamentStorageKey = "lezgo.activeTournament.v1";
 const activeTournamentsStorageKey = "lezgo.activeTournaments.v1";
@@ -93,7 +93,7 @@ export function selectActiveTournament(id: string): LiveTournamentState | null {
 }
 
 export function saveActiveTeamVsTeamTournament(state: TeamVsTeamTournamentState): void {
-  const tournamentId = createActiveTeamVsTeamTournamentId(state);
+  const tournamentId = createTeamVsTeamShadowSaveLocalId(state);
 
   window.localStorage.setItem(activeTeamVsTeamStorageKey, JSON.stringify(state));
   window.localStorage.removeItem(activeTournamentStorageKey);
@@ -386,11 +386,7 @@ function createCompletedTournamentId(state: LiveTournamentState): string {
 }
 
 function createActiveTournamentId(state: LiveTournamentState): string {
-  return `${state.tournamentName.trim().toLocaleLowerCase("da")}-${state.format}`;
-}
-
-function createActiveTeamVsTeamTournamentId(state: TeamVsTeamTournamentState): string {
-  return `${state.name.trim().toLocaleLowerCase("da")}-team-vs-team`;
+  return createStandardShadowSaveLocalId(state);
 }
 
 function createCompletedTeamVsTeamTournamentId(state: TeamVsTeamTournamentState, finishedAt: string): string {

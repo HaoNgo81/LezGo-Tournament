@@ -32,9 +32,10 @@ import {
 } from "@/lib/live-scoring";
 import { CrossMatchStagePanel } from "@/components/tournament/cross-match-stage-panel";
 import { StandingsTable } from "@/components/tournament/standings-table";
+import { SyncStatusPanel } from "@/components/tournament/sync-status-panel";
 import { useAppTranslation } from "@/lib/preferences/client";
 import type { TranslationKey } from "@/lib/i18n/translations";
-import { calculateInitialPoolStandings, loadActiveTournament, saveActiveTournament, saveCompletedTournament, type CrossMatchFinalEncounter, type CrossMatchFinalStage, type PoolMatchResult, type PoolParticipant } from "@/lib/tournament-setup";
+import { calculateInitialPoolStandings, createStandardShadowSaveLocalId, loadActiveTournament, saveActiveTournament, saveCompletedTournament, type CrossMatchFinalEncounter, type CrossMatchFinalStage, type PoolMatchResult, type PoolParticipant } from "@/lib/tournament-setup";
 import { calculateFixedTotalScore } from "@/lib/tournament-setup/scoring";
 import { loadTournamentSettings, playTournamentAlarmSound } from "@/lib/tournament-settings";
 import type { MatchResult, StandingsRankingMode, TournamentPlayer } from "@/lib/tournament-engine";
@@ -246,6 +247,9 @@ export function LiveScoringApp() {
         <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{state.status === "finished" ? t("completedTournament") : t("activeTournament")}</p>
         <h2 className="mt-1 text-2xl font-black">{state.tournamentName}</h2>
         <p className="mt-1 text-sm font-bold text-[var(--muted)]">{state.players.length} {t("players").toLowerCase()} · {state.configuredRounds ?? state.rounds.length} {t("rounds").toLowerCase()}</p>
+        <div className="mt-3">
+          <SyncStatusPanel kind="standard" localId={createStandardShadowSaveLocalId(state)} state={state} />
+        </div>
         <div className="mt-4 action-grid">
           <Link className="btn-outline-primary" href="/share">{t("shareTournament")}</Link>
           <Link className="btn-outline-primary" href="/tv">{t("tvMirror")}</Link>
@@ -400,6 +404,9 @@ function PoolPlayLiveView({
         <p className="mt-1 text-sm font-bold text-[var(--muted)]">
           Puljespil · {state.poolPlay.initialStage.participants.length} deltagere · {state.poolPlay.initialStage.pools.length} puljer
         </p>
+        <div className="mt-3">
+          <SyncStatusPanel kind="standard" localId={createStandardShadowSaveLocalId(state)} state={state} />
+        </div>
         <div className="mt-4 action-grid">
           <Link className="btn-outline-primary" href="/share">Del turnering</Link>
           <Link className="btn-outline-primary" href="/tv">TV / Mirror</Link>

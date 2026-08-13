@@ -29,6 +29,7 @@ describe("LiveScoringApp score sheet", () => {
     render(<LiveScoringApp />);
 
     expect(await screen.findByRole("heading", { name: "Live score" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Sync status")).toHaveTextContent("Kun gemt lokalt");
     expect(screen.getByRole("link", { name: "TV / Mirror" })).toHaveAttribute("href", "/tv");
     expect(screen.getAllByRole("button", { name: "Næste" })).toHaveLength(2);
   });
