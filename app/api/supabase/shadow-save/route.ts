@@ -36,7 +36,7 @@ export async function POST(request: Request): Promise<Response> {
         tournamentId: body.tournamentId,
         expectedUpdatedAt: body.expectedUpdatedAt,
       });
-      return Response.json({ ok: true, tournamentId: result.tournamentId, saveMode: result.saveMode });
+      return Response.json({ ok: true, tournamentId: result.tournamentId, updatedAt: result.updatedAt, saveMode: result.saveMode });
     }
 
     if (body.kind === "team-vs-team" && isTeamVsTeamTournamentState(body.state)) {
@@ -45,7 +45,7 @@ export async function POST(request: Request): Promise<Response> {
         tournamentId: body.tournamentId,
         expectedUpdatedAt: body.expectedUpdatedAt,
       });
-      return Response.json({ ok: true, tournamentId: result.tournamentId, saveMode: result.saveMode });
+      return Response.json({ ok: true, tournamentId: result.tournamentId, updatedAt: result.updatedAt, saveMode: result.saveMode });
     }
 
     return Response.json({ ok: false, error: "Invalid shadow-save payload." }, { status: 400 });

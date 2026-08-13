@@ -14,6 +14,7 @@ export interface SaveTeamVsTeamTournamentOptions {
 
 export interface SaveTeamVsTeamTournamentResult {
   tournamentId: string;
+  updatedAt?: string;
   writePlan: PersistenceWritePlan;
   saveMode: "insert" | "replace";
 }
@@ -35,7 +36,7 @@ export function createTeamVsTeamTournamentRepository(client: SupabaseRestClient 
 
       try {
         const tournamentId = await client.rpc<string>("lezgo_save_tournament_snapshot_v2", { p_operations: writePlan.operations, p_expected_updated_at: options.expectedUpdatedAt ?? null });
-        return { tournamentId, writePlan, saveMode: options.tournamentId ? "replace" : "insert" };
+        return { tournamentId, updatedAt: await readTournamentUpdatedAt(client, tournamentId), writePlan, saveMode: options.tournamentId ? "replace" : "insert" };
       } catch (error) {
         throw toPersistenceError("Could not save Team vs Team snapshot to Supabase.", error);
       }
@@ -63,6 +64,11 @@ export function createTeamVsTeamTournamentRepository(client: SupabaseRestClient 
       }
     },
   };
+}
+
+async function readTournamentUpdatedAt(client: SupabaseRestClient, tournamentId: string): Promise<string | undefined> {
+  const [row] = await client.select<{ updated_at?: string }>("tournaments", `id=eq.${encodeURIComponent(tournamentId)}&select=updated_at`);
+  return row?.updated_at;
 }
 
 async function readTeamVsTeamRows(client: SupabaseRestClient, tournamentId: string): Promise<TeamVsTeamReadModel> {
