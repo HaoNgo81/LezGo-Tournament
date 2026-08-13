@@ -10,6 +10,7 @@ import type { TeamVsTeamTournamentState } from "@/lib/tournament-setup";
 import { useAppTranslation } from "@/lib/preferences/client";
 
 type RemoteTournamentKind = "standard" | "team-vs-team";
+type RemoteSyncStatus = "connecting" | "live" | "reconnecting" | "offline" | "error";
 
 interface RemoteTournamentSession {
   accessMode: "manual" | "handoff";
@@ -28,6 +29,8 @@ interface RemoteReadResponse {
   updatedAt?: string;
 }
 
+const remotePollIntervalMs = 4000;
+
 export function RemoteTournamentApp({ initialHandoffReference }: { initialHandoffReference?: string } = {}) {
   const { t } = useAppTranslation();
   const autoOpenAttempted = useRef(false);
@@ -38,63 +41,43 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<RemoteSyncStatus>("connecting");
 
-  const openRemoteTournament = useCallback(async (code: string, token: string, keepPreviousOnFailure: boolean) => {
+  const readRemoteTournament = useCallback(async (code: string, token: string): Promise<RemoteTournamentSession> => {
     const normalizedCode = normalizeTournamentCodeInput(code);
     const normalizedToken = token.trim();
 
     if (!normalizedCode || !normalizedToken) {
-      setError(t("remoteAccessDenied"));
-      setMessage("");
-      return;
+      throw new Error(t("remoteAccessDenied"));
     }
 
-    setIsLoading(true);
-    setError("");
-    setMessage("");
+    const response = await fetch("/api/supabase/tournament-access/read", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tournamentCode: normalizedCode, shareToken: normalizedToken }),
+    });
+    const body = await response.json() as RemoteReadResponse;
 
-    try {
-      const response = await fetch("/api/supabase/tournament-access/read", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tournamentCode: normalizedCode, shareToken: normalizedToken }),
-      });
-      const body = await response.json() as RemoteReadResponse;
-
-      if (!response.ok || !body.ok || !body.kind || !body.state) {
-        throw new Error("Remote read failed.");
-      }
-
-      setTournamentCode(normalizedCode);
-      setShareToken(normalizedToken);
-      setSession({
-        accessMode: "manual",
-        tournamentCode: normalizedCode,
-        shareToken: normalizedToken,
-        kind: body.kind,
-        state: body.state,
-        updatedAt: body.updatedAt,
-      });
-      setMessage(keepPreviousOnFailure ? t("remoteLatestLoaded") : t("remoteTournamentOpened"));
-    } catch {
-      setError(keepPreviousOnFailure ? t("remoteFetchError") : t("remoteAccessDenied"));
-    } finally {
-      setIsLoading(false);
+    if (!response.ok || !body.ok || !body.kind || !body.state) {
+      throw new Error(t("remoteAccessDenied"));
     }
+
+    return {
+      accessMode: "manual",
+      tournamentCode: normalizedCode,
+      shareToken: normalizedToken,
+      kind: body.kind,
+      state: body.state,
+      updatedAt: body.updatedAt,
+    };
   }, [t]);
 
-  const openRemoteHandoff = useCallback(async (handoffReference: string, keepPreviousOnFailure: boolean) => {
+  const readRemoteHandoff = useCallback(async (handoffReference: string): Promise<RemoteTournamentSession> => {
     const normalizedReference = handoffReference.trim();
 
     if (!normalizedReference) {
-      setError(t("remoteHandoffDenied"));
-      setMessage("");
-      return;
+      throw new Error(t("remoteHandoffDenied"));
     }
-
-    setIsLoading(true);
-    setError("");
-    setMessage(keepPreviousOnFailure ? "" : t("remoteHandoffOpening"));
 
     try {
       const response = await fetch("/api/supabase/tournament-handoff/redeem", {
@@ -105,20 +88,84 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
       const body = await response.json() as RemoteReadResponse;
 
       if (!response.ok || !body.ok || !body.kind || !body.state) {
-        const message = response.status === 410 ? t("remoteHandoffExpired") : t("remoteHandoffDenied");
-        throw new Error(message);
+        throw new Error(response.status === 410 ? t("remoteHandoffExpired") : t("remoteHandoffDenied"));
       }
 
-      setSession({
+      return {
         accessMode: "handoff",
         handoffReference: normalizedReference,
         kind: body.kind,
         state: body.state,
         updatedAt: body.updatedAt,
-      });
+      };
+    } catch (caughtError) {
+      throw caughtError instanceof Error ? caughtError : new Error(t("remoteHandoffDenied"));
+    }
+  }, [t]);
+
+  const refreshRemoteSession = useCallback(async (currentSession: RemoteTournamentSession): Promise<RemoteTournamentSession> => {
+    if (currentSession.accessMode === "handoff" && currentSession.handoffReference) {
+      return readRemoteHandoff(currentSession.handoffReference);
+    }
+
+    return readRemoteTournament(currentSession.tournamentCode ?? "", currentSession.shareToken ?? "");
+  }, [readRemoteHandoff, readRemoteTournament]);
+
+  const applyRemoteSession = useCallback((nextSession: RemoteTournamentSession, options: { force?: boolean } = {}) => {
+    setSession((currentSession) => {
+      if (!currentSession || options.force) {
+        return nextSession;
+      }
+
+      if (!isSameRemoteAccess(currentSession, nextSession)) {
+        return currentSession;
+      }
+
+      return isNewerRemoteVersion(currentSession.updatedAt, nextSession.updatedAt) ? nextSession : currentSession;
+    });
+  }, []);
+
+  const openRemoteTournament = useCallback(async (code: string, token: string, keepPreviousOnFailure: boolean) => {
+    setIsLoading(true);
+    setError("");
+    setMessage("");
+    setSyncStatus(keepPreviousOnFailure ? "reconnecting" : "connecting");
+
+    try {
+      const nextSession = await readRemoteTournament(code, token);
+      setTournamentCode(nextSession.tournamentCode ?? "");
+      setShareToken(nextSession.shareToken ?? "");
+      applyRemoteSession(nextSession, { force: true });
+      setSyncStatus("live");
+      setMessage(keepPreviousOnFailure ? t("remoteLatestLoaded") : t("remoteTournamentOpened"));
+    } catch {
+      setSyncStatus(keepPreviousOnFailure ? "error" : "connecting");
+      setError(keepPreviousOnFailure ? t("remoteFetchError") : t("remoteAccessDenied"));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [applyRemoteSession, readRemoteTournament, t]);
+
+  const openRemoteHandoff = useCallback(async (handoffReference: string, keepPreviousOnFailure: boolean) => {
+    if (!handoffReference.trim()) {
+      setError(t("remoteHandoffDenied"));
+      setMessage("");
+      return;
+    }
+
+    setIsLoading(true);
+    setError("");
+    setMessage(keepPreviousOnFailure ? "" : t("remoteHandoffOpening"));
+    setSyncStatus(keepPreviousOnFailure ? "reconnecting" : "connecting");
+
+    try {
+      const nextSession = await readRemoteHandoff(handoffReference);
+      applyRemoteSession(nextSession, { force: !keepPreviousOnFailure });
+      setSyncStatus("live");
       setMessage(keepPreviousOnFailure ? t("remoteLatestLoaded") : t("remoteTournamentOpened"));
     } catch (caughtError) {
       const fallbackMessage = keepPreviousOnFailure ? t("remoteFetchError") : t("remoteHandoffDenied");
+      setSyncStatus(keepPreviousOnFailure ? "error" : "connecting");
       setError(caughtError instanceof Error ? caughtError.message : fallbackMessage);
       if (!keepPreviousOnFailure) {
         setMessage("");
@@ -126,7 +173,61 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
     } finally {
       setIsLoading(false);
     }
-  }, [t]);
+  }, [applyRemoteSession, readRemoteHandoff, t]);
+
+  useEffect(() => {
+    if (!session) {
+      return undefined;
+    }
+
+    const activeSession = session;
+    let isDisposed = false;
+    let timeoutId: number | undefined;
+    let isInFlight = false;
+
+    async function poll() {
+      if (isDisposed || isInFlight) {
+        return;
+      }
+
+      isInFlight = true;
+
+      try {
+        const nextSession = await refreshRemoteSession(activeSession);
+
+        if (isDisposed) {
+          return;
+        }
+
+        applyRemoteSession(nextSession);
+        setSyncStatus("live");
+        setError("");
+      } catch {
+        if (isDisposed) {
+          return;
+        }
+
+        setSyncStatus(typeof navigator !== "undefined" && navigator.onLine === false ? "offline" : "error");
+        setError(t("remoteAutoSyncError"));
+      } finally {
+        isInFlight = false;
+
+        if (!isDisposed) {
+          timeoutId = window.setTimeout(poll, remotePollIntervalMs);
+        }
+      }
+    }
+
+    timeoutId = window.setTimeout(poll, remotePollIntervalMs);
+
+    return () => {
+      isDisposed = true;
+
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [applyRemoteSession, refreshRemoteSession, session, t]);
 
   useEffect(() => {
     if (!initialHandoffReference || autoOpenAttempted.current) {
@@ -164,7 +265,7 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
   if (session) {
     return (
       <div className="grid gap-5">
-        <RemoteReadOnlyBanner onClose={handleClose} onRefresh={handleRefresh} isLoading={isLoading} />
+        <RemoteReadOnlyBanner onClose={handleClose} onRefresh={handleRefresh} isLoading={isLoading} syncStatus={syncStatus} />
         {message ? <p className="rounded-md bg-green-50 p-3 font-bold text-[var(--primary-strong)]">{message}</p> : null}
         {error ? <p className="rounded-md bg-yellow-50 p-3 font-bold text-yellow-800">{error}</p> : null}
         {session.kind === "team-vs-team" ? (
@@ -216,14 +317,21 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
   );
 }
 
-function RemoteReadOnlyBanner({ isLoading, onClose, onRefresh }: { isLoading: boolean; onClose: () => void; onRefresh: () => void }) {
+function RemoteReadOnlyBanner({ isLoading, onClose, onRefresh, syncStatus }: { isLoading: boolean; onClose: () => void; onRefresh: () => void; syncStatus: RemoteSyncStatus }) {
   const { t } = useAppTranslation();
+  const statusCopy = getRemoteSyncStatusCopy(syncStatus);
 
   return (
     <section className="rounded-md border border-[var(--primary)] bg-[var(--primary-soft)] p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-black uppercase text-[var(--primary-strong)]">{t("remoteReadOnlyBanner")}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-black uppercase text-[var(--primary-strong)]">{t("remoteReadOnlyBanner")}</p>
+            <span className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-black ${statusCopy.className}`} aria-label={t("remoteSyncStatus")}>
+              <span aria-hidden="true">●</span>
+              {t(statusCopy.label)}
+            </span>
+          </div>
           <p className="mt-1 font-bold text-[var(--muted)]">{t("remoteReadOnlyHelp")}</p>
         </div>
         <div className="action-grid">
@@ -237,6 +345,21 @@ function RemoteReadOnlyBanner({ isLoading, onClose, onRefresh }: { isLoading: bo
       </div>
     </section>
   );
+}
+
+function getRemoteSyncStatusCopy(status: RemoteSyncStatus): { label: "remoteSyncConnecting" | "remoteSyncLive" | "remoteSyncReconnecting" | "remoteSyncOffline" | "remoteSyncError"; className: string } {
+  switch (status) {
+    case "connecting":
+      return { label: "remoteSyncConnecting", className: "bg-blue-50 text-blue-800" };
+    case "live":
+      return { label: "remoteSyncLive", className: "bg-green-50 text-[var(--primary-strong)]" };
+    case "reconnecting":
+      return { label: "remoteSyncReconnecting", className: "bg-yellow-50 text-yellow-800" };
+    case "offline":
+      return { label: "remoteSyncOffline", className: "bg-gray-100 text-[var(--muted)]" };
+    case "error":
+      return { label: "remoteSyncError", className: "bg-red-50 text-red-700" };
+  }
 }
 
 function RemoteStandardView({ state }: { state: LiveTournamentState }) {
@@ -408,4 +531,35 @@ function RemoteTeamVsTeamView({ state }: { state: TeamVsTeamTournamentState }) {
 
 function normalizeTournamentCodeInput(value: string): string {
   return value.trim().toLocaleUpperCase("en").replace(/\s+/g, "");
+}
+
+function isSameRemoteAccess(currentSession: RemoteTournamentSession, nextSession: RemoteTournamentSession): boolean {
+  if (currentSession.accessMode !== nextSession.accessMode) {
+    return false;
+  }
+
+  if (currentSession.accessMode === "handoff") {
+    return currentSession.handoffReference === nextSession.handoffReference;
+  }
+
+  return currentSession.tournamentCode === nextSession.tournamentCode && currentSession.shareToken === nextSession.shareToken;
+}
+
+function isNewerRemoteVersion(currentUpdatedAt?: string, nextUpdatedAt?: string): boolean {
+  if (!nextUpdatedAt) {
+    return false;
+  }
+
+  if (!currentUpdatedAt) {
+    return true;
+  }
+
+  const currentTime = Date.parse(currentUpdatedAt);
+  const nextTime = Date.parse(nextUpdatedAt);
+
+  if (Number.isNaN(currentTime) || Number.isNaN(nextTime)) {
+    return nextUpdatedAt !== currentUpdatedAt;
+  }
+
+  return nextTime > currentTime;
 }

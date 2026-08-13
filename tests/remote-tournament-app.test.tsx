@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RemoteTournamentApp } from "../components/tournament/remote-tournament-app";
 import { SyncStatusPanel } from "../components/tournament/sync-status-panel";
@@ -7,6 +7,7 @@ import { createPoolTournamentFromSetup, createTeamVsTeamTournamentFromSetup, loa
 
 describe("STEP 13 remote read-only UI", () => {
   afterEach(() => {
+    vi.useRealTimers();
     cleanup();
     vi.restoreAllMocks();
     window.localStorage.clear();
@@ -206,17 +207,105 @@ describe("STEP 13 remote read-only UI", () => {
     expect(await screen.findByText("QR-koden er udløbet. Bed turneringslederen om at generere en ny.")).toBeInTheDocument();
     expect(screen.queryByText("share_token")).not.toBeInTheDocument();
   });
+  it("auto-refreshes a newer remote snapshot without touching localStorage", async () => {
+    vi.useFakeTimers();
+    const localState = createMockLiveTournamentState();
+    const initialRemoteState = scoreMockState("STEP_15_TEST Live", 17, 7);
+    const updatedRemoteState = scoreMockState("STEP_15_TEST Live", 20, 4);
+    saveActiveTournament(localState);
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(createReadResponse("standard", initialRemoteState, "2026-08-13T12:00:00.000Z"))
+      .mockResolvedValueOnce(createReadResponse("standard", updatedRemoteState, "2026-08-13T12:00:05.000Z")));
+
+    render(<RemoteTournamentApp initialHandoffReference="STEP_15_TEST_REFERENCE_WITH_ENTROPY_1234567890" />);
+
+    await flushPromises();
+
+    expect(screen.getByRole("heading", { name: "STEP_15_TEST Live" })).toBeInTheDocument();
+    expect(screen.getByText("17 - 7")).toBeInTheDocument();
+    expect(screen.getByLabelText("Live-sync status")).toHaveTextContent("Live");
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4000);
+    });
+
+    expect(screen.getByText("20 - 4")).toBeInTheDocument();
+    expect(screen.queryByText("17 - 7")).not.toBeInTheDocument();
+    expect(loadActiveTournament()).toEqual(localState);
+    vi.useRealTimers();
+  });
+
+  it("ignores stale duplicate auto-refresh versions", async () => {
+    vi.useFakeTimers();
+    const initialRemoteState = scoreMockState("STEP_15_TEST Stale", 17, 7);
+    const staleRemoteState = scoreMockState("STEP_15_TEST Stale", 10, 14);
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(createReadResponse("standard", initialRemoteState, "2026-08-13T12:00:05.000Z"))
+      .mockResolvedValueOnce(createReadResponse("standard", staleRemoteState, "2026-08-13T12:00:01.000Z")));
+
+    render(<RemoteTournamentApp initialHandoffReference="STEP_15_TEST_STALE_REFERENCE_WITH_ENTROPY_1234567890" />);
+
+    await flushPromises();
+
+    expect(screen.getByText("17 - 7")).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4000);
+    });
+
+    expect(screen.getByText("17 - 7")).toBeInTheDocument();
+    expect(screen.queryByText("10 - 14")).not.toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it("keeps the last snapshot and recovers after auto-sync network interruption", async () => {
+    vi.useFakeTimers();
+    const initialRemoteState = scoreMockState("STEP_15_TEST Offline", 17, 7);
+    const recoveredRemoteState = scoreMockState("STEP_15_TEST Offline", 19, 5);
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(createReadResponse("standard", initialRemoteState, "2026-08-13T12:00:00.000Z"))
+      .mockRejectedValueOnce(new Error("network down"))
+      .mockResolvedValueOnce(createReadResponse("standard", recoveredRemoteState, "2026-08-13T12:00:08.000Z")));
+
+    render(<RemoteTournamentApp initialHandoffReference="STEP_15_TEST_OFFLINE_REFERENCE_WITH_ENTROPY_1234567890" />);
+
+    await flushPromises();
+
+    expect(screen.getByText("17 - 7")).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4000);
+    });
+
+    expect(screen.getByText("Live-opdatering kunne ikke hente nyeste version. Seneste viste turnering er bevaret.")).toBeInTheDocument();
+    expect(screen.getByText("17 - 7")).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4000);
+    });
+
+    expect(screen.getByText("19 - 5")).toBeInTheDocument();
+    expect(screen.getByLabelText("Live-sync status")).toHaveTextContent("Live");
+    vi.useRealTimers();
+  });
 });
 
-function createReadResponse(kind: "standard", state: LiveTournamentState): Response;
-function createReadResponse(kind: "team-vs-team", state: TeamVsTeamTournamentState): Response;
-function createReadResponse(kind: "standard" | "team-vs-team", state: LiveTournamentState | TeamVsTeamTournamentState): Response {
-  return new Response(JSON.stringify({ ok: true, kind, state, updatedAt: "2026-08-13T12:00:00.000Z" }), { status: 200 });
+async function flushPromises(): Promise<void> {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
 }
 
-function scoreMockState(name: string): LiveTournamentState {
+function createReadResponse(kind: "standard", state: LiveTournamentState, updatedAt?: string): Response;
+function createReadResponse(kind: "team-vs-team", state: TeamVsTeamTournamentState, updatedAt?: string): Response;
+function createReadResponse(kind: "standard" | "team-vs-team", state: LiveTournamentState | TeamVsTeamTournamentState, updatedAt = "2026-08-13T12:00:00.000Z"): Response {
+  return new Response(JSON.stringify({ ok: true, kind, state, updatedAt }), { status: 200 });
+}
+
+function scoreMockState(name: string, teamAPoints = 17, teamBPoints = 7): LiveTournamentState {
   const state = { ...createMockLiveTournamentState(), tournamentName: name };
-  return saveMatchResult(state, { matchId: state.rounds[0].matches[0].id, teamAPoints: 17, teamBPoints: 7 });
+  return saveMatchResult(state, { matchId: state.rounds[0].matches[0].id, teamAPoints, teamBPoints });
 }
 
 function createTeamState(): TeamVsTeamTournamentState {

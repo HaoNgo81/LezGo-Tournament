@@ -40,7 +40,7 @@ export interface RedeemTournamentHandoffResult {
 
 export interface TournamentHandoffRepository {
   provision(tournamentId: string, options?: ProvisionTournamentHandoffOptions): Promise<ProvisionTournamentHandoffResult>;
-  redeem(handoffReference: string, options?: { now?: () => Date }): Promise<RedeemTournamentHandoffResult>;
+  redeem(handoffReference: string, options?: { now?: () => Date; trackUsage?: boolean }): Promise<RedeemTournamentHandoffResult>;
   revoke(handoffReference: string): Promise<void>;
 }
 
@@ -117,11 +117,13 @@ export function createTournamentHandoffRepository(client: SupabaseRestClient = c
         throw new TournamentHandoffError("Tournament handoff was denied.", 403, "denied");
       }
 
-      await client.update<TournamentHandoffRecord>("tournament_handoffs", `id=eq.${encodeURIComponent(handoff.id)}`, {
-        first_used_at: handoff.first_used_at ?? now.toISOString(),
-        last_used_at: now.toISOString(),
-        use_count: handoff.use_count + 1,
-      });
+      if (options.trackUsage === true) {
+        await client.update<TournamentHandoffRecord>("tournament_handoffs", `id=eq.${encodeURIComponent(handoff.id)}`, {
+          first_used_at: handoff.first_used_at ?? now.toISOString(),
+          last_used_at: now.toISOString(),
+          use_count: handoff.use_count + 1,
+        });
+      }
 
       const [tournament] = await client.select<{ id: string; format: string; team_competition_mode: string | null; updated_at?: string }>("tournaments", `id=eq.${encodeURIComponent(access.tournament_id)}&select=id,format,team_competition_mode,updated_at`);
 

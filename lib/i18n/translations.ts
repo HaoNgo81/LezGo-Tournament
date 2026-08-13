@@ -96,6 +96,7 @@ export type TranslationKey =
   | "remoteAccessOnlyInitialToken"
   | "remoteAccessReady"
   | "remoteAutomaticAdvance"
+  | "remoteAutoSyncError"
   | "remoteCloseView"
   | "remoteCodeCopied"
   | "remoteCopy"
@@ -124,6 +125,12 @@ export type TranslationKey =
   | "remoteShareToken"
   | "remoteShareTokenCopied"
   | "remoteShowToken"
+  | "remoteSyncConnecting"
+  | "remoteSyncError"
+  | "remoteSyncLive"
+  | "remoteSyncOffline"
+  | "remoteSyncReconnecting"
+  | "remoteSyncStatus"
   | "remoteTokenOnlyShownOnce"
   | "remoteTournamentCode"
   | "remoteTournamentOpened"
@@ -262,6 +269,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteAccessOnlyInitialToken: "Adgangskoden vises kun, når adgangen oprettes. Gem den sikkert uden for appen.",
     remoteAccessReady: "Adgang oprettet.",
     remoteAutomaticAdvance: "Automatisk videre",
+    remoteAutoSyncError: "Live-opdatering kunne ikke hente nyeste version. Seneste viste turnering er bevaret.",
     remoteCloseView: "Luk visning",
     remoteCodeCopied: "Turneringskode kopieret.",
     remoteCopy: "Kopiér",
@@ -290,6 +298,12 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteShareToken: "Adgangskode / Share token",
     remoteShareTokenCopied: "Adgangskode kopieret.",
     remoteShowToken: "Vis",
+    remoteSyncConnecting: "Forbinder",
+    remoteSyncError: "Fejl",
+    remoteSyncLive: "Live",
+    remoteSyncOffline: "Offline",
+    remoteSyncReconnecting: "Forbinder igen",
+    remoteSyncStatus: "Live-sync status",
     remoteTokenOnlyShownOnce: "Adgangskoden kunne ikke vises igen. Opret en ny adgang senere, hvis den er væk.",
     remoteTournamentCode: "Turneringskode",
     remoteTournamentOpened: "Turnering åbnet.",
@@ -427,6 +441,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteAccessOnlyInitialToken: "The share token is only shown when access is created. Store it safely outside the app.",
     remoteAccessReady: "Access created.",
     remoteAutomaticAdvance: "Automatic advance",
+    remoteAutoSyncError: "Live sync could not fetch the latest version. The last shown tournament is kept.",
     remoteCloseView: "Close view",
     remoteCodeCopied: "Tournament code copied.",
     remoteCopy: "Copy",
@@ -455,6 +470,12 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteShareToken: "Share token",
     remoteShareTokenCopied: "Share token copied.",
     remoteShowToken: "Show",
+    remoteSyncConnecting: "Connecting",
+    remoteSyncError: "Error",
+    remoteSyncLive: "Live",
+    remoteSyncOffline: "Offline",
+    remoteSyncReconnecting: "Reconnecting",
+    remoteSyncStatus: "Live sync status",
     remoteTokenOnlyShownOnce: "The share token cannot be shown again. Create new access later if it is lost.",
     remoteTournamentCode: "Tournament code",
     remoteTournamentOpened: "Tournament opened.",
