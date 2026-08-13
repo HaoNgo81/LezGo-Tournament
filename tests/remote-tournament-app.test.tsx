@@ -380,6 +380,86 @@ describe("STEP 13 remote read-only UI", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     vi.useRealTimers();
   });
+
+  it("continues polling through the established remote session after a handoff opens", async () => {
+    vi.useFakeTimers();
+    const initialRemoteState = scoreMockState("STEP_17_TEST Session", 17, 7);
+    const updatedRemoteState = scoreMockState("STEP_17_TEST Session", 20, 4);
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(createReadResponse("standard", initialRemoteState, "2026-08-13T12:00:00.000Z", {
+        remoteSessionToken: "STEP_17_REMOTE_SESSION_TOKEN",
+        remoteSessionExpiresAt: "2026-08-14T00:00:00.000Z",
+      }))
+      .mockResolvedValueOnce(createReadResponse("standard", updatedRemoteState, "2026-08-13T12:00:05.000Z", {
+        remoteSessionToken: "STEP_17_REMOTE_SESSION_TOKEN",
+        remoteSessionExpiresAt: "2026-08-14T00:00:00.000Z",
+      }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<RemoteTournamentApp initialHandoffReference="STEP_17_TEST_REFERENCE_WITH_ENTROPY_1234567890" />);
+
+    await flushPromises();
+    expect(screen.getByText("17 - 7")).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4000);
+    });
+
+    expect(screen.getByText("20 - 4")).toBeInTheDocument();
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/supabase/tournament-handoff/redeem");
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/supabase/remote-session/read");
+    expect(JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string)).toEqual({ remoteSessionToken: "STEP_17_REMOTE_SESSION_TOKEN" });
+    vi.useRealTimers();
+  });
+
+  it("restores an established remote session after a Device B refresh without redeeming QR again", async () => {
+    const remoteState = scoreMockState("STEP_17_TEST Restored", 18, 6);
+    window.sessionStorage.setItem("lezgo.remoteSession.v1", JSON.stringify({
+      handoffReference: "STEP_17_TEST_RESTORE_REFERENCE_WITH_ENTROPY_1234567890",
+      remoteSessionToken: "STEP_17_STORED_REMOTE_SESSION_TOKEN",
+      remoteSessionExpiresAt: "2026-08-14T00:00:00.000Z",
+    }));
+    const fetchMock = vi.fn().mockResolvedValueOnce(createReadResponse("standard", remoteState, "2026-08-13T12:00:05.000Z", {
+      remoteSessionToken: "STEP_17_STORED_REMOTE_SESSION_TOKEN",
+      remoteSessionExpiresAt: "2026-08-14T00:00:00.000Z",
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<RemoteTournamentApp initialHandoffReference="STEP_17_TEST_RESTORE_REFERENCE_WITH_ENTROPY_1234567890" />);
+
+    expect(await screen.findByRole("heading", { name: "STEP_17_TEST Restored" })).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/supabase/remote-session/read");
+  });
+
+  it("stops automatic polling when an established remote session expires", async () => {
+    vi.useFakeTimers();
+    const initialRemoteState = scoreMockState("STEP_17_TEST Expired Session", 17, 7);
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(createReadResponse("standard", initialRemoteState, "2026-08-13T12:00:00.000Z", {
+        remoteSessionToken: "STEP_17_EXPIRING_REMOTE_SESSION_TOKEN",
+        remoteSessionExpiresAt: "2026-08-14T00:00:00.000Z",
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: false }), { status: 410 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<RemoteTournamentApp initialHandoffReference="STEP_17_TEST_EXPIRING_REFERENCE_WITH_ENTROPY_1234567890" />);
+
+    await flushPromises();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4000);
+    });
+
+    expect(screen.getByText(/Remote-sessionen er udløbet/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Live-sync status")).toHaveTextContent("Fejl");
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30000);
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
 });
 
 async function flushPromises(): Promise<void> {
@@ -389,10 +469,10 @@ async function flushPromises(): Promise<void> {
   });
 }
 
-function createReadResponse(kind: "standard", state: LiveTournamentState, updatedAt?: string): Response;
-function createReadResponse(kind: "team-vs-team", state: TeamVsTeamTournamentState, updatedAt?: string): Response;
-function createReadResponse(kind: "standard" | "team-vs-team", state: LiveTournamentState | TeamVsTeamTournamentState, updatedAt = "2026-08-13T12:00:00.000Z"): Response {
-  return new Response(JSON.stringify({ ok: true, kind, state, updatedAt }), { status: 200 });
+function createReadResponse(kind: "standard", state: LiveTournamentState, updatedAt?: string, session?: { remoteSessionToken: string; remoteSessionExpiresAt: string }): Response;
+function createReadResponse(kind: "team-vs-team", state: TeamVsTeamTournamentState, updatedAt?: string, session?: { remoteSessionToken: string; remoteSessionExpiresAt: string }): Response;
+function createReadResponse(kind: "standard" | "team-vs-team", state: LiveTournamentState | TeamVsTeamTournamentState, updatedAt = "2026-08-13T12:00:00.000Z", session?: { remoteSessionToken: string; remoteSessionExpiresAt: string }): Response {
+  return new Response(JSON.stringify({ ok: true, kind, state, updatedAt, ...session }), { status: 200 });
 }
 
 function scoreMockState(name: string, teamAPoints = 17, teamBPoints = 7): LiveTournamentState {

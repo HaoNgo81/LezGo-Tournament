@@ -1,4 +1,4 @@
-import { createTournamentAccessRepository, TournamentAccessError } from "@/lib/database";
+import { createRemoteSession, createTournamentAccessRepository, TournamentAccessError } from "@/lib/database";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +41,11 @@ export async function POST(request: Request): Promise<Response> {
       kind: result.kind,
       state: result.state,
       updatedAt: result.updatedAt,
+      ...createRemoteSession({
+        tournamentId: result.tournamentId,
+        accessId: result.accessId,
+        tokenVersion: result.tokenVersion,
+      }),
     });
   } catch (error) {
     const status = error instanceof TournamentAccessError ? error.status : 500;

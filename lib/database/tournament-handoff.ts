@@ -33,6 +33,8 @@ export interface ProvisionTournamentHandoffResult {
 
 export interface RedeemTournamentHandoffResult {
   tournamentId: string;
+  accessId: string;
+  tokenVersion: number;
   kind: "standard" | "team-vs-team";
   state: LiveTournamentState | TeamVsTeamTournamentState;
   updatedAt?: string;
@@ -134,6 +136,8 @@ export function createTournamentHandoffRepository(client: SupabaseRestClient = c
       if (tournament.format === "team-vs-team" || tournament.team_competition_mode) {
         return {
           tournamentId: tournament.id,
+          accessId: access.id,
+          tokenVersion: access.token_version,
           kind: "team-vs-team",
           state: await createTeamVsTeamTournamentRepository(client).read(tournament.id),
           updatedAt: tournament.updated_at,
@@ -142,6 +146,8 @@ export function createTournamentHandoffRepository(client: SupabaseRestClient = c
 
       return {
         tournamentId: tournament.id,
+        accessId: access.id,
+        tokenVersion: access.token_version,
         kind: "standard",
         state: await createStandardTournamentRepository(client).read(tournament.id),
         updatedAt: tournament.updated_at,

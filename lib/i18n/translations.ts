@@ -125,6 +125,8 @@ export type TranslationKey =
   | "remoteShareToken"
   | "remoteShareTokenCopied"
   | "remoteShowToken"
+  | "remoteSessionDenied"
+  | "remoteSessionExpired"
   | "remoteSyncConnecting"
   | "remoteSyncError"
   | "remoteSyncLastChecked"
@@ -301,6 +303,8 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteShareToken: "Adgangskode / Share token",
     remoteShareTokenCopied: "Adgangskode kopieret.",
     remoteShowToken: "Vis",
+    remoteSessionDenied: "Remote-sessionen er ikke længere gyldig. Generér en ny QR-kode eller åbn en ny forbindelse.",
+    remoteSessionExpired: "Remote-sessionen er udløbet. Generér en ny QR-kode eller åbn en ny forbindelse.",
     remoteSyncConnecting: "Forbinder",
     remoteSyncError: "Fejl",
     remoteSyncLastChecked: "Senest tjekket",
@@ -476,6 +480,8 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteShareToken: "Share token",
     remoteShareTokenCopied: "Share token copied.",
     remoteShowToken: "Show",
+    remoteSessionDenied: "The remote session is no longer valid. Generate a new QR code or open a new connection.",
+    remoteSessionExpired: "The remote session has expired. Generate a new QR code or open a new connection.",
     remoteSyncConnecting: "Connecting",
     remoteSyncError: "Error",
     remoteSyncLastChecked: "Last checked",

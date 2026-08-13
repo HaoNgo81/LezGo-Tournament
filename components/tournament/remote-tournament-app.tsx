@@ -21,10 +21,12 @@ interface RemoteSyncTelemetry {
 }
 
 interface RemoteTournamentSession {
-  accessMode: "manual" | "handoff";
+  accessMode: "manual" | "handoff" | "remote-session";
   tournamentCode?: string;
   shareToken?: string;
   handoffReference?: string;
+  remoteSessionToken?: string;
+  remoteSessionExpiresAt?: string;
   kind: RemoteTournamentKind;
   state: LiveTournamentState | TeamVsTeamTournamentState;
   updatedAt?: string;
@@ -35,10 +37,13 @@ interface RemoteReadResponse {
   kind?: RemoteTournamentKind;
   state?: LiveTournamentState | TeamVsTeamTournamentState;
   updatedAt?: string;
+  remoteSessionToken?: string;
+  remoteSessionExpiresAt?: string;
 }
 
 const remotePollBaseIntervalMs = 4000;
 const remotePollMaxIntervalMs = 30000;
+const remoteSessionStorageKey = "lezgo.remoteSession.v1";
 
 class RemoteReadError extends Error {
   readonly kind: RemoteReadErrorKind;
@@ -98,6 +103,8 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
       accessMode: "manual",
       tournamentCode: normalizedCode,
       shareToken: normalizedToken,
+      remoteSessionToken: body.remoteSessionToken,
+      remoteSessionExpiresAt: body.remoteSessionExpiresAt,
       kind: body.kind,
       state: body.state,
       updatedAt: body.updatedAt,
@@ -127,6 +134,8 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
       return {
         accessMode: "handoff",
         handoffReference: normalizedReference,
+        remoteSessionToken: body.remoteSessionToken,
+        remoteSessionExpiresAt: body.remoteSessionExpiresAt,
         kind: body.kind,
         state: body.state,
         updatedAt: body.updatedAt,
@@ -136,13 +145,51 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
     }
   }, [t]);
 
+  const readEstablishedRemoteSession = useCallback(async (currentSession: RemoteTournamentSession | StoredRemoteSession): Promise<RemoteTournamentSession> => {
+    const remoteSessionToken = currentSession.remoteSessionToken?.trim() ?? "";
+
+    if (!remoteSessionToken) {
+      throw new RemoteReadError(t("remoteSessionDenied"), "access-denied");
+    }
+
+    try {
+      const { body, response } = await postRemoteRead("/api/supabase/remote-session/read", {
+        remoteSessionToken,
+      }, t("remoteSessionDenied"));
+
+      if (!response.ok || !body.ok || !body.kind || !body.state) {
+        throw new RemoteReadError(
+          response.status === 410 ? t("remoteSessionExpired") : t("remoteSessionDenied"),
+          response.status === 410 ? "expired" : response.status === 429 || response.status >= 500 ? "server" : "access-denied",
+          response.status,
+        );
+      }
+
+      return {
+        accessMode: "remote-session",
+        handoffReference: "handoffReference" in currentSession ? currentSession.handoffReference : undefined,
+        remoteSessionToken,
+        remoteSessionExpiresAt: body.remoteSessionExpiresAt ?? currentSession.remoteSessionExpiresAt,
+        kind: body.kind,
+        state: body.state,
+        updatedAt: body.updatedAt,
+      };
+    } catch (caughtError) {
+      throw normalizeRemoteReadError(caughtError, t("remoteSessionDenied"));
+    }
+  }, [t]);
+
   const refreshRemoteSession = useCallback(async (currentSession: RemoteTournamentSession): Promise<RemoteTournamentSession> => {
+    if (currentSession.remoteSessionToken) {
+      return readEstablishedRemoteSession(currentSession);
+    }
+
     if (currentSession.accessMode === "handoff" && currentSession.handoffReference) {
       return readRemoteHandoff(currentSession.handoffReference);
     }
 
     return readRemoteTournament(currentSession.tournamentCode ?? "", currentSession.shareToken ?? "");
-  }, [readRemoteHandoff, readRemoteTournament]);
+  }, [readEstablishedRemoteSession, readRemoteHandoff, readRemoteTournament]);
 
   const applyRemoteSession = useCallback((nextSession: RemoteTournamentSession, options: { force?: boolean } = {}) => {
     setSession((currentSession) => {
@@ -169,6 +216,7 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
       setTournamentCode(nextSession.tournamentCode ?? "");
       setShareToken(nextSession.shareToken ?? "");
       applyRemoteSession(nextSession, { force: true });
+      persistEstablishedRemoteSession(nextSession, initialHandoffReference);
       setSyncStatus("live");
       recordSuccessfulSync();
       setMessage(keepPreviousOnFailure ? t("remoteLatestLoaded") : t("remoteTournamentOpened"));
@@ -178,7 +226,7 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
     } finally {
       setIsLoading(false);
     }
-  }, [applyRemoteSession, readRemoteTournament, recordSuccessfulSync, t]);
+  }, [applyRemoteSession, initialHandoffReference, readRemoteTournament, recordSuccessfulSync, t]);
 
   const openRemoteHandoff = useCallback(async (handoffReference: string, keepPreviousOnFailure: boolean) => {
     if (!handoffReference.trim()) {
@@ -195,6 +243,7 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
     try {
       const nextSession = await readRemoteHandoff(handoffReference);
       applyRemoteSession(nextSession, { force: !keepPreviousOnFailure });
+      persistEstablishedRemoteSession(nextSession, handoffReference);
       setSyncStatus("live");
       recordSuccessfulSync();
       setMessage(keepPreviousOnFailure ? t("remoteLatestLoaded") : t("remoteTournamentOpened"));
@@ -209,6 +258,29 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
       setIsLoading(false);
     }
   }, [applyRemoteSession, readRemoteHandoff, recordSuccessfulSync, t]);
+
+  const openEstablishedRemoteSession = useCallback(async (storedSession: StoredRemoteSession) => {
+    setIsLoading(true);
+    setError("");
+    setMessage(t("remoteHandoffOpening"));
+    setSyncStatus("connecting");
+
+    try {
+      const nextSession = await readEstablishedRemoteSession(storedSession);
+      applyRemoteSession(nextSession, { force: true });
+      persistEstablishedRemoteSession(nextSession, storedSession.handoffReference);
+      setSyncStatus("live");
+      recordSuccessfulSync();
+      setMessage(t("remoteTournamentOpened"));
+    } catch (caughtError) {
+      clearStoredRemoteSession();
+      setSyncStatus("connecting");
+      setError(getRemoteReadErrorMessage(caughtError, t("remoteSessionDenied")));
+      setMessage("");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [applyRemoteSession, readEstablishedRemoteSession, recordSuccessfulSync, t]);
 
   useEffect(() => {
     sessionRef.current = session;
@@ -346,9 +418,33 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
       return;
     }
 
-    autoOpenAttempted.current = true;
-    void openRemoteHandoff(initialHandoffReference, false);
-  }, [initialHandoffReference, openRemoteHandoff]);
+    const storedSession = readStoredRemoteSession(initialHandoffReference);
+
+    let isCancelled = false;
+
+    void Promise.resolve().then(() => {
+      if (isCancelled) {
+        return;
+      }
+
+      if (autoOpenAttempted.current) {
+        return;
+      }
+
+      autoOpenAttempted.current = true;
+
+      if (storedSession) {
+        void openEstablishedRemoteSession(storedSession);
+        return;
+      }
+
+      void openRemoteHandoff(initialHandoffReference, false);
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [initialHandoffReference, openEstablishedRemoteSession, openRemoteHandoff]);
 
   async function handleOpen(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -360,15 +456,34 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
       return;
     }
 
-    if (session.accessMode === "handoff" && session.handoffReference) {
-      await openRemoteHandoff(session.handoffReference, true);
-      return;
-    }
+    setIsLoading(true);
+    setError("");
+    setMessage("");
+    setSyncStatus("reconnecting");
 
-    await openRemoteTournament(session.tournamentCode ?? "", session.shareToken ?? "", true);
+    try {
+      const nextSession = await refreshRemoteSession(session);
+      applyRemoteSession(nextSession, { force: true });
+      persistEstablishedRemoteSession(nextSession, session.handoffReference);
+      setSyncStatus("live");
+      recordSuccessfulSync();
+      setMessage(t("remoteLatestLoaded"));
+    } catch (caughtError) {
+      const remoteError = normalizeRemoteReadError(caughtError, t("remoteFetchError"));
+      setSyncStatus(getRemoteSyncStatusForError(remoteError));
+      setError(getRemoteReadErrorMessage(remoteError, t("remoteFetchError")));
+
+      if (isTerminalRemoteReadError(remoteError)) {
+        autoSyncStoppedRef.current = true;
+        clearStoredRemoteSession();
+      }
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   function handleClose() {
+    clearStoredRemoteSession();
     setSession(null);
     setMessage("");
     setError("");
@@ -738,8 +853,16 @@ function normalizeTournamentCodeInput(value: string): string {
 }
 
 function isSameRemoteAccess(currentSession: RemoteTournamentSession, nextSession: RemoteTournamentSession): boolean {
+  if (currentSession.remoteSessionToken && nextSession.remoteSessionToken) {
+    return currentSession.remoteSessionToken === nextSession.remoteSessionToken;
+  }
+
   if (currentSession.accessMode !== nextSession.accessMode) {
     return false;
+  }
+
+  if (currentSession.accessMode === "remote-session") {
+    return currentSession.remoteSessionToken === nextSession.remoteSessionToken;
   }
 
   if (currentSession.accessMode === "handoff") {
@@ -766,4 +889,75 @@ function isNewerRemoteVersion(currentUpdatedAt?: string, nextUpdatedAt?: string)
   }
 
   return nextTime > currentTime;
+}
+
+interface StoredRemoteSession {
+  remoteSessionToken: string;
+  remoteSessionExpiresAt: string;
+  handoffReference?: string;
+}
+
+function persistEstablishedRemoteSession(session: RemoteTournamentSession, handoffReference?: string): void {
+  if (typeof window === "undefined" || !session.remoteSessionToken || !session.remoteSessionExpiresAt) {
+    return;
+  }
+
+  const storedSession: StoredRemoteSession = {
+    remoteSessionToken: session.remoteSessionToken,
+    remoteSessionExpiresAt: session.remoteSessionExpiresAt,
+    handoffReference: handoffReference ?? session.handoffReference,
+  };
+
+  try {
+    window.sessionStorage.setItem(remoteSessionStorageKey, JSON.stringify(storedSession));
+  } catch {
+    // Session storage is a convenience for refresh recovery; polling continues without it.
+  }
+}
+
+function readStoredRemoteSession(handoffReference?: string): StoredRemoteSession | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const raw = window.sessionStorage.getItem(remoteSessionStorageKey);
+
+    if (!raw) {
+      return null;
+    }
+
+    const storedSession = JSON.parse(raw) as StoredRemoteSession;
+
+    if (!storedSession.remoteSessionToken || !storedSession.remoteSessionExpiresAt) {
+      clearStoredRemoteSession();
+      return null;
+    }
+
+    if (handoffReference && storedSession.handoffReference !== handoffReference) {
+      return null;
+    }
+
+    if (Date.parse(storedSession.remoteSessionExpiresAt) <= Date.now()) {
+      clearStoredRemoteSession();
+      return null;
+    }
+
+    return storedSession;
+  } catch {
+    clearStoredRemoteSession();
+    return null;
+  }
+}
+
+function clearStoredRemoteSession(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.sessionStorage.removeItem(remoteSessionStorageKey);
+  } catch {
+    // Ignore storage failures; server-side validation remains authoritative.
+  }
 }

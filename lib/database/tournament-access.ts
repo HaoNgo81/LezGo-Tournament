@@ -26,7 +26,9 @@ export interface ProvisionTournamentAccessResult {
 
 export interface ReadTournamentByAccessResult {
   tournamentId: string;
+  accessId: string;
   tournamentCode: string;
+  tokenVersion: number;
   kind: "standard" | "team-vs-team";
   state: LiveTournamentState | TeamVsTeamTournamentState;
   updatedAt?: string;
@@ -122,7 +124,9 @@ export function createTournamentAccessRepository(client: SupabaseRestClient = cr
       if (tournament.format === "team-vs-team" || tournament.team_competition_mode) {
         return {
           tournamentId: tournament.id,
+          accessId: access.id,
           tournamentCode: access.tournament_code,
+          tokenVersion: access.token_version,
           kind: "team-vs-team",
           state: await createTeamVsTeamTournamentRepository(client).read(tournament.id),
           updatedAt: tournament.updated_at,
@@ -131,7 +135,9 @@ export function createTournamentAccessRepository(client: SupabaseRestClient = cr
 
       return {
         tournamentId: tournament.id,
+        accessId: access.id,
         tournamentCode: access.tournament_code,
+        tokenVersion: access.token_version,
         kind: "standard",
         state: await createStandardTournamentRepository(client).read(tournament.id),
         updatedAt: tournament.updated_at,

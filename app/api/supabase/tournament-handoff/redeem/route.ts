@@ -1,4 +1,4 @@
-import { createTournamentHandoffRepository, TournamentHandoffError, toHandoffError } from "@/lib/database";
+import { createRemoteSession, createTournamentHandoffRepository, TournamentHandoffError, toHandoffError } from "@/lib/database";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +41,11 @@ export async function POST(request: Request): Promise<Response> {
       kind: result.kind,
       state: result.state,
       updatedAt: result.updatedAt,
+      ...createRemoteSession({
+        tournamentId: result.tournamentId,
+        accessId: result.accessId,
+        tokenVersion: result.tokenVersion,
+      }),
     });
   } catch (error) {
     const handoffError = error instanceof TournamentHandoffError ? error : toHandoffError("Could not redeem tournament handoff.", error);
