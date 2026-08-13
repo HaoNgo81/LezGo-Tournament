@@ -22,6 +22,8 @@ export class SupabaseRestClientError extends Error {
 export interface SupabaseRestClient {
   rpc<T>(functionName: string, body: Record<string, unknown>): Promise<T>;
   select<T>(table: string, query: string): Promise<T[]>;
+  insert<T>(table: string, rows: Record<string, unknown> | Record<string, unknown>[], options?: { onConflict?: string }): Promise<T[]>;
+  update<T>(table: string, query: string, values: Record<string, unknown>): Promise<T[]>;
   delete(table: string, query: string): Promise<void>;
 }
 
@@ -47,6 +49,29 @@ export function createSupabaseRestClient(config: SupabaseServerConfig = assertSu
       return request<T[]>(`${baseUrl}/${table}?${query}`, {
         method: "GET",
         headers,
+      });
+    },
+    async insert<T>(table: string, rows: Record<string, unknown> | Record<string, unknown>[], options: { onConflict?: string } = {}) {
+      const search = options.onConflict ? `?on_conflict=${encodeURIComponent(options.onConflict)}` : "";
+      return request<T[]>(`${baseUrl}/${table}${search}`, {
+        method: "POST",
+        headers: {
+          ...headers,
+          "content-type": "application/json",
+          prefer: "return=representation",
+        },
+        body: JSON.stringify(rows),
+      });
+    },
+    async update<T>(table: string, query: string, values: Record<string, unknown>) {
+      return request<T[]>(`${baseUrl}/${table}?${query}`, {
+        method: "PATCH",
+        headers: {
+          ...headers,
+          "content-type": "application/json",
+          prefer: "return=representation",
+        },
+        body: JSON.stringify(values),
       });
     },
     async delete(table: string, query: string) {

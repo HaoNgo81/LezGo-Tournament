@@ -6,6 +6,7 @@ export { assertStandardWritePlanSupported, createStandardTournamentRepository, g
 export { createTeamVsTeamTournamentRepository } from "./supabase-team-vs-team-repository";
 export { mapTeamVsTeamTournamentToPersistencePayload } from "./team-vs-team-mapper";
 export { mapPersistenceRowsToTeamVsTeamTournamentState } from "./team-vs-team-readback";
+export { createTournamentAccessRepository, generateShareToken, generateTournamentCode, hashShareToken, normalizeTournamentCode, TournamentAccessError } from "./tournament-access";
 export type {
   FixedPairRowPayload,
   MatchRowPayload,
@@ -38,6 +39,7 @@ export type { PersistenceConflictDecision, PersistenceConflictInput, Persistence
 export type { DatabaseOperationKind, DatabaseRow, DatabaseWriteOperation, PersistenceWritePlan } from "./persistence-write-plan";
 export type { SaveStandardTournamentOptions, SaveStandardTournamentResult, StandardTournamentRepository } from "./supabase-standard-repository";
 export type { SaveTeamVsTeamTournamentOptions, SaveTeamVsTeamTournamentResult, TeamVsTeamTournamentRepository } from "./supabase-team-vs-team-repository";
+export type { ProvisionTournamentAccessResult, ReadTournamentByAccessResult, TournamentAccessRecord, TournamentAccessRepository } from "./tournament-access";
 export type {
   TeamVsTeamLineupReadRow,
   TeamVsTeamMatchupReadRow,

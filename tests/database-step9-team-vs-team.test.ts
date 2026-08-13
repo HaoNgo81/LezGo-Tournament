@@ -173,6 +173,12 @@ function createMemoryClient(options: { failTable?: string } = {}) {
 
       return rows as T[];
     },
+    async insert<T>(): Promise<T[]> {
+      throw new Error("insert is not implemented in this memory client.");
+    },
+    async update<T>(): Promise<T[]> {
+      throw new Error("update is not implemented in this memory client.");
+    },
     async delete(table: string, query: string): Promise<void> {
       const idMatch = /(?:^|[&?])id=eq\.([^&]+)/.exec(query);
       if (idMatch) state[table] = (state[table] ?? []).filter((row) => row.id !== decodeURIComponent(idMatch[1]));
