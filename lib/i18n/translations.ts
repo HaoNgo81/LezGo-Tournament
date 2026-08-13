@@ -118,6 +118,8 @@ export type TranslationKey =
   | "remoteLoadingTournament"
   | "remoteNewConnection"
   | "remoteNoSavedLineup"
+  | "remoteNextMatch"
+  | "remoteNextMatches"
   | "remoteNextPhase"
   | "remotePausedPlayers"
   | "remotePoolStandings"
@@ -309,6 +311,8 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteLoadingTournament: "Henter turnering...",
     remoteNewConnection: "Ny forbindelse",
     remoteNoSavedLineup: "Opstilling er ikke gemt endnu.",
+    remoteNextMatch: "Næste kamp",
+    remoteNextMatches: "Næste kampe",
     remoteNextPhase: "Næste fase",
     remotePausedPlayers: "Pause",
     remotePoolStandings: "Puljestillinger",
@@ -499,6 +503,8 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteLoadingTournament: "Loading tournament...",
     remoteNewConnection: "New connection",
     remoteNoSavedLineup: "Lineup has not been saved yet.",
+    remoteNextMatch: "Next match",
+    remoteNextMatches: "Next matches",
     remoteNextPhase: "Next phase",
     remotePausedPlayers: "Pause",
     remotePoolStandings: "Pool standings",

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type
 import { MatchCards } from "@/components/tournament/match-cards";
 import { Section } from "@/components/ui/section";
 import { createReadOnlyTournamentView, createTeamVsTeamReadOnlyView, type ReadOnlyMatchCard, type ReadOnlyTournamentView } from "@/lib/read-only-views";
-import type { LiveTournamentState } from "@/lib/live-scoring";
+import { getPlayerName, type LiveTournamentState } from "@/lib/live-scoring";
 import type { TeamVsTeamTournamentState } from "@/lib/tournament-setup";
 import { useAppTranslation } from "@/lib/preferences/client";
 import type { TranslationKey } from "@/lib/i18n/translations";
@@ -55,6 +55,10 @@ type ScoreboardStanding = {
 };
 
 type ScoreboardMatchCard = ReadOnlyMatchCard;
+
+type ScoreboardNextMatch = Pick<ScoreboardMatchCard, "id" | "court" | "teamA" | "teamB"> & {
+  roundLabel: string;
+};
 
 class RemoteReadError extends Error {
   readonly kind: RemoteReadErrorKind;
@@ -858,6 +862,7 @@ function RemoteStandardScoreboardView({
       <RemoteScoreboardLayout
         formatLabel={t("formatPoolPlay")}
         matches={primaryMatches}
+        nextMatches={[]}
         onClose={onClose}
         onFullscreen={onFullscreen}
         onRefresh={onRefresh}
@@ -875,6 +880,7 @@ function RemoteStandardScoreboardView({
     <RemoteScoreboardLayout
       formatLabel={formatLiveTournamentFormat(state.format, t)}
       matches={view.matches}
+      nextMatches={createStandardNextMatches(state, t)}
       onClose={onClose}
       onFullscreen={onFullscreen}
       onRefresh={onRefresh}
@@ -919,6 +925,7 @@ function RemoteTeamVsTeamScoreboardView({
     <RemoteScoreboardLayout
       formatLabel="Team vs. Team"
       matches={view.matches}
+      nextMatches={createTeamVsTeamNextMatches(state, t)}
       onClose={onClose}
       onFullscreen={onFullscreen}
       onRefresh={onRefresh}
@@ -936,6 +943,7 @@ function RemoteScoreboardLayout({
   formatLabel,
   isLoading,
   matches,
+  nextMatches,
   onClose,
   onFullscreen,
   onRefresh,
@@ -948,6 +956,7 @@ function RemoteScoreboardLayout({
   formatLabel: string;
   isLoading: boolean;
   matches: ScoreboardMatchCard[];
+  nextMatches: ScoreboardNextMatch[];
   onClose: () => void;
   onFullscreen: () => void;
   onRefresh: () => void;
@@ -972,15 +981,18 @@ function RemoteScoreboardLayout({
         syncStatus={syncStatus}
         title={title}
       />
-      <main className="grid min-h-0 gap-3 xl:grid-cols-[0.42fr_0.58fr]">
-        <section className="grid min-h-0 gap-2 lg:overflow-hidden">
-          <h2 className="text-xl font-black uppercase tracking-wide text-[var(--muted)] lg:text-2xl">{t("remoteCurrentMatches")}</h2>
-          <RemoteScoreboardMatchGrid matches={matches} />
-        </section>
+      <main className="grid min-h-0 gap-3 xl:grid-cols-[0.58fr_0.42fr]">
         <section className="grid min-h-0 gap-2 lg:overflow-hidden">
           <h2 className="text-xl font-black uppercase tracking-wide text-[var(--primary-strong)] lg:text-2xl">{t("liveScore")}</h2>
           <RemoteScoreboardScoreGrid matches={matches} />
         </section>
+        <div className="grid min-h-0 gap-3 lg:overflow-hidden xl:grid-rows-[minmax(0,0.72fr)_auto]">
+          <section className="grid min-h-0 gap-2 lg:overflow-hidden">
+            <h2 className="text-xl font-black uppercase tracking-wide text-[var(--muted)] lg:text-2xl">{t("remoteCurrentMatches")}</h2>
+            <RemoteScoreboardMatchGrid matches={matches} compact />
+          </section>
+          <RemoteScoreboardNextMatches nextMatches={nextMatches} />
+        </div>
       </main>
       <RemoteScoreboardStandings standings={standings} />
     </div>
@@ -1036,18 +1048,36 @@ function RemoteScoreboardHeader({
   );
 }
 
-function RemoteScoreboardMatchGrid({ matches }: { matches: ScoreboardMatchCard[] }) {
+function RemoteScoreboardMatchGrid({ compact = false, matches }: { compact?: boolean; matches: ScoreboardMatchCard[] }) {
+  if (compact) {
+    return (
+      <div className="grid min-h-0 gap-2 md:grid-cols-2 lg:overflow-hidden">
+        {matches.map((match) => (
+          <article key={match.id} className={`grid min-w-0 gap-1 rounded-md border p-3 ${getScoreboardMatchTone(match.status)}`}>
+            <div className="flex min-w-0 items-center justify-between gap-3">
+              <h3 className="text-xl font-black uppercase text-[var(--primary-strong)] lg:text-[clamp(1.25rem,1.6vw,1.8rem)]">{match.court}</h3>
+              <span className="hidden rounded-md bg-white/75 px-2 py-1 text-[0.65rem] font-black uppercase text-[var(--muted)] sm:inline-flex">{match.status}</span>
+            </div>
+            <p className="min-w-0 text-[clamp(0.95rem,1.25vw,1.35rem)] font-black leading-tight" style={{ overflowWrap: "anywhere" }}>
+              {match.teamA} <span className="text-[var(--muted)]">vs</span> {match.teamB}
+            </p>
+          </article>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className={`grid min-h-0 gap-3 lg:overflow-hidden ${getScoreboardGridClass(matches.length)}`}>
       {matches.map((match) => (
-        <article key={match.id} className={`grid min-w-0 gap-2 rounded-md border p-4 ${getScoreboardMatchTone(match.status)}`}>
+        <article key={match.id} className={`grid min-w-0 gap-2 rounded-md border ${compact ? "p-3" : "p-4"} ${getScoreboardMatchTone(match.status)}`}>
           <div className="flex items-start justify-between gap-3">
-            <h3 className="text-2xl font-black uppercase lg:text-[clamp(1.8rem,2.4vw,3rem)]">{match.court}</h3>
+            <h3 className={`${compact ? "text-2xl lg:text-[clamp(1.5rem,1.9vw,2.2rem)]" : "text-2xl lg:text-[clamp(1.8rem,2.4vw,3rem)]"} font-black uppercase`}>{match.court}</h3>
             <span className="hidden rounded-md bg-white/75 px-3 py-1 text-xs font-black uppercase text-[var(--muted)] sm:inline-flex">{match.status}</span>
           </div>
-          <div className="grid min-w-0 gap-2 text-[clamp(1.25rem,1.8vw,2rem)] font-black leading-tight">
+          <div className={`grid min-w-0 font-black leading-tight ${compact ? "gap-1 text-[clamp(1rem,1.3vw,1.45rem)]" : "gap-2 text-[clamp(1.25rem,1.8vw,2rem)]"}`}>
             <p style={{ overflowWrap: "anywhere" }}>{match.teamA}</p>
-            <p className="text-sm uppercase text-[var(--muted)] lg:text-lg">vs</p>
+            <p className={`${compact ? "text-xs lg:text-sm" : "text-sm lg:text-lg"} uppercase text-[var(--muted)]`}>vs</p>
             <p style={{ overflowWrap: "anywhere" }}>{match.teamB}</p>
           </div>
         </article>
@@ -1083,6 +1113,37 @@ function RemoteScoreboardScoreGrid({ matches }: { matches: ScoreboardMatchCard[]
         );
       })}
     </div>
+  );
+}
+
+function RemoteScoreboardNextMatches({ nextMatches }: { nextMatches: ScoreboardNextMatch[] }) {
+  const { t } = useAppTranslation();
+
+  if (!nextMatches.length) {
+    return null;
+  }
+
+  return (
+    <section className="grid min-h-0 gap-2">
+      <h2 className="text-xl font-black uppercase tracking-wide text-[var(--primary-strong)] lg:text-2xl">
+        {nextMatches.length > 1 ? t("remoteNextMatches") : t("remoteNextMatch")}
+      </h2>
+      <div className={`grid gap-3 ${nextMatches.length > 1 ? "md:grid-cols-2" : ""}`}>
+        {nextMatches.map((match) => (
+          <article key={match.id} className="grid min-w-0 gap-2 rounded-md border border-[var(--primary)] bg-[var(--primary-soft)] p-4">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <h3 className="text-2xl font-black uppercase text-[var(--primary-strong)] lg:text-[clamp(1.6rem,2vw,2.5rem)]">{match.court}</h3>
+              <span className="rounded-md bg-white/75 px-3 py-1 text-xs font-black uppercase text-[var(--muted)]">{match.roundLabel}</span>
+            </div>
+            <div className="grid min-w-0 gap-1 text-[clamp(1.1rem,1.45vw,1.75rem)] font-black leading-tight">
+              <p style={{ overflowWrap: "anywhere" }}>{match.teamA}</p>
+              <p className="text-sm uppercase text-[var(--muted)] lg:text-base">vs</p>
+              <p style={{ overflowWrap: "anywhere" }}>{match.teamB}</p>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -1432,6 +1493,62 @@ function getScoreboardMatchTone(status: ScoreboardMatchCard["status"]): string {
   }
 
   return "border-[var(--line)] bg-[var(--card)] text-[var(--foreground)]";
+}
+
+function createStandardNextMatches(state: LiveTournamentState, t: (key: TranslationKey) => string): ScoreboardNextMatch[] {
+  const nextRoundNumber = state.activeRoundNumber + 1;
+  const nextRound = state.rounds.find((round) => round.roundNumber === nextRoundNumber);
+
+  if (!nextRound) {
+    return [];
+  }
+
+  return nextRound.matches.map((match) => ({
+    id: match.id,
+    court: `${t("court")} ${match.courtNumber}`,
+    teamA: match.teamA.playerIds.map((playerId) => getPlayerName(state.players, playerId)).join(" / "),
+    teamB: match.teamB.playerIds.map((playerId) => getPlayerName(state.players, playerId)).join(" / "),
+    roundLabel: `${t("round")} ${nextRound.roundNumber}`,
+  }));
+}
+
+function createTeamVsTeamNextMatches(state: TeamVsTeamTournamentState, t: (key: TranslationKey) => string): ScoreboardNextMatch[] {
+  const activeMatch = state.matchups.find((match) => match.id === state.activeMatchupId) ?? state.matchups[0];
+
+  if (!activeMatch) {
+    return [];
+  }
+
+  const currentRoundNumber = Math.min(activeMatch.roundResults.length + 1, state.maxRounds);
+  const nextRoundNumber = currentRoundNumber + 1;
+  const nextLineup = activeMatch.lineups.find((lineup) => lineup.roundNumber === nextRoundNumber);
+  const teamA = state.teams.find((team) => team.id === activeMatch.teamAId);
+  const teamB = state.teams.find((team) => team.id === activeMatch.teamBId);
+
+  if (!nextLineup || !teamA || !teamB) {
+    return [];
+  }
+
+  return [
+    {
+      id: `${activeMatch.id}-next-match-1`,
+      court: "Kamp 1",
+      teamA: nextLineup.match1.teamAPlayerIds.map((playerId) => getTeamVsTeamPlayerName(teamA, playerId)).join(" / "),
+      teamB: nextLineup.match1.teamBPlayerIds.map((playerId) => getTeamVsTeamPlayerName(teamB, playerId)).join(" / "),
+      roundLabel: `${t("round")} ${nextRoundNumber}`,
+    },
+    {
+      id: `${activeMatch.id}-next-match-2`,
+      court: "Kamp 2",
+      teamA: nextLineup.match2.teamAPlayerIds.map((playerId) => getTeamVsTeamPlayerName(teamA, playerId)).join(" / "),
+      teamB: nextLineup.match2.teamBPlayerIds.map((playerId) => getTeamVsTeamPlayerName(teamB, playerId)).join(" / "),
+      roundLabel: `${t("round")} ${nextRoundNumber}`,
+    },
+  ];
+}
+
+function getTeamVsTeamPlayerName(team: TeamVsTeamTournamentState["teams"][number], playerId: string): string {
+  return team.players.find((player) => player.id === playerId)?.name ?? playerId;
 }
 
 function parseScore(score: string): { teamA: string; teamB: string } | null {

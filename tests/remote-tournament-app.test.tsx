@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { RemoteTournamentApp } from "../components/tournament/remote-tournament-app";
 import { SyncStatusPanel } from "../components/tournament/sync-status-panel";
 import { createMockLiveTournamentState, saveMatchResult, type LiveTournamentState } from "../lib/live-scoring";
-import { createPoolTournamentFromSetup, createTeamVsTeamTournamentFromSetup, loadActiveTournament, saveActiveTournament, type TeamVsTeamTournamentState } from "../lib/tournament-setup";
+import { createPoolTournamentFromSetup, createTeamVsTeamTournamentFromSetup, createTournamentFromSetup, loadActiveTournament, saveActiveTournament, type TeamVsTeamTournamentState } from "../lib/tournament-setup";
 
 describe("STEP 13 remote read-only UI", () => {
   afterEach(() => {
@@ -154,9 +154,37 @@ describe("STEP 13 remote read-only UI", () => {
     expect(screen.getByRole("button", { name: "Standardvisning" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Kampe" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Live score" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Næste kampe" })).toBeInTheDocument();
+    expect(screen.getAllByText("Runde 2").length).toBeGreaterThan(0);
     expect(screen.getByRole("heading", { name: "Stilling" })).toBeInTheDocument();
     expect(screen.getByText("17 - 7")).toBeInTheDocument();
     expect(screen.queryByText("Visning fra anden enhed - skrivebeskyttet")).not.toBeInTheDocument();
+  });
+
+  it("updates next matches through the existing remote polling flow", async () => {
+    vi.useFakeTimers();
+    const initialRemoteState = scoreThreeRoundState("STEP_20_TEST Next Match", 17, 7);
+    const updatedRemoteState = {
+      ...scoreThreeRoundState("STEP_20_TEST Next Match", 20, 4),
+      activeRoundNumber: 2,
+    };
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(createReadResponse("standard", initialRemoteState, "2026-08-13T12:00:00.000Z"))
+      .mockResolvedValueOnce(createReadResponse("standard", updatedRemoteState, "2026-08-13T12:00:05.000Z")));
+
+    render(<RemoteTournamentApp initialHandoffReference="STEP_20_TEST_REFERENCE_WITH_ENTROPY_1234567890" />);
+
+    await flushPromises();
+    fireEvent.click(screen.getByRole("button", { name: "Scoreboard-visning" }));
+    expect(screen.getAllByText("Runde 2").length).toBeGreaterThan(0);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4000);
+    });
+
+    expect(screen.getAllByText("Runde 3").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Runde 2")).not.toBeInTheDocument();
+    vi.useRealTimers();
   });
 
   it("switches the remote display into TV mode with fullscreen control", async () => {
@@ -561,6 +589,25 @@ function createReadResponse(kind: "standard" | "team-vs-team", state: LiveTourna
 
 function scoreMockState(name: string, teamAPoints = 17, teamBPoints = 7): LiveTournamentState {
   const state = { ...createMockLiveTournamentState(), tournamentName: name };
+  return saveMatchResult(state, { matchId: state.rounds[0].matches[0].id, teamAPoints, teamBPoints });
+}
+
+function scoreThreeRoundState(name: string, teamAPoints = 17, teamBPoints = 7): LiveTournamentState {
+  const state = createTournamentFromSetup({
+    name,
+    format: "Americano",
+    playerText: Array.from({ length: 8 }, (_, index) => `Spiller ${index + 1}`).join("\n"),
+    femalePlayerText: "",
+    malePlayerText: "",
+    courts: 2,
+    rounds: 3,
+    scoringMode: "Fast antal point",
+    fixedScoreRule: "total",
+    fixedScorePoints: 24,
+    firstRoundOrder: "manual",
+    rankingMode: "matchPointsFirst",
+  });
+
   return saveMatchResult(state, { matchId: state.rounds[0].matches[0].id, teamAPoints, teamBPoints });
 }
 
