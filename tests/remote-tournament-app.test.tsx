@@ -288,6 +288,98 @@ describe("STEP 13 remote read-only UI", () => {
     expect(screen.getByLabelText("Live-sync status")).toHaveTextContent("Live");
     vi.useRealTimers();
   });
+
+  it("backs off after repeated temporary auto-sync failures without showing manual loading", async () => {
+    vi.useFakeTimers();
+    const initialRemoteState = scoreMockState("STEP_16_TEST Backoff", 17, 7);
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(createReadResponse("standard", initialRemoteState, "2026-08-13T12:00:00.000Z"))
+      .mockRejectedValueOnce(new TypeError("network down"))
+      .mockRejectedValueOnce(new TypeError("network still down"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<RemoteTournamentApp initialHandoffReference="STEP_16_TEST_BACKOFF_REFERENCE_WITH_ENTROPY_1234567890" />);
+
+    await flushPromises();
+    expect(screen.getByText("17 - 7")).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4000);
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("button", { name: "Opdater" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Live-sync status")).toHaveTextContent("Forbinder igen");
+    expect(screen.getByText(/Næste forsøg:/)).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3999);
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    vi.useRealTimers();
+  });
+
+  it("recovers immediately when the browser comes back online", async () => {
+    vi.useFakeTimers();
+    const initialRemoteState = scoreMockState("STEP_16_TEST Online", 17, 7);
+    const recoveredRemoteState = scoreMockState("STEP_16_TEST Online", 18, 6);
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(createReadResponse("standard", initialRemoteState, "2026-08-13T12:00:00.000Z"))
+      .mockRejectedValueOnce(new TypeError("offline"))
+      .mockResolvedValueOnce(createReadResponse("standard", recoveredRemoteState, "2026-08-13T12:00:05.000Z"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<RemoteTournamentApp initialHandoffReference="STEP_16_TEST_ONLINE_REFERENCE_WITH_ENTROPY_1234567890" />);
+
+    await flushPromises();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4000);
+    });
+
+    expect(screen.getByText("17 - 7")).toBeInTheDocument();
+
+    await act(async () => {
+      window.dispatchEvent(new Event("online"));
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText("18 - 6")).toBeInTheDocument();
+    expect(screen.getByLabelText("Live-sync status")).toHaveTextContent("Live");
+    vi.useRealTimers();
+  });
+
+  it("stops automatic polling when a handoff expires", async () => {
+    vi.useFakeTimers();
+    const initialRemoteState = scoreMockState("STEP_16_TEST Expired", 17, 7);
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(createReadResponse("standard", initialRemoteState, "2026-08-13T12:00:00.000Z"))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: false }), { status: 410 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<RemoteTournamentApp initialHandoffReference="STEP_16_TEST_EXPIRED_REFERENCE_WITH_ENTROPY_1234567890" />);
+
+    await flushPromises();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4000);
+    });
+
+    expect(screen.getByText("QR-koden er udløbet. Bed turneringslederen om at generere en ny.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Live-sync status")).toHaveTextContent("Fejl");
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30000);
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
 });
 
 async function flushPromises(): Promise<void> {

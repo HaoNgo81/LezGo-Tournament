@@ -11,6 +11,14 @@ import { useAppTranslation } from "@/lib/preferences/client";
 
 type RemoteTournamentKind = "standard" | "team-vs-team";
 type RemoteSyncStatus = "connecting" | "live" | "reconnecting" | "offline" | "error";
+type RemoteReadErrorKind = "access-denied" | "expired" | "network" | "server";
+
+interface RemoteSyncTelemetry {
+  consecutiveFailures: number;
+  lastCheckedAt?: number;
+  lastSuccessfulSyncAt?: number;
+  nextRetryAt?: number;
+}
 
 interface RemoteTournamentSession {
   accessMode: "manual" | "handoff";
@@ -29,11 +37,29 @@ interface RemoteReadResponse {
   updatedAt?: string;
 }
 
-const remotePollIntervalMs = 4000;
+const remotePollBaseIntervalMs = 4000;
+const remotePollMaxIntervalMs = 30000;
+
+class RemoteReadError extends Error {
+  readonly kind: RemoteReadErrorKind;
+  readonly status?: number;
+
+  constructor(message: string, kind: RemoteReadErrorKind, status?: number) {
+    super(message);
+    this.name = "RemoteReadError";
+    this.kind = kind;
+    this.status = status;
+    Object.setPrototypeOf(this, RemoteReadError.prototype);
+  }
+}
 
 export function RemoteTournamentApp({ initialHandoffReference }: { initialHandoffReference?: string } = {}) {
   const { t } = useAppTranslation();
   const autoOpenAttempted = useRef(false);
+  const autoSyncStoppedRef = useRef(false);
+  const sessionRef = useRef<RemoteTournamentSession | null>(null);
+  const pollGenerationRef = useRef(0);
+  const syncTelemetryRef = useRef<RemoteSyncTelemetry>({ consecutiveFailures: 0 });
   const [tournamentCode, setTournamentCode] = useState("");
   const [shareToken, setShareToken] = useState("");
   const [showToken, setShowToken] = useState(false);
@@ -42,24 +68,30 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [syncStatus, setSyncStatus] = useState<RemoteSyncStatus>("connecting");
+  const [syncTelemetry, setSyncTelemetry] = useState<RemoteSyncTelemetry>({ consecutiveFailures: 0 });
+
+  const recordSuccessfulSync = useCallback(() => {
+    autoSyncStoppedRef.current = false;
+    const nextTelemetry = createSuccessfulSyncTelemetry();
+    syncTelemetryRef.current = nextTelemetry;
+    setSyncTelemetry(nextTelemetry);
+  }, []);
 
   const readRemoteTournament = useCallback(async (code: string, token: string): Promise<RemoteTournamentSession> => {
     const normalizedCode = normalizeTournamentCodeInput(code);
     const normalizedToken = token.trim();
 
     if (!normalizedCode || !normalizedToken) {
-      throw new Error(t("remoteAccessDenied"));
+      throw new RemoteReadError(t("remoteAccessDenied"), "access-denied");
     }
 
-    const response = await fetch("/api/supabase/tournament-access/read", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tournamentCode: normalizedCode, shareToken: normalizedToken }),
-    });
-    const body = await response.json() as RemoteReadResponse;
+    const { body, response } = await postRemoteRead("/api/supabase/tournament-access/read", {
+      tournamentCode: normalizedCode,
+      shareToken: normalizedToken,
+    }, t("remoteAccessDenied"));
 
     if (!response.ok || !body.ok || !body.kind || !body.state) {
-      throw new Error(t("remoteAccessDenied"));
+      throw new RemoteReadError(t("remoteAccessDenied"), response.status === 429 || response.status >= 500 ? "server" : "access-denied", response.status);
     }
 
     return {
@@ -76,19 +108,20 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
     const normalizedReference = handoffReference.trim();
 
     if (!normalizedReference) {
-      throw new Error(t("remoteHandoffDenied"));
+      throw new RemoteReadError(t("remoteHandoffDenied"), "access-denied");
     }
 
     try {
-      const response = await fetch("/api/supabase/tournament-handoff/redeem", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ handoffReference: normalizedReference }),
-      });
-      const body = await response.json() as RemoteReadResponse;
+      const { body, response } = await postRemoteRead("/api/supabase/tournament-handoff/redeem", {
+        handoffReference: normalizedReference,
+      }, t("remoteHandoffDenied"));
 
       if (!response.ok || !body.ok || !body.kind || !body.state) {
-        throw new Error(response.status === 410 ? t("remoteHandoffExpired") : t("remoteHandoffDenied"));
+        throw new RemoteReadError(
+          response.status === 410 ? t("remoteHandoffExpired") : t("remoteHandoffDenied"),
+          response.status === 410 ? "expired" : response.status === 429 || response.status >= 500 ? "server" : "access-denied",
+          response.status,
+        );
       }
 
       return {
@@ -99,7 +132,7 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
         updatedAt: body.updatedAt,
       };
     } catch (caughtError) {
-      throw caughtError instanceof Error ? caughtError : new Error(t("remoteHandoffDenied"));
+      throw normalizeRemoteReadError(caughtError, t("remoteHandoffDenied"));
     }
   }, [t]);
 
@@ -137,14 +170,15 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
       setShareToken(nextSession.shareToken ?? "");
       applyRemoteSession(nextSession, { force: true });
       setSyncStatus("live");
+      recordSuccessfulSync();
       setMessage(keepPreviousOnFailure ? t("remoteLatestLoaded") : t("remoteTournamentOpened"));
-    } catch {
+    } catch (caughtError) {
       setSyncStatus(keepPreviousOnFailure ? "error" : "connecting");
-      setError(keepPreviousOnFailure ? t("remoteFetchError") : t("remoteAccessDenied"));
+      setError(getRemoteReadErrorMessage(caughtError, keepPreviousOnFailure ? t("remoteFetchError") : t("remoteAccessDenied")));
     } finally {
       setIsLoading(false);
     }
-  }, [applyRemoteSession, readRemoteTournament, t]);
+  }, [applyRemoteSession, readRemoteTournament, recordSuccessfulSync, t]);
 
   const openRemoteHandoff = useCallback(async (handoffReference: string, keepPreviousOnFailure: boolean) => {
     if (!handoffReference.trim()) {
@@ -162,72 +196,150 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
       const nextSession = await readRemoteHandoff(handoffReference);
       applyRemoteSession(nextSession, { force: !keepPreviousOnFailure });
       setSyncStatus("live");
+      recordSuccessfulSync();
       setMessage(keepPreviousOnFailure ? t("remoteLatestLoaded") : t("remoteTournamentOpened"));
     } catch (caughtError) {
       const fallbackMessage = keepPreviousOnFailure ? t("remoteFetchError") : t("remoteHandoffDenied");
       setSyncStatus(keepPreviousOnFailure ? "error" : "connecting");
-      setError(caughtError instanceof Error ? caughtError.message : fallbackMessage);
+      setError(getRemoteReadErrorMessage(caughtError, fallbackMessage));
       if (!keepPreviousOnFailure) {
         setMessage("");
       }
     } finally {
       setIsLoading(false);
     }
-  }, [applyRemoteSession, readRemoteHandoff, t]);
+  }, [applyRemoteSession, readRemoteHandoff, recordSuccessfulSync, t]);
 
   useEffect(() => {
-    if (!session) {
+    sessionRef.current = session;
+  }, [session]);
+
+  useEffect(() => {
+    if (!session || autoSyncStoppedRef.current) {
       return undefined;
     }
 
-    const activeSession = session;
     let isDisposed = false;
     let timeoutId: number | undefined;
     let isInFlight = false;
+    let consecutiveFailures = 0;
+    let shouldContinuePolling = true;
+    const pollGeneration = pollGenerationRef.current + 1;
+    pollGenerationRef.current = pollGeneration;
+
+    function schedulePoll(delayMs: number) {
+      timeoutId = window.setTimeout(poll, delayMs);
+    }
 
     async function poll() {
-      if (isDisposed || isInFlight) {
+      if (isDisposed || pollGenerationRef.current !== pollGeneration || isInFlight) {
         return;
       }
 
       isInFlight = true;
+      shouldContinuePolling = true;
 
       try {
+        const activeSession = sessionRef.current;
+
+        if (!activeSession) {
+          return;
+        }
+
         const nextSession = await refreshRemoteSession(activeSession);
 
-        if (isDisposed) {
+        if (isDisposed || pollGenerationRef.current !== pollGeneration) {
           return;
         }
 
         applyRemoteSession(nextSession);
+        consecutiveFailures = 0;
         setSyncStatus("live");
         setError("");
-      } catch {
-        if (isDisposed) {
+        recordSuccessfulSync();
+      } catch (caughtError) {
+        if (isDisposed || pollGenerationRef.current !== pollGeneration) {
           return;
         }
 
-        setSyncStatus(typeof navigator !== "undefined" && navigator.onLine === false ? "offline" : "error");
-        setError(t("remoteAutoSyncError"));
+        const remoteError = normalizeRemoteReadError(caughtError, t("remoteAutoSyncError"));
+
+        consecutiveFailures += 1;
+        setSyncStatus(getRemoteSyncStatusForError(remoteError));
+        setError(isTerminalRemoteReadError(remoteError) ? remoteError.message : t("remoteAutoSyncError"));
+
+        const retryDelay = isTerminalRemoteReadError(remoteError) ? undefined : calculateRemoteRetryDelay(consecutiveFailures);
+        const checkedAt = Date.now();
+        const nextTelemetry = {
+          consecutiveFailures,
+          lastCheckedAt: checkedAt,
+          lastSuccessfulSyncAt: syncTelemetryRef.current.lastSuccessfulSyncAt,
+          nextRetryAt: retryDelay === undefined ? undefined : checkedAt + retryDelay,
+        };
+        syncTelemetryRef.current = nextTelemetry;
+        setSyncTelemetry(nextTelemetry);
+
+        if (retryDelay === undefined) {
+          autoSyncStoppedRef.current = true;
+          isDisposed = true;
+          pollGenerationRef.current += 1;
+          shouldContinuePolling = false;
+        }
       } finally {
         isInFlight = false;
 
-        if (!isDisposed) {
-          timeoutId = window.setTimeout(poll, remotePollIntervalMs);
+        if (!isDisposed && shouldContinuePolling && pollGenerationRef.current === pollGeneration) {
+          schedulePoll(consecutiveFailures > 0 ? calculateRemoteRetryDelay(consecutiveFailures) : remotePollBaseIntervalMs);
         }
       }
     }
 
-    timeoutId = window.setTimeout(poll, remotePollIntervalMs);
+    function handleOnline() {
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId);
+      }
+
+      setSyncStatus("reconnecting");
+      void poll();
+    }
+
+    function handleOffline() {
+      setSyncStatus("offline");
+      setError(t("remoteAutoSyncError"));
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
+
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId);
+      }
+
+      setSyncStatus("reconnecting");
+      void poll();
+    }
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    schedulePoll(remotePollBaseIntervalMs);
 
     return () => {
       isDisposed = true;
+      if (pollGenerationRef.current === pollGeneration) {
+        pollGenerationRef.current += 1;
+      }
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
 
       if (timeoutId !== undefined) {
         window.clearTimeout(timeoutId);
       }
     };
-  }, [applyRemoteSession, refreshRemoteSession, session, t]);
+  }, [applyRemoteSession, recordSuccessfulSync, refreshRemoteSession, session, t]);
 
   useEffect(() => {
     if (!initialHandoffReference || autoOpenAttempted.current) {
@@ -265,7 +377,7 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
   if (session) {
     return (
       <div className="grid gap-5">
-        <RemoteReadOnlyBanner onClose={handleClose} onRefresh={handleRefresh} isLoading={isLoading} syncStatus={syncStatus} />
+        <RemoteReadOnlyBanner onClose={handleClose} onRefresh={handleRefresh} isLoading={isLoading} syncStatus={syncStatus} syncTelemetry={syncTelemetry} />
         {message ? <p className="rounded-md bg-green-50 p-3 font-bold text-[var(--primary-strong)]">{message}</p> : null}
         {error ? <p className="rounded-md bg-yellow-50 p-3 font-bold text-yellow-800">{error}</p> : null}
         {session.kind === "team-vs-team" ? (
@@ -317,7 +429,7 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
   );
 }
 
-function RemoteReadOnlyBanner({ isLoading, onClose, onRefresh, syncStatus }: { isLoading: boolean; onClose: () => void; onRefresh: () => void; syncStatus: RemoteSyncStatus }) {
+function RemoteReadOnlyBanner({ isLoading, onClose, onRefresh, syncStatus, syncTelemetry }: { isLoading: boolean; onClose: () => void; onRefresh: () => void; syncStatus: RemoteSyncStatus; syncTelemetry: RemoteSyncTelemetry }) {
   const { t } = useAppTranslation();
   const statusCopy = getRemoteSyncStatusCopy(syncStatus);
 
@@ -333,6 +445,11 @@ function RemoteReadOnlyBanner({ isLoading, onClose, onRefresh, syncStatus }: { i
             </span>
           </div>
           <p className="mt-1 font-bold text-[var(--muted)]">{t("remoteReadOnlyHelp")}</p>
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm font-bold text-[var(--muted)]">
+            {syncTelemetry.lastCheckedAt ? <span>{t("remoteSyncLastChecked")}: {formatRemoteSyncTime(syncTelemetry.lastCheckedAt)}</span> : null}
+            {syncTelemetry.lastSuccessfulSyncAt ? <span>{t("remoteSyncLastUpdated")}: {formatRemoteSyncTime(syncTelemetry.lastSuccessfulSyncAt)}</span> : null}
+            {syncTelemetry.nextRetryAt ? <span>{t("remoteSyncNextRetry")}: {formatRemoteRetry(syncTelemetry.nextRetryAt)}</span> : null}
+          </div>
         </div>
         <div className="action-grid">
           <button className="btn-secondary min-h-12 disabled:opacity-50" type="button" disabled={isLoading} onClick={onRefresh}>
@@ -360,6 +477,93 @@ function getRemoteSyncStatusCopy(status: RemoteSyncStatus): { label: "remoteSync
     case "error":
       return { label: "remoteSyncError", className: "bg-red-50 text-red-700" };
   }
+}
+
+async function postRemoteRead(url: string, payload: Record<string, string>, fallbackMessage: string): Promise<{ response: Response; body: RemoteReadResponse }> {
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    return { response, body: await readRemoteJson(response) };
+  } catch (caughtError) {
+    throw normalizeRemoteReadError(caughtError, fallbackMessage);
+  }
+}
+
+async function readRemoteJson(response: Response): Promise<RemoteReadResponse> {
+  try {
+    return await response.json() as RemoteReadResponse;
+  } catch {
+    return {};
+  }
+}
+
+function normalizeRemoteReadError(error: unknown, fallbackMessage: string): RemoteReadError {
+  if (error instanceof RemoteReadError) {
+    return error;
+  }
+
+  if (error instanceof TypeError) {
+    return new RemoteReadError(fallbackMessage, "network");
+  }
+
+  return new RemoteReadError(error instanceof Error ? error.message : fallbackMessage, "server");
+}
+
+function getRemoteReadErrorMessage(error: unknown, fallbackMessage: string): string {
+  const remoteError = normalizeRemoteReadError(error, fallbackMessage);
+
+  if (remoteError.kind === "network" || remoteError.kind === "server") {
+    return fallbackMessage;
+  }
+
+  return remoteError.message;
+}
+
+function getRemoteSyncStatusForError(error: RemoteReadError): RemoteSyncStatus {
+  if (error.kind === "network") {
+    return typeof navigator !== "undefined" && navigator.onLine === false ? "offline" : "reconnecting";
+  }
+
+  return isTerminalRemoteReadError(error) ? "error" : "reconnecting";
+}
+
+function isTerminalRemoteReadError(error: RemoteReadError): boolean {
+  return error.kind === "expired"
+    || error.kind === "access-denied"
+    || error.status === 410
+    || error.message.toLocaleLowerCase("en").includes("expired")
+    || error.message.toLocaleLowerCase("da").includes("udløbet");
+}
+
+function calculateRemoteRetryDelay(consecutiveFailures: number): number {
+  return Math.min(remotePollMaxIntervalMs, remotePollBaseIntervalMs * Math.max(1, consecutiveFailures));
+}
+
+function createSuccessfulSyncTelemetry(): RemoteSyncTelemetry {
+  const now = Date.now();
+
+  return {
+    consecutiveFailures: 0,
+    lastCheckedAt: now,
+    lastSuccessfulSyncAt: now,
+  };
+}
+
+function formatRemoteSyncTime(timestamp: number): string {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(new Date(timestamp));
+}
+
+function formatRemoteRetry(nextRetryAt: number): string {
+  const seconds = Math.max(1, Math.ceil((nextRetryAt - Date.now()) / 1000));
+  return `${seconds}s`;
 }
 
 function RemoteStandardView({ state }: { state: LiveTournamentState }) {

@@ -127,7 +127,10 @@ export type TranslationKey =
   | "remoteShowToken"
   | "remoteSyncConnecting"
   | "remoteSyncError"
+  | "remoteSyncLastChecked"
+  | "remoteSyncLastUpdated"
   | "remoteSyncLive"
+  | "remoteSyncNextRetry"
   | "remoteSyncOffline"
   | "remoteSyncReconnecting"
   | "remoteSyncStatus"
@@ -300,7 +303,10 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteShowToken: "Vis",
     remoteSyncConnecting: "Forbinder",
     remoteSyncError: "Fejl",
+    remoteSyncLastChecked: "Senest tjekket",
+    remoteSyncLastUpdated: "Senest opdateret",
     remoteSyncLive: "Live",
+    remoteSyncNextRetry: "Næste forsøg",
     remoteSyncOffline: "Offline",
     remoteSyncReconnecting: "Forbinder igen",
     remoteSyncStatus: "Live-sync status",
@@ -472,7 +478,10 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteShowToken: "Show",
     remoteSyncConnecting: "Connecting",
     remoteSyncError: "Error",
+    remoteSyncLastChecked: "Last checked",
+    remoteSyncLastUpdated: "Last updated",
     remoteSyncLive: "Live",
+    remoteSyncNextRetry: "Next retry",
     remoteSyncOffline: "Offline",
     remoteSyncReconnecting: "Reconnecting",
     remoteSyncStatus: "Live sync status",
