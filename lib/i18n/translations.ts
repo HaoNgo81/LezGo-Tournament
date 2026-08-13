@@ -100,7 +100,10 @@ export type TranslationKey =
   | "remoteCloseView"
   | "remoteCodeCopied"
   | "remoteCopy"
+  | "remoteConnectionExpired"
+  | "remoteCurrentMatches"
   | "remoteFetchError"
+  | "remoteFullscreen"
   | "remoteGenerateNewQr"
   | "remoteHandoffDenied"
   | "remoteHandoffExpired"
@@ -109,6 +112,7 @@ export type TranslationKey =
   | "remoteHideToken"
   | "remoteLatestLoaded"
   | "remoteLoadingTournament"
+  | "remoteNewConnection"
   | "remoteNoSavedLineup"
   | "remoteNextPhase"
   | "remotePausedPlayers"
@@ -121,12 +125,14 @@ export type TranslationKey =
   | "remoteQrReady"
   | "remoteReadOnlyBanner"
   | "remoteReadOnlyHelp"
+  | "remoteReadOnlyShort"
   | "remoteRefresh"
   | "remoteShareToken"
   | "remoteShareTokenCopied"
   | "remoteShowToken"
   | "remoteSessionDenied"
   | "remoteSessionExpired"
+  | "remoteStandardMode"
   | "remoteSyncConnecting"
   | "remoteSyncError"
   | "remoteSyncLastChecked"
@@ -136,10 +142,12 @@ export type TranslationKey =
   | "remoteSyncOffline"
   | "remoteSyncReconnecting"
   | "remoteSyncStatus"
+  | "remoteTopStandings"
   | "remoteTokenOnlyShownOnce"
   | "remoteTournamentCode"
   | "remoteTournamentOpened"
   | "remoteTeamsAndCaptains"
+  | "remoteTvMode"
   | "remoteViewOnAnotherDevice"
   | "save"
   | "seeFinalStandings"
@@ -278,7 +286,10 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteCloseView: "Luk visning",
     remoteCodeCopied: "Turneringskode kopieret.",
     remoteCopy: "Kopiér",
+    remoteConnectionExpired: "TV-forbindelsen er udløbet eller ikke længere gyldig.",
+    remoteCurrentMatches: "Kampe",
     remoteFetchError: "Forbindelsen kunne ikke opdateres. Seneste viste turnering er bevaret.",
+    remoteFullscreen: "Fuld skærm",
     remoteGenerateNewQr: "Generér ny QR-kode",
     remoteHandoffDenied: "QR-linket kunne ikke åbnes. Bed turneringslederen om at generere en ny QR-kode.",
     remoteHandoffExpired: "QR-koden er udløbet. Bed turneringslederen om at generere en ny.",
@@ -287,6 +298,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteHideToken: "Skjul",
     remoteLatestLoaded: "Seneste version er hentet.",
     remoteLoadingTournament: "Henter turnering...",
+    remoteNewConnection: "Ny forbindelse",
     remoteNoSavedLineup: "Opstilling er ikke gemt endnu.",
     remoteNextPhase: "Næste fase",
     remotePausedPlayers: "Pause",
@@ -299,12 +311,14 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteQrReady: "QR-kode klar.",
     remoteReadOnlyBanner: "Visning fra anden enhed - skrivebeskyttet",
     remoteReadOnlyHelp: "Du kan se live score og stilling, men denne visning kan ikke gemme, redigere eller overskrive lokale turneringer.",
+    remoteReadOnlyShort: "Skrivebeskyttet",
     remoteRefresh: "Opdater",
     remoteShareToken: "Adgangskode / Share token",
     remoteShareTokenCopied: "Adgangskode kopieret.",
     remoteShowToken: "Vis",
     remoteSessionDenied: "Remote-sessionen er ikke længere gyldig. Generér en ny QR-kode eller åbn en ny forbindelse.",
     remoteSessionExpired: "Remote-sessionen er udløbet. Generér en ny QR-kode eller åbn en ny forbindelse.",
+    remoteStandardMode: "Standardvisning",
     remoteSyncConnecting: "Forbinder",
     remoteSyncError: "Fejl",
     remoteSyncLastChecked: "Senest tjekket",
@@ -314,10 +328,12 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteSyncOffline: "Offline",
     remoteSyncReconnecting: "Forbinder igen",
     remoteSyncStatus: "Live-sync status",
+    remoteTopStandings: "Stilling",
     remoteTokenOnlyShownOnce: "Adgangskoden kunne ikke vises igen. Opret en ny adgang senere, hvis den er væk.",
     remoteTournamentCode: "Turneringskode",
     remoteTournamentOpened: "Turnering åbnet.",
     remoteTeamsAndCaptains: "Hold og kaptajner",
+    remoteTvMode: "TV-visning",
     remoteViewOnAnotherDevice: "Vis på anden enhed",
     save: "Gem",
     seeFinalStandings: "Se slutstilling",
@@ -455,7 +471,10 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteCloseView: "Close view",
     remoteCodeCopied: "Tournament code copied.",
     remoteCopy: "Copy",
+    remoteConnectionExpired: "The TV connection has expired or is no longer valid.",
+    remoteCurrentMatches: "Matches",
     remoteFetchError: "The connection could not refresh. The last shown tournament is kept.",
+    remoteFullscreen: "Fullscreen",
     remoteGenerateNewQr: "Generate new QR code",
     remoteHandoffDenied: "The QR link could not be opened. Ask the tournament organizer to generate a new QR code.",
     remoteHandoffExpired: "This QR code has expired. Ask the tournament organizer to generate a new one.",
@@ -464,6 +483,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteHideToken: "Hide",
     remoteLatestLoaded: "Latest version loaded.",
     remoteLoadingTournament: "Loading tournament...",
+    remoteNewConnection: "New connection",
     remoteNoSavedLineup: "Lineup has not been saved yet.",
     remoteNextPhase: "Next phase",
     remotePausedPlayers: "Pause",
@@ -476,12 +496,14 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteQrReady: "QR code ready.",
     remoteReadOnlyBanner: "Opened from another device - read only",
     remoteReadOnlyHelp: "You can view live score and standings, but this view cannot save, edit or overwrite local tournaments.",
+    remoteReadOnlyShort: "Read only",
     remoteRefresh: "Refresh",
     remoteShareToken: "Share token",
     remoteShareTokenCopied: "Share token copied.",
     remoteShowToken: "Show",
     remoteSessionDenied: "The remote session is no longer valid. Generate a new QR code or open a new connection.",
     remoteSessionExpired: "The remote session has expired. Generate a new QR code or open a new connection.",
+    remoteStandardMode: "Standard view",
     remoteSyncConnecting: "Connecting",
     remoteSyncError: "Error",
     remoteSyncLastChecked: "Last checked",
@@ -491,10 +513,12 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteSyncOffline: "Offline",
     remoteSyncReconnecting: "Reconnecting",
     remoteSyncStatus: "Live sync status",
+    remoteTopStandings: "Standings",
     remoteTokenOnlyShownOnce: "The share token cannot be shown again. Create new access later if it is lost.",
     remoteTournamentCode: "Tournament code",
     remoteTournamentOpened: "Tournament opened.",
     remoteTeamsAndCaptains: "Teams and captains",
+    remoteTvMode: "TV View",
     remoteViewOnAnotherDevice: "View on another device",
     save: "Save",
     seeFinalStandings: "See final standings",

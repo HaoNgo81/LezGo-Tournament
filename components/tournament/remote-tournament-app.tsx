@@ -1,10 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { MatchCards } from "@/components/tournament/match-cards";
-import { StandingsTable } from "@/components/tournament/standings-table";
 import { Section } from "@/components/ui/section";
-import { createReadOnlyTournamentView, createTeamVsTeamReadOnlyView, type ReadOnlyTournamentView } from "@/lib/read-only-views";
+import { createReadOnlyTournamentView, createTeamVsTeamReadOnlyView, type ReadOnlyMatchCard, type ReadOnlyTournamentView } from "@/lib/read-only-views";
 import type { LiveTournamentState } from "@/lib/live-scoring";
 import type { TeamVsTeamTournamentState } from "@/lib/tournament-setup";
 import { useAppTranslation } from "@/lib/preferences/client";
@@ -74,6 +73,7 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
   const [isLoading, setIsLoading] = useState(false);
   const [syncStatus, setSyncStatus] = useState<RemoteSyncStatus>("connecting");
   const [syncTelemetry, setSyncTelemetry] = useState<RemoteSyncTelemetry>({ consecutiveFailures: 0 });
+  const [isTvMode, setIsTvMode] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("display") === "tv");
 
   const recordSuccessfulSync = useCallback(() => {
     autoSyncStoppedRef.current = false;
@@ -487,18 +487,46 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
     setSession(null);
     setMessage("");
     setError("");
+    setIsTvMode(false);
+  }
+
+  async function handleFullscreen() {
+    if (typeof document === "undefined" || !document.documentElement.requestFullscreen) {
+      return;
+    }
+
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+        return;
+      }
+
+      await document.documentElement.requestFullscreen();
+    } catch {
+      // Fullscreen is optional and browser-controlled; the TV layout still works without it.
+    }
   }
 
   if (session) {
     return (
-      <div className="grid gap-5">
-        <RemoteReadOnlyBanner onClose={handleClose} onRefresh={handleRefresh} isLoading={isLoading} syncStatus={syncStatus} syncTelemetry={syncTelemetry} />
+      <div className={isTvMode ? "fixed inset-0 z-50 min-h-screen w-screen max-w-[100vw] overflow-auto overflow-x-hidden bg-[var(--background)] p-3 sm:p-6 lg:p-8" : "grid gap-5"}>
+        <RemoteReadOnlyBanner
+          onClose={handleClose}
+          onRefresh={handleRefresh}
+          onToggleTvMode={() => setIsTvMode((current) => !current)}
+          onFullscreen={handleFullscreen}
+          isLoading={isLoading}
+          isTvMode={isTvMode}
+          isTerminalError={Boolean(error && syncStatus === "error")}
+          syncStatus={syncStatus}
+          syncTelemetry={syncTelemetry}
+        />
         {message ? <p className="rounded-md bg-green-50 p-3 font-bold text-[var(--primary-strong)]">{message}</p> : null}
-        {error ? <p className="rounded-md bg-yellow-50 p-3 font-bold text-yellow-800">{error}</p> : null}
+        {error ? <RemoteErrorMessage message={error} isTerminal={syncStatus === "error"} onNewConnection={handleClose} /> : null}
         {session.kind === "team-vs-team" ? (
-          <RemoteTeamVsTeamView state={session.state as TeamVsTeamTournamentState} />
+          <RemoteTeamVsTeamView state={session.state as TeamVsTeamTournamentState} isTvMode={isTvMode} />
         ) : (
-          <RemoteStandardView state={session.state as LiveTournamentState} />
+          <RemoteStandardView state={session.state as LiveTournamentState} isTvMode={isTvMode} />
         )}
       </div>
     );
@@ -544,37 +572,81 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
   );
 }
 
-function RemoteReadOnlyBanner({ isLoading, onClose, onRefresh, syncStatus, syncTelemetry }: { isLoading: boolean; onClose: () => void; onRefresh: () => void; syncStatus: RemoteSyncStatus; syncTelemetry: RemoteSyncTelemetry }) {
+function RemoteReadOnlyBanner({
+  isLoading,
+  isTerminalError,
+  isTvMode,
+  onClose,
+  onFullscreen,
+  onRefresh,
+  onToggleTvMode,
+  syncStatus,
+  syncTelemetry,
+}: {
+  isLoading: boolean;
+  isTerminalError: boolean;
+  isTvMode: boolean;
+  onClose: () => void;
+  onFullscreen: () => void;
+  onRefresh: () => void;
+  onToggleTvMode: () => void;
+  syncStatus: RemoteSyncStatus;
+  syncTelemetry: RemoteSyncTelemetry;
+}) {
   const { t } = useAppTranslation();
   const statusCopy = getRemoteSyncStatusCopy(syncStatus);
 
   return (
-    <section className="rounded-md border border-[var(--primary)] bg-[var(--primary-soft)] p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+    <section className={`w-full max-w-full overflow-hidden rounded-md border border-[var(--primary)] bg-[var(--primary-soft)] p-4 ${isTvMode ? "sticky top-0 z-10 shadow-sm" : ""}`}>
+      <div className="flex w-full min-w-0 flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-black uppercase text-[var(--primary-strong)]">{t("remoteReadOnlyBanner")}</p>
+            <p className="text-sm font-black uppercase text-[var(--primary-strong)]">
+              <span className="sm:hidden">{t("remoteReadOnlyShort")}</span>
+              <span className="hidden sm:inline">{t("remoteReadOnlyBanner")}</span>
+            </p>
             <span className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-black ${statusCopy.className}`} aria-label={t("remoteSyncStatus")}>
               <span aria-hidden="true">●</span>
               {t(statusCopy.label)}
             </span>
           </div>
-          <p className="mt-1 font-bold text-[var(--muted)]">{t("remoteReadOnlyHelp")}</p>
+          {isTvMode ? null : <p className="mt-1 font-bold text-[var(--muted)]">{t("remoteReadOnlyHelp")}</p>}
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm font-bold text-[var(--muted)]">
             {syncTelemetry.lastCheckedAt ? <span>{t("remoteSyncLastChecked")}: {formatRemoteSyncTime(syncTelemetry.lastCheckedAt)}</span> : null}
             {syncTelemetry.lastSuccessfulSyncAt ? <span>{t("remoteSyncLastUpdated")}: {formatRemoteSyncTime(syncTelemetry.lastSuccessfulSyncAt)}</span> : null}
             {syncTelemetry.nextRetryAt ? <span>{t("remoteSyncNextRetry")}: {formatRemoteRetry(syncTelemetry.nextRetryAt)}</span> : null}
           </div>
         </div>
-        <div className="action-grid">
+        <div className={isTvMode ? "grid w-full min-w-0 gap-3 sm:grid-cols-2 md:w-48 md:grid-cols-1" : "action-grid"}>
+          <button className="btn-primary-soft min-h-12 disabled:opacity-50" type="button" onClick={onToggleTvMode}>
+            {isTvMode ? t("remoteStandardMode") : t("remoteTvMode")}
+          </button>
+          <button className="btn-secondary min-h-12 disabled:opacity-50" type="button" onClick={onFullscreen}>
+            {t("remoteFullscreen")}
+          </button>
           <button className="btn-secondary min-h-12 disabled:opacity-50" type="button" disabled={isLoading} onClick={onRefresh}>
             {isLoading ? t("remoteLoadingTournament") : t("remoteRefresh")}
           </button>
           <button className="btn-outline-primary min-h-12" type="button" onClick={onClose}>
-            {t("remoteCloseView")}
+            {isTerminalError ? t("remoteNewConnection") : t("remoteCloseView")}
           </button>
         </div>
       </div>
+    </section>
+  );
+}
+
+function RemoteErrorMessage({ isTerminal, message, onNewConnection }: { isTerminal: boolean; message: string; onNewConnection: () => void }) {
+  const { t } = useAppTranslation();
+
+  return (
+    <section className="rounded-md bg-yellow-50 p-4 font-bold text-yellow-900">
+      <p>{isTerminal ? t("remoteConnectionExpired") : message}</p>
+      {isTerminal ? (
+        <button className="btn-primary mt-3 min-h-12" type="button" onClick={onNewConnection}>
+          {t("remoteNewConnection")}
+        </button>
+      ) : null}
     </section>
   );
 }
@@ -681,83 +753,98 @@ function formatRemoteRetry(nextRetryAt: number): string {
   return `${seconds}s`;
 }
 
-function RemoteStandardView({ state }: { state: LiveTournamentState }) {
+function RemoteStandardView({ isTvMode, state }: { isTvMode: boolean; state: LiveTournamentState }) {
   const view = useMemo(() => createReadOnlyTournamentView(state), [state]);
 
   if (view.poolPlay) {
-    return <RemotePoolPlayView view={view} poolPlay={view.poolPlay} />;
+    return <RemotePoolPlayView view={view} poolPlay={view.poolPlay} isTvMode={isTvMode} />;
   }
 
-  return <RemoteAmericanoView view={view} />;
+  return <RemoteAmericanoView view={view} isTvMode={isTvMode} />;
 }
 
-function RemoteAmericanoView({ view }: { view: ReadOnlyTournamentView }) {
+function RemoteAmericanoView({ isTvMode, view }: { isTvMode: boolean; view: ReadOnlyTournamentView }) {
   const { t } = useAppTranslation();
+  const topStandings = view.standings.slice(0, isTvMode ? 8 : view.standings.length);
 
   return (
-    <div className="grid gap-5">
-      <section className="app-card grid gap-3 p-4 sm:p-5">
-        <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{t("liveScore")}</p>
-        <h2 className="text-2xl font-black">{view.tournamentName}</h2>
-        <p className="font-bold text-[var(--muted)]">
-          {view.players} {t("players").toLowerCase()} - {view.courts} {t("courts").toLowerCase()} - {t("round")} {view.activeRoundNumber} / {view.totalRounds}
-        </p>
-        <div className="action-grid opacity-70">
-          <button className="btn-secondary min-h-12" type="button" disabled>{t("enterScore")}</button>
-          <button className="btn-secondary min-h-12" type="button" disabled>{t("next")}</button>
-        </div>
-      </section>
+    <div className={`grid gap-5 ${isTvMode ? "text-[clamp(1rem,1.15vw,1.45rem)]" : ""}`}>
+      <RemoteTournamentHeader
+        eyebrow={view.format === "standard" ? t("liveScore") : t("format")}
+        title={view.tournamentName}
+        details={`${view.players} ${t("players").toLowerCase()} - ${view.courts} ${t("courts").toLowerCase()} - ${t("round")} ${view.activeRoundNumber} / ${view.totalRounds}`}
+        isTvMode={isTvMode}
+      />
       {view.byePlayers.length ? <p className="rounded-md bg-yellow-50 p-3 font-black text-yellow-800">{t("remotePausedPlayers")}: {view.byePlayers.join(" / ")}</p> : null}
-      <Section title={t("matches")}>
-        <MatchCards matches={view.matches} />
-      </Section>
-      <Section title={t("liveScore")}>
-        <StandingsTable standings={view.standings} />
-      </Section>
-      <Section title={t("allPlayers")}>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {view.playerInfo.map((player) => (
-            <article key={player.playerId} className="app-card p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="text-lg font-black">{player.playerName}</h3>
-                  <p className="font-bold text-[var(--muted)]">#{player.rank}</p>
+      <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+        <RemotePanel title={t("remoteCurrentMatches")} isTvMode={isTvMode}>
+          <RemoteMatchGrid matches={view.matches} isTvMode={isTvMode} />
+        </RemotePanel>
+        <RemotePanel title={t("liveScore")} isTvMode={isTvMode}>
+          <RemoteLiveScoreGrid matches={view.matches} isTvMode={isTvMode} />
+        </RemotePanel>
+      </div>
+      <RemotePanel title={t("remoteTopStandings")} isTvMode={isTvMode}>
+        <RemoteStandingsList standings={topStandings} isTvMode={isTvMode} />
+      </RemotePanel>
+      {isTvMode ? null : (
+        <Section title={t("allPlayers")}>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {view.playerInfo.map((player) => (
+              <article key={player.playerId} className="app-card p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-black">{player.playerName}</h3>
+                    <p className="font-bold text-[var(--muted)]">#{player.rank}</p>
+                  </div>
+                  <span className="rounded-md bg-[var(--primary-soft)] px-3 py-1 text-sm font-black text-[var(--primary-strong)]">{player.court}</span>
                 </div>
-                <span className="rounded-md bg-[var(--primary-soft)] px-3 py-1 text-sm font-black text-[var(--primary-strong)]">{player.court}</span>
-              </div>
-              <p className="mt-3 font-bold">{player.partnerName}</p>
-              <p className="font-bold text-[var(--muted)]">{player.opponents}</p>
-            </article>
-          ))}
-        </div>
-      </Section>
+                <p className="mt-3 font-bold">{player.partnerName}</p>
+                <p className="font-bold text-[var(--muted)]">{player.opponents}</p>
+              </article>
+            ))}
+          </div>
+        </Section>
+      )}
     </div>
   );
 }
 
-function RemotePoolPlayView({ view, poolPlay }: { view: ReadOnlyTournamentView; poolPlay: NonNullable<ReadOnlyTournamentView["poolPlay"]> }) {
+function RemotePoolPlayView({ isTvMode, view, poolPlay }: { isTvMode: boolean; view: ReadOnlyTournamentView; poolPlay: NonNullable<ReadOnlyTournamentView["poolPlay"]> }) {
   const { t } = useAppTranslation();
+  const primaryMatches = poolPlay.finalMatches.length ? poolPlay.finalMatches : poolPlay.nextPhaseMatches;
 
   return (
-    <div className="grid gap-5">
-      <section className="app-card grid gap-3 p-4 sm:p-5">
-        <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{t("format")}</p>
-        <h2 className="text-2xl font-black">{view.tournamentName}</h2>
-        <p className="font-bold text-[var(--muted)]">{poolPlay.phase} - {poolPlay.participantCount} {t("players").toLowerCase()}</p>
-      </section>
-      <Section title={t("remotePoolStandings")}>
-        <div className="grid gap-4">
+    <div className={`grid gap-5 ${isTvMode ? "text-[clamp(1rem,1.1vw,1.4rem)]" : ""}`}>
+      <RemoteTournamentHeader
+        eyebrow={t("format")}
+        title={view.tournamentName}
+        details={`${poolPlay.phase} - ${poolPlay.participantCount} ${t("players").toLowerCase()}`}
+        isTvMode={isTvMode}
+      />
+      <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+        <RemotePanel title={primaryMatches.length ? t("remoteCurrentMatches") : t("remoteNextPhase")} isTvMode={isTvMode}>
+          {primaryMatches.length ? <RemoteMatchGrid matches={primaryMatches} isTvMode={isTvMode} /> : <p className="app-card p-4 font-bold text-[var(--muted)]">{t("remoteNoSavedLineup")}</p>}
+        </RemotePanel>
+        <RemotePanel title={t("liveScore")} isTvMode={isTvMode}>
+          {primaryMatches.length ? <RemoteLiveScoreGrid matches={primaryMatches} isTvMode={isTvMode} /> : <p className="app-card p-4 font-bold text-[var(--muted)]">{t("remoteNoSavedLineup")}</p>}
+        </RemotePanel>
+      </div>
+      <RemotePanel title={t("remotePoolStandings")} isTvMode={isTvMode}>
+        <div className="grid gap-4 xl:grid-cols-2">
           {poolPlay.initialStandings.map((table) => (
             <section key={table.poolId} className="grid gap-3" aria-labelledby={`${table.poolId}-remote-heading`}>
-              <h3 id={`${table.poolId}-remote-heading`} className="text-lg font-black">{table.poolName}</h3>
-              <StandingsTable standings={table.rows} />
+              <h3 id={`${table.poolId}-remote-heading`} className={`${isTvMode ? "text-2xl" : "text-lg"} font-black`}>{table.poolName}</h3>
+              <RemoteStandingsList standings={table.rows.slice(0, isTvMode ? 6 : table.rows.length)} isTvMode={isTvMode} />
             </section>
           ))}
         </div>
-      </Section>
-      <Section title={t("remoteNextPhase")}>
-        {poolPlay.nextPhaseMatches.length ? <MatchCards matches={poolPlay.nextPhaseMatches} /> : <p className="app-card p-4 font-bold text-[var(--muted)]">{t("remoteNoSavedLineup")}</p>}
-      </Section>
+      </RemotePanel>
+      {isTvMode ? null : (
+        <Section title={t("remoteNextPhase")}>
+          {poolPlay.nextPhaseMatches.length ? <MatchCards matches={poolPlay.nextPhaseMatches} /> : <p className="app-card p-4 font-bold text-[var(--muted)]">{t("remoteNoSavedLineup")}</p>}
+        </Section>
+      )}
       {poolPlay.finalMatches.length ? (
         <Section title={t("finalStandings")}>
           <MatchCards matches={poolPlay.finalMatches} />
@@ -800,52 +887,149 @@ function RemotePoolPlayView({ view, poolPlay }: { view: ReadOnlyTournamentView; 
   );
 }
 
-function RemoteTeamVsTeamView({ state }: { state: TeamVsTeamTournamentState }) {
+function RemoteTeamVsTeamView({ isTvMode, state }: { isTvMode: boolean; state: TeamVsTeamTournamentState }) {
   const { t } = useAppTranslation();
   const view = useMemo(() => createTeamVsTeamReadOnlyView(state), [state]);
 
   return (
-    <div className="grid gap-5">
-      <section className="app-card grid gap-3 p-4 sm:p-5">
-        <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">Team vs. Team</p>
-        <h2 className="text-2xl font-black">{view.tournamentName}</h2>
-        <p className="font-bold text-[var(--muted)]">
-          {view.activeMatchLabel} - {t("round")} {view.activeRoundNumber} / {view.totalRounds} - {view.teamsCount} {t("teams").toLowerCase()}
-        </p>
-      </section>
-      <Section title={t("remoteTeamsAndCaptains")}>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {view.teams.map((team) => (
-            <article key={team.teamId} className="app-card p-4">
-              <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{team.teamName}</p>
-              <h3 className="mt-1 text-xl font-black">{team.captainName}</h3>
-              <p className="mt-2 font-bold text-[var(--muted)]">{team.players.join(" / ")}</p>
-            </article>
-          ))}
-        </div>
-      </Section>
-      <Section title={t("matches")}>
-        {view.matches.length ? <MatchCards matches={view.matches} /> : <p className="app-card p-4 font-bold text-[var(--muted)]">{t("remoteNoSavedLineup")}</p>}
-      </Section>
-      <Section title={t("liveScore")}>
-        <div className="grid gap-3">
+    <div className={`grid gap-5 ${isTvMode ? "text-[clamp(1rem,1.1vw,1.4rem)]" : ""}`}>
+      <RemoteTournamentHeader
+        eyebrow="Team vs. Team"
+        title={view.tournamentName}
+        details={`${view.activeMatchLabel} - ${t("round")} ${view.activeRoundNumber} / ${view.totalRounds} - ${view.teamsCount} ${t("teams").toLowerCase()}`}
+        isTvMode={isTvMode}
+      />
+      <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+        <RemotePanel title={t("remoteCurrentMatches")} isTvMode={isTvMode}>
+          {view.matches.length ? <RemoteMatchGrid matches={view.matches} isTvMode={isTvMode} /> : <p className="app-card p-4 font-bold text-[var(--muted)]">{t("remoteNoSavedLineup")}</p>}
+        </RemotePanel>
+        <RemotePanel title={t("liveScore")} isTvMode={isTvMode}>
+          {view.matches.length ? <RemoteLiveScoreGrid matches={view.matches} isTvMode={isTvMode} /> : <p className="app-card p-4 font-bold text-[var(--muted)]">{t("remoteNoSavedLineup")}</p>}
+        </RemotePanel>
+      </div>
+      <RemotePanel title={t("remoteTopStandings")} isTvMode={isTvMode}>
+        <div className="grid gap-3 xl:grid-cols-2">
           {view.standings.map((standing) => (
             <article key={standing.teamId} className="app-card grid grid-cols-[auto_1fr_auto] items-center gap-3 p-4">
-              <span className="text-2xl font-black">#{standing.rank}</span>
+              <span className={`${isTvMode ? "text-4xl" : "text-2xl"} font-black text-[var(--primary-strong)]`}>#{standing.rank}</span>
               <div>
-                <h3 className="text-xl font-black">{standing.teamName}</h3>
+                <h3 className={`${isTvMode ? "text-2xl" : "text-xl"} font-black`}>{standing.teamName}</h3>
                 <p className="font-bold text-[var(--muted)]">{standing.won}-{standing.lost}</p>
               </div>
-              <p className="text-right text-lg font-black">{standing.matchWins}-{standing.matchLosses}</p>
+              <p className={`${isTvMode ? "text-3xl" : "text-lg"} text-right font-black`}>{standing.matchWins}-{standing.matchLosses}</p>
             </article>
           ))}
         </div>
-      </Section>
-      <button className="btn-secondary min-h-12 opacity-70" type="button" disabled>
-        {t("remoteReadOnlyBanner")}
-      </button>
+      </RemotePanel>
+      {isTvMode ? null : (
+        <Section title={t("remoteTeamsAndCaptains")}>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {view.teams.map((team) => (
+              <article key={team.teamId} className="app-card p-4">
+                <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{team.teamName}</p>
+                <h3 className="mt-1 text-xl font-black">{team.captainName}</h3>
+                <p className="mt-2 font-bold text-[var(--muted)]">{team.players.join(" / ")}</p>
+              </article>
+            ))}
+          </div>
+        </Section>
+      )}
     </div>
   );
+}
+
+function RemoteTournamentHeader({ details, eyebrow, isTvMode, title }: { details: string; eyebrow: string; isTvMode: boolean; title: string }) {
+  return (
+    <section className={`app-card grid min-w-0 max-w-full gap-3 overflow-hidden p-4 sm:p-5 ${isTvMode ? "lg:grid-cols-[1fr_auto] lg:items-end lg:p-7" : ""}`}>
+      <div className="min-w-0">
+        <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{eyebrow}</p>
+        <h2 className={`${isTvMode ? "text-2xl sm:text-4xl lg:text-6xl" : "text-2xl"} break-words font-black leading-tight`} style={{ overflowWrap: "anywhere", wordBreak: "normal" }}>{title}</h2>
+        <p className={`${isTvMode ? "text-xl" : ""} mt-2 font-bold text-[var(--muted)]`}>{details}</p>
+      </div>
+    </section>
+  );
+}
+
+function RemotePanel({ children, isTvMode, title }: { children: ReactNode; isTvMode: boolean; title: string }) {
+  return (
+    <section className="grid min-w-0 max-w-full gap-3 overflow-hidden">
+      <h2 className={`${isTvMode ? "text-3xl lg:text-4xl" : "text-lg sm:text-xl"} font-black leading-tight`}>{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+function RemoteMatchGrid({ isTvMode, matches }: { isTvMode: boolean; matches: ReadOnlyMatchCard[] }) {
+  return (
+    <div className={`grid min-w-0 max-w-full gap-3 ${isTvMode ? "md:grid-cols-2" : "sm:grid-cols-2"}`}>
+      {matches.map((match) => (
+        <article key={match.id} className={`app-card grid min-w-0 gap-3 overflow-hidden p-4 ${isTvMode ? "min-h-44 p-5" : ""}`}>
+          <div className="flex items-center justify-between gap-3">
+            <h3 className={`${isTvMode ? "text-3xl" : "text-xl"} font-black`}>{match.court}</h3>
+            <span className={`rounded-md px-3 py-1 text-sm font-black ${match.status === "Afsluttet" ? "bg-green-100 text-[var(--primary-strong)]" : match.status === "I gang" ? "bg-yellow-100 text-yellow-800" : "bg-gray-100 text-[var(--muted)]"}`}>
+              {match.status}
+            </span>
+          </div>
+          <p className={`${isTvMode ? "text-lg leading-7 sm:text-2xl sm:leading-9" : "text-lg leading-7"} break-words font-black`} style={{ overflowWrap: "anywhere", wordBreak: "normal" }}>
+            <span>{match.teamA}</span>{" "}
+            <span className="text-[var(--muted)]">vs</span>{" "}
+            <span>{match.teamB}</span>
+          </p>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function RemoteLiveScoreGrid({ isTvMode, matches }: { isTvMode: boolean; matches: ReadOnlyMatchCard[] }) {
+  return (
+    <div className={`grid min-w-0 max-w-full gap-3 ${isTvMode ? "md:grid-cols-2" : "sm:grid-cols-2"}`}>
+      {matches.map((match) => {
+        const score = parseScore(match.score);
+
+        return (
+          <article key={match.id} className={`app-card grid min-w-0 gap-3 overflow-hidden p-4 text-center ${isTvMode ? "min-h-60 p-5" : ""}`}>
+            <h3 className={`${isTvMode ? "text-3xl" : "text-xl"} font-black text-[var(--primary-strong)]`}>{match.court}</h3>
+            <p className={`${isTvMode ? "text-base sm:text-xl" : "text-base"} break-words font-black`} style={{ overflowWrap: "anywhere", wordBreak: "normal" }}>{match.teamA}</p>
+            {score ? (
+              <>
+                <p className="sr-only">{match.score}</p>
+                <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+                  <span className={`${isTvMode ? "text-7xl" : "text-4xl"} font-black`}>{score.teamA}</span>
+                  <span className={`${isTvMode ? "text-5xl" : "text-3xl"} font-black text-[var(--muted)]`}>-</span>
+                  <span className={`${isTvMode ? "text-7xl" : "text-4xl"} font-black`}>{score.teamB}</span>
+                </div>
+              </>
+            ) : (
+              <p className={`${isTvMode ? "text-5xl" : "text-3xl"} font-black text-[var(--muted)]`}>{match.score}</p>
+            )}
+            <p className={`${isTvMode ? "text-base sm:text-xl" : "text-base"} break-words font-black`} style={{ overflowWrap: "anywhere", wordBreak: "normal" }}>{match.teamB}</p>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+function RemoteStandingsList({ isTvMode, standings }: { isTvMode: boolean; standings: Array<{ id: string; rank: number; name: string; matchPoints: number; pointsFor: number }> }) {
+  return (
+    <div className={`grid gap-2 ${isTvMode ? "xl:grid-cols-2" : ""}`}>
+      {standings.map((row) => (
+        <article key={row.id} className="app-card grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 p-3 sm:p-4">
+          <span className={`${isTvMode ? "text-4xl" : "text-2xl"} font-black text-[var(--primary-strong)]`}>#{row.rank}</span>
+          <h3 className={`${isTvMode ? "text-2xl" : "text-lg"} break-words font-black`} style={{ overflowWrap: "anywhere", wordBreak: "normal" }}>{row.name}</h3>
+          <p className="text-right font-bold text-[var(--muted)]">{row.matchPoints}</p>
+          <p className="text-right font-bold text-[var(--muted)]">{row.pointsFor}</p>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function parseScore(score: string): { teamA: string; teamB: string } | null {
+  const match = /^(\d+)\s*[-–]\s*(\d+)/.exec(score);
+
+  return match ? { teamA: match[1], teamB: match[2] } : null;
 }
 
 function normalizeTournamentCodeInput(value: string): string {

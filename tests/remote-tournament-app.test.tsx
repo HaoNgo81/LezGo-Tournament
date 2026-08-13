@@ -11,6 +11,8 @@ describe("STEP 13 remote read-only UI", () => {
     cleanup();
     vi.restoreAllMocks();
     window.localStorage.clear();
+    window.sessionStorage.clear();
+    window.history.pushState({}, "", "/");
   });
 
   it("opens a standard remote tournament as read-only without changing localStorage", async () => {
@@ -26,7 +28,8 @@ describe("STEP 13 remote read-only UI", () => {
 
     expect(await screen.findByText("Visning fra anden enhed - skrivebeskyttet")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "STEP_13_TEST Remote" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Indtast score" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "TV-visning" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Indtast score" })).not.toBeInTheDocument();
     expect(loadActiveTournament()).toEqual(localState);
 
     const payload = JSON.parse((vi.mocked(fetch).mock.calls[0][1] as RequestInit).body as string) as { tournamentCode: string; shareToken: string };
@@ -131,6 +134,46 @@ describe("STEP 13 remote read-only UI", () => {
 
     expect(await screen.findByText("Enter the code and share token from a tournament already shared from another device.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open tournament from another device" })).toBeInTheDocument();
+  });
+
+  it("switches the remote display into TV mode with fullscreen control", async () => {
+    const remoteState = scoreMockState("STEP_18_TEST TV Display", 17, 7);
+    const requestFullscreen = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(document.documentElement, "requestFullscreen", {
+      configurable: true,
+      value: requestFullscreen,
+    });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(createReadResponse("standard", remoteState)));
+
+    render(<RemoteTournamentApp />);
+    fireEvent.change(screen.getByLabelText("Turneringskode"), { target: { value: "K7M4XP" } });
+    fireEvent.change(screen.getByLabelText("Adgangskode / Share token"), { target: { value: "step-18-token" } });
+    fireEvent.click(screen.getByRole("button", { name: "Åbn turnering fra anden enhed" }));
+
+    expect(await screen.findByRole("heading", { name: "STEP_18_TEST TV Display" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Kampe" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Live score" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Stilling" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "TV-visning" }));
+    expect(screen.getByRole("button", { name: "Standardvisning" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Fuld skærm" }));
+    expect(requestFullscreen).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens directly in TV mode when the remote URL requests TV display", async () => {
+    window.history.pushState({}, "", "/remote/handoff/STEP_18_TEST_REFERENCE_WITH_ENTROPY_1234567890?display=tv");
+    const remoteState = scoreMockState("STEP_18_TEST Direct TV", 17, 7);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(createReadResponse("standard", remoteState, "2026-08-13T12:00:00.000Z", {
+      remoteSessionToken: "STEP_18_REMOTE_SESSION_TOKEN",
+      remoteSessionExpiresAt: "2026-08-14T00:00:00.000Z",
+    })));
+
+    render(<RemoteTournamentApp initialHandoffReference="STEP_18_TEST_REFERENCE_WITH_ENTROPY_1234567890" />);
+
+    expect(await screen.findByRole("heading", { name: "STEP_18_TEST Direct TV" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Standardvisning" })).toBeInTheDocument();
   });
 
   it("provisions access from Device A without exposing the raw token text", async () => {
@@ -370,8 +413,9 @@ describe("STEP 13 remote read-only UI", () => {
       await vi.advanceTimersByTimeAsync(4000);
     });
 
-    expect(screen.getByText("QR-koden er udløbet. Bed turneringslederen om at generere en ny.")).toBeInTheDocument();
+    expect(screen.getByText("TV-forbindelsen er udløbet eller ikke længere gyldig.")).toBeInTheDocument();
     expect(screen.getByLabelText("Live-sync status")).toHaveTextContent("Fejl");
+    expect(screen.getAllByRole("button", { name: "Ny forbindelse" }).length).toBeGreaterThan(0);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(30000);
@@ -450,8 +494,9 @@ describe("STEP 13 remote read-only UI", () => {
       await vi.advanceTimersByTimeAsync(4000);
     });
 
-    expect(screen.getByText(/Remote-sessionen er udløbet/)).toBeInTheDocument();
+    expect(screen.getByText("TV-forbindelsen er udløbet eller ikke længere gyldig.")).toBeInTheDocument();
     expect(screen.getByLabelText("Live-sync status")).toHaveTextContent("Fejl");
+    expect(screen.getAllByRole("button", { name: "Ny forbindelse" }).length).toBeGreaterThan(0);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(30000);
