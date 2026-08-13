@@ -84,10 +84,41 @@ export type TranslationKey =
   | "noActiveTournaments"
   | "noCompletedTournaments"
   | "openLive"
+  | "openRemoteTournament"
+  | "openRemoteTournamentDescription"
   | "openQr"
   | "openTeamMatch"
   | "openTvScreen"
   | "review"
+  | "remoteAccessDenied"
+  | "remoteAccessHelp"
+  | "remoteAccessInfo"
+  | "remoteAccessOnlyInitialToken"
+  | "remoteAccessReady"
+  | "remoteAutomaticAdvance"
+  | "remoteCloseView"
+  | "remoteCodeCopied"
+  | "remoteCopy"
+  | "remoteFetchError"
+  | "remoteHideToken"
+  | "remoteLatestLoaded"
+  | "remoteLoadingTournament"
+  | "remoteNoSavedLineup"
+  | "remoteNextPhase"
+  | "remotePausedPlayers"
+  | "remotePoolStandings"
+  | "remotePlacementTiebreak"
+  | "remoteQrFuture"
+  | "remoteReadOnlyBanner"
+  | "remoteReadOnlyHelp"
+  | "remoteRefresh"
+  | "remoteShareToken"
+  | "remoteShareTokenCopied"
+  | "remoteShowToken"
+  | "remoteTokenOnlyShownOnce"
+  | "remoteTournamentCode"
+  | "remoteTournamentOpened"
+  | "remoteTeamsAndCaptains"
   | "save"
   | "seeFinalStandings"
   | "secondaryButtonColor"
@@ -209,10 +240,41 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     noActiveTournaments: "Ingen aktive turneringer.",
     noCompletedTournaments: "Ingen afsluttede turneringer endnu.",
     openLive: "Åbn live",
+    openRemoteTournament: "Åbn turnering fra anden enhed",
+    openRemoteTournamentDescription: "Indtast turneringskode og adgangskode til en skrivebeskyttet visning.",
     openQr: "Åbn QR",
     openTeamMatch: "Åbn holdkamp",
     openTvScreen: "Åbn TV-skærm",
     review: "Gennemse",
+    remoteAccessDenied: "Turneringen kunne ikke åbnes. Kontrollér kode og adgangskode.",
+    remoteAccessHelp: "Indtast koden og adgangskoden fra en turnering, der allerede er delt fra en anden enhed.",
+    remoteAccessInfo: "Adgang til anden enhed",
+    remoteAccessOnlyInitialToken: "Adgangskoden vises kun, når adgangen oprettes. Gem den sikkert uden for appen.",
+    remoteAccessReady: "Adgang oprettet.",
+    remoteAutomaticAdvance: "Automatisk videre",
+    remoteCloseView: "Luk visning",
+    remoteCodeCopied: "Turneringskode kopieret.",
+    remoteCopy: "Kopiér",
+    remoteFetchError: "Forbindelsen kunne ikke opdateres. Seneste viste turnering er bevaret.",
+    remoteHideToken: "Skjul",
+    remoteLatestLoaded: "Seneste version er hentet.",
+    remoteLoadingTournament: "Henter turnering...",
+    remoteNoSavedLineup: "Opstilling er ikke gemt endnu.",
+    remoteNextPhase: "Næste fase",
+    remotePausedPlayers: "Pause",
+    remotePoolStandings: "Puljestillinger",
+    remotePlacementTiebreak: "Tiebreak om placering",
+    remoteQrFuture: "QR-handoff kan senere bruge samme kode og en sikker engangsreference uden at gemme adgangskoden i databasen.",
+    remoteReadOnlyBanner: "Visning fra anden enhed - skrivebeskyttet",
+    remoteReadOnlyHelp: "Du kan se live score og stilling, men denne visning kan ikke gemme, redigere eller overskrive lokale turneringer.",
+    remoteRefresh: "Opdater",
+    remoteShareToken: "Adgangskode / Share token",
+    remoteShareTokenCopied: "Adgangskode kopieret.",
+    remoteShowToken: "Vis",
+    remoteTokenOnlyShownOnce: "Adgangskoden kunne ikke vises igen. Opret en ny adgang senere, hvis den er væk.",
+    remoteTournamentCode: "Turneringskode",
+    remoteTournamentOpened: "Turnering åbnet.",
+    remoteTeamsAndCaptains: "Hold og kaptajner",
     save: "Gem",
     seeFinalStandings: "Se slutstilling",
     secondaryButtonColor: "Sekundær knapfarve",
@@ -333,10 +395,41 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     noActiveTournaments: "No active tournaments.",
     noCompletedTournaments: "No completed tournaments yet.",
     openLive: "Open live",
+    openRemoteTournament: "Open tournament from another device",
+    openRemoteTournamentDescription: "Enter the tournament code and share token for a read-only view.",
     openQr: "Open QR",
     openTeamMatch: "Open team match",
     openTvScreen: "Open TV screen",
     review: "Review",
+    remoteAccessDenied: "The tournament could not be opened. Check the code and share token.",
+    remoteAccessHelp: "Enter the code and share token from a tournament already shared from another device.",
+    remoteAccessInfo: "Access for another device",
+    remoteAccessOnlyInitialToken: "The share token is only shown when access is created. Store it safely outside the app.",
+    remoteAccessReady: "Access created.",
+    remoteAutomaticAdvance: "Automatic advance",
+    remoteCloseView: "Close view",
+    remoteCodeCopied: "Tournament code copied.",
+    remoteCopy: "Copy",
+    remoteFetchError: "The connection could not refresh. The last shown tournament is kept.",
+    remoteHideToken: "Hide",
+    remoteLatestLoaded: "Latest version loaded.",
+    remoteLoadingTournament: "Loading tournament...",
+    remoteNoSavedLineup: "Lineup has not been saved yet.",
+    remoteNextPhase: "Next phase",
+    remotePausedPlayers: "Pause",
+    remotePoolStandings: "Pool standings",
+    remotePlacementTiebreak: "Placement tiebreak",
+    remoteQrFuture: "A later QR handoff can use the same code and a secure one-time reference without storing the share token in the database.",
+    remoteReadOnlyBanner: "Opened from another device - read only",
+    remoteReadOnlyHelp: "You can view live score and standings, but this view cannot save, edit or overwrite local tournaments.",
+    remoteRefresh: "Refresh",
+    remoteShareToken: "Share token",
+    remoteShareTokenCopied: "Share token copied.",
+    remoteShowToken: "Show",
+    remoteTokenOnlyShownOnce: "The share token cannot be shown again. Create new access later if it is lost.",
+    remoteTournamentCode: "Tournament code",
+    remoteTournamentOpened: "Tournament opened.",
+    remoteTeamsAndCaptains: "Teams and captains",
     save: "Save",
     seeFinalStandings: "See final standings",
     secondaryButtonColor: "Secondary button color",

@@ -31,6 +31,8 @@ describe("HomePage i18n", () => {
     expect(screen.getByText("Create, edit, delete or start from a template.")).toBeInTheDocument();
     expect(screen.getByText("Tournaments")).toBeInTheDocument();
     expect(screen.getByText("Active, upcoming, completed and previous tournaments.")).toBeInTheDocument();
+    expect(screen.getByText("Open tournament from another device")).toBeInTheDocument();
+    expect(screen.getByText("Enter the tournament code and share token for a read-only view.")).toBeInTheDocument();
     expect(screen.getByText("Settings")).toBeInTheDocument();
     expect(screen.getByText("Only the essential options.")).toBeInTheDocument();
 

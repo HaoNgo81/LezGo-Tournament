@@ -13,6 +13,7 @@ export default function HomePage() {
         <LargeAction href="/new-tournament" title={t("newTournamentTitle")} description={t("homeNewTournamentDescription")} icon="+" />
         <LargeAction href="/templates" title={t("homeTemplatesTitle")} description={t("homeTemplatesDescription")} icon="=" />
         <LargeAction href="/tournaments" title={t("tournaments")} description={t("homeTournamentsDescription")} icon=">" />
+        <LargeAction href="/remote" title={t("openRemoteTournament")} description={t("openRemoteTournamentDescription")} icon="#" />
         <LargeAction href="/settings" title={t("settings")} description={t("homeSettingsDescription")} icon="*" />
       </nav>
     </AppShell>

@@ -50,6 +50,8 @@ function translateKnownShellText(text: string, t: (key: TranslationKey) => strin
     "Turneringsskabeloner": "homeTemplatesTitle",
     "Turneringer": "tournaments",
     "Aktive og afsluttede turneringer gemmes lokalt.": "tournamentsDescription",
+    "openRemoteTournament": "openRemoteTournament",
+    "openRemoteTournamentDescription": "openRemoteTournamentDescription",
   };
 
   return knownTexts[text] ? t(knownTexts[text]) : text;
