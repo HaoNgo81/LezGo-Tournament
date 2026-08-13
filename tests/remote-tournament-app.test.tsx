@@ -155,6 +155,57 @@ describe("STEP 13 remote read-only UI", () => {
     expect(screen.getByText("************")).toBeInTheDocument();
     expect(screen.queryByText("STEP_13_TEST_SECRET_TOKEN")).not.toBeInTheDocument();
   });
+
+  it("generates a short-lived QR handoff from Device A", async () => {
+    const state = createMockLiveTournamentState();
+    window.localStorage.setItem("lezgo.shadowSaveMetadata.v1", JSON.stringify({
+      "mock americano-americano": {
+        localId: "mock americano-americano",
+        kind: "standard",
+        status: "synced",
+        supabaseTournamentId: "00000000-0000-4000-8000-000000000014",
+      },
+    }));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      ok: true,
+      handoffUrl: "http://localhost/remote/handoff/STEP_14_TEST_REFERENCE_WITH_ENTROPY_1234567890",
+      expiresAt: "2026-08-13T12:10:00.000Z",
+    }), { status: 200 })));
+
+    render(<SyncStatusPanel kind="standard" localId="mock americano-americano" state={state} />);
+    fireEvent.click(screen.getByRole("button", { name: "Vis på anden enhed" }));
+
+    expect(await screen.findByRole("img", { name: "QR-kode til skrivebeskyttet turnering" })).toBeInTheDocument();
+    expect(screen.getByText("Scan QR-koden med en anden enhed for at åbne turneringen.")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("http://localhost/remote/handoff/STEP_14_TEST_REFERENCE_WITH_ENTROPY_1234567890")).toBeInTheDocument();
+    expect(screen.queryByText("STEP_13_TEST_SECRET_TOKEN")).not.toBeInTheDocument();
+  });
+
+  it("auto-opens a handoff URL as remote read-only without changing localStorage", async () => {
+    const localState = createMockLiveTournamentState();
+    const remoteState = scoreMockState("STEP_14_TEST QR Remote");
+    saveActiveTournament(localState);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(createReadResponse("standard", remoteState)));
+
+    render(<RemoteTournamentApp initialHandoffReference="STEP_14_TEST_REFERENCE_WITH_ENTROPY_1234567890" />);
+
+    expect(await screen.findByText("Visning fra anden enhed - skrivebeskyttet")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "STEP_14_TEST QR Remote" })).toBeInTheDocument();
+    expect(loadActiveTournament()).toEqual(localState);
+
+    const payload = JSON.parse((vi.mocked(fetch).mock.calls[0][1] as RequestInit).body as string) as { handoffReference: string };
+    expect(vi.mocked(fetch).mock.calls[0][0]).toBe("/api/supabase/tournament-handoff/redeem");
+    expect(payload.handoffReference).toBe("STEP_14_TEST_REFERENCE_WITH_ENTROPY_1234567890");
+  });
+
+  it("shows expired QR UX without revealing access details", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: false }), { status: 410 })));
+
+    render(<RemoteTournamentApp initialHandoffReference="STEP_14_TEST_EXPIRED_REFERENCE_WITH_ENTROPY_1234567890" />);
+
+    expect(await screen.findByText("QR-koden er udløbet. Bed turneringslederen om at generere en ny.")).toBeInTheDocument();
+    expect(screen.queryByText("share_token")).not.toBeInTheDocument();
+  });
 });
 
 function createReadResponse(kind: "standard", state: LiveTournamentState): Response;

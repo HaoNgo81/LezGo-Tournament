@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { MatchCards } from "@/components/tournament/match-cards";
 import { StandingsTable } from "@/components/tournament/standings-table";
 import { Section } from "@/components/ui/section";
@@ -12,8 +12,10 @@ import { useAppTranslation } from "@/lib/preferences/client";
 type RemoteTournamentKind = "standard" | "team-vs-team";
 
 interface RemoteTournamentSession {
-  tournamentCode: string;
-  shareToken: string;
+  accessMode: "manual" | "handoff";
+  tournamentCode?: string;
+  shareToken?: string;
+  handoffReference?: string;
   kind: RemoteTournamentKind;
   state: LiveTournamentState | TeamVsTeamTournamentState;
   updatedAt?: string;
@@ -26,8 +28,9 @@ interface RemoteReadResponse {
   updatedAt?: string;
 }
 
-export function RemoteTournamentApp() {
+export function RemoteTournamentApp({ initialHandoffReference }: { initialHandoffReference?: string } = {}) {
   const { t } = useAppTranslation();
+  const autoOpenAttempted = useRef(false);
   const [tournamentCode, setTournamentCode] = useState("");
   const [shareToken, setShareToken] = useState("");
   const [showToken, setShowToken] = useState(false);
@@ -36,20 +39,7 @@ export function RemoteTournamentApp() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  async function handleOpen(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    await openRemoteTournament(tournamentCode, shareToken, false);
-  }
-
-  async function handleRefresh() {
-    if (!session) {
-      return;
-    }
-
-    await openRemoteTournament(session.tournamentCode, session.shareToken, true);
-  }
-
-  async function openRemoteTournament(code: string, token: string, keepPreviousOnFailure: boolean) {
+  const openRemoteTournament = useCallback(async (code: string, token: string, keepPreviousOnFailure: boolean) => {
     const normalizedCode = normalizeTournamentCodeInput(code);
     const normalizedToken = token.trim();
 
@@ -78,6 +68,7 @@ export function RemoteTournamentApp() {
       setTournamentCode(normalizedCode);
       setShareToken(normalizedToken);
       setSession({
+        accessMode: "manual",
         tournamentCode: normalizedCode,
         shareToken: normalizedToken,
         kind: body.kind,
@@ -90,6 +81,78 @@ export function RemoteTournamentApp() {
     } finally {
       setIsLoading(false);
     }
+  }, [t]);
+
+  const openRemoteHandoff = useCallback(async (handoffReference: string, keepPreviousOnFailure: boolean) => {
+    const normalizedReference = handoffReference.trim();
+
+    if (!normalizedReference) {
+      setError(t("remoteHandoffDenied"));
+      setMessage("");
+      return;
+    }
+
+    setIsLoading(true);
+    setError("");
+    setMessage(keepPreviousOnFailure ? "" : t("remoteHandoffOpening"));
+
+    try {
+      const response = await fetch("/api/supabase/tournament-handoff/redeem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ handoffReference: normalizedReference }),
+      });
+      const body = await response.json() as RemoteReadResponse;
+
+      if (!response.ok || !body.ok || !body.kind || !body.state) {
+        const message = response.status === 410 ? t("remoteHandoffExpired") : t("remoteHandoffDenied");
+        throw new Error(message);
+      }
+
+      setSession({
+        accessMode: "handoff",
+        handoffReference: normalizedReference,
+        kind: body.kind,
+        state: body.state,
+        updatedAt: body.updatedAt,
+      });
+      setMessage(keepPreviousOnFailure ? t("remoteLatestLoaded") : t("remoteTournamentOpened"));
+    } catch (caughtError) {
+      const fallbackMessage = keepPreviousOnFailure ? t("remoteFetchError") : t("remoteHandoffDenied");
+      setError(caughtError instanceof Error ? caughtError.message : fallbackMessage);
+      if (!keepPreviousOnFailure) {
+        setMessage("");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [t]);
+
+  useEffect(() => {
+    if (!initialHandoffReference || autoOpenAttempted.current) {
+      return;
+    }
+
+    autoOpenAttempted.current = true;
+    void openRemoteHandoff(initialHandoffReference, false);
+  }, [initialHandoffReference, openRemoteHandoff]);
+
+  async function handleOpen(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await openRemoteTournament(tournamentCode, shareToken, false);
+  }
+
+  async function handleRefresh() {
+    if (!session) {
+      return;
+    }
+
+    if (session.accessMode === "handoff" && session.handoffReference) {
+      await openRemoteHandoff(session.handoffReference, true);
+      return;
+    }
+
+    await openRemoteTournament(session.tournamentCode ?? "", session.shareToken ?? "", true);
   }
 
   function handleClose() {
@@ -115,6 +178,9 @@ export function RemoteTournamentApp() {
 
   return (
     <form className="app-card grid gap-4 p-4 sm:p-5" onSubmit={handleOpen}>
+      {initialHandoffReference && isLoading ? (
+        <p className="rounded-md bg-[var(--primary-soft)] p-3 font-black text-[var(--primary-strong)]">{t("remoteHandoffOpening")}</p>
+      ) : null}
       <p className="font-bold text-[var(--muted)]">{t("remoteAccessHelp")}</p>
       <label className="grid gap-2 font-bold">
         {t("remoteTournamentCode")}

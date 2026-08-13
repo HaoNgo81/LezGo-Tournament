@@ -100,6 +100,11 @@ export type TranslationKey =
   | "remoteCodeCopied"
   | "remoteCopy"
   | "remoteFetchError"
+  | "remoteGenerateNewQr"
+  | "remoteHandoffDenied"
+  | "remoteHandoffExpired"
+  | "remoteHandoffLinkCopied"
+  | "remoteHandoffOpening"
   | "remoteHideToken"
   | "remoteLatestLoaded"
   | "remoteLoadingTournament"
@@ -109,6 +114,10 @@ export type TranslationKey =
   | "remotePoolStandings"
   | "remotePlacementTiebreak"
   | "remoteQrFuture"
+  | "remoteQrAlt"
+  | "remoteQrExpiresAt"
+  | "remoteQrHelp"
+  | "remoteQrReady"
   | "remoteReadOnlyBanner"
   | "remoteReadOnlyHelp"
   | "remoteRefresh"
@@ -119,6 +128,7 @@ export type TranslationKey =
   | "remoteTournamentCode"
   | "remoteTournamentOpened"
   | "remoteTeamsAndCaptains"
+  | "remoteViewOnAnotherDevice"
   | "save"
   | "seeFinalStandings"
   | "secondaryButtonColor"
@@ -256,6 +266,11 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteCodeCopied: "Turneringskode kopieret.",
     remoteCopy: "Kopiér",
     remoteFetchError: "Forbindelsen kunne ikke opdateres. Seneste viste turnering er bevaret.",
+    remoteGenerateNewQr: "Generér ny QR-kode",
+    remoteHandoffDenied: "QR-linket kunne ikke åbnes. Bed turneringslederen om at generere en ny QR-kode.",
+    remoteHandoffExpired: "QR-koden er udløbet. Bed turneringslederen om at generere en ny.",
+    remoteHandoffLinkCopied: "QR-link kopieret.",
+    remoteHandoffOpening: "Åbner skrivebeskyttet turnering...",
     remoteHideToken: "Skjul",
     remoteLatestLoaded: "Seneste version er hentet.",
     remoteLoadingTournament: "Henter turnering...",
@@ -264,7 +279,11 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remotePausedPlayers: "Pause",
     remotePoolStandings: "Puljestillinger",
     remotePlacementTiebreak: "Tiebreak om placering",
+    remoteQrAlt: "QR-kode til skrivebeskyttet turnering",
+    remoteQrExpiresAt: "Udløber",
     remoteQrFuture: "QR-handoff kan senere bruge samme kode og en sikker engangsreference uden at gemme adgangskoden i databasen.",
+    remoteQrHelp: "Scan QR-koden med en anden enhed for at åbne turneringen.",
+    remoteQrReady: "QR-kode klar.",
     remoteReadOnlyBanner: "Visning fra anden enhed - skrivebeskyttet",
     remoteReadOnlyHelp: "Du kan se live score og stilling, men denne visning kan ikke gemme, redigere eller overskrive lokale turneringer.",
     remoteRefresh: "Opdater",
@@ -275,6 +294,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteTournamentCode: "Turneringskode",
     remoteTournamentOpened: "Turnering åbnet.",
     remoteTeamsAndCaptains: "Hold og kaptajner",
+    remoteViewOnAnotherDevice: "Vis på anden enhed",
     save: "Gem",
     seeFinalStandings: "Se slutstilling",
     secondaryButtonColor: "Sekundær knapfarve",
@@ -411,6 +431,11 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteCodeCopied: "Tournament code copied.",
     remoteCopy: "Copy",
     remoteFetchError: "The connection could not refresh. The last shown tournament is kept.",
+    remoteGenerateNewQr: "Generate new QR code",
+    remoteHandoffDenied: "The QR link could not be opened. Ask the tournament organizer to generate a new QR code.",
+    remoteHandoffExpired: "This QR code has expired. Ask the tournament organizer to generate a new one.",
+    remoteHandoffLinkCopied: "QR link copied.",
+    remoteHandoffOpening: "Opening read-only tournament...",
     remoteHideToken: "Hide",
     remoteLatestLoaded: "Latest version loaded.",
     remoteLoadingTournament: "Loading tournament...",
@@ -419,7 +444,11 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remotePausedPlayers: "Pause",
     remotePoolStandings: "Pool standings",
     remotePlacementTiebreak: "Placement tiebreak",
+    remoteQrAlt: "QR code for read-only tournament",
+    remoteQrExpiresAt: "Expires",
     remoteQrFuture: "A later QR handoff can use the same code and a secure one-time reference without storing the share token in the database.",
+    remoteQrHelp: "Scan the QR code with another device to open the tournament.",
+    remoteQrReady: "QR code ready.",
     remoteReadOnlyBanner: "Opened from another device - read only",
     remoteReadOnlyHelp: "You can view live score and standings, but this view cannot save, edit or overwrite local tournaments.",
     remoteRefresh: "Refresh",
@@ -430,6 +459,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteTournamentCode: "Tournament code",
     remoteTournamentOpened: "Tournament opened.",
     remoteTeamsAndCaptains: "Teams and captains",
+    remoteViewOnAnotherDevice: "View on another device",
     save: "Save",
     seeFinalStandings: "See final standings",
     secondaryButtonColor: "Secondary button color",

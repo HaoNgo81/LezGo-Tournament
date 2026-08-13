@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { LiveTournamentState } from "@/lib/live-scoring";
 import { useAppTranslation } from "@/lib/preferences/client";
+import { createQrCodeMatrix, type QrCodeMatrix } from "@/lib/sharing";
 import {
   loadShadowSaveMetadata,
   retryStandardTournamentShadowSave,
@@ -18,6 +19,12 @@ interface AccessProvisionState {
   shareToken?: string;
 }
 
+interface HandoffProvisionState {
+  handoffUrl: string;
+  expiresAt: string;
+  qrCode: QrCodeMatrix;
+}
+
 export function SyncStatusPanel({
   kind,
   localId,
@@ -30,6 +37,7 @@ export function SyncStatusPanel({
   const { t } = useAppTranslation();
   const [metadata, setMetadata] = useState<ShadowSaveMetadata | null>(() => loadShadowSaveMetadata(localId));
   const [accessState, setAccessState] = useState<AccessProvisionState | null>(null);
+  const [handoffState, setHandoffState] = useState<HandoffProvisionState | null>(null);
   const [accessMessage, setAccessMessage] = useState("");
   const [accessIsLoading, setAccessIsLoading] = useState(false);
 
@@ -91,6 +99,39 @@ export function SyncStatusPanel({
     }
   }
 
+  async function handleProvisionHandoff() {
+    if (!metadata?.supabaseTournamentId) {
+      return;
+    }
+
+    setAccessIsLoading(true);
+    setAccessMessage("");
+
+    try {
+      const response = await fetch("/api/supabase/tournament-handoff/provision", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tournamentId: metadata.supabaseTournamentId }),
+      });
+      const body = await response.json() as { ok?: boolean; handoffUrl?: string; expiresAt?: string };
+
+      if (!response.ok || !body.ok || !body.handoffUrl || !body.expiresAt) {
+        throw new Error("Handoff provisioning failed.");
+      }
+
+      setHandoffState({
+        handoffUrl: body.handoffUrl,
+        expiresAt: body.expiresAt,
+        qrCode: createQrCodeMatrix(body.handoffUrl),
+      });
+      setAccessMessage(t("remoteQrReady"));
+    } catch {
+      setAccessMessage(t("remoteFetchError"));
+    } finally {
+      setAccessIsLoading(false);
+    }
+  }
+
   async function copyValue(value: string, message: string) {
     if (!navigator.clipboard) {
       return;
@@ -109,9 +150,14 @@ export function SyncStatusPanel({
         </div>
         <div className="flex flex-wrap gap-2">
           {canProvisionAccess ? (
-            <button className="rounded-md border border-current px-3 py-2 text-sm font-black disabled:opacity-50" type="button" disabled={accessIsLoading} onClick={handleProvisionAccess}>
-              {t("remoteAccessInfo")}
-            </button>
+            <>
+              <button className="rounded-md border border-current px-3 py-2 text-sm font-black disabled:opacity-50" type="button" disabled={accessIsLoading} onClick={handleProvisionHandoff}>
+                {handoffState ? t("remoteGenerateNewQr") : t("remoteViewOnAnotherDevice")}
+              </button>
+              <button className="rounded-md border border-current px-3 py-2 text-sm font-black disabled:opacity-50" type="button" disabled={accessIsLoading} onClick={handleProvisionAccess}>
+                {t("remoteAccessInfo")}
+              </button>
+            </>
           ) : null}
           {canRetry ? (
             <button className="rounded-md border border-current px-3 py-2 text-sm font-black" type="button" onClick={handleRetry}>
@@ -147,7 +193,29 @@ export function SyncStatusPanel({
               )}
             </div>
           </div>
-          <p>{t("remoteQrFuture")}</p>
+        </div>
+      ) : null}
+      {handoffState ? (
+        <div className="mt-3 grid gap-3 border-t border-current/20 pt-3 text-xs">
+          <div>
+            <p className="font-black">{t("remoteViewOnAnotherDevice")}</p>
+            <p className="mt-1 opacity-80">{t("remoteQrHelp")}</p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-[minmax(180px,260px)_1fr] md:items-center">
+            <QrSvg modules={handoffState.qrCode.modules} size={handoffState.qrCode.size} label={t("remoteQrAlt")} />
+            <div className="grid gap-2">
+              <p className="font-black">{t("remoteQrExpiresAt")}: {formatSyncTime(handoffState.expiresAt)}</p>
+              <input className="min-h-12 rounded-md border border-current/20 bg-white/70 p-3 font-mono text-xs" readOnly value={handoffState.handoffUrl} />
+              <div className="action-grid">
+                <button className="rounded-md border border-current px-3 py-2 font-black" type="button" onClick={() => copyValue(handoffState.handoffUrl, t("remoteHandoffLinkCopied"))}>
+                  {t("copyLink")}
+                </button>
+                <button className="rounded-md border border-current px-3 py-2 font-black disabled:opacity-50" type="button" disabled={accessIsLoading} onClick={handleProvisionHandoff}>
+                  {t("remoteGenerateNewQr")}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       ) : null}
       {accessMessage ? <p className="mt-3 border-t border-current/20 pt-3 text-xs font-black">{accessMessage}</p> : null}
@@ -161,6 +229,22 @@ export function SyncStatusPanel({
         </div>
       ) : null}
     </div>
+  );
+}
+
+function QrSvg({ modules, size, label }: { modules: boolean[][]; size: number; label: string }) {
+  const quietZone = 4;
+  const svgSize = size + quietZone * 2;
+
+  return (
+    <svg className="mx-auto h-auto w-full max-w-64 rounded-md bg-white p-3 shadow-sm" viewBox={`0 0 ${svgSize} ${svgSize}`} role="img" aria-label={label}>
+      <rect width={svgSize} height={svgSize} fill="white" />
+      {modules.map((row, y) =>
+        row.map((isDark, x) => (
+          isDark ? <rect key={`${x}-${y}`} x={x + quietZone} y={y + quietZone} width="1" height="1" fill="black" /> : null
+        )),
+      )}
+    </svg>
   );
 }
 
