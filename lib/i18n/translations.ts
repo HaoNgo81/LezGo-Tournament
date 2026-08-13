@@ -66,6 +66,10 @@ export type TranslationKey =
   | "fixedPartnerMexicano"
   | "fixedScore"
   | "format"
+  | "formatAmericano"
+  | "formatMexicano"
+  | "formatMixedAmericano"
+  | "formatPoolPlay"
   | "finalPlacements"
   | "homeNewTournamentDescription"
   | "homeSettingsDescription"
@@ -132,6 +136,7 @@ export type TranslationKey =
   | "remoteShowToken"
   | "remoteSessionDenied"
   | "remoteSessionExpired"
+  | "remoteScoreboardMode"
   | "remoteStandardMode"
   | "remoteSyncConnecting"
   | "remoteSyncError"
@@ -252,6 +257,10 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     fixedPartnerMexicano: "Fast Makker Mexicano",
     fixedScore: "Fast score",
     format: "Format",
+    formatAmericano: "Americano",
+    formatMexicano: "Mexicano",
+    formatMixedAmericano: "Mixed Americano",
+    formatPoolPlay: "Puljespil",
     finalPlacements: "Slutplaceringer",
     homeNewTournamentDescription: "Vælg format, indstillinger og spillere.",
     homeSettingsDescription: "Kun de nødvendige valg.",
@@ -318,6 +327,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteShowToken: "Vis",
     remoteSessionDenied: "Remote-sessionen er ikke længere gyldig. Generér en ny QR-kode eller åbn en ny forbindelse.",
     remoteSessionExpired: "Remote-sessionen er udløbet. Generér en ny QR-kode eller åbn en ny forbindelse.",
+    remoteScoreboardMode: "Scoreboard-visning",
     remoteStandardMode: "Standardvisning",
     remoteSyncConnecting: "Forbinder",
     remoteSyncError: "Fejl",
@@ -437,6 +447,10 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     fixedPartnerMexicano: "Fixed Partner Mexicano",
     fixedScore: "Fixed score",
     format: "Format",
+    formatAmericano: "Americano",
+    formatMexicano: "Mexicano",
+    formatMixedAmericano: "Mixed Americano",
+    formatPoolPlay: "Pool Play",
     finalPlacements: "Final placements",
     homeNewTournamentDescription: "Choose format, settings and players.",
     homeSettingsDescription: "Only the essential options.",
@@ -503,6 +517,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteShowToken: "Show",
     remoteSessionDenied: "The remote session is no longer valid. Generate a new QR code or open a new connection.",
     remoteSessionExpired: "The remote session has expired. Generate a new QR code or open a new connection.",
+    remoteScoreboardMode: "Scoreboard View",
     remoteStandardMode: "Standard view",
     remoteSyncConnecting: "Connecting",
     remoteSyncError: "Error",
