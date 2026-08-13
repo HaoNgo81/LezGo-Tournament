@@ -17,12 +17,14 @@ export class TournamentPersistenceError extends Error {
 export interface SaveStandardTournamentOptions {
   legacyLocalId: string;
   createId?: () => string;
+  tournamentId?: string;
+  expectedUpdatedAt?: string;
 }
 
 export interface SaveStandardTournamentResult {
   tournamentId: string;
   writePlan: PersistenceWritePlan;
-  saveMode: "insert-only";
+  saveMode: "insert" | "replace";
 }
 
 export interface StandardTournamentRepository {
@@ -38,12 +40,12 @@ export function createStandardTournamentRepository(client: SupabaseRestClient = 
       validateLegacyLocalId(options.legacyLocalId);
 
       const payload = mapLiveTournamentToPersistencePayload(state, { legacyLocalId: options.legacyLocalId });
-      const writePlan = createStandardTournamentWritePlan(payload, { createId: options.createId });
+      const writePlan = createStandardTournamentWritePlan(payload, { createId: options.createId, tournamentId: options.tournamentId });
       assertStandardWritePlanSupported(writePlan);
 
       try {
-        const tournamentId = await client.rpc<string>("lezgo_save_standard_tournament_snapshot", { p_operations: writePlan.operations });
-        return { tournamentId, writePlan, saveMode: "insert-only" };
+        const tournamentId = await client.rpc<string>("lezgo_save_tournament_snapshot_v2", { p_operations: writePlan.operations, p_expected_updated_at: options.expectedUpdatedAt ?? null });
+        return { tournamentId, writePlan, saveMode: options.tournamentId ? "replace" : "insert" };
       } catch (error) {
         throw toPersistenceError("Could not save tournament snapshot to Supabase.", error);
       }
@@ -128,10 +130,6 @@ async function readStandardTournamentRows(client: SupabaseRestClient, tournament
 }
 
 function validateStandardTournamentState(state: LiveTournamentState): void {
-  if (state.format === "pool-play") {
-    throw new TournamentPersistenceError("Pool-play persistence requires later-stage read-back before it can be saved through this repository.");
-  }
-
   if (!state.tournamentName.trim()) {
     throw new TournamentPersistenceError("Tournament name is required.");
   }
@@ -140,7 +138,7 @@ function validateStandardTournamentState(state: LiveTournamentState): void {
     throw new TournamentPersistenceError("Tournament players are required.");
   }
 
-  if (!state.rounds.length) {
+  if (state.format !== "pool-play" && !state.rounds.length) {
     throw new TournamentPersistenceError("Tournament rounds are required.");
   }
 }

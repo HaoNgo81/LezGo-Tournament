@@ -25,13 +25,14 @@ export interface PersistenceWritePlan {
 
 export interface PersistenceWritePlanOptions {
   createId?: () => string;
+  tournamentId?: string;
 }
 
 export function createStandardTournamentWritePlan(
   payload: StandardTournamentPersistencePayload,
   options: PersistenceWritePlanOptions = {},
 ): PersistenceWritePlan {
-  const createId = options.createId ?? randomUUID;
+  const createId = createTournamentAwareIdFactory(options);
   const idMap = createIdMap(
     [
       payload.tournament.clientRef,
@@ -39,8 +40,10 @@ export function createStandardTournamentWritePlan(
       ...payload.fixedPairs.map((row) => row.clientRef),
       ...payload.rounds.map((row) => row.clientRef),
       ...payload.pools.map((row) => row.clientRef),
+      ...payload.poolParticipants.map((row) => row.clientRef),
       ...payload.matches.map((row) => row.clientRef),
       ...payload.matchSides.map((row) => row.clientRef),
+      ...payload.matchSidePlayers.map((row) => row.clientRef),
     ],
     createId,
   );
@@ -131,6 +134,7 @@ export function createStandardTournamentWritePlan(
       kind: "insert",
       table: "match_side_players",
       rows: payload.matchSidePlayers.map((sidePlayer) => ({
+        id: resolveRef(idMap, sidePlayer.clientRef),
         match_side_id: resolveRef(idMap, sidePlayer.matchSideRef),
         tournament_player_id: resolveRef(idMap, sidePlayer.tournamentPlayerRef),
         display_order: sidePlayer.display_order,
@@ -145,7 +149,7 @@ export function createTeamVsTeamTournamentWritePlan(
   payload: TeamVsTeamPersistencePayload,
   options: PersistenceWritePlanOptions = {},
 ): PersistenceWritePlan {
-  const createId = options.createId ?? randomUUID;
+  const createId = createTournamentAwareIdFactory(options);
   const idMap = createIdMap(
     [
       payload.tournament.clientRef,
@@ -320,6 +324,7 @@ function pushPoolOperations(
       table: "pool_participants",
       rows: poolParticipants.map((participant) => ({
         pool_id: resolveRef(idMap, participant.poolRef),
+        id: resolveRef(idMap, participant.clientRef),
         tournament_player_id: participant.tournamentPlayerRef ? resolveRef(idMap, participant.tournamentPlayerRef) : null,
         legacy_participant_id: participant.legacy_participant_id,
         display_order: participant.display_order,
@@ -339,6 +344,20 @@ function createIdMap(clientRefs: string[], createId: () => string): Record<strin
   }
 
   return idMap;
+}
+
+function createTournamentAwareIdFactory(options: PersistenceWritePlanOptions): () => string {
+  const createId = options.createId ?? randomUUID;
+  let tournamentIdUsed = false;
+
+  return () => {
+    if (options.tournamentId && !tournamentIdUsed) {
+      tournamentIdUsed = true;
+      return options.tournamentId;
+    }
+
+    return createId();
+  };
 }
 
 function resolveRef(idMap: Record<string, string>, clientRef: string): string {

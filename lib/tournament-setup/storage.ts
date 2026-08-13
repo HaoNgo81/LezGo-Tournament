@@ -2,6 +2,7 @@ import type { LiveTournamentState } from "../live-scoring";
 import { rebalanceFixedPartnerAmericanoCourts, rebalanceMixedAmericanoCourts } from "../tournament-engine";
 import { getTeamVsTeamMaxRounds, teamVsTeamPlayerOptions, type TeamVsTeamMatchFormat, type TeamVsTeamMatchResult, type TeamVsTeamPlayersPerTeam, type TeamVsTeamRoundResult, type TeamVsTeamSetResult } from "../team-vs-team";
 import type { TeamVsTeamTournamentState } from "./team-vs-team-setup";
+import { queueStandardTournamentShadowSave, queueTeamVsTeamShadowSave } from "./shadow-save";
 
 const activeTournamentStorageKey = "lezgo.activeTournament.v1";
 const activeTournamentsStorageKey = "lezgo.activeTournaments.v1";
@@ -33,6 +34,7 @@ export function saveActiveTournament(state: LiveTournamentState): void {
   const tournamentId = createActiveTournamentId(state);
   const activeTournaments = loadActiveTournaments().filter((tournament) => createActiveTournamentId(tournament) !== tournamentId);
   window.localStorage.setItem(activeTournamentsStorageKey, JSON.stringify([state, ...activeTournaments].slice(0, maxActiveTournaments)));
+  queueStandardTournamentShadowSave(state);
 }
 
 export function loadActiveTournament(): LiveTournamentState | null {
@@ -93,6 +95,7 @@ export function saveActiveTeamVsTeamTournament(state: TeamVsTeamTournamentState)
   window.localStorage.setItem(activeTeamVsTeamStorageKey, JSON.stringify(state));
   window.localStorage.removeItem(activeTournamentStorageKey);
   window.localStorage.removeItem(activeTournamentsStorageKey);
+  queueTeamVsTeamShadowSave(state);
 }
 
 export function loadActiveTeamVsTeamTournament(): TeamVsTeamTournamentState | null {

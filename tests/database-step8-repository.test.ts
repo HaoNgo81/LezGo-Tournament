@@ -8,7 +8,7 @@ import {
   type PersistenceWritePlan,
 } from "../lib/database";
 import type { SupabaseRestClient } from "../lib/supabase/rest-client";
-import { createTournamentFromSetup } from "../lib/tournament-setup";
+import { createPoolTournamentFromSetup, createTournamentFromSetup } from "../lib/tournament-setup";
 
 describe("STEP 8 standard Supabase repository", () => {
   it("saves through the atomic RPC and reads through the read-back mapper", async () => {
@@ -42,19 +42,27 @@ describe("STEP 8 standard Supabase repository", () => {
     expect(client.snapshot().tournaments).toEqual([]);
   });
 
-  it("rejects unsupported pool-play persistence before any RPC call", async () => {
+  it("round-trips pool-play through the runtime-state snapshot", async () => {
     const client = createMemoryClient();
     const repository = createStandardTournamentRepository(client);
-    const poolPlayState = {
-      ...createSavedAmericanoState(),
-      format: "pool-play" as const,
-    };
+    const poolPlayState = createPoolTournamentFromSetup({
+      name: "STEP_09_TEST Pool",
+      participantType: "pair",
+      participantText: ["Par A", "Par B", "Par C", "Par D"].join("\n"),
+      poolCount: 2,
+      participantsPerPool: 2,
+      advancementMode: "crossMatches",
+      unmatchedResolution: "bye",
+      scoringMode: "Fri scoring",
+      rankingMode: "matchPointsFirst",
+    });
 
-    await expect(repository.save(poolPlayState, {
-      legacyLocalId: "STEP_08_TEST_POOL",
+    const saved = await repository.save(poolPlayState, {
+      legacyLocalId: "STEP_09_TEST_POOL",
       createId: createDeterministicUuidFactory(),
-    })).rejects.toThrow("Pool-play persistence");
-    expect(client.calls.rpc).toBe(0);
+    });
+
+    await expect(repository.read(saved.tournamentId)).resolves.toEqual(poolPlayState);
   });
 });
 
@@ -88,6 +96,8 @@ function createMemoryClient(options: { failAfterTournamentInsert?: boolean } = {
     tournament_players: [],
     fixed_pairs: [],
     rounds: [],
+    tournament_pools: [],
+    pool_participants: [],
     matches: [],
     match_sides: [],
     match_side_players: [],

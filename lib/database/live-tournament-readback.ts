@@ -18,6 +18,8 @@ export interface TournamentReadRow {
   time_limit_minutes: number | null;
   timer_state: JsonRecord | null;
   finished_at: string | null;
+  updated_at?: string;
+  metadata?: JsonRecord;
 }
 
 export interface TournamentPlayerReadRow {
@@ -69,6 +71,12 @@ export interface StandardTournamentReadModel {
 }
 
 export function mapPersistenceRowsToLiveTournamentState(readModel: StandardTournamentReadModel): LiveTournamentState {
+  const runtimeState = readModel.tournament.metadata?.runtimeState;
+
+  if (isLiveTournamentState(runtimeState)) {
+    return runtimeState;
+  }
+
   const playerByDatabaseId = new Map(readModel.players.map((player) => [player.id, player]));
   const players = [...readModel.players]
     .sort((left, right) => left.display_order - right.display_order)
@@ -105,6 +113,18 @@ export function mapPersistenceRowsToLiveTournamentState(readModel: StandardTourn
     roundTimer: toRoundTimerState(readModel.tournament.timer_state),
     rankingMode: readModel.tournament.ranking_mode ?? "matchPointsFirst",
   };
+}
+
+function isLiveTournamentState(value: unknown): value is LiveTournamentState {
+  return Boolean(
+    value &&
+    typeof value === "object" &&
+    "tournamentName" in value &&
+    "format" in value &&
+    "players" in value &&
+    "rounds" in value &&
+    "results" in value,
+  );
 }
 
 function getRoundMatches(
