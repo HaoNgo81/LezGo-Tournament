@@ -2,6 +2,7 @@ export { mapLiveTournamentToPersistencePayload } from "./live-tournament-mapper"
 export { mapPersistenceRowsToLiveTournamentState } from "./live-tournament-readback";
 export { resolveLocalStoragePrimaryConflict } from "./persistence-conflicts";
 export { createStandardTournamentWritePlan, createTeamVsTeamTournamentWritePlan } from "./persistence-write-plan";
+export { assertStandardWritePlanSupported, createStandardTournamentRepository, getOperationRows, TournamentPersistenceError } from "./supabase-standard-repository";
 export { mapTeamVsTeamTournamentToPersistencePayload } from "./team-vs-team-mapper";
 export type {
   FixedPairRowPayload,
@@ -33,3 +34,4 @@ export type {
 } from "./live-tournament-readback";
 export type { PersistenceConflictDecision, PersistenceConflictInput, PersistenceConflictResult } from "./persistence-conflicts";
 export type { DatabaseOperationKind, DatabaseRow, DatabaseWriteOperation, PersistenceWritePlan } from "./persistence-write-plan";
+export type { SaveStandardTournamentOptions, SaveStandardTournamentResult, StandardTournamentRepository } from "./supabase-standard-repository";
