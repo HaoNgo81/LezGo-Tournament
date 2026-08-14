@@ -50,13 +50,59 @@ const scoringChoices: Array<{ labelKey: "playToScorePoints" | "totalScorePoints"
 ];
 
 const automaticTournamentNames = new Set<string>(formatOptions);
+const deviceDebugBuildMarker = "STEP20BC-DEVICE-TEST-01";
+const deviceDebugBuildTimestamp = "2026-08-14T18:32:28.7924686+02:00";
+const deviceDebugBundleVersion = "new-tournament-device-debug-v1";
+const activeCodeMarker = "STEP20BC ACTIVE CODE TEST";
 
-export function TournamentSetupForm() {
+type DeviceDebugEvent = {
+  type:
+    | "INIT"
+    | "CLIENT_HYDRATED"
+    | "FORMAT_POINTER_DOWN"
+    | "FORMAT_POINTER_UP"
+    | "FORMAT_TOUCH_START"
+    | "FORMAT_TOUCH_END"
+    | "FORMAT_CLICK"
+    | "SCORING_CHANGE"
+    | "NAME_CHANGE"
+    | "PLAYER_TEXT_CHANGE";
+  value: string;
+  timestamp: string;
+};
+
+type DeviceDebugButtonAudit = {
+  ariaPressed: string;
+  dataSelected: string;
+  display: string;
+  opacity: string;
+  pointerEvents: string;
+  position: string;
+  text: string;
+  type: string;
+  visibility: string;
+  zIndex: string;
+};
+
+type DeviceDebugAudit = {
+  cacheNames: string[];
+  cacheStorageAvailable: boolean;
+  currentUrl: string;
+  formatButtons: DeviceDebugButtonAudit[];
+  localStorageKeys: string[];
+  serviceWorkerControlled: boolean;
+  serviceWorkerRegistrationCount: number | null;
+  serviceWorkerSupported: boolean;
+};
+
+export function TournamentSetupForm({ initialDeviceDebugEnabled = false }: { initialDeviceDebugEnabled?: boolean } = {}) {
   const { t } = useAppTranslation();
   const router = useRouter();
   const initialSettings = useMemo(() => loadTournamentSettings(), []);
   const initialScoringMode = initialSettings.scoringMode === "Fri scoring" ? "Fast antal point" : initialSettings.scoringMode;
   const appliedTemplateId = useRef<string | null>(null);
+  const nameRef = useRef("Americano");
+  const [mountId] = useState(() => createDeviceDebugMountId());
   const [name, setName] = useState("Americano");
   const [format, setFormat] = useState<TournamentSetupFormat>("Americano");
   const [scoringMode, setScoringMode] = useState<ScoringMode>(initialScoringMode);
@@ -82,12 +128,46 @@ export function TournamentSetupForm() {
   const [poolTeamPlayersPerTeam, setPoolTeamPlayersPerTeam] = useState<PoolTeamPlayers>(4);
   const [rankingMode, setRankingMode] = useState<StandingsRankingMode>(initialSettings.rankingMode);
   const [error, setError] = useState("");
+  const [deviceDebugEnabled, setDeviceDebugEnabled] = useState(initialDeviceDebugEnabled);
+  const [deviceDebugParam, setDeviceDebugParam] = useState<"YES" | "NO">(initialDeviceDebugEnabled ? "YES" : "NO");
+  const [clientHydrated, setClientHydrated] = useState(false);
+  const [lastDebugEvent, setLastDebugEvent] = useState<DeviceDebugEvent>({
+    type: "INIT",
+    value: "mounted",
+    timestamp: new Date().toISOString(),
+  });
+  const [renderCount, setRenderCount] = useState(1);
+  const [deviceDebugAudit, setDeviceDebugAudit] = useState<DeviceDebugAudit>({
+    cacheNames: [],
+    cacheStorageAvailable: false,
+    currentUrl: "",
+    formatButtons: [],
+    localStorageKeys: [],
+    serviceWorkerControlled: false,
+    serviceWorkerRegistrationCount: null,
+    serviceWorkerSupported: false,
+  });
   const isTeamVsTeam = format === "Team vs. Team";
   const isPoolPlay = format === "Puljespil";
   const isFixedPartner = format === "Fast Makker Americano" || format === "Fast Makker Mexicano";
   const fixedPartnerPairs = getFixedPartnerPairs(playerText);
   const teamRounds = playersPerTeam === 4 ? 3 : 2;
   const scoringChoice = getScoringChoice(scoringMode, fixedScoreRule);
+  const scorePointFieldShouldRender = scoringMode === "Fast antal point";
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const hasDebugParam = hasDeviceDebugParam();
+      setClientHydrated(true);
+      setDeviceDebugParam(hasDebugParam ? "YES" : "NO");
+      setDeviceDebugEnabled(isDeviceDebugEnabled());
+      if (hasDebugParam) {
+        setLastDebugEvent(createDeviceDebugEvent("CLIENT_HYDRATED", window.location.href));
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     const template = getInitialTemplate();
@@ -97,6 +177,7 @@ export function TournamentSetupForm() {
     }
 
     appliedTemplateId.current = template.id;
+    nameRef.current = template.title;
     setName(template.title);
     setFormat(template.format);
     setScoringMode(template.scoringMode);
@@ -108,6 +189,59 @@ export function TournamentSetupForm() {
     setRankingMode(template.rankingMode);
     setError("");
   }, [initialSettings.timeLimitMinutes]);
+
+  useEffect(() => {
+    if (!deviceDebugEnabled) {
+      return;
+    }
+
+    let isMounted = true;
+
+    async function collectAudit() {
+      const formatButtons = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-device-debug-format-button]")).map((button) => {
+        const style = window.getComputedStyle(button);
+
+        return {
+          ariaPressed: button.getAttribute("aria-pressed") ?? "",
+          dataSelected: button.getAttribute("data-selected") ?? "",
+          display: style.display,
+          opacity: style.opacity,
+          pointerEvents: style.pointerEvents,
+          position: style.position,
+          text: button.textContent?.trim() ?? "",
+          type: button.getAttribute("type") ?? "",
+          visibility: style.visibility,
+          zIndex: style.zIndex,
+        };
+      });
+      const serviceWorkerSupported = "serviceWorker" in navigator;
+      const registrations = serviceWorkerSupported && navigator.serviceWorker.getRegistrations
+        ? await navigator.serviceWorker.getRegistrations().catch(() => null)
+        : null;
+      const cacheNames = "caches" in window ? await window.caches.keys().catch(() => []) : [];
+
+      if (!isMounted) {
+        return;
+      }
+
+      setDeviceDebugAudit({
+        cacheNames,
+        cacheStorageAvailable: "caches" in window,
+        currentUrl: window.location.href,
+        formatButtons,
+        localStorageKeys: Object.keys(window.localStorage).sort(),
+        serviceWorkerControlled: Boolean(navigator.serviceWorker?.controller),
+        serviceWorkerRegistrationCount: registrations ? registrations.length : null,
+        serviceWorkerSupported,
+      });
+    }
+
+    void collectAudit();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [deviceDebugEnabled, format, lastDebugEvent, scoringMode]);
 
   const playerCount = useMemo(() => {
     if (isTeamVsTeam) {
@@ -200,11 +334,35 @@ export function TournamentSetupForm() {
 
   function handleFormatChange(nextFormat: TournamentSetupFormat) {
     setFormat(nextFormat);
-    setName((currentName) => (isAutomaticTournamentName(currentName) ? nextFormat : currentName));
+    setName((currentName) => {
+      const latestName = nameRef.current;
+      const nextName = isAutomaticTournamentName(latestName) ? nextFormat : latestName;
+      nameRef.current = nextName;
+      return currentName === nextName ? currentName : nextName;
+    });
     setError("");
   }
 
+  function recordFormatInputEvent(type: DeviceDebugEvent["type"], nextFormat: TournamentSetupFormat, event: { currentTarget: EventTarget & HTMLElement; target: EventTarget | null }) {
+    const target = event.target instanceof HTMLElement ? event.target.tagName.toLowerCase() : "unknown";
+    const currentTarget = event.currentTarget.tagName.toLowerCase();
+    recordDeviceDebugEvent(type, `${nextFormat} target=${target} currentTarget=${currentTarget}`);
+  }
+
+  function selectFormatFromInput(type: DeviceDebugEvent["type"], nextFormat: TournamentSetupFormat, event: { currentTarget: EventTarget & HTMLElement; target: EventTarget | null }) {
+    recordFormatInputEvent(type, nextFormat, event);
+    handleFormatChange(nextFormat);
+  }
+
+  function handleNameChange(nextName: string) {
+    recordDeviceDebugEvent("NAME_CHANGE", nextName);
+    nameRef.current = nextName;
+    setName(nextName);
+  }
+
   function handleScoringChoiceChange(nextChoice: ScoringChoice) {
+    recordDeviceDebugEvent("SCORING_CHANGE", nextChoice);
+
     if (nextChoice === "timed") {
       setScoringMode("Spil på tid");
       return;
@@ -230,8 +388,20 @@ export function TournamentSetupForm() {
     setPlayerText(names.join("\n"));
   }
 
+  function recordDeviceDebugEvent(type: DeviceDebugEvent["type"], value: string) {
+    setLastDebugEvent(createDeviceDebugEvent(type, value));
+    setRenderCount((currentCount) => currentCount + 1);
+  }
+
   return (
     <form className="grid gap-5" onSubmit={handleSubmit}>
+      {process.env.NODE_ENV !== "production" ? (
+        <section className="rounded-md border-4 border-blue-700 bg-blue-50 p-4 font-mono text-sm font-black text-blue-950" data-testid="active-code-marker">
+          <p>{activeCodeMarker}</p>
+          <p>DEVICE DEBUG PARAM: {deviceDebugParam}</p>
+          <p>ACTIVE BUILD: {deviceDebugBuildMarker}</p>
+        </section>
+      ) : null}
       <Section title={`1. ${t("tournamentFormat")}`}>
         <div className="grid gap-3 sm:grid-cols-2">
           {formatOptions.map((option) => (
@@ -240,8 +410,16 @@ export function TournamentSetupForm() {
               aria-pressed={format === option}
               className={getFormatButtonClass(format === option)}
               data-selected={format === option ? "true" : "false"}
+              data-device-debug-format-button="true"
               type="button"
-              onClick={() => handleFormatChange(option)}
+              onPointerDown={(event) => recordFormatInputEvent("FORMAT_POINTER_DOWN", option, event)}
+              onPointerUp={(event) => selectFormatFromInput("FORMAT_POINTER_UP", option, event)}
+              onTouchStart={(event) => recordFormatInputEvent("FORMAT_TOUCH_START", option, event)}
+              onTouchEnd={(event) => selectFormatFromInput("FORMAT_TOUCH_END", option, event)}
+              onClick={(event) => {
+                recordFormatInputEvent("FORMAT_CLICK", option, event);
+                handleFormatChange(option);
+              }}
             >
               {getFormatDisplayName(option, t)}
             </button>
@@ -253,7 +431,7 @@ export function TournamentSetupForm() {
         <div className="app-card grid gap-3 p-4 sm:p-5">
           <label className="grid gap-2 text-lg font-bold">
             {t("name")}
-            <input className="field-control" value={name} onChange={(event) => setName(event.target.value)} />
+            <input className="field-control" value={name} onChange={(event) => handleNameChange(event.target.value)} />
           </label>
           <label className="grid gap-2 text-lg font-bold">
             Scoring
@@ -453,7 +631,16 @@ export function TournamentSetupForm() {
               <button className="min-h-12 rounded-md border border-[var(--line)] bg-white px-4 font-black" type="button" onClick={addFixedPartnerPair}>Tilføj par</button>
             </div>
           ) : (
-            <textarea className="field-control min-h-64 resize-y text-xl leading-8" placeholder={t("oneNamePerLine")} value={playerText} onChange={(event) => setPlayerText(event.target.value)} aria-label={`${participantTextareaLabel(format, poolParticipantType, t)}, ${t("oneNamePerLine")}`} />
+            <textarea
+              className="field-control min-h-64 resize-y text-xl leading-8"
+              placeholder={t("oneNamePerLine")}
+              value={playerText}
+              onChange={(event) => {
+                recordDeviceDebugEvent("PLAYER_TEXT_CHANGE", `${event.target.value.length} chars`);
+                setPlayerText(event.target.value);
+              }}
+              aria-label={`${participantTextareaLabel(format, poolParticipantType, t)}, ${t("oneNamePerLine")}`}
+            />
           )}
         </Section>
       )}
@@ -482,7 +669,106 @@ export function TournamentSetupForm() {
         {error ? <p className="mb-3 rounded-md bg-red-50 p-3 font-bold text-red-700">{error}</p> : null}
         <PrimaryButton type="submit">{t("startTournament")}</PrimaryButton>
       </Section>
+      {deviceDebugEnabled ? (
+        <DeviceDebugPanel
+          audit={deviceDebugAudit}
+          clientHydrated={clientHydrated}
+          fixedScoreRule={fixedScoreRule}
+          format={format}
+          lastEvent={lastDebugEvent}
+          mountId={mountId}
+          name={name}
+          playerCount={playerCount}
+          renderCount={renderCount}
+          scorePointFieldShouldRender={scorePointFieldShouldRender}
+          scoringChoice={scoringChoice}
+          scoringMode={scoringMode}
+        />
+      ) : null}
     </form>
+  );
+}
+
+function DeviceDebugPanel({
+  audit,
+  clientHydrated,
+  fixedScoreRule,
+  format,
+  lastEvent,
+  mountId,
+  name,
+  playerCount,
+  renderCount,
+  scorePointFieldShouldRender,
+  scoringChoice,
+  scoringMode,
+}: {
+  audit: DeviceDebugAudit;
+  clientHydrated: boolean;
+  fixedScoreRule: FixedScoreRule;
+  format: TournamentSetupFormat;
+  lastEvent: DeviceDebugEvent;
+  mountId: string;
+  name: string;
+  playerCount: number;
+  renderCount: number;
+  scorePointFieldShouldRender: boolean;
+  scoringChoice: ScoringChoice;
+  scoringMode: ScoringMode;
+}) {
+  return (
+    <section className="rounded-md border-4 border-red-600 bg-yellow-50 p-4 font-mono text-sm text-black" data-testid="device-debug-panel">
+      <h2 className="text-lg font-black">DEV BUILD DEBUG</h2>
+      <dl className="mt-3 grid gap-2">
+        <DebugRow label="DEV BUILD" value={deviceDebugBuildMarker} />
+        <DebugRow label="BUILD TIMESTAMP" value={deviceDebugBuildTimestamp} />
+        <DebugRow label="FRONTEND BUNDLE VERSION" value={deviceDebugBundleVersion} />
+        <DebugRow label="RUNTIME" value={process.env.NODE_ENV} />
+        <DebugRow label="clientHydrated" value={clientHydrated ? "YES" : "NO"} />
+        <DebugRow label="selectedFormat" value={format} />
+        <DebugRow label="scoringMode" value={scoringMode} />
+        <DebugRow label="scoringChoice" value={scoringChoice} />
+        <DebugRow label="fixedScoreRule" value={fixedScoreRule} />
+        <DebugRow label="tournamentName" value={name || "-"} />
+        <DebugRow label="playerCount" value={String(playerCount)} />
+        <DebugRow label="renderCount" value={String(renderCount)} />
+        <DebugRow label="mountId" value={mountId} />
+        <DebugRow label="pathname" value={audit.currentUrl || "-"} />
+        <DebugRow label="timestamp" value={new Date().toISOString()} />
+        <DebugRow label="scorePointFieldShouldRender" value={scorePointFieldShouldRender ? "YES" : "NO"} />
+        <DebugRow label="LAST EVENT" value={lastEvent.type} />
+        <DebugRow label="VALUE" value={lastEvent.value} />
+        <DebugRow label="EVENT TIMESTAMP" value={lastEvent.timestamp} />
+        <DebugRow label="serviceWorkerSupported" value={audit.serviceWorkerSupported ? "YES" : "NO"} />
+        <DebugRow label="serviceWorkerControlled" value={audit.serviceWorkerControlled ? "YES" : "NO"} />
+        <DebugRow label="serviceWorkerRegistrations" value={audit.serviceWorkerRegistrationCount === null ? "unknown" : String(audit.serviceWorkerRegistrationCount)} />
+        <DebugRow label="cacheStorageAvailable" value={audit.cacheStorageAvailable ? "YES" : "NO"} />
+        <DebugRow label="cacheNames" value={audit.cacheNames.length ? audit.cacheNames.join(", ") : "none"} />
+        <DebugRow label="localStorageKeys" value={audit.localStorageKeys.length ? audit.localStorageKeys.join(", ") : "none"} />
+      </dl>
+      <div className="mt-4">
+        <h3 className="font-black">FORMAT BUTTON DOM AUDIT</h3>
+        <div className="mt-2 grid gap-2">
+          {audit.formatButtons.map((button) => (
+            <pre key={button.text} className="overflow-x-auto whitespace-pre-wrap rounded-md border border-red-400 bg-white p-2">
+              {JSON.stringify(button, null, 2)}
+            </pre>
+          ))}
+        </div>
+      </div>
+      <p className="mt-4 font-black">
+        Scoring render condition: scoringMode === &quot;Fast antal point&quot;
+      </p>
+    </section>
+  );
+}
+
+function DebugRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid gap-1 border-b border-yellow-700/30 pb-1 sm:grid-cols-[14rem_1fr]">
+      <dt className="font-black">{label}:</dt>
+      <dd className="break-words">{value}</dd>
+    </div>
   );
 }
 
@@ -552,6 +838,27 @@ function createDefaultTeams(count: 8, playersPerTeam: 8): TeamVsTeamTeam[] {
       name: "",
     })),
   }));
+}
+
+function createDeviceDebugEvent(type: DeviceDebugEvent["type"], value: string): DeviceDebugEvent {
+  return {
+    type,
+    value,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+function createDeviceDebugMountId(): string {
+  return `mount-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function isDeviceDebugEnabled(): boolean {
+  return process.env.NODE_ENV !== "production" &&
+    hasDeviceDebugParam();
+}
+
+function hasDeviceDebugParam(): boolean {
+  return typeof window !== "undefined" && new URLSearchParams(window.location.search).get("deviceDebug") === "1";
 }
 
 function getScoringChoice(scoringMode: ScoringMode, fixedScoreRule: FixedScoreRule): ScoringChoice {
@@ -651,11 +958,5 @@ function participantSummaryLabel(format: TournamentSetupFormat, poolParticipantT
 }
 
 function getFormatButtonClass(isSelected: boolean): string {
-  const baseClass = "min-h-16 rounded-md border p-4 text-left text-lg font-black transition focus:outline-none focus-visible:ring-4 focus-visible:ring-green-100";
-
-  if (isSelected) {
-    return `${baseClass} border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary-strong)] shadow-[inset_0_0_0_2px_var(--primary)]`;
-  }
-
-  return `${baseClass} border-[var(--line)] bg-white text-[var(--text)] shadow-none hover:border-[var(--primary)] hover:bg-white active:bg-white`;
+  return `tournament-format-button ${isSelected ? "tournament-format-button-selected" : "tournament-format-button-unselected"}`;
 }

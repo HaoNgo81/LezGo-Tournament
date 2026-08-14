@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TournamentSetupForm } from "../components/tournament/tournament-setup-form";
 import { saveTournamentSettings } from "../lib/tournament-settings";
@@ -14,6 +14,7 @@ describe("tournament setup form", () => {
   afterEach(() => {
     cleanup();
     window.localStorage.clear();
+    window.history.pushState({}, "", "/");
     push.mockClear();
   });
 
@@ -55,11 +56,28 @@ describe("tournament setup form", () => {
         expect(button).toHaveAttribute("data-selected", shouldBeSelected ? "true" : "false");
 
         if (shouldBeSelected) {
-          expect(button).toHaveClass("shadow-[inset_0_0_0_2px_var(--primary)]");
+          expect(button).toHaveClass("tournament-format-button-selected");
+          expect(button).not.toHaveClass("tournament-format-button-unselected");
         } else {
-          expect(button).toHaveClass("bg-white");
-          expect(button).not.toHaveClass("shadow-[inset_0_0_0_2px_var(--primary)]");
+          expect(button).toHaveClass("tournament-format-button-unselected");
+          expect(button).not.toHaveClass("tournament-format-button-selected");
         }
+      }
+    }
+  });
+
+  it("selects every format from pointer input before a click event is required", () => {
+    render(<TournamentSetupForm />);
+
+    const formatNames = ["Americano", "Mexicano", "Mixed Americano", "Fast Makker Americano", "Fast Makker Mexicano"];
+
+    for (const formatName of formatNames) {
+      fireEvent.pointerUp(screen.getByRole("button", { name: formatName }));
+
+      expect(screen.getByRole("textbox", { name: "Navn" })).toHaveValue(formatName);
+
+      for (const candidate of formatNames) {
+        expect(screen.getByRole("button", { name: candidate })).toHaveAttribute("aria-pressed", candidate === formatName ? "true" : "false");
       }
     }
   });
@@ -71,6 +89,31 @@ describe("tournament setup form", () => {
     fireEvent.click(screen.getByRole("button", { name: "Mexicano" }));
 
     expect(screen.getByRole("textbox", { name: "Navn" })).toHaveValue("Fredag Americano");
+  });
+
+  it("shows device debug state and event data only on the debug URL", async () => {
+    window.history.pushState({}, "", "/new-tournament?deviceDebug=1");
+
+    render(<TournamentSetupForm />);
+
+    expect(await screen.findByText("STEP20BC-DEVICE-TEST-01")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Mexicano" }));
+
+    await waitFor(() => {
+      const debugPanel = within(screen.getByTestId("device-debug-panel"));
+      expect(debugPanel.getByText("FORMAT_CLICK")).toBeInTheDocument();
+      expect(debugPanel.getAllByText("Mexicano").length).toBeGreaterThan(0);
+    });
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Scoring" }), { target: { value: "timed" } });
+
+    await waitFor(() => {
+      const debugPanel = within(screen.getByTestId("device-debug-panel"));
+      expect(debugPanel.getByText("SCORING_CHANGE")).toBeInTheDocument();
+      expect(debugPanel.getAllByText("timed").length).toBeGreaterThan(0);
+      expect(debugPanel.getAllByText("NO").length).toBeGreaterThan(0);
+    });
   });
 
   it("shows the three user-facing scoring choices and dynamic fields", () => {
@@ -157,7 +200,7 @@ describe("tournament setup form", () => {
     render(<TournamentSetupForm />);
 
     expect(await screen.findByDisplayValue("Chopstick")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Fast Makker Mexicano" })).toHaveClass("border-[var(--primary)]");
+    expect(screen.getByRole("button", { name: "Fast Makker Mexicano" })).toHaveClass("tournament-format-button-selected");
     expect(screen.getByRole("spinbutton", { name: "Baner" })).toHaveValue(4);
     expect(screen.getByRole("spinbutton", { name: "Runder" })).toHaveValue(20);
     expect(screen.getByRole("spinbutton", { name: "Antal scorepoint" })).toHaveValue(6);
