@@ -29,12 +29,39 @@ describe("tournament setup form", () => {
 
     expect(screen.getByRole("textbox", { name: "Navn" })).toHaveValue("Americano");
     expect(screen.getByRole("textbox", { name: "Spillere, Et navn pr. linje" })).toHaveValue("");
+    expect(screen.getByRole("button", { name: "Americano" })).toHaveAttribute("aria-pressed", "true");
 
     fireEvent.click(screen.getByRole("button", { name: "Fast Makker Americano" }));
 
     expect(screen.getByRole("textbox", { name: "Navn" })).toHaveValue("Fast Makker Americano");
+    expect(screen.getByRole("button", { name: "Americano" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Fast Makker Americano" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("textbox", { name: "Par 1, spiller 1" })).toHaveValue("");
     expect(screen.getByRole("textbox", { name: "Par 1, spiller 2" })).toHaveValue("");
+  });
+
+  it("keeps exactly one visual selected-state aligned with the actual selected format", () => {
+    render(<TournamentSetupForm />);
+
+    const formatNames = ["Americano", "Mexicano", "Mixed Americano", "Fast Makker Americano", "Fast Makker Mexicano"];
+
+    for (const formatName of formatNames) {
+      fireEvent.click(screen.getByRole("button", { name: formatName }));
+
+      for (const candidate of formatNames) {
+        const button = screen.getByRole("button", { name: candidate });
+        const shouldBeSelected = candidate === formatName;
+        expect(button).toHaveAttribute("aria-pressed", shouldBeSelected ? "true" : "false");
+        expect(button).toHaveAttribute("data-selected", shouldBeSelected ? "true" : "false");
+
+        if (shouldBeSelected) {
+          expect(button).toHaveClass("shadow-[inset_0_0_0_2px_var(--primary)]");
+        } else {
+          expect(button).toHaveClass("bg-white");
+          expect(button).not.toHaveClass("shadow-[inset_0_0_0_2px_var(--primary)]");
+        }
+      }
+    }
   });
 
   it("does not overwrite a custom tournament name when format changes", () => {
@@ -58,10 +85,16 @@ describe("tournament setup form", () => {
 
     fireEvent.change(scoringSelect, { target: { value: "total" } });
     expect(screen.getByRole("spinbutton", { name: "Samlet antal scorepoint" })).toBeInTheDocument();
+    expect(screen.queryByRole("spinbutton", { name: "Antal scorepoint" })).not.toBeInTheDocument();
 
     fireEvent.change(scoringSelect, { target: { value: "timed" } });
     expect(screen.getByRole("spinbutton", { name: "Spilletid (minutter)" })).toBeInTheDocument();
+    expect(screen.queryByRole("spinbutton", { name: "Antal scorepoint" })).not.toBeInTheDocument();
     expect(screen.queryByRole("spinbutton", { name: "Samlet antal scorepoint" })).not.toBeInTheDocument();
+
+    fireEvent.change(scoringSelect, { target: { value: "target" } });
+    expect(screen.getByRole("spinbutton", { name: "Antal scorepoint" })).toBeInTheDocument();
+    expect(screen.queryByRole("spinbutton", { name: "Spilletid (minutter)" })).not.toBeInTheDocument();
   });
 
   it("shows the new tournament form in English when English is selected", () => {

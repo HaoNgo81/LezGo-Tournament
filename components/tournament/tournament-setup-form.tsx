@@ -237,7 +237,9 @@ export function TournamentSetupForm() {
           {formatOptions.map((option) => (
             <button
               key={option}
-              className={`min-h-16 rounded-md border p-4 text-left text-lg font-black transition focus:outline-none focus:ring-4 focus:ring-green-100 ${format === option ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary-strong)]" : "border-[var(--line)] bg-white"}`}
+              aria-pressed={format === option}
+              className={getFormatButtonClass(format === option)}
+              data-selected={format === option ? "true" : "false"}
               type="button"
               onClick={() => handleFormatChange(option)}
             >
@@ -646,4 +648,14 @@ function participantTextareaLabel(format: TournamentSetupFormat, poolParticipant
 
 function participantSummaryLabel(format: TournamentSetupFormat, poolParticipantType: PoolParticipantType, t: (key: TranslationKey) => string): string {
   return participantTextareaLabel(format, poolParticipantType, t);
+}
+
+function getFormatButtonClass(isSelected: boolean): string {
+  const baseClass = "min-h-16 rounded-md border p-4 text-left text-lg font-black transition focus:outline-none focus-visible:ring-4 focus-visible:ring-green-100";
+
+  if (isSelected) {
+    return `${baseClass} border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary-strong)] shadow-[inset_0_0_0_2px_var(--primary)]`;
+  }
+
+  return `${baseClass} border-[var(--line)] bg-white text-[var(--text)] shadow-none hover:border-[var(--primary)] hover:bg-white active:bg-white`;
 }
