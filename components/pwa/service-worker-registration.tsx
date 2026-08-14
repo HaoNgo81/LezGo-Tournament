@@ -8,6 +8,13 @@ export function ServiceWorkerRegistration() {
       return;
     }
 
+    if (process.env.NODE_ENV !== "production") {
+      void navigator.serviceWorker.getRegistrations?.()
+        .then((registrations) => Promise.all(registrations.map((registration) => registration.unregister())))
+        .catch(() => undefined);
+      return;
+    }
+
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
     void navigator.serviceWorker.register(`${basePath}/sw.js`);
   }, []);

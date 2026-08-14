@@ -528,11 +528,11 @@ describe("STEP 13 remote read-only UI", () => {
     window.sessionStorage.setItem("lezgo.remoteSession.v1", JSON.stringify({
       handoffReference: "STEP_17_TEST_RESTORE_REFERENCE_WITH_ENTROPY_1234567890",
       remoteSessionToken: "STEP_17_STORED_REMOTE_SESSION_TOKEN",
-      remoteSessionExpiresAt: "2026-08-14T00:00:00.000Z",
+      remoteSessionExpiresAt: "2099-08-14T00:00:00.000Z",
     }));
     const fetchMock = vi.fn().mockResolvedValueOnce(createReadResponse("standard", remoteState, "2026-08-13T12:00:05.000Z", {
       remoteSessionToken: "STEP_17_STORED_REMOTE_SESSION_TOKEN",
-      remoteSessionExpiresAt: "2026-08-14T00:00:00.000Z",
+      remoteSessionExpiresAt: "2099-08-14T00:00:00.000Z",
     }));
     vi.stubGlobal("fetch", fetchMock);
 
