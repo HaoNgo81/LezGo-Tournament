@@ -68,12 +68,18 @@ describe("service worker script", () => {
   it("keeps the production app-shell cache behavior on public origins", async () => {
     const serviceWorker = runServiceWorkerScript("haongo81.github.io");
     const installPromises: Promise<unknown>[] = [];
+    const activatePromises: Promise<unknown>[] = [];
 
     serviceWorker.handlers.get("install")?.({ waitUntil: (promise) => installPromises.push(promise) });
+    serviceWorker.handlers.get("activate")?.({ waitUntil: (promise) => activatePromises.push(promise) });
     await Promise.all(installPromises);
+    await Promise.all(activatePromises);
 
     expect(serviceWorker.cacheOpen).toHaveBeenCalledWith("lezgo-padel-v2");
     expect(serviceWorker.cacheAddAll).toHaveBeenCalledWith(["/", "/new-tournament", "/tournaments", "/templates", "/settings"]);
+    expect(serviceWorker.cacheDelete).toHaveBeenCalledWith("lezgo-padel-v1");
+    expect(serviceWorker.cacheDelete).not.toHaveBeenCalledWith("lezgo-padel-v2");
+    expect(serviceWorker.claim).toHaveBeenCalled();
     expect(serviceWorker.unregister).not.toHaveBeenCalled();
   });
 });
