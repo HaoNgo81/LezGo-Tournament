@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TournamentSetupForm } from "../components/tournament/tournament-setup-form";
@@ -14,6 +14,7 @@ vi.mock("next/navigation", () => ({
 describe("tournament setup form", () => {
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
     window.localStorage.clear();
     window.history.pushState({}, "", "/");
     push.mockClear();
@@ -146,12 +147,15 @@ describe("tournament setup form", () => {
   it("does not render temporary device debug markup or unstable hydration values", () => {
     window.history.pushState({}, "", "/new-tournament?deviceDebug=1");
 
+    const getItemSpy = vi.spyOn(Storage.prototype, "getItem");
     const serverHtml = renderToString(<TournamentSetupForm />);
     expect(serverHtml).not.toContain("STEP20");
     expect(serverHtml).not.toContain("CLIENT HYDRATION PROBE");
     expect(serverHtml).not.toContain("DEV BUILD DEBUG");
     expect(serverHtml).not.toContain("FORMAT BUTTON DOM AUDIT");
     expect(serverHtml).not.toMatch(/mount-\d+/);
+    expect(getItemSpy).not.toHaveBeenCalled();
+    getItemSpy.mockRestore();
 
     render(<TournamentSetupForm />);
 
@@ -159,6 +163,47 @@ describe("tournament setup form", () => {
     expect(screen.queryByTestId("client-hydration-probe")).not.toBeInTheDocument();
     expect(screen.queryByTestId("device-debug-panel")).not.toBeInTheDocument();
     expect(screen.queryByText("STEP20BC-DEVICE-TEST-01")).not.toBeInTheDocument();
+  });
+
+  it("keeps entered tournament setup values when saved settings restore after hydration", () => {
+    vi.useFakeTimers();
+    saveTournamentSettings({
+      scoringMode: "Fast antal point",
+      courts: 4,
+      rounds: 12,
+      rankingMode: "matchPointsFirst",
+      timeLimitMinutes: 45,
+      alarmSound: "standard",
+    });
+
+    render(<TournamentSetupForm />);
+
+    tapFormat("Mexicano");
+    fireEvent.change(screen.getByRole("textbox", { name: "Navn" }), { target: { value: "RESET TEST" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Scoring" }), { target: { value: "timed" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Baner" }), { target: { value: "2" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Runder" }), { target: { value: "3" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Sorter stilling efter" }), { target: { value: "partiPointsFirst" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Spillere, Et navn pr. linje" }), {
+      target: { value: "Hao\nMartin\nRonnie\nSimon\nTuan\nJohnnie\nKlaus\nLindon" },
+    });
+    fireEvent.scroll(window, { target: { scrollY: 300 } });
+    fireEvent.blur(screen.getByRole("textbox", { name: "Navn" }));
+    fireEvent.focus(screen.getByRole("textbox", { name: "Navn" }));
+
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+
+    expectSelectedFormat("Mexicano");
+    expect(screen.getByRole("textbox", { name: "Navn" })).toHaveValue("RESET TEST");
+    expect(screen.getByRole("combobox", { name: "Scoring" })).toHaveValue("timed");
+    expect(screen.queryByRole("spinbutton", { name: "Antal scorepoint" })).not.toBeInTheDocument();
+    expect(screen.getByRole("spinbutton", { name: "Spilletid (minutter)" })).toHaveValue(15);
+    expect(screen.getByRole("spinbutton", { name: "Baner" })).toHaveValue(2);
+    expect(screen.getByRole("spinbutton", { name: "Runder" })).toHaveValue(3);
+    expect(screen.getByRole("combobox", { name: "Sorter stilling efter" })).toHaveValue("partiPointsFirst");
+    expect(screen.getByRole("textbox", { name: "Spillere, Et navn pr. linje" })).toHaveValue("Hao\nMartin\nRonnie\nSimon\nTuan\nJohnnie\nKlaus\nLindon");
   });
 
   it("shows the three user-facing scoring choices and dynamic fields", () => {

@@ -31,7 +31,7 @@ import {
   type TeamVsTeamTeam,
   type TeamVsTeamTeamCount,
 } from "@/lib/team-vs-team";
-import { loadTournamentSettings } from "@/lib/tournament-settings";
+import { createDefaultTournamentSettings, loadTournamentSettings } from "@/lib/tournament-settings";
 import { findTournamentTemplate } from "@/lib/tournament-templates";
 
 const formatOptions = tournamentTypes.filter((type) => type !== "Puljespil" && type !== "Team vs. Team") as TournamentSetupFormat[];
@@ -64,9 +64,10 @@ type FormatTapGesture = {
 export function TournamentSetupForm() {
   const { t } = useAppTranslation();
   const router = useRouter();
-  const initialSettings = useMemo(() => loadTournamentSettings(), []);
-  const initialScoringMode = initialSettings.scoringMode === "Fri scoring" ? "Fast antal point" : initialSettings.scoringMode;
+  const initialSettings = useMemo(() => createDefaultTournamentSettings(), []);
+  const initialScoringMode = getInitialScoringMode(initialSettings.scoringMode);
   const appliedTemplateId = useRef<string | null>(null);
+  const formDirtyRef = useRef(false);
   const nameRef = useRef("Americano");
   const formatTapGesture = useRef<FormatTapGesture | null>(null);
   const suppressNextFormatClick = useRef<{ format: TournamentSetupFormat } | null>(null);
@@ -122,6 +123,23 @@ export function TournamentSetupForm() {
     setRankingMode(template.rankingMode);
     setError("");
   }, [initialSettings.timeLimitMinutes]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (formDirtyRef.current || getInitialTemplateId()) {
+        return;
+      }
+
+      const savedSettings = loadTournamentSettings();
+      setScoringMode(getInitialScoringMode(savedSettings.scoringMode));
+      setTimeLimitMinutes(savedSettings.timeLimitMinutes);
+      setCourts(savedSettings.courts);
+      setRounds(savedSettings.rounds);
+      setRankingMode(savedSettings.rankingMode);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const playerCount = useMemo(() => {
     if (isTeamVsTeam) {
@@ -209,10 +227,12 @@ export function TournamentSetupForm() {
   }
 
   function updateTeam(teamIndex: number, nextTeam: TeamVsTeamTeam) {
+    markFormDirty();
     setTeamDrafts((currentTeams) => currentTeams.map((team, index) => (index === teamIndex ? nextTeam : team)));
   }
 
   function handleFormatChange(nextFormat: TournamentSetupFormat) {
+    markFormDirty();
     setFormat(nextFormat);
     setName((currentName) => {
       const latestName = nameRef.current;
@@ -347,11 +367,14 @@ export function TournamentSetupForm() {
   }
 
   function handleNameChange(nextName: string) {
+    markFormDirty();
     nameRef.current = nextName;
     setName(nextName);
   }
 
   function handleScoringChoiceChange(nextChoice: ScoringChoice) {
+    markFormDirty();
+
     if (nextChoice === "timed") {
       setScoringMode("Spil på tid");
       return;
@@ -362,19 +385,26 @@ export function TournamentSetupForm() {
   }
 
   function updateFixedPartnerPlayer(pairIndex: number, playerIndex: number, playerName: string) {
+    markFormDirty();
     const names = getFixedPartnerPlayerNames(playerText);
     names[pairIndex * 2 + playerIndex] = playerName;
     setPlayerText(names.join("\n"));
   }
 
   function addFixedPartnerPair() {
+    markFormDirty();
     setPlayerText([...getFixedPartnerPlayerNames(playerText), "", ""].join("\n"));
   }
 
   function removeFixedPartnerPair(pairIndex: number) {
+    markFormDirty();
     const names = getFixedPartnerPlayerNames(playerText);
     names.splice(pairIndex * 2, 2);
     setPlayerText(names.join("\n"));
+  }
+
+  function markFormDirty() {
+    formDirtyRef.current = true;
   }
 
   return (
@@ -419,13 +449,31 @@ export function TournamentSetupForm() {
           {scoringMode === "Fast antal point" ? (
             <label className="grid gap-2 text-lg font-bold">
               {fixedScoreRule === "total" ? t("totalScorePointsCount") : t("numberOfScorePoints")}
-              <input className="field-control" min="1" type="number" value={fixedScorePoints} onChange={(event) => setFixedScorePoints(Number(event.target.value))} />
+              <input
+                className="field-control"
+                min="1"
+                type="number"
+                value={fixedScorePoints}
+                onChange={(event) => {
+                  markFormDirty();
+                  setFixedScorePoints(Number(event.target.value));
+                }}
+              />
             </label>
           ) : null}
           {scoringMode === "Spil på tid" ? (
             <label className="grid gap-2 text-lg font-bold">
               {t("timeLimitMinutes")}
-              <input className="field-control" min="1" type="number" value={timeLimitMinutes} onChange={(event) => setTimeLimitMinutes(Number(event.target.value))} />
+              <input
+                className="field-control"
+                min="1"
+                type="number"
+                value={timeLimitMinutes}
+                onChange={(event) => {
+                  markFormDirty();
+                  setTimeLimitMinutes(Number(event.target.value));
+                }}
+              />
             </label>
           ) : null}
           {isTeamVsTeam ? (
@@ -436,7 +484,10 @@ export function TournamentSetupForm() {
                   <select
                     className="field-control"
                     value={competitionMode}
-                    onChange={(event) => setCompetitionMode(event.target.value as TeamVsTeamCompetitionMode)}
+                    onChange={(event) => {
+                      markFormDirty();
+                      setCompetitionMode(event.target.value as TeamVsTeamCompetitionMode);
+                    }}
                   >
                     <option value="knockout">Knockout</option>
                     <option value="pool">Puljespil</option>
@@ -444,14 +495,28 @@ export function TournamentSetupForm() {
                 </label>
                 <label className="grid gap-2 text-lg font-bold">
                   Antal hold
-                  <select className="field-control" value={teamCount} onChange={(event) => setTeamCount(Number(event.target.value) as TeamVsTeamTeamCount)}>
+                  <select
+                    className="field-control"
+                    value={teamCount}
+                    onChange={(event) => {
+                      markFormDirty();
+                      setTeamCount(Number(event.target.value) as TeamVsTeamTeamCount);
+                    }}
+                  >
                     {[2, 3, 4, 5, 6, 7, 8].map((count) => <option key={count} value={count}>{count} hold</option>)}
                   </select>
                 </label>
                 {competitionMode === "knockout" ? (
                   <label className="grid gap-2 text-lg font-bold">
                     Fordeling
-                    <select className="field-control" value={drawMode} onChange={(event) => setDrawMode(event.target.value as TeamVsTeamDrawMode)}>
+                    <select
+                      className="field-control"
+                      value={drawMode}
+                      onChange={(event) => {
+                        markFormDirty();
+                        setDrawMode(event.target.value as TeamVsTeamDrawMode);
+                      }}
+                    >
                       <option value="manual">Manuel</option>
                       <option value="random">Tilfældig</option>
                     </select>
@@ -461,7 +526,14 @@ export function TournamentSetupForm() {
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="grid gap-2 text-lg font-bold">
                   Spillere pr. hold
-                  <select className="field-control" value={playersPerTeam} onChange={(event) => setPlayersPerTeam(Number(event.target.value) as TeamVsTeamPlayersPerTeam)}>
+                  <select
+                    className="field-control"
+                    value={playersPerTeam}
+                    onChange={(event) => {
+                      markFormDirty();
+                      setPlayersPerTeam(Number(event.target.value) as TeamVsTeamPlayersPerTeam);
+                    }}
+                  >
                     <option value={4}>4 spillere</option>
                     <option value={6}>6 spillere</option>
                     <option value={8}>8 spillere</option>
@@ -469,7 +541,14 @@ export function TournamentSetupForm() {
                 </label>
                 <label className="grid gap-2 text-lg font-bold">
                   Kampformat
-                  <select className="field-control" value={teamMatchFormat} onChange={(event) => setTeamMatchFormat(event.target.value as TeamVsTeamMatchFormat)}>
+                  <select
+                    className="field-control"
+                    value={teamMatchFormat}
+                    onChange={(event) => {
+                      markFormDirty();
+                      setTeamMatchFormat(event.target.value as TeamVsTeamMatchFormat);
+                    }}
+                  >
                     <option value="oneSet">1 sæt</option>
                     <option value="bestOfThree">Bedst af 3 sæt</option>
                   </select>
@@ -484,14 +563,28 @@ export function TournamentSetupForm() {
             <>
               <label className="grid gap-2 text-lg font-bold">
                 {t("rankingSort")}
-                <select className="field-control" value={rankingMode} onChange={(event) => setRankingMode(event.target.value as StandingsRankingMode)}>
+                <select
+                  className="field-control"
+                  value={rankingMode}
+                  onChange={(event) => {
+                    markFormDirty();
+                    setRankingMode(event.target.value as StandingsRankingMode);
+                  }}
+                >
                   {rankingModeOptions.map((option) => <option key={option.value} value={option.value}>{t(option.labelKey)}</option>)}
                 </select>
               </label>
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="grid gap-2 text-lg font-bold">
                   Deltagertype
-                  <select className="field-control" value={poolParticipantType} onChange={(event) => setPoolParticipantType(event.target.value as PoolParticipantType)}>
+                  <select
+                    className="field-control"
+                    value={poolParticipantType}
+                    onChange={(event) => {
+                      markFormDirty();
+                      setPoolParticipantType(event.target.value as PoolParticipantType);
+                    }}
+                  >
                     <option value="player">Spillere</option>
                     <option value="pair">Par</option>
                     <option value="team">Hold</option>
@@ -499,24 +592,57 @@ export function TournamentSetupForm() {
                 </label>
                 <label className="grid gap-2 text-lg font-bold">
                   Antal puljer
-                  <input className="field-control" min="1" max="8" type="number" value={poolCount} onChange={(event) => setPoolCount(Number(event.target.value))} />
+                  <input
+                    className="field-control"
+                    min="1"
+                    max="8"
+                    type="number"
+                    value={poolCount}
+                    onChange={(event) => {
+                      markFormDirty();
+                      setPoolCount(Number(event.target.value));
+                    }}
+                  />
                 </label>
                 <label className="grid gap-2 text-lg font-bold">
                   {poolParticipantCountLabel(poolParticipantType)}
-                  <input className="field-control" min={poolParticipantType === "player" ? 4 : 2} type="number" value={participantsPerPool} onChange={(event) => setParticipantsPerPool(Number(event.target.value))} />
+                  <input
+                    className="field-control"
+                    min={poolParticipantType === "player" ? 4 : 2}
+                    type="number"
+                    value={participantsPerPool}
+                    onChange={(event) => {
+                      markFormDirty();
+                      setParticipantsPerPool(Number(event.target.value));
+                    }}
+                  />
                 </label>
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
                 <label className="grid gap-2 text-lg font-bold">
                   Progression
-                  <select className="field-control" value={poolAdvancementMode} onChange={(event) => setPoolAdvancementMode(event.target.value as PoolAdvancementMode)}>
+                  <select
+                    className="field-control"
+                    value={poolAdvancementMode}
+                    onChange={(event) => {
+                      markFormDirty();
+                      setPoolAdvancementMode(event.target.value as PoolAdvancementMode);
+                    }}
+                  >
                     <option value="crossMatches">Krydskampe</option>
                     <option value="placementPools">Placeringspuljer</option>
                   </select>
                 </label>
                 <label className="grid gap-2 text-lg font-bold">
                   Ulig sidste pulje
-                  <select className="field-control" value={poolUnmatchedResolution} onChange={(event) => setPoolUnmatchedResolution(event.target.value as PoolUnmatchedResolution)}>
+                  <select
+                    className="field-control"
+                    value={poolUnmatchedResolution}
+                    onChange={(event) => {
+                      markFormDirty();
+                      setPoolUnmatchedResolution(event.target.value as PoolUnmatchedResolution);
+                    }}
+                  >
                     <option value="bye">Oversidning</option>
                     <option value="walkover">Walkover</option>
                   </select>
@@ -524,7 +650,14 @@ export function TournamentSetupForm() {
                 {poolParticipantType === "team" ? (
                   <label className="grid gap-2 text-lg font-bold">
                     Spillere pr. hold
-                    <select className="field-control" value={poolTeamPlayersPerTeam} onChange={(event) => setPoolTeamPlayersPerTeam(Number(event.target.value) as PoolTeamPlayers)}>
+                    <select
+                      className="field-control"
+                      value={poolTeamPlayersPerTeam}
+                      onChange={(event) => {
+                        markFormDirty();
+                        setPoolTeamPlayersPerTeam(Number(event.target.value) as PoolTeamPlayers);
+                      }}
+                    >
                       <option value={4}>4 spillere</option>
                       <option value={6}>6 spillere</option>
                     </select>
@@ -539,18 +672,43 @@ export function TournamentSetupForm() {
             <>
               <label className="grid gap-2 text-lg font-bold">
                 {t("rankingSort")}
-                <select className="field-control" value={rankingMode} onChange={(event) => setRankingMode(event.target.value as StandingsRankingMode)}>
+                <select
+                  className="field-control"
+                  value={rankingMode}
+                  onChange={(event) => {
+                    markFormDirty();
+                    setRankingMode(event.target.value as StandingsRankingMode);
+                  }}
+                >
                   {rankingModeOptions.map((option) => <option key={option.value} value={option.value}>{t(option.labelKey)}</option>)}
                 </select>
               </label>
               <div className="grid gap-3 sm:grid-cols-3">
                 <label className="grid gap-2 text-lg font-bold">
                   {t("courts")}
-                  <input className="field-control" min="1" type="number" value={courts} onChange={(event) => setCourts(Number(event.target.value))} />
+                  <input
+                    className="field-control"
+                    min="1"
+                    type="number"
+                    value={courts}
+                    onChange={(event) => {
+                      markFormDirty();
+                      setCourts(Number(event.target.value));
+                    }}
+                  />
                 </label>
                 <label className="grid gap-2 text-lg font-bold">
                   {t("rounds")}
-                  <input className="field-control" min="1" type="number" value={rounds} onChange={(event) => setRounds(Number(event.target.value))} />
+                  <input
+                    className="field-control"
+                    min="1"
+                    type="number"
+                    value={rounds}
+                    onChange={(event) => {
+                      markFormDirty();
+                      setRounds(Number(event.target.value));
+                    }}
+                  />
                 </label>
               </div>
             </>
@@ -572,11 +730,27 @@ export function TournamentSetupForm() {
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="grid gap-2 text-lg font-bold">
                 Kvinder
-                <textarea className="field-control min-h-64 resize-y text-xl leading-8" placeholder={t("oneNamePerLine")} value={femalePlayerText} onChange={(event) => setFemalePlayerText(event.target.value)} />
+                <textarea
+                  className="field-control min-h-64 resize-y text-xl leading-8"
+                  placeholder={t("oneNamePerLine")}
+                  value={femalePlayerText}
+                  onChange={(event) => {
+                    markFormDirty();
+                    setFemalePlayerText(event.target.value);
+                  }}
+                />
               </label>
               <label className="grid gap-2 text-lg font-bold">
                 Mænd
-                <textarea className="field-control min-h-64 resize-y text-xl leading-8" placeholder={t("oneNamePerLine")} value={malePlayerText} onChange={(event) => setMalePlayerText(event.target.value)} />
+                <textarea
+                  className="field-control min-h-64 resize-y text-xl leading-8"
+                  placeholder={t("oneNamePerLine")}
+                  value={malePlayerText}
+                  onChange={(event) => {
+                    markFormDirty();
+                    setMalePlayerText(event.target.value);
+                  }}
+                />
               </label>
             </div>
           ) : isFixedPartner ? (
@@ -612,7 +786,10 @@ export function TournamentSetupForm() {
               className="field-control min-h-64 resize-y text-xl leading-8"
               placeholder={t("oneNamePerLine")}
               value={playerText}
-              onChange={(event) => setPlayerText(event.target.value)}
+              onChange={(event) => {
+                markFormDirty();
+                setPlayerText(event.target.value);
+              }}
               aria-label={`${participantTextareaLabel(format, poolParticipantType, t)}, ${t("oneNamePerLine")}`}
             />
           )}
@@ -695,12 +872,16 @@ function TeamEditor({ team, teamNumber, playersPerTeam, onChange }: { team: Team
 }
 
 function getInitialTemplate() {
+  const templateId = getInitialTemplateId();
+  return templateId ? findTournamentTemplate(templateId) : null;
+}
+
+function getInitialTemplateId() {
   if (typeof window === "undefined") {
     return null;
   }
 
-  const templateId = new URLSearchParams(window.location.search).get("template");
-  return templateId ? findTournamentTemplate(templateId) : null;
+  return new URLSearchParams(window.location.search).get("template");
 }
 
 function createDefaultTeams(count: 8, playersPerTeam: 8): TeamVsTeamTeam[] {
@@ -721,6 +902,10 @@ function getScoringChoice(scoringMode: ScoringMode, fixedScoreRule: FixedScoreRu
   }
 
   return fixedScoreRule === "total" ? "total" : "target";
+}
+
+function getInitialScoringMode(scoringMode: ScoringMode): ScoringMode {
+  return scoringMode === "Fri scoring" ? "Fast antal point" : scoringMode;
 }
 
 function isAutomaticTournamentName(name: string): boolean {
