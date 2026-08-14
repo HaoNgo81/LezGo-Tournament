@@ -80,8 +80,8 @@ export function TournamentSetupForm() {
   const [playerText, setPlayerText] = useState("");
   const [femalePlayerText, setFemalePlayerText] = useState("");
   const [malePlayerText, setMalePlayerText] = useState("");
-  const [courts, setCourts] = useState(initialSettings.courts);
-  const [rounds, setRounds] = useState(initialSettings.rounds);
+  const [courts, setCourts] = useState(String(initialSettings.courts));
+  const [rounds, setRounds] = useState(String(initialSettings.rounds));
   const [teamCount, setTeamCount] = useState<TeamVsTeamTeamCount>(2);
   const [competitionMode, setCompetitionMode] = useState<TeamVsTeamCompetitionMode>("knockout");
   const [drawMode, setDrawMode] = useState<TeamVsTeamDrawMode>("manual");
@@ -118,8 +118,8 @@ export function TournamentSetupForm() {
     setFixedScoreRule(template.fixedScoreRule ?? "target");
     setFixedScorePoints(template.fixedScorePoints ?? 21);
     setTimeLimitMinutes(template.timeLimitMinutes ?? initialSettings.timeLimitMinutes);
-    setCourts(template.courts);
-    setRounds(template.rounds);
+    setCourts(String(template.courts));
+    setRounds(String(template.rounds));
     setRankingMode(template.rankingMode);
     setError("");
   }, [initialSettings.timeLimitMinutes]);
@@ -133,8 +133,8 @@ export function TournamentSetupForm() {
       const savedSettings = loadTournamentSettings();
       setScoringMode(getInitialScoringMode(savedSettings.scoringMode));
       setTimeLimitMinutes(savedSettings.timeLimitMinutes);
-      setCourts(savedSettings.courts);
-      setRounds(savedSettings.rounds);
+      setCourts(String(savedSettings.courts));
+      setRounds(String(savedSettings.rounds));
       setRankingMode(savedSettings.rankingMode);
     }, 0);
 
@@ -209,8 +209,8 @@ export function TournamentSetupForm() {
         playerText,
         femalePlayerText,
         malePlayerText,
-        courts,
-        rounds,
+        courts: parsePositiveIntegerInput(courts, "Baner"),
+        rounds: parsePositiveIntegerInput(rounds, "Runder"),
         scoringMode,
         fixedScoreRule,
         fixedScorePoints,
@@ -691,9 +691,10 @@ export function TournamentSetupForm() {
                     min="1"
                     type="number"
                     value={courts}
+                    onBlur={() => setCourts(normalizeIntegerInputValue(courts))}
                     onChange={(event) => {
                       markFormDirty();
-                      setCourts(Number(event.target.value));
+                      setCourts(event.target.value);
                     }}
                   />
                 </label>
@@ -704,9 +705,10 @@ export function TournamentSetupForm() {
                     min="1"
                     type="number"
                     value={rounds}
+                    onBlur={() => setRounds(normalizeIntegerInputValue(rounds))}
                     onChange={(event) => {
                       markFormDirty();
-                      setRounds(Number(event.target.value));
+                      setRounds(event.target.value);
                     }}
                   />
                 </label>
@@ -810,8 +812,8 @@ export function TournamentSetupForm() {
           {isPoolPlay && poolParticipantType === "team" ? <p><strong>Spillere pr. hold:</strong> {poolTeamPlayersPerTeam}</p> : null}
           {isTeamVsTeam ? <p><strong>Spillere pr. hold:</strong> {playersPerTeam}</p> : null}
           {isTeamVsTeam ? <p><strong>Holdkaptajner:</strong> {teamDrafts.slice(0, teamCount).map((team) => `${team.name || "Hold"}: ${getTeamVsTeamCaptainName(team)}`).join(" · ")}</p> : null}
-          {!isTeamVsTeam && !isPoolPlay ? <p><strong>{t("courts")}:</strong> {courts}</p> : null}
-          {!isTeamVsTeam && !isPoolPlay ? <p><strong>{t("rounds")}:</strong> {rounds}</p> : isTeamVsTeam ? <p><strong>Holdkamp:</strong> {teamRounds} runder · 2 kampe pr. runde · {teamMatchFormat === "oneSet" ? "1 sæt" : "bedst af 3 sæt"}</p> : null}
+          {!isTeamVsTeam && !isPoolPlay ? <p><strong>{t("courts")}:</strong> {courts || "-"}</p> : null}
+          {!isTeamVsTeam && !isPoolPlay ? <p><strong>{t("rounds")}:</strong> {rounds || "-"}</p> : isTeamVsTeam ? <p><strong>Holdkamp:</strong> {teamRounds} runder · 2 kampe pr. runde · {teamMatchFormat === "oneSet" ? "1 sæt" : "bedst af 3 sæt"}</p> : null}
           {!isTeamVsTeam ? <p><strong>Ranking:</strong> {t(rankingModeOptions.find((option) => option.value === rankingMode)?.labelKey ?? "mostMatchPoints")}</p> : null}
         </div>
       </Section>
@@ -906,6 +908,28 @@ function getScoringChoice(scoringMode: ScoringMode, fixedScoreRule: FixedScoreRu
 
 function getInitialScoringMode(scoringMode: ScoringMode): ScoringMode {
   return scoringMode === "Fri scoring" ? "Fast antal point" : scoringMode;
+}
+
+function normalizeIntegerInputValue(value: string): string {
+  const trimmedValue = value.trim();
+
+  if (!trimmedValue) {
+    return "";
+  }
+
+  const numericValue = Number(trimmedValue);
+  return Number.isInteger(numericValue) && numericValue >= 0 ? String(numericValue) : value;
+}
+
+function parsePositiveIntegerInput(value: string, label: string): number {
+  const normalizedValue = normalizeIntegerInputValue(value);
+  const numericValue = Number(normalizedValue);
+
+  if (!normalizedValue || !Number.isInteger(numericValue) || numericValue < 1) {
+    throw new Error(`${label} skal være mindst 1.`);
+  }
+
+  return numericValue;
 }
 
 function isAutomaticTournamentName(name: string): boolean {

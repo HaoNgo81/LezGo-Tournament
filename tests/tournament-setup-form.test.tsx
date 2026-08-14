@@ -230,6 +230,65 @@ describe("tournament setup form", () => {
     expect(screen.queryByRole("spinbutton", { name: "Spilletid (minutter)" })).not.toBeInTheDocument();
   });
 
+  it("allows courts and rounds to be cleared temporarily before entering a new value", () => {
+    render(<TournamentSetupForm />);
+
+    const courtsInput = getNumberInput("Baner");
+    const roundsInput = getNumberInput("Runder");
+
+    expect(courtsInput).toHaveValue(2);
+    fireEvent.change(courtsInput, { target: { value: "" } });
+    expect(courtsInput.value).toBe("");
+    fireEvent.change(courtsInput, { target: { value: "3" } });
+    expect(courtsInput.value).toBe("3");
+    expect(courtsInput.value).not.toBe("03");
+
+    fireEvent.change(courtsInput, { target: { value: "" } });
+    expect(courtsInput.value).toBe("");
+    fireEvent.change(courtsInput, { target: { value: "4" } });
+    expect(courtsInput.value).toBe("4");
+
+    expect(roundsInput).toHaveValue(2);
+    fireEvent.change(roundsInput, { target: { value: "" } });
+    expect(roundsInput.value).toBe("");
+    fireEvent.change(roundsInput, { target: { value: "3" } });
+    expect(roundsInput.value).toBe("3");
+
+    fireEvent.change(roundsInput, { target: { value: "" } });
+    expect(roundsInput.value).toBe("");
+    fireEvent.change(roundsInput, { target: { value: "10" } });
+    expect(roundsInput.value).toBe("10");
+  });
+
+  it("normalizes leading zeroes in courts and rounds without changing other setup state", () => {
+    render(<TournamentSetupForm />);
+
+    tapFormat("Mexicano");
+    fireEvent.change(screen.getByRole("textbox", { name: "Navn" }), { target: { value: "RESET TEST" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Scoring" }), { target: { value: "timed" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Spillere, Et navn pr. linje" }), {
+      target: { value: "Hao\nMartin\nRonnie\nSimon\nTuan\nJohnnie\nKlaus\nLindon" },
+    });
+
+    const courtsInput = getNumberInput("Baner");
+    const roundsInput = getNumberInput("Runder");
+    fireEvent.change(courtsInput, { target: { value: "03" } });
+    fireEvent.blur(courtsInput);
+    fireEvent.change(roundsInput, { target: { value: "010" } });
+    fireEvent.blur(roundsInput);
+
+    expectSelectedFormat("Mexicano");
+    expect(screen.getByRole("textbox", { name: "Navn" })).toHaveValue("RESET TEST");
+    expect(screen.getByRole("combobox", { name: "Scoring" })).toHaveValue("timed");
+    expect(screen.queryByRole("spinbutton", { name: "Antal scorepoint" })).not.toBeInTheDocument();
+    expect(courtsInput.value).toBe("3");
+    expect(roundsInput.value).toBe("10");
+    expect(screen.getByRole("textbox", { name: "Spillere, Et navn pr. linje" })).toHaveValue("Hao\nMartin\nRonnie\nSimon\nTuan\nJohnnie\nKlaus\nLindon");
+
+    dragFormat("Americano", 40);
+    expectSelectedFormat("Mexicano");
+  });
+
   it("shows the new tournament form in English when English is selected", () => {
     saveTournamentSettings({
       language: "en",
@@ -300,6 +359,10 @@ describe("tournament setup form", () => {
 
 function getFormatButton(formatName: string): HTMLElement {
   return screen.getByRole("button", { name: new RegExp(`^${escapeRegExp(formatName)}$`) });
+}
+
+function getNumberInput(label: string): HTMLInputElement {
+  return screen.getByRole("spinbutton", { name: label }) as HTMLInputElement;
 }
 
 function tapFormat(formatName: string): void {
