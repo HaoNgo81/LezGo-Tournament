@@ -1,4 +1,5 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TournamentSetupForm } from "../components/tournament/tournament-setup-form";
 import { saveTournamentSettings } from "../lib/tournament-settings";
@@ -142,29 +143,22 @@ describe("tournament setup form", () => {
     expect(screen.getByRole("textbox", { name: "Navn" })).toHaveValue("Fredag Americano");
   });
 
-  it("shows device debug state and event data only on the debug URL", async () => {
+  it("does not render temporary device debug markup or unstable hydration values", () => {
     window.history.pushState({}, "", "/new-tournament?deviceDebug=1");
+
+    const serverHtml = renderToString(<TournamentSetupForm />);
+    expect(serverHtml).not.toContain("STEP20");
+    expect(serverHtml).not.toContain("CLIENT HYDRATION PROBE");
+    expect(serverHtml).not.toContain("DEV BUILD DEBUG");
+    expect(serverHtml).not.toContain("FORMAT BUTTON DOM AUDIT");
+    expect(serverHtml).not.toMatch(/mount-\d+/);
 
     render(<TournamentSetupForm />);
 
-    expect(await screen.findByText("STEP20BC-DEVICE-TEST-01")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Mexicano" }));
-
-    await waitFor(() => {
-      const debugPanel = within(screen.getByTestId("device-debug-panel"));
-      expect(debugPanel.getByText("FORMAT_CLICK")).toBeInTheDocument();
-      expect(debugPanel.getAllByText("Mexicano").length).toBeGreaterThan(0);
-    });
-
-    fireEvent.change(screen.getByRole("combobox", { name: "Scoring" }), { target: { value: "timed" } });
-
-    await waitFor(() => {
-      const debugPanel = within(screen.getByTestId("device-debug-panel"));
-      expect(debugPanel.getByText("SCORING_CHANGE")).toBeInTheDocument();
-      expect(debugPanel.getAllByText("timed").length).toBeGreaterThan(0);
-      expect(debugPanel.getAllByText("NO").length).toBeGreaterThan(0);
-    });
+    expect(screen.queryByTestId("active-code-marker")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("client-hydration-probe")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("device-debug-panel")).not.toBeInTheDocument();
+    expect(screen.queryByText("STEP20BC-DEVICE-TEST-01")).not.toBeInTheDocument();
   });
 
   it("shows the three user-facing scoring choices and dynamic fields", () => {
