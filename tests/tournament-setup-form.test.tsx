@@ -72,7 +72,7 @@ describe("tournament setup form", () => {
     const formatNames = ["Americano", "Mexicano", "Mixed Americano", "Fast Makker Americano", "Fast Makker Mexicano"];
 
     for (const formatName of formatNames) {
-      fireEvent.pointerUp(screen.getByRole("button", { name: formatName }));
+      tapFormat(formatName);
 
       expect(screen.getByRole("textbox", { name: "Navn" })).toHaveValue(formatName);
 
@@ -80,6 +80,57 @@ describe("tournament setup form", () => {
         expect(screen.getByRole("button", { name: candidate })).toHaveAttribute("aria-pressed", candidate === formatName ? "true" : "false");
       }
     }
+  });
+
+  it("does not select a format when touch-like pointer input turns into a vertical scroll", () => {
+    render(<TournamentSetupForm />);
+
+    dragFormat("Mexicano", 40);
+
+    expectSelectedFormat("Americano");
+    expect(screen.getByRole("textbox", { name: "Navn" })).toHaveValue("Americano");
+  });
+
+  it("still treats a small pointer movement as a tap", () => {
+    render(<TournamentSetupForm />);
+
+    dragFormat("Mexicano", 3);
+
+    expectSelectedFormat("Mexicano");
+    expect(screen.getByRole("textbox", { name: "Navn" })).toHaveValue("Mexicano");
+  });
+
+  it("does not select a format after pointer cancel", () => {
+    render(<TournamentSetupForm />);
+
+    const mexicanoButton = getFormatButton("Mexicano");
+    fireEvent.pointerDown(mexicanoButton, { clientX: 0, clientY: 0 });
+    fireEvent.pointerCancel(mexicanoButton);
+    fireEvent.pointerUp(mexicanoButton, { clientX: 0, clientY: 0 });
+
+    expectSelectedFormat("Americano");
+    expect(screen.getByRole("textbox", { name: "Navn" })).toHaveValue("Americano");
+  });
+
+  it("ignores repeated scroll gestures that start on different format buttons", () => {
+    render(<TournamentSetupForm />);
+
+    dragFormat("Mexicano", 40);
+    dragFormat("Mixed Americano", 45);
+    dragFormat("Fast Makker Americano", 50);
+    dragFormat("Fast Makker Mexicano", 55);
+
+    expectSelectedFormat("Americano");
+    expect(screen.getByRole("textbox", { name: "Navn" })).toHaveValue("Americano");
+  });
+
+  it("keeps desktop click selection working without a pointer gesture", () => {
+    render(<TournamentSetupForm />);
+
+    fireEvent.click(getFormatButton("Fast Makker Mexicano"));
+
+    expectSelectedFormat("Fast Makker Mexicano");
+    expect(screen.getByRole("textbox", { name: "Navn" })).toHaveValue("Fast Makker Mexicano");
   });
 
   it("does not overwrite a custom tournament name when format changes", () => {
@@ -207,3 +258,33 @@ describe("tournament setup form", () => {
     expect(screen.queryByRole("combobox", { name: "Runde 1" })).not.toBeInTheDocument();
   });
 });
+
+function getFormatButton(formatName: string): HTMLElement {
+  return screen.getByRole("button", { name: new RegExp(`^${escapeRegExp(formatName)}$`) });
+}
+
+function tapFormat(formatName: string): void {
+  const button = getFormatButton(formatName);
+  fireEvent.pointerDown(button, { clientX: 0, clientY: 0 });
+  fireEvent.pointerUp(button, { clientX: 0, clientY: 0 });
+}
+
+function dragFormat(formatName: string, verticalMovement: number): void {
+  const button = getFormatButton(formatName);
+  fireEvent.pointerDown(button, { clientX: 0, clientY: 0 });
+  fireEvent.pointerMove(button, { clientX: 0, clientY: verticalMovement });
+  fireEvent.pointerUp(button, { clientX: 0, clientY: verticalMovement });
+}
+
+function expectSelectedFormat(formatName: string): void {
+  const formatNames = ["Americano", "Mexicano", "Mixed Americano", "Fast Makker Americano", "Fast Makker Mexicano"];
+
+  for (const candidate of formatNames) {
+    expect(getFormatButton(candidate)).toHaveAttribute("aria-pressed", candidate === formatName ? "true" : "false");
+    expect(getFormatButton(candidate)).toHaveAttribute("data-selected", candidate === formatName ? "true" : "false");
+  }
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}

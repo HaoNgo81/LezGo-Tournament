@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent, type TouchEvent } from "react";
 import { useRouter } from "next/navigation";
 import { PrimaryButton } from "@/components/ui/primary-button";
 import { Section } from "@/components/ui/section";
@@ -54,15 +54,21 @@ const deviceDebugBuildMarker = "STEP20BC-DEVICE-TEST-01";
 const deviceDebugBuildTimestamp = "2026-08-14T18:32:28.7924686+02:00";
 const deviceDebugBundleVersion = "new-tournament-device-debug-v1";
 const activeCodeMarker = "STEP20BC ACTIVE CODE TEST";
+const tapMovementThresholdPx = 10;
+const suppressSyntheticClickMs = 750;
 
 type DeviceDebugEvent = {
   type:
     | "INIT"
     | "CLIENT_HYDRATED"
     | "FORMAT_POINTER_DOWN"
+    | "FORMAT_POINTER_MOVE"
     | "FORMAT_POINTER_UP"
+    | "FORMAT_POINTER_CANCEL"
     | "FORMAT_TOUCH_START"
+    | "FORMAT_TOUCH_MOVE"
     | "FORMAT_TOUCH_END"
+    | "FORMAT_TOUCH_CANCEL"
     | "FORMAT_CLICK"
     | "SCORING_CHANGE"
     | "NAME_CHANGE"
@@ -95,6 +101,15 @@ type DeviceDebugAudit = {
   serviceWorkerSupported: boolean;
 };
 
+type FormatTapGesture = {
+  cancelled: boolean;
+  format: TournamentSetupFormat;
+  moved: boolean;
+  source: "pointer" | "touch";
+  startX: number;
+  startY: number;
+};
+
 export function TournamentSetupForm({ initialDeviceDebugEnabled = false }: { initialDeviceDebugEnabled?: boolean } = {}) {
   const { t } = useAppTranslation();
   const router = useRouter();
@@ -102,6 +117,8 @@ export function TournamentSetupForm({ initialDeviceDebugEnabled = false }: { ini
   const initialScoringMode = initialSettings.scoringMode === "Fri scoring" ? "Fast antal point" : initialSettings.scoringMode;
   const appliedTemplateId = useRef<string | null>(null);
   const nameRef = useRef("Americano");
+  const formatTapGesture = useRef<FormatTapGesture | null>(null);
+  const suppressNextFormatClick = useRef<{ format: TournamentSetupFormat } | null>(null);
   const [mountId] = useState(() => createDeviceDebugMountId());
   const [name, setName] = useState("Americano");
   const [format, setFormat] = useState<TournamentSetupFormat>("Americano");
@@ -343,14 +360,141 @@ export function TournamentSetupForm({ initialDeviceDebugEnabled = false }: { ini
     setError("");
   }
 
-  function recordFormatInputEvent(type: DeviceDebugEvent["type"], nextFormat: TournamentSetupFormat, event: { currentTarget: EventTarget & HTMLElement; target: EventTarget | null }) {
+  function recordFormatInputEvent(type: DeviceDebugEvent["type"], nextFormat: TournamentSetupFormat, event: { currentTarget: EventTarget & HTMLElement; target: EventTarget | null }, detail = "") {
     const target = event.target instanceof HTMLElement ? event.target.tagName.toLowerCase() : "unknown";
     const currentTarget = event.currentTarget.tagName.toLowerCase();
-    recordDeviceDebugEvent(type, `${nextFormat} target=${target} currentTarget=${currentTarget}`);
+    recordDeviceDebugEvent(type, `${nextFormat} target=${target} currentTarget=${currentTarget}${detail ? ` ${detail}` : ""}`);
   }
 
-  function selectFormatFromInput(type: DeviceDebugEvent["type"], nextFormat: TournamentSetupFormat, event: { currentTarget: EventTarget & HTMLElement; target: EventTarget | null }) {
-    recordFormatInputEvent(type, nextFormat, event);
+  function startFormatTapGesture(source: FormatTapGesture["source"], nextFormat: TournamentSetupFormat, startX: number, startY: number) {
+    formatTapGesture.current = {
+      cancelled: false,
+      format: nextFormat,
+      moved: false,
+      source,
+      startX,
+      startY,
+    };
+  }
+
+  function updateFormatTapGesture(nextFormat: TournamentSetupFormat, currentX: number, currentY: number): { active: boolean; deltaX: number; deltaY: number; moved: boolean } {
+    const gesture = formatTapGesture.current;
+
+    if (!gesture || gesture.format !== nextFormat || gesture.cancelled) {
+      return { active: false, deltaX: 0, deltaY: 0, moved: false };
+    }
+
+    const deltaX = Math.abs(currentX - gesture.startX);
+    const deltaY = Math.abs(currentY - gesture.startY);
+    const moved = deltaX > tapMovementThresholdPx || deltaY > tapMovementThresholdPx;
+
+    if (moved) {
+      gesture.moved = true;
+    }
+
+    return { active: true, deltaX, deltaY, moved: gesture.moved };
+  }
+
+  function finishFormatTapGesture(nextFormat: TournamentSetupFormat, currentX: number, currentY: number): { shouldSelect: boolean; deltaX: number; deltaY: number; moved: boolean } {
+    const gesture = formatTapGesture.current;
+
+    if (!gesture || gesture.format !== nextFormat || gesture.cancelled) {
+      formatTapGesture.current = null;
+      return { shouldSelect: false, deltaX: 0, deltaY: 0, moved: false };
+    }
+
+    const movement = updateFormatTapGesture(nextFormat, currentX, currentY);
+    formatTapGesture.current = null;
+
+    return {
+      shouldSelect: movement.active && !movement.moved,
+      deltaX: movement.deltaX,
+      deltaY: movement.deltaY,
+      moved: movement.moved,
+    };
+  }
+
+  function cancelFormatTapGesture(nextFormat: TournamentSetupFormat, event: { currentTarget: EventTarget & HTMLElement; target: EventTarget | null }, type: DeviceDebugEvent["type"]) {
+    if (formatTapGesture.current?.format === nextFormat) {
+      formatTapGesture.current.cancelled = true;
+    }
+
+    formatTapGesture.current = null;
+    recordFormatInputEvent(type, nextFormat, event, "cancelled=true");
+  }
+
+  function suppressSyntheticClickForFormat(nextFormat: TournamentSetupFormat) {
+    suppressNextFormatClick.current = { format: nextFormat };
+    window.setTimeout(() => {
+      if (suppressNextFormatClick.current?.format === nextFormat) {
+        suppressNextFormatClick.current = null;
+      }
+    }, suppressSyntheticClickMs);
+  }
+
+  function handleFormatPointerDown(nextFormat: TournamentSetupFormat, event: PointerEvent<HTMLButtonElement>) {
+    startFormatTapGesture("pointer", nextFormat, event.clientX, event.clientY);
+    recordFormatInputEvent("FORMAT_POINTER_DOWN", nextFormat, event, `x=${event.clientX} y=${event.clientY}`);
+  }
+
+  function handleFormatPointerMove(nextFormat: TournamentSetupFormat, event: PointerEvent<HTMLButtonElement>) {
+    const movement = updateFormatTapGesture(nextFormat, event.clientX, event.clientY);
+    recordFormatInputEvent("FORMAT_POINTER_MOVE", nextFormat, event, `active=${movement.active} dx=${movement.deltaX} dy=${movement.deltaY} moved=${movement.moved}`);
+  }
+
+  function handleFormatPointerUp(nextFormat: TournamentSetupFormat, event: PointerEvent<HTMLButtonElement>) {
+    const result = finishFormatTapGesture(nextFormat, event.clientX, event.clientY);
+    recordFormatInputEvent("FORMAT_POINTER_UP", nextFormat, event, `dx=${result.deltaX} dy=${result.deltaY} tap=${result.shouldSelect}`);
+
+    if (result.shouldSelect) {
+      suppressSyntheticClickForFormat(nextFormat);
+      handleFormatChange(nextFormat);
+    }
+  }
+
+  function getFirstTouchPoint(event: TouchEvent<HTMLButtonElement>): { clientX: number; clientY: number } | null {
+    const touch = event.changedTouches[0] ?? event.touches[0];
+    return touch ? { clientX: touch.clientX, clientY: touch.clientY } : null;
+  }
+
+  function handleFormatTouchStart(nextFormat: TournamentSetupFormat, event: TouchEvent<HTMLButtonElement>) {
+    const touchPoint = getFirstTouchPoint(event);
+
+    if (touchPoint) {
+      startFormatTapGesture("touch", nextFormat, touchPoint.clientX, touchPoint.clientY);
+    }
+
+    recordFormatInputEvent("FORMAT_TOUCH_START", nextFormat, event, touchPoint ? `x=${touchPoint.clientX} y=${touchPoint.clientY}` : "touch=none");
+  }
+
+  function handleFormatTouchMove(nextFormat: TournamentSetupFormat, event: TouchEvent<HTMLButtonElement>) {
+    const touchPoint = getFirstTouchPoint(event);
+    const movement = touchPoint ? updateFormatTapGesture(nextFormat, touchPoint.clientX, touchPoint.clientY) : { active: false, deltaX: 0, deltaY: 0, moved: false };
+    recordFormatInputEvent("FORMAT_TOUCH_MOVE", nextFormat, event, `active=${movement.active} dx=${movement.deltaX} dy=${movement.deltaY} moved=${movement.moved}`);
+  }
+
+  function handleFormatTouchEnd(nextFormat: TournamentSetupFormat, event: TouchEvent<HTMLButtonElement>) {
+    const touchPoint = getFirstTouchPoint(event);
+    const result = touchPoint ? finishFormatTapGesture(nextFormat, touchPoint.clientX, touchPoint.clientY) : { shouldSelect: false, deltaX: 0, deltaY: 0, moved: false };
+    recordFormatInputEvent("FORMAT_TOUCH_END", nextFormat, event, `dx=${result.deltaX} dy=${result.deltaY} tap=${result.shouldSelect}`);
+
+    if (result.shouldSelect) {
+      suppressSyntheticClickForFormat(nextFormat);
+      handleFormatChange(nextFormat);
+    }
+  }
+
+  function handleFormatClick(nextFormat: TournamentSetupFormat, event: { currentTarget: EventTarget & HTMLElement; target: EventTarget | null }) {
+    const suppressedClick = suppressNextFormatClick.current;
+
+    if (suppressedClick?.format === nextFormat) {
+      suppressNextFormatClick.current = null;
+      recordFormatInputEvent("FORMAT_CLICK", nextFormat, event, "suppressed=true");
+      return;
+    }
+
+    suppressNextFormatClick.current = null;
+    recordFormatInputEvent("FORMAT_CLICK", nextFormat, event);
     handleFormatChange(nextFormat);
   }
 
@@ -412,14 +556,15 @@ export function TournamentSetupForm({ initialDeviceDebugEnabled = false }: { ini
               data-selected={format === option ? "true" : "false"}
               data-device-debug-format-button="true"
               type="button"
-              onPointerDown={(event) => recordFormatInputEvent("FORMAT_POINTER_DOWN", option, event)}
-              onPointerUp={(event) => selectFormatFromInput("FORMAT_POINTER_UP", option, event)}
-              onTouchStart={(event) => recordFormatInputEvent("FORMAT_TOUCH_START", option, event)}
-              onTouchEnd={(event) => selectFormatFromInput("FORMAT_TOUCH_END", option, event)}
-              onClick={(event) => {
-                recordFormatInputEvent("FORMAT_CLICK", option, event);
-                handleFormatChange(option);
-              }}
+              onPointerCancel={(event) => cancelFormatTapGesture(option, event, "FORMAT_POINTER_CANCEL")}
+              onPointerDown={(event) => handleFormatPointerDown(option, event)}
+              onPointerMove={(event) => handleFormatPointerMove(option, event)}
+              onPointerUp={(event) => handleFormatPointerUp(option, event)}
+              onTouchCancel={(event) => cancelFormatTapGesture(option, event, "FORMAT_TOUCH_CANCEL")}
+              onTouchEnd={(event) => handleFormatTouchEnd(option, event)}
+              onTouchMove={(event) => handleFormatTouchMove(option, event)}
+              onTouchStart={(event) => handleFormatTouchStart(option, event)}
+              onClick={(event) => handleFormatClick(option, event)}
             >
               {getFormatDisplayName(option, t)}
             </button>
