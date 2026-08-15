@@ -30,6 +30,10 @@ describe("STEP 13 remote read-only UI", () => {
     expect(screen.getByRole("heading", { name: "STEP_13_TEST Remote" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "TV-visning" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Scoreboard-visning" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Live score" })).toBeInTheDocument();
+    expect(screen.getByText("Spiller")).toBeInTheDocument();
+    expect(screen.getByText("MP")).toBeInTheDocument();
+    expect(screen.getByText("Point")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Indtast score" })).not.toBeInTheDocument();
     expect(loadActiveTournament()).toEqual(localState);
 
@@ -157,6 +161,9 @@ describe("STEP 13 remote read-only UI", () => {
     expect(screen.getByRole("heading", { name: "Næste kampe" })).toBeInTheDocument();
     expect(screen.getAllByText("Runde 2").length).toBeGreaterThan(0);
     expect(screen.getByRole("heading", { name: "Stilling" })).toBeInTheDocument();
+    expect(screen.getByText("Spiller")).toBeInTheDocument();
+    expect(screen.getByText("MP")).toBeInTheDocument();
+    expect(screen.getByText("Point")).toBeInTheDocument();
     expect(screen.getByText("17 - 7")).toBeInTheDocument();
     expect(screen.queryByText("Visning fra anden enhed - skrivebeskyttet")).not.toBeInTheDocument();
   });
@@ -202,7 +209,6 @@ describe("STEP 13 remote read-only UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "Åbn turnering fra anden enhed" }));
 
     expect(await screen.findByRole("heading", { name: "STEP_18_TEST TV Display" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Kampe" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Live score" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Stilling" })).toBeInTheDocument();
 
@@ -225,6 +231,20 @@ describe("STEP 13 remote read-only UI", () => {
 
     expect(await screen.findByRole("heading", { name: "STEP_18_TEST Direct TV" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Standardvisning" })).toBeInTheDocument();
+  });
+
+  it("shows unsaved remote scores as a clear read-only status", async () => {
+    const remoteState = { ...createMockLiveTournamentState(), tournamentName: "STEP_22D_TEST Unsaved" };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(createReadResponse("standard", remoteState)));
+
+    render(<RemoteTournamentApp />);
+    fireEvent.change(screen.getByLabelText("Turneringskode"), { target: { value: "K7M4XP" } });
+    fireEvent.change(screen.getByLabelText("Adgangskode"), { target: { value: "2222" } });
+    fireEvent.click(screen.getByRole("button", { name: "Åbn turnering fra anden enhed" }));
+
+    expect(await screen.findByRole("heading", { name: "STEP_22D_TEST Unsaved" })).toBeInTheDocument();
+    expect(screen.getAllByText("Ikke gemt").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "Indtast score" })).not.toBeInTheDocument();
   });
 
   it("opens directly in scoreboard mode when the remote URL requests scoreboard display", async () => {
@@ -458,7 +478,7 @@ describe("STEP 13 remote read-only UI", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(screen.getByRole("button", { name: "Opdater" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Live-sync status")).toHaveTextContent("Forbinder igen");
+    expect(screen.getByLabelText("Live-sync status")).toHaveTextContent("Genopretter forbindelse...");
     expect(screen.getByText(/Næste forsøg:/)).toBeInTheDocument();
 
     await act(async () => {

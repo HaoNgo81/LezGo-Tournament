@@ -119,6 +119,7 @@ export type TranslationKey =
   | "remoteLoadingTournament"
   | "remoteNewConnection"
   | "remoteNoSavedLineup"
+  | "remoteNotSaved"
   | "remoteNextMatch"
   | "remoteNextMatches"
   | "remoteNextPhase"
@@ -149,6 +150,7 @@ export type TranslationKey =
   | "remoteSyncNextRetry"
   | "remoteSyncOffline"
   | "remoteSyncReconnecting"
+  | "remoteSyncRestoring"
   | "remoteSyncStatus"
   | "remoteTopStandings"
   | "remoteTokenOnlyShownOnce"
@@ -313,6 +315,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteLoadingTournament: "Henter turnering...",
     remoteNewConnection: "Ny forbindelse",
     remoteNoSavedLineup: "Opstilling er ikke gemt endnu.",
+    remoteNotSaved: "Ikke gemt",
     remoteNextMatch: "Næste kamp",
     remoteNextMatches: "Næste kampe",
     remoteNextPhase: "Næste fase",
@@ -343,6 +346,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteSyncNextRetry: "Næste forsøg",
     remoteSyncOffline: "Offline",
     remoteSyncReconnecting: "Forbinder igen",
+    remoteSyncRestoring: "Genopretter forbindelse...",
     remoteSyncStatus: "Live-sync status",
     remoteTopStandings: "Stilling",
     remoteTokenOnlyShownOnce: "Adgangskoden kunne ikke vises igen. Opret en ny adgang senere, hvis den er væk.",
@@ -506,6 +510,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteLoadingTournament: "Loading tournament...",
     remoteNewConnection: "New connection",
     remoteNoSavedLineup: "Lineup has not been saved yet.",
+    remoteNotSaved: "Not saved",
     remoteNextMatch: "Next match",
     remoteNextMatches: "Next matches",
     remoteNextPhase: "Next phase",
@@ -536,6 +541,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteSyncNextRetry: "Next retry",
     remoteSyncOffline: "Offline",
     remoteSyncReconnecting: "Reconnecting",
+    remoteSyncRestoring: "Reconnecting...",
     remoteSyncStatus: "Live sync status",
     remoteTopStandings: "Standings",
     remoteTokenOnlyShownOnce: "The access code cannot be shown again. Create new access later if it is lost.",

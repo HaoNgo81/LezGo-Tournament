@@ -630,43 +630,43 @@ function RemoteReadOnlyBanner({
 }) {
   const { t } = useAppTranslation();
   const statusCopy = getRemoteSyncStatusCopy(syncStatus);
+  const statusLabel = syncStatus === "reconnecting" ? t("remoteSyncRestoring") : t(statusCopy.label);
   const isTvMode = displayMode === "tv";
 
   return (
-    <section className={`w-full max-w-full overflow-hidden rounded-md border border-[var(--primary)] bg-[var(--primary-soft)] p-4 ${isTvMode ? "sticky top-0 z-10 shadow-sm" : ""}`}>
-      <div className="flex w-full min-w-0 flex-wrap items-start justify-between gap-3">
+    <section className={`w-full max-w-full overflow-hidden rounded-md border border-[var(--line)] bg-[var(--card)] px-4 py-3 shadow-sm ${isTvMode ? "sticky top-0 z-10" : ""}`}>
+      <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-black uppercase text-[var(--primary-strong)]">
+            <p className="text-xs font-black uppercase tracking-wide text-[var(--primary-strong)]">
               <span className="sm:hidden">{t("remoteReadOnlyShort")}</span>
               <span className="hidden sm:inline">{t("remoteReadOnlyBanner")}</span>
             </p>
             <span className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-black ${statusCopy.className}`} aria-label={t("remoteSyncStatus")}>
               <span aria-hidden="true" className="h-2 w-2 rounded-full bg-current" />
-              {t(statusCopy.label)}
+              {statusLabel}
             </span>
           </div>
-          {isTvMode ? null : <p className="mt-1 font-bold text-[var(--muted)]">{t("remoteReadOnlyHelp")}</p>}
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm font-bold text-[var(--muted)]">
-            {syncTelemetry.lastCheckedAt ? <span>{t("remoteSyncLastChecked")}: {formatRemoteSyncTime(syncTelemetry.lastCheckedAt)}</span> : null}
+          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm font-bold text-[var(--muted)]">
             {syncTelemetry.lastSuccessfulSyncAt ? <span>{t("remoteSyncLastUpdated")}: {formatRemoteSyncTime(syncTelemetry.lastSuccessfulSyncAt)}</span> : null}
+            {!syncTelemetry.lastSuccessfulSyncAt && syncTelemetry.lastCheckedAt ? <span>{t("remoteSyncLastChecked")}: {formatRemoteSyncTime(syncTelemetry.lastCheckedAt)}</span> : null}
             {syncTelemetry.nextRetryAt ? <span>{t("remoteSyncNextRetry")}: {formatRemoteRetry(syncTelemetry.nextRetryAt)}</span> : null}
           </div>
         </div>
-        <div className={isTvMode ? "grid w-full min-w-0 gap-3 sm:grid-cols-2 md:w-48 md:grid-cols-1" : "action-grid"}>
-          <button className="btn-primary-soft min-h-12 disabled:opacity-50" type="button" onClick={() => onSetDisplayMode(isTvMode ? "standard" : "tv")}>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <button className="btn-primary-soft min-h-11 px-3 text-sm disabled:opacity-50" type="button" onClick={() => onSetDisplayMode(isTvMode ? "standard" : "tv")}>
             {isTvMode ? t("remoteStandardMode") : t("remoteTvMode")}
           </button>
-          <button className="btn-primary-soft min-h-12 disabled:opacity-50" type="button" onClick={() => onSetDisplayMode("scoreboard")}>
+          <button className="btn-primary-soft min-h-11 px-3 text-sm disabled:opacity-50" type="button" onClick={() => onSetDisplayMode("scoreboard")}>
             {t("remoteScoreboardMode")}
           </button>
-          <button className="btn-secondary min-h-12 disabled:opacity-50" type="button" onClick={onFullscreen}>
+          <button className="btn-secondary min-h-11 px-3 text-sm disabled:opacity-50" type="button" onClick={onFullscreen}>
             {t("remoteFullscreen")}
           </button>
-          <button className="btn-secondary min-h-12 disabled:opacity-50" type="button" disabled={isLoading} onClick={onRefresh}>
+          <button className="btn-secondary min-h-11 px-3 text-sm disabled:opacity-50" type="button" disabled={isLoading} onClick={onRefresh}>
             {isLoading ? t("remoteLoadingTournament") : t("remoteRefresh")}
           </button>
-          <button className="btn-outline-primary min-h-12" type="button" onClick={onClose}>
+          <button className="btn-outline-primary min-h-11 px-3 text-sm" type="button" onClick={onClose}>
             {isTerminalError ? t("remoteNewConnection") : t("remoteCloseView")}
           </button>
         </div>
@@ -1153,7 +1153,7 @@ function RemoteScoreboardNextMatches({ nextMatches }: { nextMatches: ScoreboardN
 
 function RemoteScoreboardStandings({ standings }: { standings: ScoreboardStanding[] }) {
   const { t } = useAppTranslation();
-  const visibleStandings = standings.slice(0, 3);
+  const visibleStandings = standings.slice(0, 6);
 
   if (!visibleStandings.length) {
     return null;
@@ -1162,12 +1162,19 @@ function RemoteScoreboardStandings({ standings }: { standings: ScoreboardStandin
   return (
     <section className="grid gap-2 overflow-hidden">
       <h2 className="text-lg font-black uppercase tracking-wide text-[var(--muted)]">{t("remoteTopStandings")}</h2>
-      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+      <div className="overflow-hidden rounded-md border border-[var(--line)] bg-[var(--card)]">
+        <div className="grid grid-cols-[4rem_minmax(0,1fr)_5rem_6rem] gap-3 bg-[var(--primary-soft)] px-4 py-2 text-sm font-black uppercase text-[var(--primary-strong)]">
+          <span>#</span>
+          <span>Spiller</span>
+          <span className="text-right">MP</span>
+          <span className="text-right">Point</span>
+        </div>
         {visibleStandings.map((row) => (
-          <article key={row.id} className="grid min-w-0 grid-cols-[auto_1fr_auto] items-center gap-3 rounded-md border border-[var(--line)] bg-[var(--card)] px-4 py-2">
-            <span className="text-2xl font-black text-[var(--primary-strong)]">#{row.rank}</span>
+          <article key={row.id} className="grid min-w-0 grid-cols-[4rem_minmax(0,1fr)_5rem_6rem] items-center gap-3 border-t border-[var(--line)] px-4 py-2">
+            <span className="text-2xl font-black text-[var(--primary-strong)]">{row.rank}</span>
             <h3 className="min-w-0 text-lg font-black leading-tight" style={{ overflowWrap: "anywhere" }}>{row.name}</h3>
-            <p className="text-right text-lg font-black text-[var(--muted)]">{row.matchPoints} / {row.pointsFor}</p>
+            <p className="text-right text-lg font-black text-[var(--muted)]">{row.matchPoints}</p>
+            <p className="text-right text-lg font-black text-[var(--muted)]">{row.pointsFor}</p>
           </article>
         ))}
       </div>
@@ -1198,14 +1205,9 @@ function RemoteAmericanoView({ isTvMode, view }: { isTvMode: boolean; view: Read
         isTvMode={isTvMode}
       />
       {view.byePlayers.length ? <p className="rounded-md bg-yellow-50 p-3 font-black text-yellow-800">{t("remotePausedPlayers")}: {view.byePlayers.join(" / ")}</p> : null}
-      <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
-        <RemotePanel title={t("remoteCurrentMatches")} isTvMode={isTvMode}>
-          <RemoteMatchGrid matches={view.matches} isTvMode={isTvMode} />
-        </RemotePanel>
-        <RemotePanel title={t("liveScore")} isTvMode={isTvMode}>
-          <RemoteLiveScoreGrid matches={view.matches} isTvMode={isTvMode} />
-        </RemotePanel>
-      </div>
+      <RemotePanel title={t("liveScore")} isTvMode={isTvMode}>
+        <RemoteMatchScoreGrid matches={view.matches} isTvMode={isTvMode} />
+      </RemotePanel>
       <RemotePanel title={t("remoteTopStandings")} isTvMode={isTvMode}>
         <RemoteStandingsList standings={topStandings} isTvMode={isTvMode} />
       </RemotePanel>
@@ -1244,14 +1246,9 @@ function RemotePoolPlayView({ isTvMode, view, poolPlay }: { isTvMode: boolean; v
         details={`${poolPlay.phase} - ${poolPlay.participantCount} ${t("players").toLowerCase()}`}
         isTvMode={isTvMode}
       />
-      <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
-        <RemotePanel title={primaryMatches.length ? t("remoteCurrentMatches") : t("remoteNextPhase")} isTvMode={isTvMode}>
-          {primaryMatches.length ? <RemoteMatchGrid matches={primaryMatches} isTvMode={isTvMode} /> : <p className="app-card p-4 font-bold text-[var(--muted)]">{t("remoteNoSavedLineup")}</p>}
-        </RemotePanel>
-        <RemotePanel title={t("liveScore")} isTvMode={isTvMode}>
-          {primaryMatches.length ? <RemoteLiveScoreGrid matches={primaryMatches} isTvMode={isTvMode} /> : <p className="app-card p-4 font-bold text-[var(--muted)]">{t("remoteNoSavedLineup")}</p>}
-        </RemotePanel>
-      </div>
+      <RemotePanel title={primaryMatches.length ? t("liveScore") : t("remoteNextPhase")} isTvMode={isTvMode}>
+        {primaryMatches.length ? <RemoteMatchScoreGrid matches={primaryMatches} isTvMode={isTvMode} /> : <p className="app-card p-4 font-bold text-[var(--muted)]">{t("remoteNoSavedLineup")}</p>}
+      </RemotePanel>
       <RemotePanel title={t("remotePoolStandings")} isTvMode={isTvMode}>
         <div className="grid gap-4 xl:grid-cols-2">
           {poolPlay.initialStandings.map((table) => (
@@ -1321,14 +1318,9 @@ function RemoteTeamVsTeamView({ isTvMode, state }: { isTvMode: boolean; state: T
         details={`${view.activeMatchLabel} - ${t("round")} ${view.activeRoundNumber} / ${view.totalRounds} - ${view.teamsCount} ${t("teams").toLowerCase()}`}
         isTvMode={isTvMode}
       />
-      <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
-        <RemotePanel title={t("remoteCurrentMatches")} isTvMode={isTvMode}>
-          {view.matches.length ? <RemoteMatchGrid matches={view.matches} isTvMode={isTvMode} /> : <p className="app-card p-4 font-bold text-[var(--muted)]">{t("remoteNoSavedLineup")}</p>}
-        </RemotePanel>
-        <RemotePanel title={t("liveScore")} isTvMode={isTvMode}>
-          {view.matches.length ? <RemoteLiveScoreGrid matches={view.matches} isTvMode={isTvMode} /> : <p className="app-card p-4 font-bold text-[var(--muted)]">{t("remoteNoSavedLineup")}</p>}
-        </RemotePanel>
-      </div>
+      <RemotePanel title={t("liveScore")} isTvMode={isTvMode}>
+        {view.matches.length ? <RemoteMatchScoreGrid matches={view.matches} isTvMode={isTvMode} /> : <p className="app-card p-4 font-bold text-[var(--muted)]">{t("remoteNoSavedLineup")}</p>}
+      </RemotePanel>
       <RemotePanel title={t("remoteTopStandings")} isTvMode={isTvMode}>
         <div className="grid gap-3 xl:grid-cols-2">
           {view.standings.map((standing) => (
@@ -1381,51 +1373,39 @@ function RemotePanel({ children, isTvMode, title }: { children: ReactNode; isTvM
   );
 }
 
-function RemoteMatchGrid({ isTvMode, matches }: { isTvMode: boolean; matches: ReadOnlyMatchCard[] }) {
-  return (
-    <div className={`grid min-w-0 max-w-full gap-3 ${isTvMode ? "md:grid-cols-2" : "sm:grid-cols-2"}`}>
-      {matches.map((match) => (
-        <article key={match.id} className={`app-card grid min-w-0 gap-3 overflow-hidden p-4 ${isTvMode ? "min-h-44 p-5" : ""}`}>
-          <div className="flex items-center justify-between gap-3">
-            <h3 className={`${isTvMode ? "text-3xl" : "text-xl"} font-black`}>{match.court}</h3>
-            <span className={`rounded-md px-3 py-1 text-sm font-black ${match.status === "Afsluttet" ? "bg-green-100 text-[var(--primary-strong)]" : match.status === "I gang" ? "bg-yellow-100 text-yellow-800" : "bg-gray-100 text-[var(--muted)]"}`}>
-              {match.status}
-            </span>
-          </div>
-          <p className={`${isTvMode ? "text-lg leading-7 sm:text-2xl sm:leading-9" : "text-lg leading-7"} break-words font-black`} style={{ overflowWrap: "anywhere", wordBreak: "normal" }}>
-            <span>{match.teamA}</span>{" "}
-            <span className="text-[var(--muted)]">vs</span>{" "}
-            <span>{match.teamB}</span>
-          </p>
-        </article>
-      ))}
-    </div>
-  );
-}
+function RemoteMatchScoreGrid({ isTvMode, matches }: { isTvMode: boolean; matches: ReadOnlyMatchCard[] }) {
+  const { t } = useAppTranslation();
 
-function RemoteLiveScoreGrid({ isTvMode, matches }: { isTvMode: boolean; matches: ReadOnlyMatchCard[] }) {
   return (
-    <div className={`grid min-w-0 max-w-full gap-3 ${isTvMode ? "md:grid-cols-2" : "sm:grid-cols-2"}`}>
+    <div className="grid min-w-0 max-w-full gap-3">
       {matches.map((match) => {
         const score = parseScore(match.score);
 
         return (
-          <article key={match.id} className={`app-card grid min-w-0 gap-3 overflow-hidden p-4 text-center ${isTvMode ? "min-h-60 p-5" : ""}`}>
-            <h3 className={`${isTvMode ? "text-3xl" : "text-xl"} font-black text-[var(--primary-strong)]`}>{match.court}</h3>
-            <p className={`${isTvMode ? "text-base sm:text-xl" : "text-base"} break-words font-black`} style={{ overflowWrap: "anywhere", wordBreak: "normal" }}>{match.teamA}</p>
+          <article key={match.id} className={`grid min-w-0 gap-4 rounded-md border border-[var(--line)] bg-[var(--card)] p-4 shadow-sm ${isTvMode ? "lg:grid-cols-[auto_1fr_auto] lg:items-center lg:p-6" : "md:grid-cols-[auto_1fr_auto] md:items-center"}`}>
+            <div className="flex items-center justify-between gap-3 md:grid md:gap-2">
+              <h3 className={`${isTvMode ? "text-3xl lg:text-4xl" : "text-2xl"} font-black uppercase text-[var(--primary-strong)]`}>{match.court}</h3>
+              <span className={`rounded-md px-3 py-1 text-xs font-black uppercase ${match.status === "Afsluttet" ? "bg-green-100 text-[var(--primary-strong)]" : match.status === "I gang" ? "bg-yellow-100 text-yellow-800" : "bg-gray-100 text-[var(--muted)]"}`}>
+                {match.status}
+              </span>
+            </div>
+            <div className={`grid min-w-0 gap-2 text-center font-black leading-tight ${isTvMode ? "lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center lg:text-[clamp(1.55rem,2vw,2.75rem)]" : "md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-center md:text-xl"}`}>
+              <p className="min-w-0 md:text-right" style={{ overflowWrap: "anywhere" }}>{match.teamA}</p>
+              <p className="text-sm uppercase text-[var(--muted)] md:px-3">vs</p>
+              <p className="min-w-0 md:text-left" style={{ overflowWrap: "anywhere" }}>{match.teamB}</p>
+            </div>
             {score ? (
               <>
                 <p className="sr-only">{match.score}</p>
-                <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-                  <span className={`${isTvMode ? "text-7xl" : "text-4xl"} font-black`}>{score.teamA}</span>
-                  <span className={`${isTvMode ? "text-5xl" : "text-3xl"} font-black text-[var(--muted)]`}>-</span>
-                  <span className={`${isTvMode ? "text-7xl" : "text-4xl"} font-black`}>{score.teamB}</span>
+                <div className="grid grid-cols-[1fr_auto_1fr] items-center justify-center gap-3 text-center">
+                  <span className={`${isTvMode ? "text-7xl lg:text-[clamp(4rem,6vw,8rem)]" : "text-5xl"} font-black leading-none`}>{score.teamA}</span>
+                  <span className={`${isTvMode ? "text-5xl" : "text-3xl"} font-black leading-none text-[var(--muted)]`}>-</span>
+                  <span className={`${isTvMode ? "text-7xl lg:text-[clamp(4rem,6vw,8rem)]" : "text-5xl"} font-black leading-none`}>{score.teamB}</span>
                 </div>
               </>
             ) : (
-              <p className={`${isTvMode ? "text-5xl" : "text-3xl"} font-black text-[var(--muted)]`}>{match.score}</p>
+              <p className={`${isTvMode ? "text-2xl" : "text-xl"} text-center font-black uppercase text-[var(--muted)]`}>{t("remoteNotSaved")}</p>
             )}
-            <p className={`${isTvMode ? "text-base sm:text-xl" : "text-base"} break-words font-black`} style={{ overflowWrap: "anywhere", wordBreak: "normal" }}>{match.teamB}</p>
           </article>
         );
       })}
@@ -1435,13 +1415,19 @@ function RemoteLiveScoreGrid({ isTvMode, matches }: { isTvMode: boolean; matches
 
 function RemoteStandingsList({ isTvMode, standings }: { isTvMode: boolean; standings: Array<{ id: string; rank: number; name: string; matchPoints: number; pointsFor: number }> }) {
   return (
-    <div className={`grid gap-2 ${isTvMode ? "xl:grid-cols-2" : ""}`}>
+    <div className="overflow-hidden rounded-md border border-[var(--line)] bg-[var(--card)]">
+      <div className={`grid grid-cols-[3.5rem_minmax(0,1fr)_5rem_5.5rem] gap-3 bg-[var(--primary-soft)] px-3 py-2 text-xs font-black uppercase text-[var(--primary-strong)] ${isTvMode ? "sm:grid-cols-[5rem_minmax(0,1fr)_7rem_7rem] sm:px-5 sm:text-base" : ""}`}>
+        <span>#</span>
+        <span>Spiller</span>
+        <span className="text-right">MP</span>
+        <span className="text-right">Point</span>
+      </div>
       {standings.map((row) => (
-        <article key={row.id} className="app-card grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 p-3 sm:p-4">
-          <span className={`${isTvMode ? "text-4xl" : "text-2xl"} font-black text-[var(--primary-strong)]`}>#{row.rank}</span>
-          <h3 className={`${isTvMode ? "text-2xl" : "text-lg"} break-words font-black`} style={{ overflowWrap: "anywhere", wordBreak: "normal" }}>{row.name}</h3>
-          <p className="text-right font-bold text-[var(--muted)]">{row.matchPoints}</p>
-          <p className="text-right font-bold text-[var(--muted)]">{row.pointsFor}</p>
+        <article key={row.id} className={`grid grid-cols-[3.5rem_minmax(0,1fr)_5rem_5.5rem] items-center gap-3 border-t border-[var(--line)] px-3 py-3 ${isTvMode ? "sm:grid-cols-[5rem_minmax(0,1fr)_7rem_7rem] sm:px-5 sm:py-4" : ""}`}>
+          <span className={`${isTvMode ? "text-4xl" : "text-2xl"} font-black text-[var(--primary-strong)]`}>{row.rank}</span>
+          <h3 className={`${isTvMode ? "text-2xl" : "text-lg"} min-w-0 break-words font-black`} style={{ overflowWrap: "anywhere", wordBreak: "normal" }}>{row.name}</h3>
+          <p className={`${isTvMode ? "text-2xl" : "text-lg"} text-right font-black text-[var(--muted)]`}>{row.matchPoints}</p>
+          <p className={`${isTvMode ? "text-2xl" : "text-lg"} text-right font-black text-[var(--muted)]`}>{row.pointsFor}</p>
         </article>
       ))}
     </div>
