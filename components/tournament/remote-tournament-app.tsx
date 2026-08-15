@@ -1055,7 +1055,8 @@ function RemoteScoreboardScoreGrid({ density, matches }: { density: ScoreboardDe
   const courtText = density === "large" ? "text-[clamp(1.8rem,2.6vw,3.25rem)]" : density === "medium" ? "text-[clamp(1.2rem,1.55vw,1.9rem)]" : density === "compact" ? "text-[clamp(0.95rem,1.1vw,1.35rem)]" : "text-[clamp(0.82rem,0.92vw,1.1rem)]";
   const teamText = density === "large" ? "text-[clamp(1.55rem,2.3vw,2.75rem)]" : density === "medium" ? "text-[clamp(0.95rem,1.22vw,1.35rem)]" : density === "compact" ? "text-[clamp(0.76rem,0.9vw,1rem)]" : "text-[clamp(0.66rem,0.76vw,0.88rem)]";
   const scoreText = density === "large" ? "text-[clamp(4.6rem,8vw,9rem)]" : density === "medium" ? "text-[clamp(2.8rem,4.9vw,5.4rem)]" : density === "compact" ? "text-[clamp(1.85rem,3.2vw,3.5rem)]" : "text-[clamp(1.45rem,2.5vw,2.75rem)]";
-  const dashText = density === "large" ? "text-[clamp(2rem,3.4vw,4rem)]" : density === "medium" ? "text-[clamp(1.25rem,2.2vw,2.45rem)]" : density === "compact" ? "text-[clamp(0.9rem,1.55vw,1.7rem)]" : "text-[clamp(0.75rem,1.25vw,1.4rem)]";
+  const vsText = density === "large" ? "text-[clamp(1.15rem,1.65vw,2rem)]" : density === "medium" ? "text-[clamp(0.82rem,1.05vw,1.15rem)]" : density === "compact" ? "text-[clamp(0.64rem,0.78vw,0.86rem)]" : "text-[clamp(0.56rem,0.66vw,0.74rem)]";
+  const statusText = density === "large" ? "text-[clamp(1rem,1.35vw,1.7rem)]" : density === "medium" ? "text-[clamp(0.78rem,0.92vw,1rem)]" : density === "compact" ? "text-[clamp(0.62rem,0.74vw,0.82rem)]" : "text-[clamp(0.54rem,0.62vw,0.7rem)]";
 
   return (
     <div className={`grid min-h-0 gap-1 lg:overflow-hidden ${getScoreboardCourtGridClass(matches.length)}`} data-density={density} data-testid="scoreboard-court-grid">
@@ -1063,28 +1064,35 @@ function RemoteScoreboardScoreGrid({ density, matches }: { density: ScoreboardDe
         const score = parseScore(match.score);
 
         return (
-          <article key={match.id} className={`grid min-w-0 grid-rows-[auto_auto_minmax(0,1fr)] content-between gap-1.5 rounded-md border text-center ${cardPadding} ${getScoreboardMatchTone(match.status)}`} data-testid="scoreboard-court-card">
+          <article key={match.id} className={`grid min-w-0 grid-rows-[auto_minmax(0,1fr)] content-between gap-1.5 rounded-md border text-center ${cardPadding} ${getScoreboardMatchTone(match.status)}`} data-testid="scoreboard-court-card">
             <div className="flex min-w-0 items-start justify-between gap-2">
               <h3 className={`${courtText} font-black uppercase leading-none text-[var(--primary-strong)]`}>{match.court}</h3>
               <span className="rounded-md bg-white/75 px-2 py-1 text-[0.65rem] font-black uppercase text-[var(--muted)]">{match.status}</span>
             </div>
-            <div className={`grid min-w-0 gap-1 ${teamText} font-black leading-tight`}>
-              <p style={{ overflowWrap: "anywhere" }}>{match.teamA}</p>
-              <p className="text-[0.72em] uppercase text-[var(--muted)]">vs</p>
-              <p style={{ overflowWrap: "anywhere" }}>{match.teamB}</p>
-            </div>
-            {score ? (
-              <>
-                <p className="sr-only">{match.score}</p>
-                <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1.5 self-center">
-                  <span className={`${scoreText} font-black leading-none`}>{score.teamA}</span>
-                  <span className={`${dashText} font-black leading-none text-[var(--muted)]`}>-</span>
-                  <span className={`${scoreText} font-black leading-none`}>{score.teamB}</span>
+            <div className="grid min-h-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1">
+              <div className={`flex min-w-0 flex-col items-start justify-center text-left ${teamText} font-black leading-tight`} data-testid="scoreboard-left-team">
+                {splitScoreboardTeamName(match.teamA).map((name, index) => (
+                  <span key={`${match.id}-team-a-${index}`} className="max-w-full" style={{ overflowWrap: "anywhere" }}>{name}</span>
+                ))}
+              </div>
+              <div className={`row-span-2 self-center rounded-md bg-white/65 px-1.5 py-1 font-black uppercase leading-none text-[var(--muted)] ${vsText}`} data-testid="scoreboard-vs">VS</div>
+              <div className={`flex min-w-0 flex-col items-end justify-center text-right ${teamText} font-black leading-tight`} data-testid="scoreboard-right-team">
+                {splitScoreboardTeamName(match.teamB).map((name, index) => (
+                  <span key={`${match.id}-team-b-${index}`} className="max-w-full" style={{ overflowWrap: "anywhere" }}>{name}</span>
+                ))}
+              </div>
+              {score ? (
+                <>
+                  <p className="sr-only">{match.score}</p>
+                  <span className={`${scoreText} justify-self-start font-black leading-none`} data-testid="scoreboard-left-score">{score.teamA}</span>
+                  <span className={`${scoreText} justify-self-end font-black leading-none`} data-testid="scoreboard-right-score">{score.teamB}</span>
+                </>
+              ) : (
+                <div className={`col-span-3 justify-self-center rounded-md bg-white/70 px-2 py-1 font-black uppercase leading-tight text-[var(--muted)] ${statusText}`} data-testid="scoreboard-unsaved-status">
+                  {match.score}
                 </div>
-              </>
-            ) : (
-              <p className={`${dashText} self-center font-black leading-tight text-[var(--muted)]`}>{match.score}</p>
-            )}
+              )}
+            </div>
           </article>
         );
       })}
@@ -1546,6 +1554,11 @@ function parseScore(score: string): { teamA: string; teamB: string } | null {
   const match = /^(\d+)\s*[-–]\s*(\d+)/.exec(score);
 
   return match ? { teamA: match[1], teamB: match[2] } : null;
+}
+
+function splitScoreboardTeamName(teamName: string): string[] {
+  const parts = teamName.split("/").map((part) => part.trim()).filter(Boolean);
+  return parts.length ? parts : [teamName];
 }
 
 function normalizeTournamentCodeInput(value: string): string {

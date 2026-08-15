@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RemoteTournamentApp } from "../components/tournament/remote-tournament-app";
 import { SyncStatusPanel } from "../components/tournament/sync-status-panel";
@@ -165,6 +165,14 @@ describe("STEP 13 remote read-only UI", () => {
     expect(screen.getByText("MP")).toBeInTheDocument();
     expect(screen.getByText("Point")).toBeInTheDocument();
     expect(screen.getByText("17 - 7")).toBeInTheDocument();
+    const firstCourtCard = screen.getAllByTestId("scoreboard-court-card")[0];
+    expect(within(firstCourtCard).getByTestId("scoreboard-left-team")).toHaveTextContent("Anna");
+    expect(within(firstCourtCard).getByTestId("scoreboard-left-team")).toHaveTextContent("Hassan");
+    expect(within(firstCourtCard).getByTestId("scoreboard-vs")).toHaveTextContent("VS");
+    expect(within(firstCourtCard).getByTestId("scoreboard-right-team")).toHaveTextContent("Maja");
+    expect(within(firstCourtCard).getByTestId("scoreboard-right-team")).toHaveTextContent("Noah");
+    expect(within(firstCourtCard).getByTestId("scoreboard-left-score")).toHaveTextContent("17");
+    expect(within(firstCourtCard).getByTestId("scoreboard-right-score")).toHaveTextContent("7");
     expect(screen.queryByText("Alle spillere")).not.toBeInTheDocument();
     expect(screen.queryByText("Visning fra anden enhed - skrivebeskyttet")).not.toBeInTheDocument();
   });
@@ -190,6 +198,7 @@ describe("STEP 13 remote read-only UI", () => {
     expect(screen.getByTestId("scoreboard-dashboard")).toHaveAttribute("data-vertical-spacing", "tight");
     expect(screen.getByTestId("scoreboard-court-grid")).toHaveAttribute("data-density", density);
     expect(screen.getAllByTestId("scoreboard-court-card")).toHaveLength(courts);
+    expect(screen.getAllByTestId("scoreboard-vs")).toHaveLength(courts);
     for (let courtNumber = 1; courtNumber <= courts; courtNumber += 1) {
       expect(screen.getByText(`Bane ${courtNumber}`)).toBeInTheDocument();
     }
@@ -305,7 +314,15 @@ describe("STEP 13 remote read-only UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "Åbn turnering fra anden enhed" }));
 
     expect(await screen.findByRole("heading", { name: "STEP_22D_TEST Unsaved" })).toBeInTheDocument();
-    expect(screen.getAllByText("Ikke gemt").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Scoreboard-visning" }));
+
+    const firstCourtCard = screen.getAllByTestId("scoreboard-court-card")[0];
+    expect(within(firstCourtCard).getByTestId("scoreboard-left-team")).toHaveTextContent("Anna");
+    expect(within(firstCourtCard).getByTestId("scoreboard-left-team")).toHaveTextContent("Hassan");
+    expect(within(firstCourtCard).getByTestId("scoreboard-vs")).toHaveTextContent("VS");
+    expect(within(firstCourtCard).getByTestId("scoreboard-right-team")).toHaveTextContent("Maja");
+    expect(within(firstCourtCard).getByTestId("scoreboard-right-team")).toHaveTextContent("Noah");
+    expect(within(firstCourtCard).getByTestId("scoreboard-unsaved-status")).toHaveTextContent("Ikke gemt");
     expect(screen.queryByRole("button", { name: "Indtast score" })).not.toBeInTheDocument();
   });
 
