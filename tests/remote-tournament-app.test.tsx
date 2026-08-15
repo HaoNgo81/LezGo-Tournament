@@ -186,6 +186,7 @@ describe("STEP 13 remote read-only UI", () => {
     expect(await screen.findByRole("heading", { name: title })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Scoreboard-visning" }));
 
+    expect(screen.getByTestId("scoreboard-dashboard")).toHaveAttribute("data-layout-density", density);
     expect(screen.getByTestId("scoreboard-court-grid")).toHaveAttribute("data-density", density);
     expect(screen.getAllByTestId("scoreboard-court-card")).toHaveLength(courts);
     for (let courtNumber = 1; courtNumber <= courts; courtNumber += 1) {
@@ -193,6 +194,7 @@ describe("STEP 13 remote read-only UI", () => {
     }
     expect(screen.getByTestId("scoreboard-standings-grid")).toBeInTheDocument();
     expect(screen.queryByText("Alle spillere")).not.toBeInTheDocument();
+    expect(screen.queryByText("Visning fra anden enhed - skrivebeskyttet")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Indtast score" })).not.toBeInTheDocument();
   });
 
