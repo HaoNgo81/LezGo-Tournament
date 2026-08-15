@@ -3,7 +3,7 @@ import { createRemoteSession, createTournamentAccessRepository, TournamentAccess
 export const dynamic = "force-dynamic";
 
 const accessAttempts = new Map<string, { count: number; resetAt: number }>();
-const maxAccessAttemptsPerWindow = 20;
+const maxAccessAttemptsPerWindow = 10;
 const accessAttemptWindowMs = 60_000;
 
 interface ReadAccessRequest {
@@ -25,7 +25,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   if (!body.tournamentCode || !body.shareToken) {
-    return Response.json({ ok: false, error: "Tournament code and share token are required." }, { status: 400 });
+    return Response.json({ ok: false, error: "Tournament code and access code are required." }, { status: 400 });
   }
 
   if (isRateLimited(request, body.tournamentCode)) {

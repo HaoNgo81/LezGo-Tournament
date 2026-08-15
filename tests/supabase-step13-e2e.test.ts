@@ -46,7 +46,7 @@ describeE2E("STEP 13 remote read-only Supabase access", () => {
     expect(repeatedProvision.tournamentCode).toBe(standardAccess.tournamentCode);
     expect(repeatedProvision.shareToken).toBeUndefined();
 
-    await expect(read(standardAccess.tournamentCode, "wrong-token-with-enough-characters-1234567890")).rejects.toMatchObject({ status: 403 });
+    await expect(read(standardAccess.tournamentCode, "9999")).rejects.toMatchObject({ status: 403 });
     await expect(read("ZZZZZZ", standardAccess.shareToken)).rejects.toMatchObject({ status: 404 });
 
     const poolState = createLaterStagePoolState();
@@ -70,10 +70,10 @@ describeE2E("STEP 13 remote read-only Supabase access", () => {
     await createTournamentAccessRepository().revoke(teamAccess.tournamentCode);
     await expect(read(teamAccess.tournamentCode, teamAccess.shareToken)).rejects.toMatchObject({ status: 404 });
 
-    for (let attempt = 0; attempt < 21; attempt += 1) {
-      await readRaw("BAD999", "bad-token-with-enough-characters-1234567890");
+    for (let attempt = 0; attempt < 11; attempt += 1) {
+      await readRaw("BAD999", "9999");
     }
-    const limitedResponse = await readRaw("BAD999", "bad-token-with-enough-characters-1234567890");
+    const limitedResponse = await readRaw("BAD999", "9999");
     expect(limitedResponse.status).toBe(429);
   }, 40000);
 });

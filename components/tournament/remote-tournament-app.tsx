@@ -45,6 +45,7 @@ interface RemoteReadResponse {
 const remotePollBaseIntervalMs = 4000;
 const remotePollMaxIntervalMs = 30000;
 const remoteSessionStorageKey = "lezgo.remoteSession.v1";
+const remoteAccessPinLength = 4;
 
 type ScoreboardStanding = {
   id: string;
@@ -102,9 +103,9 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
 
   const readRemoteTournament = useCallback(async (code: string, token: string): Promise<RemoteTournamentSession> => {
     const normalizedCode = normalizeTournamentCodeInput(code);
-    const normalizedToken = token.trim();
+    const normalizedToken = normalizeRemoteAccessPinInput(token);
 
-    if (!normalizedCode || !normalizedToken) {
+    if (!normalizedCode || !isValidRemoteAccessPin(normalizedToken)) {
       throw new RemoteReadError(t("remoteAccessDenied"), "access-denied");
     }
 
@@ -584,10 +585,13 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
         <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
           <input
             required
+            inputMode="numeric"
+            maxLength={remoteAccessPinLength}
+            pattern="[0-9]*"
             className="field-control font-mono"
             type={showToken ? "text" : "password"}
             value={shareToken}
-            onChange={(event) => setShareToken(event.target.value)}
+            onChange={(event) => setShareToken(normalizeRemoteAccessPinInput(event.target.value))}
           />
           <button className="btn-secondary min-h-12" type="button" onClick={() => setShowToken((current) => !current)}>
             {showToken ? t("remoteHideToken") : t("remoteShowToken")}
@@ -1559,6 +1563,14 @@ function parseScore(score: string): { teamA: string; teamB: string } | null {
 
 function normalizeTournamentCodeInput(value: string): string {
   return value.trim().toLocaleUpperCase("en").replace(/\s+/g, "");
+}
+
+function normalizeRemoteAccessPinInput(value: string): string {
+  return value.replace(/\D/g, "").slice(0, remoteAccessPinLength);
+}
+
+function isValidRemoteAccessPin(value: string): boolean {
+  return new RegExp(`^\\d{${remoteAccessPinLength}}$`).test(value);
 }
 
 function isSameRemoteAccess(currentSession: RemoteTournamentSession, nextSession: RemoteTournamentSession): boolean {

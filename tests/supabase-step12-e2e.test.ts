@@ -50,7 +50,7 @@ describeE2E("STEP 12 secure tournament access", () => {
     expect(repeatedProvision.tournamentCode).toBe(standardAccess.tournamentCode);
     expect(repeatedProvision.shareToken).toBeUndefined();
 
-    await expect(read(standardAccess.tournamentCode, "wrong-token-with-enough-characters-1234567890")).rejects.toMatchObject({ status: 403 });
+    await expect(read(standardAccess.tournamentCode, "9999")).rejects.toMatchObject({ status: 403 });
     await expect(read("ZZZZZZ", standardAccess.shareToken)).rejects.toMatchObject({ status: 404 });
     await expect(read(standardAccess.tournamentCode, "")).rejects.toMatchObject({ status: 400 });
 

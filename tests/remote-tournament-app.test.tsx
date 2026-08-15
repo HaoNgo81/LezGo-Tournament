@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RemoteTournamentApp } from "../components/tournament/remote-tournament-app";
 import { SyncStatusPanel } from "../components/tournament/sync-status-panel";
@@ -23,7 +23,7 @@ describe("STEP 13 remote read-only UI", () => {
 
     render(<RemoteTournamentApp />);
     fireEvent.change(screen.getByLabelText("Turneringskode"), { target: { value: " ab12cd " } });
-    fireEvent.change(screen.getByLabelText("Adgangskode / Share token"), { target: { value: " step-13-token " } });
+    fireEvent.change(screen.getByLabelText("Adgangskode"), { target: { value: " 0427 " } });
     fireEvent.click(screen.getByRole("button", { name: "Åbn turnering fra anden enhed" }));
 
     expect(await screen.findByText("Visning fra anden enhed - skrivebeskyttet")).toBeInTheDocument();
@@ -34,7 +34,7 @@ describe("STEP 13 remote read-only UI", () => {
     expect(loadActiveTournament()).toEqual(localState);
 
     const payload = JSON.parse((vi.mocked(fetch).mock.calls[0][1] as RequestInit).body as string) as { tournamentCode: string; shareToken: string };
-    expect(payload).toEqual({ tournamentCode: "AB12CD", shareToken: "step-13-token" });
+    expect(payload).toEqual({ tournamentCode: "AB12CD", shareToken: "0427" });
   });
 
   it("keeps the last remote snapshot in memory when refresh fails", async () => {
@@ -47,7 +47,7 @@ describe("STEP 13 remote read-only UI", () => {
 
     render(<RemoteTournamentApp />);
     fireEvent.change(screen.getByLabelText("Turneringskode"), { target: { value: "K7M4XP" } });
-    fireEvent.change(screen.getByLabelText("Adgangskode / Share token"), { target: { value: "step-13-token" } });
+    fireEvent.change(screen.getByLabelText("Adgangskode"), { target: { value: "4827" } });
     fireEvent.click(screen.getByRole("button", { name: "Åbn turnering fra anden enhed" }));
 
     expect(await screen.findByRole("heading", { name: "STEP_13_TEST First" })).toBeInTheDocument();
@@ -62,7 +62,7 @@ describe("STEP 13 remote read-only UI", () => {
 
     render(<RemoteTournamentApp />);
     fireEvent.change(screen.getByLabelText("Turneringskode"), { target: { value: "K7M4XP" } });
-    fireEvent.change(screen.getByLabelText("Adgangskode / Share token"), { target: { value: "wrong-token" } });
+    fireEvent.change(screen.getByLabelText("Adgangskode"), { target: { value: "9999" } });
     fireEvent.click(screen.getByRole("button", { name: "Åbn turnering fra anden enhed" }));
 
     expect(await screen.findByText("Turneringen kunne ikke åbnes. Kontrollér kode og adgangskode.")).toBeInTheDocument();
@@ -75,7 +75,7 @@ describe("STEP 13 remote read-only UI", () => {
 
     render(<RemoteTournamentApp />);
     fireEvent.change(screen.getByLabelText("Turneringskode"), { target: { value: "K7M4XP" } });
-    fireEvent.change(screen.getByLabelText("Adgangskode / Share token"), { target: { value: "step-13-token" } });
+    fireEvent.change(screen.getByLabelText("Adgangskode"), { target: { value: "4827" } });
     fireEvent.click(screen.getByRole("button", { name: "Åbn turnering fra anden enhed" }));
 
     expect(await screen.findByRole("heading", { name: "STEP_13_TEST Remote" })).toBeInTheDocument();
@@ -106,7 +106,7 @@ describe("STEP 13 remote read-only UI", () => {
 
     const { unmount } = render(<RemoteTournamentApp />);
     fireEvent.change(screen.getByLabelText("Turneringskode"), { target: { value: "K7M4XP" } });
-    fireEvent.change(screen.getByLabelText("Adgangskode / Share token"), { target: { value: "pool-token" } });
+    fireEvent.change(screen.getByLabelText("Adgangskode"), { target: { value: "1234" } });
     fireEvent.click(screen.getByRole("button", { name: "Åbn turnering fra anden enhed" }));
     expect(await screen.findByRole("heading", { name: "STEP_13_TEST Pool" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Puljestillinger" })).toBeInTheDocument();
@@ -114,7 +114,7 @@ describe("STEP 13 remote read-only UI", () => {
 
     render(<RemoteTournamentApp />);
     fireEvent.change(screen.getByLabelText("Turneringskode"), { target: { value: "K7M4XP" } });
-    fireEvent.change(screen.getByLabelText("Adgangskode / Share token"), { target: { value: "team-token" } });
+    fireEvent.change(screen.getByLabelText("Adgangskode"), { target: { value: "5678" } });
     fireEvent.click(screen.getByRole("button", { name: "Åbn turnering fra anden enhed" }));
     expect(await screen.findByRole("heading", { name: "STEP_13_TEST Team" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Hold og kaptajner" })).toBeInTheDocument();
@@ -133,7 +133,7 @@ describe("STEP 13 remote read-only UI", () => {
 
     render(<RemoteTournamentApp />);
 
-    expect(await screen.findByText("Enter the code and share token from a tournament already shared from another device.")).toBeInTheDocument();
+    expect(await screen.findByText("Enter the code and 4-digit access code from a tournament already shared from another device.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open tournament from another device" })).toBeInTheDocument();
   });
 
@@ -143,7 +143,7 @@ describe("STEP 13 remote read-only UI", () => {
 
     render(<RemoteTournamentApp />);
     fireEvent.change(screen.getByLabelText("Turneringskode"), { target: { value: "K7M4XP" } });
-    fireEvent.change(screen.getByLabelText("Adgangskode / Share token"), { target: { value: "step-19-token" } });
+    fireEvent.change(screen.getByLabelText("Adgangskode"), { target: { value: "1919" } });
     fireEvent.click(screen.getByRole("button", { name: "Åbn turnering fra anden enhed" }));
 
     expect(await screen.findByRole("heading", { name: "STEP_19_TEST Scoreboard" })).toBeInTheDocument();
@@ -198,7 +198,7 @@ describe("STEP 13 remote read-only UI", () => {
 
     render(<RemoteTournamentApp />);
     fireEvent.change(screen.getByLabelText("Turneringskode"), { target: { value: "K7M4XP" } });
-    fireEvent.change(screen.getByLabelText("Adgangskode / Share token"), { target: { value: "step-18-token" } });
+    fireEvent.change(screen.getByLabelText("Adgangskode"), { target: { value: "1818" } });
     fireEvent.click(screen.getByRole("button", { name: "Åbn turnering fra anden enhed" }));
 
     expect(await screen.findByRole("heading", { name: "STEP_18_TEST TV Display" })).toBeInTheDocument();
@@ -243,7 +243,7 @@ describe("STEP 13 remote read-only UI", () => {
     expect(screen.queryByText("Visning fra anden enhed - skrivebeskyttet")).not.toBeInTheDocument();
   });
 
-  it("provisions access from Device A without exposing the raw token text", async () => {
+  it("provisions access from Device A with a visible 4-digit access code", async () => {
     const state = createMockLiveTournamentState();
     window.localStorage.setItem("lezgo.shadowSaveMetadata.v1", JSON.stringify({
       "mock americano-americano": {
@@ -256,15 +256,22 @@ describe("STEP 13 remote read-only UI", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
       ok: true,
       tournamentCode: "K7M4XP",
-      shareToken: "STEP_13_TEST_SECRET_TOKEN",
+      shareToken: "0427",
     }), { status: 200 })));
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
 
     render(<SyncStatusPanel kind="standard" localId="mock americano-americano" state={state} />);
     fireEvent.click(screen.getByRole("button", { name: "Adgang til anden enhed" }));
 
     expect(await screen.findByText("K7M4XP")).toBeInTheDocument();
-    expect(screen.getByText("************")).toBeInTheDocument();
-    expect(screen.queryByText("STEP_13_TEST_SECRET_TOKEN")).not.toBeInTheDocument();
+    expect(screen.getByText("0427")).toBeInTheDocument();
+    expect(screen.queryByText("************")).not.toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Kopiér" })[1]);
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("0427"));
   });
 
   it("generates a short-lived QR handoff from Device A", async () => {

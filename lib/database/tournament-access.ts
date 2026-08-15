@@ -1,4 +1,4 @@
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import type { LiveTournamentState } from "../live-scoring";
 import type { TeamVsTeamTournamentState } from "../tournament-setup";
 import { createSupabaseRestClient, SupabaseRestClientError, type SupabaseRestClient } from "../supabase/rest-client";
@@ -42,6 +42,7 @@ export interface TournamentAccessRepository {
 
 const tournamentCodeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const tournamentCodeLength = 6;
+const accessPinLength = 4;
 const maxCodeGenerationAttempts = 8;
 
 export class TournamentAccessError extends Error {
@@ -157,7 +158,11 @@ export function generateTournamentCode(): string {
 }
 
 export function generateShareToken(): string {
-  return randomBytes(32).toString("base64url");
+  return generateAccessPin();
+}
+
+export function generateAccessPin(): string {
+  return Array.from({ length: accessPinLength }, () => String(randomInt(0, 10))).join("");
 }
 
 export function hashShareToken(shareToken: string): string {
@@ -192,7 +197,7 @@ function validateUuid(value: string, fieldName: string): void {
 }
 
 function validateShareTokenInput(shareToken: string): void {
-  if (!shareToken || shareToken.length < 32 || shareToken.length > 256) {
+  if (!/^\d{4}$/.test(shareToken)) {
     throw new TournamentAccessError("Tournament access was denied.", 403);
   }
 }

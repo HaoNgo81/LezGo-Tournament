@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createTournamentAccessRepository,
+  generateAccessPin,
   generateShareToken,
   generateTournamentCode,
   hashShareToken,
@@ -11,14 +12,20 @@ import {
 import { SupabaseRestClientError, type SupabaseRestClient } from "../lib/supabase/rest-client";
 
 describe("STEP 12 tournament access", () => {
-  it("generates readable codes and strong share tokens", () => {
+  it("generates readable codes and 4-digit access codes", () => {
     const code = generateTournamentCode();
     const token = generateShareToken();
 
     expect(code).toMatch(/^[A-HJ-NP-Z2-9]{6}$/);
     expect(code).not.toMatch(/[O0I1]/);
-    expect(token.length).toBeGreaterThanOrEqual(40);
+    expect(token).toMatch(/^\d{4}$/);
+    expect(generateAccessPin()).toMatch(/^\d{4}$/);
     expect(hashShareToken(token)).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it("preserves leading zeroes in access code hashing", () => {
+    expect(hashShareToken("0427")).toMatch(/^[a-f0-9]{64}$/);
+    expect(hashShareToken("0427")).not.toBe(hashShareToken("427"));
   });
 
   it("normalizes tournament codes for mobile entry", () => {
@@ -36,11 +43,13 @@ describe("STEP 12 tournament access", () => {
     expect(client.snapshot().tournament_access).toHaveLength(1);
   });
 
-  it("denies invalid token input before reading tournament rows", async () => {
+  it("denies invalid access code input before reading tournament rows", async () => {
     const client = createMemoryAccessClient();
     const repository = createTournamentAccessRepository(client);
 
     await expect(repository.readByAccess("K7M4XP", "bad")).rejects.toBeInstanceOf(TournamentAccessError);
+    await expect(repository.readByAccess("K7M4XP", "123")).rejects.toBeInstanceOf(TournamentAccessError);
+    await expect(repository.readByAccess("K7M4XP", "12345")).rejects.toBeInstanceOf(TournamentAccessError);
     expect(client.calls.select).toBe(0);
   });
 });

@@ -183,7 +183,7 @@ export function SyncStatusPanel({
               <p className="font-black">{t("remoteShareToken")}</p>
               {accessState.shareToken ? (
                 <div className="mt-2 flex items-center justify-between gap-2">
-                  <code className="min-w-0 truncate font-mono text-sm">************</code>
+                  <code className="font-mono text-xl font-black tracking-widest">{accessState.shareToken}</code>
                   <button className="rounded-md border border-current px-2 py-1 font-black" type="button" onClick={() => copyValue(accessState.shareToken ?? "", t("remoteShareTokenCopied"))}>
                     {t("remoteCopy")}
                   </button>

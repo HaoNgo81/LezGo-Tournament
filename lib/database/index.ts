@@ -8,7 +8,7 @@ export { createRemoteSession, parseRemoteSessionToken, readRemoteSession, Remote
 export { mapTeamVsTeamTournamentToPersistencePayload } from "./team-vs-team-mapper";
 export { mapPersistenceRowsToTeamVsTeamTournamentState } from "./team-vs-team-readback";
 export { createTournamentHandoffRepository, generateHandoffReference, hashHandoffReference, toHandoffError, TournamentHandoffError } from "./tournament-handoff";
-export { createTournamentAccessRepository, generateShareToken, generateTournamentCode, hashShareToken, normalizeTournamentCode, TournamentAccessError } from "./tournament-access";
+export { createTournamentAccessRepository, generateAccessPin, generateShareToken, generateTournamentCode, hashShareToken, normalizeTournamentCode, TournamentAccessError } from "./tournament-access";
 export type {
   FixedPairRowPayload,
   MatchRowPayload,
