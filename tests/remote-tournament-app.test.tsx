@@ -195,6 +195,7 @@ describe("STEP 13 remote read-only UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "Scoreboard-visning" }));
 
     expect(screen.getByTestId("scoreboard-dashboard")).toHaveAttribute("data-layout-density", density);
+    expect(screen.getByTestId("scoreboard-dashboard")).toHaveAttribute("data-standings-space", density === "high" ? "expanded" : "standard");
     expect(screen.getByTestId("scoreboard-dashboard")).toHaveAttribute("data-vertical-spacing", "tight");
     expect(screen.getByTestId("scoreboard-court-grid")).toHaveAttribute("data-density", density);
     expect(screen.getAllByTestId("scoreboard-court-card")).toHaveLength(courts);
@@ -206,6 +207,37 @@ describe("STEP 13 remote read-only UI", () => {
     expect(screen.getByLabelText("Stilling")).toHaveAttribute("data-bottom-safe", "true");
     expect(screen.queryByText("Alle spillere")).not.toBeInTheDocument();
     expect(screen.queryByText("Visning fra anden enhed - skrivebeskyttet")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Indtast score" })).not.toBeInTheDocument();
+  });
+
+  it("keeps all 16 fixed-partner standings rows visible in the 8-court high-density structure", async () => {
+    const remoteState = scoreFixedPartnerScoreboardState("STEP_22K_TEST 16 pairs 8 courts");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(createReadResponse("standard", remoteState)));
+
+    render(<RemoteTournamentApp />);
+    fireEvent.change(screen.getByLabelText("Turneringskode"), { target: { value: "K7M4XP" } });
+    fireEvent.change(screen.getByLabelText("Adgangskode"), { target: { value: "2222" } });
+    fireEvent.click(screen.getByRole("button", { name: "Åbn turnering fra anden enhed" }));
+
+    expect(await screen.findByRole("heading", { name: "STEP_22K_TEST 16 pairs 8 courts" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Scoreboard-visning" }));
+
+    expect(screen.getByTestId("scoreboard-dashboard")).toHaveAttribute("data-layout-density", "high");
+    expect(screen.getByTestId("scoreboard-dashboard")).toHaveAttribute("data-standings-space", "expanded");
+    expect(screen.getByTestId("scoreboard-court-grid")).toHaveAttribute("data-density", "high");
+    expect(screen.getAllByTestId("scoreboard-court-card")).toHaveLength(8);
+    expect(screen.getAllByTestId("scoreboard-court-card").every((card) => card.getAttribute("data-card-density") === "high")).toBe(true);
+
+    const standingsRows = screen.getAllByTestId("scoreboard-standings-row");
+    expect(standingsRows).toHaveLength(16);
+    for (let rank = 1; rank <= 16; rank += 1) {
+      expect(screen.getByLabelText(new RegExp(`^${rank} .+ V \\d+ U \\d+ T \\d+ MP \\d+ Point \\d+$`))).toBeInTheDocument();
+    }
+
+    const standingsColumns = screen.getAllByTestId("scoreboard-standings-column");
+    expect(standingsColumns).toHaveLength(2);
+    expect(within(standingsColumns[0]).getAllByTestId("scoreboard-standings-row")).toHaveLength(8);
+    expect(within(standingsColumns[1]).getAllByTestId("scoreboard-standings-row")).toHaveLength(8);
     expect(screen.queryByRole("button", { name: "Indtast score" })).not.toBeInTheDocument();
   });
 
@@ -767,6 +799,29 @@ function scoreAdaptiveScoreboardState(name: string, playerCount: number, courts:
 
   return state.rounds[0].matches.reduce((currentState, match, index) => {
     const teamAPoints = 12 + index;
+    const teamBPoints = 24 - teamAPoints;
+    return saveMatchResult(currentState, { matchId: match.id, teamAPoints, teamBPoints });
+  }, state);
+}
+
+function scoreFixedPartnerScoreboardState(name: string): LiveTournamentState {
+  const state = createTournamentFromSetup({
+    name,
+    format: "Fast Makker Americano",
+    playerText: Array.from({ length: 32 }, (_, index) => `Parspiller ${index + 1}`).join("\n"),
+    femalePlayerText: "",
+    malePlayerText: "",
+    courts: 8,
+    rounds: 2,
+    scoringMode: "Fast antal point",
+    fixedScoreRule: "total",
+    fixedScorePoints: 24,
+    firstRoundOrder: "manual",
+    rankingMode: "matchPointsFirst",
+  });
+
+  return state.rounds[0].matches.reduce((currentState, match, index) => {
+    const teamAPoints = 16 + index;
     const teamBPoints = 24 - teamAPoints;
     return saveMatchResult(currentState, { matchId: match.id, teamAPoints, teamBPoints });
   }, state);

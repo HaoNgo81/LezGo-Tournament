@@ -976,7 +976,7 @@ function RemoteScoreboardLayout({
   const layoutRowsClass = getScoreboardLayoutRowsClass(density);
 
   return (
-    <div className={`mx-auto grid min-h-[calc(100vh-1rem)] w-full max-w-[1920px] gap-0.5 overflow-x-hidden pb-2 lg:h-[calc(100vh-2.5rem)] lg:min-h-0 lg:pb-3 ${layoutRowsClass} lg:overflow-hidden`} data-layout-density={density} data-vertical-spacing="tight" data-testid="scoreboard-dashboard">
+    <div className={`mx-auto grid min-h-[calc(100vh-1rem)] w-full max-w-[1920px] gap-0.5 overflow-x-hidden pb-2 lg:h-[calc(100vh-2.5rem)] lg:min-h-0 lg:pb-3 ${layoutRowsClass} lg:overflow-hidden`} data-layout-density={density} data-standings-space={density === "high" ? "expanded" : "standard"} data-vertical-spacing="tight" data-testid="scoreboard-dashboard">
       <RemoteScoreboardHeader
         formatLabel={formatLabel}
         isLoading={isLoading}
@@ -1051,7 +1051,10 @@ function RemoteScoreboardHeader({
 }
 
 function RemoteScoreboardScoreGrid({ density, matches }: { density: ScoreboardDensity; matches: ScoreboardMatchCard[] }) {
-  const cardPadding = density === "large" ? "p-5 lg:p-6" : density === "medium" ? "p-3.5" : density === "compact" ? "p-2.5" : "p-2";
+  const cardPadding = density === "large" ? "p-5 lg:p-6" : density === "medium" ? "p-3.5" : density === "compact" ? "p-2.5" : "p-1.5";
+  const cardGap = density === "high" ? "gap-0.5" : "gap-1.5";
+  const matchGridGap = density === "high" ? "gap-x-1 gap-y-0" : "gap-x-2 gap-y-1";
+  const statusBadgeClass = density === "high" ? "px-1 py-0.5 text-[0.55rem]" : "px-2 py-1 text-[0.65rem]";
   const courtText = density === "large" ? "text-[clamp(1.8rem,2.6vw,3.25rem)]" : density === "medium" ? "text-[clamp(1.2rem,1.55vw,1.9rem)]" : density === "compact" ? "text-[clamp(0.95rem,1.1vw,1.35rem)]" : "text-[clamp(0.82rem,0.92vw,1.1rem)]";
   const teamText = density === "large" ? "text-[clamp(1.55rem,2.3vw,2.75rem)]" : density === "medium" ? "text-[clamp(0.95rem,1.22vw,1.35rem)]" : density === "compact" ? "text-[clamp(0.76rem,0.9vw,1rem)]" : "text-[clamp(0.66rem,0.76vw,0.88rem)]";
   const scoreText = density === "large" ? "text-[clamp(4.6rem,8vw,9rem)]" : density === "medium" ? "text-[clamp(2.8rem,4.9vw,5.4rem)]" : density === "compact" ? "text-[clamp(1.85rem,3.2vw,3.5rem)]" : "text-[clamp(1.45rem,2.5vw,2.75rem)]";
@@ -1064,12 +1067,12 @@ function RemoteScoreboardScoreGrid({ density, matches }: { density: ScoreboardDe
         const score = parseScore(match.score);
 
         return (
-          <article key={match.id} className={`grid min-w-0 grid-rows-[auto_minmax(0,1fr)] content-between gap-1.5 rounded-md border text-center ${cardPadding} ${getScoreboardMatchTone(match.status)}`} data-testid="scoreboard-court-card">
+          <article key={match.id} className={`grid min-w-0 grid-rows-[auto_minmax(0,1fr)] content-between ${cardGap} rounded-md border text-center ${cardPadding} ${getScoreboardMatchTone(match.status)}`} data-card-density={density} data-testid="scoreboard-court-card">
             <div className="flex min-w-0 items-start justify-between gap-2">
               <h3 className={`${courtText} font-black uppercase leading-none text-[var(--primary-strong)]`}>{match.court}</h3>
-              <span className="rounded-md bg-white/75 px-2 py-1 text-[0.65rem] font-black uppercase text-[var(--muted)]">{match.status}</span>
+              <span className={`rounded-md bg-white/75 font-black uppercase text-[var(--muted)] ${statusBadgeClass}`}>{match.status}</span>
             </div>
-            <div className="grid min-h-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1">
+            <div className={`grid min-h-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] items-center ${matchGridGap}`}>
               <div className={`flex min-w-0 flex-col items-start justify-center text-left ${teamText} font-black leading-tight`} data-testid="scoreboard-left-team">
                 {splitScoreboardTeamName(match.teamA).map((name, index) => (
                   <span key={`${match.id}-team-a-${index}`} className="max-w-full" style={{ overflowWrap: "anywhere" }}>{name}</span>
@@ -1127,7 +1130,7 @@ function RemoteScoreboardStandings({ density, standings }: { density: Scoreboard
       <h2 className={`${labelText} font-black uppercase tracking-wide text-[var(--muted)]`}>{t("remoteTopStandings")}</h2>
       <div className={`grid min-h-0 gap-1 overflow-hidden ${getScoreboardStandingsGridClass(groups.length)}`} data-density={density} data-testid="scoreboard-standings-grid">
         {groups.map((group, groupIndex) => (
-          <div key={`standings-${groupIndex}`} className="min-h-0 overflow-hidden rounded-md border border-[var(--line)] bg-[var(--card)]">
+          <div key={`standings-${groupIndex}`} className="min-h-0 overflow-hidden rounded-md border border-[var(--line)] bg-[var(--card)]" data-testid="scoreboard-standings-column">
             <div className={`grid bg-[var(--primary-soft)] font-black uppercase text-[var(--primary-strong)] ${headerGridClass}`}>
               <span>#</span>
               <span>Spiller</span>
@@ -1142,6 +1145,7 @@ function RemoteScoreboardStandings({ density, standings }: { density: Scoreboard
                 key={row.id}
                 aria-label={`${row.rank} ${row.name} V ${row.wins} U ${row.draws} T ${row.losses} MP ${row.matchPoints} Point ${row.pointsFor}`}
                 className={`grid min-w-0 items-center border-t border-[var(--line)] ${rowGridClass}`}
+                data-testid="scoreboard-standings-row"
               >
                 <span className={`${rankText} font-black text-[var(--primary-strong)]`}>{row.rank}</span>
                 <h3 className={`${playerText} min-w-0 font-black leading-tight`} style={{ overflowWrap: "anywhere" }}>{row.name}</h3>
@@ -1473,7 +1477,7 @@ function getScoreboardLayoutRowsClass(density: ScoreboardDensity): string {
     return "lg:grid-rows-[auto_minmax(0,0.64fr)_minmax(0,0.36fr)]";
   }
 
-  return "lg:grid-rows-[auto_minmax(0,0.66fr)_minmax(0,0.34fr)]";
+  return "lg:grid-rows-[auto_minmax(0,0.54fr)_minmax(0,0.46fr)]";
 }
 
 function getScoreboardStandingsDensity(standingCount: number): ScoreboardStandingsDensity {
