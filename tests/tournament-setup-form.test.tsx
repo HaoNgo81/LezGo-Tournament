@@ -260,6 +260,29 @@ describe("tournament setup form", () => {
     expect(roundsInput.value).toBe("10");
   });
 
+  it("allows time limit minutes to be cleared temporarily before entering a new value", () => {
+    render(<TournamentSetupForm />);
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Scoring" }), { target: { value: "timed" } });
+    const timeLimitInput = getNumberInput("Spilletid (minutter)");
+
+    fireEvent.change(timeLimitInput, { target: { value: "0" } });
+    expect(timeLimitInput.value).toBe("0");
+    fireEvent.change(timeLimitInput, { target: { value: "" } });
+    expect(timeLimitInput.value).toBe("");
+    fireEvent.change(timeLimitInput, { target: { value: "10" } });
+    expect(timeLimitInput.value).toBe("10");
+    expect(timeLimitInput.value).not.toBe("010");
+
+    fireEvent.change(timeLimitInput, { target: { value: "" } });
+    expect(timeLimitInput.value).toBe("");
+    fireEvent.change(timeLimitInput, { target: { value: "15" } });
+    expect(timeLimitInput.value).toBe("15");
+
+    fireEvent.change(timeLimitInput, { target: { value: "" } });
+    expect(timeLimitInput.value).toBe("");
+  });
+
   it("normalizes leading zeroes in courts and rounds without changing other setup state", () => {
     render(<TournamentSetupForm />);
 
@@ -287,6 +310,37 @@ describe("tournament setup form", () => {
 
     dragFormat("Americano", 40);
     expectSelectedFormat("Mexicano");
+  });
+
+  it("normalizes leading zeroes in editable numeric setup fields", () => {
+    render(<TournamentSetupForm />);
+
+    const scorePointsInput = getNumberInput("Antal scorepoint");
+    fireEvent.change(scorePointsInput, { target: { value: "021" } });
+    fireEvent.blur(scorePointsInput);
+    expect(scorePointsInput.value).toBe("21");
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Scoring" }), { target: { value: "timed" } });
+    const timeLimitInput = getNumberInput("Spilletid (minutter)");
+    fireEvent.change(timeLimitInput, { target: { value: "010" } });
+    fireEvent.blur(timeLimitInput);
+    expect(timeLimitInput.value).toBe("10");
+    fireEvent.change(timeLimitInput, { target: { value: "005" } });
+    fireEvent.blur(timeLimitInput);
+    expect(timeLimitInput.value).toBe("5");
+    fireEvent.change(timeLimitInput, { target: { value: "030" } });
+    fireEvent.blur(timeLimitInput);
+    expect(timeLimitInput.value).toBe("30");
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Scoring" }), { target: { value: "target" } });
+    const courtsInput = getNumberInput("Baner");
+    const roundsInput = getNumberInput("Runder");
+    fireEvent.change(courtsInput, { target: { value: "03" } });
+    fireEvent.blur(courtsInput);
+    fireEvent.change(roundsInput, { target: { value: "010" } });
+    fireEvent.blur(roundsInput);
+    expect(courtsInput.value).toBe("3");
+    expect(roundsInput.value).toBe("10");
   });
 
   it("shows the new tournament form in English when English is selected", () => {

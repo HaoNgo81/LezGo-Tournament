@@ -75,8 +75,8 @@ export function TournamentSetupForm() {
   const [format, setFormat] = useState<TournamentSetupFormat>("Americano");
   const [scoringMode, setScoringMode] = useState<ScoringMode>(initialScoringMode);
   const [fixedScoreRule, setFixedScoreRule] = useState<FixedScoreRule>("target");
-  const [fixedScorePoints, setFixedScorePoints] = useState(21);
-  const [timeLimitMinutes, setTimeLimitMinutes] = useState(initialSettings.timeLimitMinutes);
+  const [fixedScorePoints, setFixedScorePoints] = useState("21");
+  const [timeLimitMinutes, setTimeLimitMinutes] = useState(String(initialSettings.timeLimitMinutes));
   const [playerText, setPlayerText] = useState("");
   const [femalePlayerText, setFemalePlayerText] = useState("");
   const [malePlayerText, setMalePlayerText] = useState("");
@@ -116,8 +116,8 @@ export function TournamentSetupForm() {
     setFormat(template.format);
     setScoringMode(template.scoringMode);
     setFixedScoreRule(template.fixedScoreRule ?? "target");
-    setFixedScorePoints(template.fixedScorePoints ?? 21);
-    setTimeLimitMinutes(template.timeLimitMinutes ?? initialSettings.timeLimitMinutes);
+    setFixedScorePoints(String(template.fixedScorePoints ?? 21));
+    setTimeLimitMinutes(String(template.timeLimitMinutes ?? initialSettings.timeLimitMinutes));
     setCourts(String(template.courts));
     setRounds(String(template.rounds));
     setRankingMode(template.rankingMode);
@@ -132,7 +132,7 @@ export function TournamentSetupForm() {
 
       const savedSettings = loadTournamentSettings();
       setScoringMode(getInitialScoringMode(savedSettings.scoringMode));
-      setTimeLimitMinutes(savedSettings.timeLimitMinutes);
+      setTimeLimitMinutes(String(savedSettings.timeLimitMinutes));
       setCourts(String(savedSettings.courts));
       setRounds(String(savedSettings.rounds));
       setRankingMode(savedSettings.rankingMode);
@@ -167,7 +167,7 @@ export function TournamentSetupForm() {
           name,
           scoringMode,
           fixedScoreRule,
-          fixedScorePoints,
+          fixedScorePoints: parsePositiveIntegerInput(fixedScorePoints, "Antal scorepoint"),
           teamCount,
           competitionMode,
           drawMode,
@@ -192,8 +192,8 @@ export function TournamentSetupForm() {
           unmatchedResolution: poolUnmatchedResolution,
           scoringMode,
           fixedScoreRule,
-          fixedScorePoints,
-          timeLimitMinutes,
+          fixedScorePoints: parsePositiveIntegerInput(fixedScorePoints, "Antal scorepoint"),
+          timeLimitMinutes: parsePositiveIntegerInput(timeLimitMinutes, "Spilletid"),
           rankingMode,
           teamPlayersPerTeam: poolParticipantType === "team" ? poolTeamPlayersPerTeam : undefined,
         });
@@ -213,8 +213,8 @@ export function TournamentSetupForm() {
         rounds: parsePositiveIntegerInput(rounds, "Runder"),
         scoringMode,
         fixedScoreRule,
-        fixedScorePoints,
-        timeLimitMinutes,
+        fixedScorePoints: parsePositiveIntegerInput(fixedScorePoints, "Antal scorepoint"),
+        timeLimitMinutes: parsePositiveIntegerInput(timeLimitMinutes, "Spilletid"),
         firstRoundOrder: "manual",
         rankingMode,
       });
@@ -454,9 +454,10 @@ export function TournamentSetupForm() {
                 min="1"
                 type="number"
                 value={fixedScorePoints}
+                onBlur={() => setFixedScorePoints(normalizeIntegerInputValue(fixedScorePoints))}
                 onChange={(event) => {
                   markFormDirty();
-                  setFixedScorePoints(Number(event.target.value));
+                  setFixedScorePoints(event.target.value);
                 }}
               />
             </label>
@@ -469,9 +470,10 @@ export function TournamentSetupForm() {
                 min="1"
                 type="number"
                 value={timeLimitMinutes}
+                onBlur={() => setTimeLimitMinutes(normalizeIntegerInputValue(timeLimitMinutes))}
                 onChange={(event) => {
                   markFormDirty();
-                  setTimeLimitMinutes(Number(event.target.value));
+                  setTimeLimitMinutes(event.target.value);
                 }}
               />
             </label>
