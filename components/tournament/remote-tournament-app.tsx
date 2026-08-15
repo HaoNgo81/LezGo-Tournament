@@ -1051,9 +1051,12 @@ function RemoteScoreboardHeader({
 }
 
 function RemoteScoreboardScoreGrid({ density, matches }: { density: ScoreboardDensity; matches: ScoreboardMatchCard[] }) {
-  const cardPadding = density === "large" ? "p-5 lg:p-6" : density === "medium" ? "p-3.5" : density === "compact" ? "p-2.5" : "p-1.5";
-  const cardGap = density === "high" ? "gap-0.5" : "gap-1.5";
-  const matchGridGap = density === "high" ? "gap-x-1 gap-y-0" : "gap-x-2 gap-y-1";
+  const isHighDensity = density === "high";
+  const cardPadding = density === "large" ? "p-5 lg:p-6" : density === "medium" ? "p-3.5" : density === "compact" ? "p-2.5" : "p-1";
+  const cardGap = isHighDensity ? "gap-0" : "gap-1.5";
+  const cardLayoutClass = isHighDensity ? "grid-rows-[auto_auto] content-start" : "grid-rows-[auto_minmax(0,1fr)] content-between";
+  const matchGridGap = isHighDensity ? "gap-x-1 gap-y-0" : "gap-x-2 gap-y-1";
+  const matchGridRowsClass = isHighDensity ? "grid-rows-[auto_auto]" : "grid-rows-[minmax(0,1fr)_auto]";
   const statusBadgeClass = density === "high" ? "px-1 py-0.5 text-[0.55rem]" : "px-2 py-1 text-[0.65rem]";
   const courtText = density === "large" ? "text-[clamp(1.8rem,2.6vw,3.25rem)]" : density === "medium" ? "text-[clamp(1.2rem,1.55vw,1.9rem)]" : density === "compact" ? "text-[clamp(0.95rem,1.1vw,1.35rem)]" : "text-[clamp(0.82rem,0.92vw,1.1rem)]";
   const teamText = density === "large" ? "text-[clamp(1.55rem,2.3vw,2.75rem)]" : density === "medium" ? "text-[clamp(0.95rem,1.22vw,1.35rem)]" : density === "compact" ? "text-[clamp(0.76rem,0.9vw,1rem)]" : "text-[clamp(0.66rem,0.76vw,0.88rem)]";
@@ -1067,12 +1070,12 @@ function RemoteScoreboardScoreGrid({ density, matches }: { density: ScoreboardDe
         const score = parseScore(match.score);
 
         return (
-          <article key={match.id} className={`grid min-w-0 grid-rows-[auto_minmax(0,1fr)] content-between ${cardGap} rounded-md border text-center ${cardPadding} ${getScoreboardMatchTone(match.status)}`} data-card-density={density} data-testid="scoreboard-court-card">
+          <article key={match.id} className={`grid min-w-0 ${cardLayoutClass} ${cardGap} rounded-md border text-center ${cardPadding} ${getScoreboardMatchTone(match.status)}`} data-card-density={density} data-card-vertical-density={isHighDensity ? "compressed" : "standard"} data-testid="scoreboard-court-card">
             <div className="flex min-w-0 items-start justify-between gap-2">
               <h3 className={`${courtText} font-black uppercase leading-none text-[var(--primary-strong)]`}>{match.court}</h3>
               <span className={`rounded-md bg-white/75 font-black uppercase text-[var(--muted)] ${statusBadgeClass}`}>{match.status}</span>
             </div>
-            <div className={`grid min-h-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] items-center ${matchGridGap}`}>
+            <div className={`grid min-h-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] ${matchGridRowsClass} items-center ${matchGridGap}`}>
               <div className={`flex min-w-0 flex-col items-start justify-center text-left ${teamText} font-black leading-tight`} data-testid="scoreboard-left-team">
                 {splitScoreboardTeamName(match.teamA).map((name, index) => (
                   <span key={`${match.id}-team-a-${index}`} className="max-w-full" style={{ overflowWrap: "anywhere" }}>{name}</span>
@@ -1477,7 +1480,7 @@ function getScoreboardLayoutRowsClass(density: ScoreboardDensity): string {
     return "lg:grid-rows-[auto_minmax(0,0.64fr)_minmax(0,0.36fr)]";
   }
 
-  return "lg:grid-rows-[auto_minmax(0,0.54fr)_minmax(0,0.46fr)]";
+  return "lg:grid-rows-[auto_minmax(0,0.42fr)_minmax(0,0.58fr)]";
 }
 
 function getScoreboardStandingsDensity(standingCount: number): ScoreboardStandingsDensity {
