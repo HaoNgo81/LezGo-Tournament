@@ -155,7 +155,7 @@ export function SyncStatusPanel({
                 {handoffState ? t("remoteGenerateNewQr") : t("remoteViewOnAnotherDevice")}
               </button>
               <button className="rounded-md border border-current px-3 py-2 text-sm font-black disabled:opacity-50" type="button" disabled={accessIsLoading} onClick={handleProvisionAccess}>
-                {t("remoteAccessInfo")}
+                {accessState && !accessState.shareToken ? t("remoteGenerateNewAccessCode") : t("remoteAccessInfo")}
               </button>
             </>
           ) : null}

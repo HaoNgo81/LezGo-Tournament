@@ -43,6 +43,23 @@ describe("STEP 12 tournament access", () => {
     expect(client.snapshot().tournament_access).toHaveLength(1);
   });
 
+  it("renews an existing access row with a new 4-digit access code and invalidates the old one", async () => {
+    const client = createMemoryAccessClient();
+    const repository = createTournamentAccessRepository(client);
+    const tournamentId = "00000000-0000-4000-8000-000000000001";
+
+    const first = await repository.provision(tournamentId);
+    const second = await repository.provision(tournamentId);
+
+    expect(second.tournamentCode).toBe(first.tournamentCode);
+    expect(second.shareToken).toMatch(/^\d{4}$/);
+    expect(second.tokenVersion).toBe(2);
+    expect(client.snapshot().tournament_access).toHaveLength(1);
+    expect(client.snapshot().tournament_access[0].token_version).toBe(2);
+    await expect(repository.readByAccess(first.tournamentCode, first.shareToken)).rejects.toMatchObject({ status: 403 });
+    await expect(repository.readByAccess(second.tournamentCode, second.shareToken)).rejects.toMatchObject({ status: 404 });
+  });
+
   it("denies invalid access code input before reading tournament rows", async () => {
     const client = createMemoryAccessClient();
     const repository = createTournamentAccessRepository(client);
@@ -92,8 +109,15 @@ function createMemoryAccessClient(options: { conflictOnFirstInsert?: boolean } =
       state.tournament_access.push(...insertedRows);
       return insertedRows as T[];
     },
-    async update<T>(): Promise<T[]> {
-      throw new Error("update is not implemented in this memory client.");
+    async update<T>(table: string, query: string, values: Record<string, unknown>): Promise<T[]> {
+      const idMatch = /(?:^|[&?])id=eq\.([^&]+)/.exec(query);
+      const rows = (state[table as keyof typeof state] ?? []) as TournamentAccessRecord[];
+      const updatedRows = rows.filter((row) => !idMatch || row.id === decodeURIComponent(idMatch[1])).map((row) => {
+        Object.assign(row, values, { updated_at: "2026-08-13T09:01:00.000Z" });
+        return row;
+      });
+
+      return updatedRows as T[];
     },
     async delete(): Promise<void> {
       throw new Error("delete is not implemented in this memory client.");

@@ -274,6 +274,38 @@ describe("STEP 13 remote read-only UI", () => {
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("0427"));
   });
 
+  it("renews access from Device A when an existing PIN cannot be shown again", async () => {
+    const state = createMockLiveTournamentState();
+    window.localStorage.setItem("lezgo.shadowSaveMetadata.v1", JSON.stringify({
+      "mock americano-americano": {
+        localId: "mock americano-americano",
+        kind: "standard",
+        status: "synced",
+        supabaseTournamentId: "00000000-0000-4000-8000-000000000013",
+      },
+    }));
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        tournamentCode: "SXVQUX",
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        tournamentCode: "SXVQUX",
+        shareToken: "4827",
+      }), { status: 200 })));
+
+    render(<SyncStatusPanel kind="standard" localId="mock americano-americano" state={state} />);
+    fireEvent.click(screen.getByRole("button", { name: "Adgang til anden enhed" }));
+
+    expect(await screen.findByText("SXVQUX")).toBeInTheDocument();
+    expect(screen.getAllByText("Adgangskoden kunne ikke vises igen. Opret en ny adgang senere, hvis den er væk.").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Generér ny adgangskode" }));
+
+    expect(await screen.findByText("4827")).toBeInTheDocument();
+    expect(screen.queryByText("Adgangskoden kunne ikke vises igen. Opret en ny adgang senere, hvis den er væk.")).not.toBeInTheDocument();
+  });
+
   it("generates a short-lived QR handoff from Device A", async () => {
     const state = createMockLiveTournamentState();
     window.localStorage.setItem("lezgo.shadowSaveMetadata.v1", JSON.stringify({

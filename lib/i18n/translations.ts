@@ -109,6 +109,7 @@ export type TranslationKey =
   | "remoteFetchError"
   | "remoteFullscreen"
   | "remoteGenerateNewQr"
+  | "remoteGenerateNewAccessCode"
   | "remoteHandoffDenied"
   | "remoteHandoffExpired"
   | "remoteHandoffLinkCopied"
@@ -302,6 +303,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteFetchError: "Forbindelsen kunne ikke opdateres. Seneste viste turnering er bevaret.",
     remoteFullscreen: "Fuld skærm",
     remoteGenerateNewQr: "Generér ny QR-kode",
+    remoteGenerateNewAccessCode: "Generér ny adgangskode",
     remoteHandoffDenied: "QR-linket kunne ikke åbnes. Bed turneringslederen om at generere en ny QR-kode.",
     remoteHandoffExpired: "QR-koden er udløbet. Bed turneringslederen om at generere en ny.",
     remoteHandoffLinkCopied: "QR-link kopieret.",
@@ -494,6 +496,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteFetchError: "The connection could not refresh. The last shown tournament is kept.",
     remoteFullscreen: "Fullscreen",
     remoteGenerateNewQr: "Generate new QR code",
+    remoteGenerateNewAccessCode: "Generate new access code",
     remoteHandoffDenied: "The QR link could not be opened. Ask the tournament organizer to generate a new QR code.",
     remoteHandoffExpired: "This QR code has expired. Ask the tournament organizer to generate a new one.",
     remoteHandoffLinkCopied: "QR link copied.",

@@ -48,9 +48,12 @@ describeE2E("STEP 12 secure tournament access", () => {
 
     const repeatedProvision = await provision(savedStandard.tournamentId);
     expect(repeatedProvision.tournamentCode).toBe(standardAccess.tournamentCode);
-    expect(repeatedProvision.shareToken).toBeUndefined();
+    expect(repeatedProvision.shareToken).toMatch(/^\d{4}$/);
+    expect(repeatedProvision.tokenVersion).toBe(standardAccess.tokenVersion + 1);
 
-    await expect(read(standardAccess.tournamentCode, "9999")).rejects.toMatchObject({ status: 403 });
+    await expect(read(standardAccess.tournamentCode, standardAccess.shareToken)).rejects.toMatchObject({ status: 403 });
+    if (!repeatedProvision.shareToken) throw new Error("Missing renewed standard access code.");
+    await expect(read(standardAccess.tournamentCode, getDifferentPin(repeatedProvision.shareToken))).rejects.toMatchObject({ status: 403 });
     await expect(read("ZZZZZZ", standardAccess.shareToken)).rejects.toMatchObject({ status: 404 });
     await expect(read(standardAccess.tournamentCode, "")).rejects.toMatchObject({ status: 400 });
 
@@ -89,6 +92,10 @@ async function provision(tournamentId: string): Promise<{ tournamentCode: string
   }
 
   return { tournamentCode: body.tournamentCode, shareToken: body.shareToken, tokenVersion: body.tokenVersion ?? 0 };
+}
+
+function getDifferentPin(pin: string): string {
+  return pin === "9999" ? "0000" : "9999";
 }
 
 async function read(tournamentCode: string, shareToken: string): Promise<{ kind: string; state: LiveTournamentState | TeamVsTeamTournamentState }> {

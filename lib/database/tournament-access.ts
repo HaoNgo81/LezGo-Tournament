@@ -62,11 +62,22 @@ export function createTournamentAccessRepository(client: SupabaseRestClient = cr
       const existing = await readAccessByTournamentId(client, tournamentId);
 
       if (existing) {
+        const shareToken = generateNewShareToken(existing.share_token_hash);
+        const [updated] = await client.update<TournamentAccessRecord>("tournament_access", `id=eq.${encodeURIComponent(existing.id)}`, {
+          share_token_hash: hashShareToken(shareToken),
+          token_version: existing.token_version + 1,
+          revoked_at: null,
+        });
+
+        if (!updated) {
+          throw new TournamentAccessError("Could not renew tournament access.", 500);
+        }
+
         return {
           tournamentId,
           tournamentCode: existing.tournament_code,
-          shareToken: "",
-          tokenVersion: existing.token_version,
+          shareToken,
+          tokenVersion: updated.token_version,
         };
       }
 
@@ -163,6 +174,18 @@ export function generateShareToken(): string {
 
 export function generateAccessPin(): string {
   return Array.from({ length: accessPinLength }, () => String(randomInt(0, 10))).join("");
+}
+
+function generateNewShareToken(previousHash: string): string {
+  for (let attempt = 0; attempt < maxCodeGenerationAttempts; attempt += 1) {
+    const shareToken = generateShareToken();
+
+    if (hashShareToken(shareToken) !== previousHash) {
+      return shareToken;
+    }
+  }
+
+  throw new TournamentAccessError("Could not renew tournament access.", 500);
 }
 
 export function hashShareToken(shareToken: string): string {
