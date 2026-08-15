@@ -60,7 +60,8 @@ type ScoreboardStanding = {
 
 type ScoreboardMatchCard = ReadOnlyMatchCard;
 
-type ScoreboardDensity = "low" | "medium" | "high";
+type ScoreboardDensity = "large" | "medium" | "compact" | "high";
+type ScoreboardStandingsDensity = "large" | "medium" | "compact";
 
 class RemoteReadError extends Error {
   readonly kind: RemoteReadErrorKind;
@@ -971,10 +972,11 @@ function RemoteScoreboardLayout({
 }) {
   const { t } = useAppTranslation();
   const density = getScoreboardDensity(matches.length);
+  const standingsDensity = getScoreboardStandingsDensity(standings.length);
   const layoutRowsClass = getScoreboardLayoutRowsClass(density);
 
   return (
-    <div className={`mx-auto grid min-h-[calc(100vh-1rem)] w-full max-w-[1920px] gap-1.5 overflow-x-hidden lg:h-[calc(100vh-2.5rem)] lg:min-h-0 ${layoutRowsClass} lg:overflow-hidden`} data-layout-density={density} data-testid="scoreboard-dashboard">
+    <div className={`mx-auto grid min-h-[calc(100vh-1rem)] w-full max-w-[1920px] gap-1 overflow-x-hidden lg:h-[calc(100vh-2.5rem)] lg:min-h-0 ${layoutRowsClass} lg:overflow-hidden`} data-layout-density={density} data-testid="scoreboard-dashboard">
       <RemoteScoreboardHeader
         formatLabel={formatLabel}
         isLoading={isLoading}
@@ -986,14 +988,14 @@ function RemoteScoreboardLayout({
         syncStatus={syncStatus}
         title={title}
       />
-      <section className="grid min-h-0 gap-2 lg:overflow-hidden" aria-label={t("liveScore")}>
+      <section className="grid min-h-0 gap-1 lg:overflow-hidden" aria-label={t("liveScore")}>
         <div className="flex min-w-0 items-center justify-between gap-2">
           <h2 className="text-sm font-black uppercase tracking-wide text-[var(--primary-strong)] lg:text-base">{t("liveScore")}</h2>
           <span className="rounded-md bg-[var(--primary-soft)] px-2 py-1 text-xs font-black uppercase text-[var(--primary-strong)]">{matches.length} {t("courts").toLowerCase()}</span>
         </div>
         <RemoteScoreboardScoreGrid density={density} matches={matches} />
       </section>
-      <RemoteScoreboardStandings standings={standings} />
+      <RemoteScoreboardStandings density={standingsDensity} standings={standings} />
     </div>
   );
 }
@@ -1049,11 +1051,11 @@ function RemoteScoreboardHeader({
 }
 
 function RemoteScoreboardScoreGrid({ density, matches }: { density: ScoreboardDensity; matches: ScoreboardMatchCard[] }) {
-  const cardPadding = density === "low" ? "p-3 lg:p-4" : density === "medium" ? "p-3" : "p-2.5";
-  const courtText = density === "low" ? "text-[clamp(1.25rem,1.8vw,2.2rem)]" : density === "medium" ? "text-[clamp(1.05rem,1.35vw,1.7rem)]" : "text-[clamp(0.9rem,1vw,1.25rem)]";
-  const teamText = density === "low" ? "text-[clamp(0.95rem,1.35vw,1.55rem)]" : density === "medium" ? "text-[clamp(0.82rem,1.05vw,1.15rem)]" : "text-[clamp(0.72rem,0.86vw,0.98rem)]";
-  const scoreText = density === "low" ? "text-[clamp(3rem,5.8vw,6.5rem)]" : density === "medium" ? "text-[clamp(2.4rem,4.3vw,4.7rem)]" : "text-[clamp(1.7rem,3vw,3.25rem)]";
-  const dashText = density === "low" ? "text-[clamp(1.4rem,2.5vw,3rem)]" : density === "medium" ? "text-[clamp(1.15rem,2vw,2.2rem)]" : "text-[clamp(0.85rem,1.45vw,1.6rem)]";
+  const cardPadding = density === "large" ? "p-5 lg:p-6" : density === "medium" ? "p-3.5" : density === "compact" ? "p-2.5" : "p-2";
+  const courtText = density === "large" ? "text-[clamp(1.8rem,2.6vw,3.25rem)]" : density === "medium" ? "text-[clamp(1.2rem,1.55vw,1.9rem)]" : density === "compact" ? "text-[clamp(0.95rem,1.1vw,1.35rem)]" : "text-[clamp(0.82rem,0.92vw,1.1rem)]";
+  const teamText = density === "large" ? "text-[clamp(1.55rem,2.3vw,2.75rem)]" : density === "medium" ? "text-[clamp(0.95rem,1.22vw,1.35rem)]" : density === "compact" ? "text-[clamp(0.76rem,0.9vw,1rem)]" : "text-[clamp(0.66rem,0.76vw,0.88rem)]";
+  const scoreText = density === "large" ? "text-[clamp(4.6rem,8vw,9rem)]" : density === "medium" ? "text-[clamp(2.8rem,4.9vw,5.4rem)]" : density === "compact" ? "text-[clamp(1.85rem,3.2vw,3.5rem)]" : "text-[clamp(1.45rem,2.5vw,2.75rem)]";
+  const dashText = density === "large" ? "text-[clamp(2rem,3.4vw,4rem)]" : density === "medium" ? "text-[clamp(1.25rem,2.2vw,2.45rem)]" : density === "compact" ? "text-[clamp(0.9rem,1.55vw,1.7rem)]" : "text-[clamp(0.75rem,1.25vw,1.4rem)]";
 
   return (
     <div className={`grid min-h-0 gap-1.5 lg:overflow-hidden ${getScoreboardCourtGridClass(matches.length)}`} data-density={density} data-testid="scoreboard-court-grid">
@@ -1061,10 +1063,15 @@ function RemoteScoreboardScoreGrid({ density, matches }: { density: ScoreboardDe
         const score = parseScore(match.score);
 
         return (
-          <article key={match.id} className={`grid min-w-0 grid-rows-[auto_minmax(0,1fr)_auto] content-between gap-1.5 rounded-md border text-center ${cardPadding} ${getScoreboardMatchTone(match.status)}`} data-testid="scoreboard-court-card">
+          <article key={match.id} className={`grid min-w-0 grid-rows-[auto_auto_minmax(0,1fr)] content-between gap-1.5 rounded-md border text-center ${cardPadding} ${getScoreboardMatchTone(match.status)}`} data-testid="scoreboard-court-card">
             <div className="flex min-w-0 items-start justify-between gap-2">
               <h3 className={`${courtText} font-black uppercase leading-none text-[var(--primary-strong)]`}>{match.court}</h3>
               <span className="rounded-md bg-white/75 px-2 py-1 text-[0.65rem] font-black uppercase text-[var(--muted)]">{match.status}</span>
+            </div>
+            <div className={`grid min-w-0 gap-1 ${teamText} font-black leading-tight`}>
+              <p style={{ overflowWrap: "anywhere" }}>{match.teamA}</p>
+              <p className="text-[0.72em] uppercase text-[var(--muted)]">vs</p>
+              <p style={{ overflowWrap: "anywhere" }}>{match.teamB}</p>
             </div>
             {score ? (
               <>
@@ -1078,11 +1085,6 @@ function RemoteScoreboardScoreGrid({ density, matches }: { density: ScoreboardDe
             ) : (
               <p className={`${dashText} self-center font-black leading-tight text-[var(--muted)]`}>{match.score}</p>
             )}
-            <div className={`grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1.5 ${teamText} font-black leading-tight`}>
-              <p className="min-w-0 text-right" style={{ overflowWrap: "anywhere" }}>{match.teamA}</p>
-              <p className="text-[0.68em] uppercase text-[var(--muted)]">vs</p>
-              <p className="min-w-0 text-left" style={{ overflowWrap: "anywhere" }}>{match.teamB}</p>
-            </div>
           </article>
         );
       })}
@@ -1090,9 +1092,23 @@ function RemoteScoreboardScoreGrid({ density, matches }: { density: ScoreboardDe
   );
 }
 
-function RemoteScoreboardStandings({ standings }: { standings: ScoreboardStanding[] }) {
+function RemoteScoreboardStandings({ density, standings }: { density: ScoreboardStandingsDensity; standings: ScoreboardStanding[] }) {
   const { t } = useAppTranslation();
   const groups = chunkScoreboardStandings(standings);
+  const labelText = density === "large" ? "text-sm lg:text-base" : density === "medium" ? "text-xs lg:text-sm" : "text-[0.68rem] lg:text-xs";
+  const headerGridClass = density === "large"
+    ? "grid-cols-[2.75rem_minmax(0,1fr)_2.75rem_2.75rem_2.75rem_4rem_4.75rem] gap-2 px-3 py-2 text-xs lg:text-sm"
+    : density === "medium"
+      ? "grid-cols-[2.1rem_minmax(0,1fr)_2.1rem_2.1rem_2.1rem_3.1rem_3.9rem] gap-1.5 px-2 py-1.5 text-[0.68rem] lg:text-xs"
+      : "grid-cols-[1.75rem_minmax(0,1fr)_1.8rem_1.8rem_1.8rem_2.6rem_3.25rem] gap-1 px-1.5 py-1 text-[0.62rem] lg:text-[0.68rem]";
+  const rowGridClass = density === "large"
+    ? "grid-cols-[2.75rem_minmax(0,1fr)_2.75rem_2.75rem_2.75rem_4rem_4.75rem] gap-2 px-3 py-2"
+    : density === "medium"
+      ? "grid-cols-[2.1rem_minmax(0,1fr)_2.1rem_2.1rem_2.1rem_3.1rem_3.9rem] gap-1.5 px-2 py-1.5"
+      : "grid-cols-[1.75rem_minmax(0,1fr)_1.8rem_1.8rem_1.8rem_2.6rem_3.25rem] gap-1 px-1.5 py-1";
+  const rankText = density === "large" ? "text-2xl lg:text-3xl" : density === "medium" ? "text-base lg:text-lg" : "text-sm lg:text-base";
+  const playerText = density === "large" ? "text-lg lg:text-2xl" : density === "medium" ? "text-sm lg:text-base" : "text-[0.78rem] lg:text-sm";
+  const statText = density === "large" ? "text-lg lg:text-2xl" : density === "medium" ? "text-sm lg:text-base" : "text-[0.78rem] lg:text-sm";
 
   if (!groups.length) {
     return null;
@@ -1100,11 +1116,11 @@ function RemoteScoreboardStandings({ standings }: { standings: ScoreboardStandin
 
   return (
     <section className="grid min-h-0 gap-1.5 overflow-hidden" aria-label={t("remoteTopStandings")}>
-      <h2 className="text-sm font-black uppercase tracking-wide text-[var(--muted)] lg:text-base">{t("remoteTopStandings")}</h2>
-      <div className={`grid min-h-0 gap-1.5 overflow-hidden ${getScoreboardStandingsGridClass(groups.length)}`} data-testid="scoreboard-standings-grid">
+      <h2 className={`${labelText} font-black uppercase tracking-wide text-[var(--muted)]`}>{t("remoteTopStandings")}</h2>
+      <div className={`grid min-h-0 gap-1.5 overflow-hidden ${getScoreboardStandingsGridClass(groups.length)}`} data-density={density} data-testid="scoreboard-standings-grid">
         {groups.map((group, groupIndex) => (
           <div key={`standings-${groupIndex}`} className="min-h-0 overflow-hidden rounded-md border border-[var(--line)] bg-[var(--card)]">
-            <div className="grid grid-cols-[1.75rem_minmax(0,1fr)_1.8rem_1.8rem_1.8rem_2.6rem_3.25rem] gap-1 bg-[var(--primary-soft)] px-1.5 py-1 text-[0.62rem] font-black uppercase text-[var(--primary-strong)] lg:text-[0.68rem]">
+            <div className={`grid bg-[var(--primary-soft)] font-black uppercase text-[var(--primary-strong)] ${headerGridClass}`}>
               <span>#</span>
               <span>Spiller</span>
               <span className="text-right">V</span>
@@ -1117,15 +1133,15 @@ function RemoteScoreboardStandings({ standings }: { standings: ScoreboardStandin
               <article
                 key={row.id}
                 aria-label={`${row.rank} ${row.name} V ${row.wins} U ${row.draws} T ${row.losses} MP ${row.matchPoints} Point ${row.pointsFor}`}
-                className="grid min-w-0 grid-cols-[1.75rem_minmax(0,1fr)_1.8rem_1.8rem_1.8rem_2.6rem_3.25rem] items-center gap-1 border-t border-[var(--line)] px-1.5 py-1"
+                className={`grid min-w-0 items-center border-t border-[var(--line)] ${rowGridClass}`}
               >
-                <span className="text-sm font-black text-[var(--primary-strong)] lg:text-base">{row.rank}</span>
-                <h3 className="min-w-0 text-[0.78rem] font-black leading-tight lg:text-sm" style={{ overflowWrap: "anywhere" }}>{row.name}</h3>
-                <p className="text-right text-[0.78rem] font-black text-[var(--muted)] lg:text-sm">{row.wins}</p>
-                <p className="text-right text-[0.78rem] font-black text-[var(--muted)] lg:text-sm">{row.draws}</p>
-                <p className="text-right text-[0.78rem] font-black text-[var(--muted)] lg:text-sm">{row.losses}</p>
-                <p className="text-right text-[0.78rem] font-black text-[var(--muted)] lg:text-sm">{row.matchPoints}</p>
-                <p className="text-right text-[0.78rem] font-black text-[var(--muted)] lg:text-sm">{row.pointsFor}</p>
+                <span className={`${rankText} font-black text-[var(--primary-strong)]`}>{row.rank}</span>
+                <h3 className={`${playerText} min-w-0 font-black leading-tight`} style={{ overflowWrap: "anywhere" }}>{row.name}</h3>
+                <p className={`${statText} text-right font-black text-[var(--muted)]`}>{row.wins}</p>
+                <p className={`${statText} text-right font-black text-[var(--muted)]`}>{row.draws}</p>
+                <p className={`${statText} text-right font-black text-[var(--muted)]`}>{row.losses}</p>
+                <p className={`${statText} text-right font-black text-[var(--muted)]`}>{row.matchPoints}</p>
+                <p className={`${statText} text-right font-black text-[var(--muted)]`}>{row.pointsFor}</p>
               </article>
             ))}
           </div>
@@ -1422,26 +1438,46 @@ function formatLiveTournamentFormat(format: LiveTournamentState["format"], t: (k
 
 function getScoreboardDensity(matchCount: number): ScoreboardDensity {
   if (matchCount <= 2) {
-    return "low";
+    return "large";
   }
 
   if (matchCount <= 4) {
     return "medium";
   }
 
+  if (matchCount <= 6) {
+    return "compact";
+  }
+
   return "high";
 }
 
 function getScoreboardLayoutRowsClass(density: ScoreboardDensity): string {
-  if (density === "low") {
-    return "lg:grid-rows-[auto_minmax(0,0.48fr)_minmax(0,0.52fr)]";
+  if (density === "large") {
+    return "lg:grid-rows-[auto_minmax(0,0.56fr)_minmax(0,0.44fr)]";
   }
 
   if (density === "medium") {
     return "lg:grid-rows-[auto_minmax(0,0.58fr)_minmax(0,0.42fr)]";
   }
 
+  if (density === "compact") {
+    return "lg:grid-rows-[auto_minmax(0,0.64fr)_minmax(0,0.36fr)]";
+  }
+
   return "lg:grid-rows-[auto_minmax(0,0.66fr)_minmax(0,0.34fr)]";
+}
+
+function getScoreboardStandingsDensity(standingCount: number): ScoreboardStandingsDensity {
+  if (standingCount <= 8) {
+    return "large";
+  }
+
+  if (standingCount <= 16) {
+    return "medium";
+  }
+
+  return "compact";
 }
 
 function getScoreboardCourtGridClass(matchCount: number): string {

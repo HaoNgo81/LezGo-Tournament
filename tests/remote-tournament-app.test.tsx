@@ -170,11 +170,11 @@ describe("STEP 13 remote read-only UI", () => {
   });
 
   it.each([
-    { courts: 2, density: "low", players: 8, title: "STEP_22E_TEST 8 players 2 courts" },
-    { courts: 4, density: "medium", players: 16, title: "STEP_22E_TEST 16 players 4 courts" },
-    { courts: 6, density: "high", players: 24, title: "STEP_22E_TEST 24 players 6 courts" },
-    { courts: 8, density: "high", players: 32, title: "STEP_22E_TEST 32 players 8 courts" },
-  ])("renders adaptive one-screen scoreboard density for $players players and $courts courts", async ({ courts, density, players, title }) => {
+    { courts: 2, density: "large", players: 8, standingsDensity: "large", title: "STEP_22E_TEST 8 players 2 courts" },
+    { courts: 4, density: "medium", players: 16, standingsDensity: "medium", title: "STEP_22E_TEST 16 players 4 courts" },
+    { courts: 6, density: "compact", players: 24, standingsDensity: "compact", title: "STEP_22E_TEST 24 players 6 courts" },
+    { courts: 8, density: "high", players: 32, standingsDensity: "compact", title: "STEP_22E_TEST 32 players 8 courts" },
+  ])("renders adaptive one-screen scoreboard density for $players players and $courts courts", async ({ courts, density, players, standingsDensity, title }) => {
     const remoteState = scoreAdaptiveScoreboardState(title, players, courts);
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(createReadResponse("standard", remoteState)));
 
@@ -192,7 +192,7 @@ describe("STEP 13 remote read-only UI", () => {
     for (let courtNumber = 1; courtNumber <= courts; courtNumber += 1) {
       expect(screen.getByText(`Bane ${courtNumber}`)).toBeInTheDocument();
     }
-    expect(screen.getByTestId("scoreboard-standings-grid")).toBeInTheDocument();
+    expect(screen.getByTestId("scoreboard-standings-grid")).toHaveAttribute("data-density", standingsDensity);
     expect(screen.queryByText("Alle spillere")).not.toBeInTheDocument();
     expect(screen.queryByText("Visning fra anden enhed - skrivebeskyttet")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Indtast score" })).not.toBeInTheDocument();
