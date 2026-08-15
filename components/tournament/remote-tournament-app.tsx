@@ -1052,7 +1052,8 @@ function RemoteScoreboardHeader({
 
 function RemoteScoreboardScoreGrid({ density, matches }: { density: ScoreboardDensity; matches: ScoreboardMatchCard[] }) {
   const isHighDensity = density === "high";
-  const cardPadding = density === "large" ? "p-5 lg:p-6" : density === "medium" ? "p-3.5" : density === "compact" ? "p-2.5" : "p-1";
+  const gridGap = isHighDensity ? "gap-0.5" : "gap-1";
+  const cardPadding = density === "large" ? "p-5 lg:p-6" : density === "medium" ? "p-3.5" : density === "compact" ? "p-2.5" : "px-1 py-0.5";
   const cardGap = isHighDensity ? "gap-0" : "gap-1.5";
   const cardLayoutClass = isHighDensity ? "grid-rows-[auto_auto] content-start" : "grid-rows-[auto_minmax(0,1fr)] content-between";
   const matchGridGap = isHighDensity ? "gap-x-1 gap-y-0" : "gap-x-2 gap-y-1";
@@ -1065,12 +1066,12 @@ function RemoteScoreboardScoreGrid({ density, matches }: { density: ScoreboardDe
   const statusText = density === "large" ? "text-[clamp(1rem,1.35vw,1.7rem)]" : density === "medium" ? "text-[clamp(0.78rem,0.92vw,1rem)]" : density === "compact" ? "text-[clamp(0.62rem,0.74vw,0.82rem)]" : "text-[clamp(0.54rem,0.62vw,0.7rem)]";
 
   return (
-    <div className={`grid min-h-0 gap-1 lg:overflow-hidden ${getScoreboardCourtGridClass(matches.length)}`} data-density={density} data-testid="scoreboard-court-grid">
+    <div className={`grid min-h-0 ${gridGap} lg:overflow-hidden ${getScoreboardCourtGridClass(matches.length)}`} data-density={density} data-testid="scoreboard-court-grid">
       {matches.map((match) => {
         const score = parseScore(match.score);
 
         return (
-          <article key={match.id} className={`grid min-w-0 ${cardLayoutClass} ${cardGap} rounded-md border text-center ${cardPadding} ${getScoreboardMatchTone(match.status)}`} data-card-density={density} data-card-vertical-density={isHighDensity ? "compressed" : "standard"} data-testid="scoreboard-court-card">
+          <article key={match.id} className={`grid min-w-0 ${cardLayoutClass} ${cardGap} rounded-md border text-center ${cardPadding} ${getScoreboardMatchTone(match.status)}`} data-card-density={density} data-card-vertical-density={isHighDensity ? "final-compressed" : "standard"} data-testid="scoreboard-court-card">
             <div className="flex min-w-0 items-start justify-between gap-2">
               <h3 className={`${courtText} font-black uppercase leading-none text-[var(--primary-strong)]`}>{match.court}</h3>
               <span className={`rounded-md bg-white/75 font-black uppercase text-[var(--muted)] ${statusBadgeClass}`}>{match.status}</span>
@@ -1480,7 +1481,7 @@ function getScoreboardLayoutRowsClass(density: ScoreboardDensity): string {
     return "lg:grid-rows-[auto_minmax(0,0.64fr)_minmax(0,0.36fr)]";
   }
 
-  return "lg:grid-rows-[auto_minmax(0,0.42fr)_minmax(0,0.58fr)]";
+  return "lg:grid-rows-[auto_minmax(0,0.35fr)_minmax(0,0.65fr)]";
 }
 
 function getScoreboardStandingsDensity(standingCount: number): ScoreboardStandingsDensity {

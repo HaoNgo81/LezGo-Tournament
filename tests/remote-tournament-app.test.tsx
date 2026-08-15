@@ -199,7 +199,7 @@ describe("STEP 13 remote read-only UI", () => {
     expect(screen.getByTestId("scoreboard-dashboard")).toHaveAttribute("data-vertical-spacing", "tight");
     expect(screen.getByTestId("scoreboard-court-grid")).toHaveAttribute("data-density", density);
     expect(screen.getAllByTestId("scoreboard-court-card")).toHaveLength(courts);
-    expect(screen.getAllByTestId("scoreboard-court-card").every((card) => card.getAttribute("data-card-vertical-density") === (density === "high" ? "compressed" : "standard"))).toBe(true);
+    expect(screen.getAllByTestId("scoreboard-court-card").every((card) => card.getAttribute("data-card-vertical-density") === (density === "high" ? "final-compressed" : "standard"))).toBe(true);
     expect(screen.getAllByTestId("scoreboard-vs")).toHaveLength(courts);
     for (let courtNumber = 1; courtNumber <= courts; courtNumber += 1) {
       expect(screen.getByText(`Bane ${courtNumber}`)).toBeInTheDocument();
@@ -228,7 +228,7 @@ describe("STEP 13 remote read-only UI", () => {
     expect(screen.getByTestId("scoreboard-court-grid")).toHaveAttribute("data-density", "high");
     expect(screen.getAllByTestId("scoreboard-court-card")).toHaveLength(8);
     expect(screen.getAllByTestId("scoreboard-court-card").every((card) => card.getAttribute("data-card-density") === "high")).toBe(true);
-    expect(screen.getAllByTestId("scoreboard-court-card").every((card) => card.getAttribute("data-card-vertical-density") === "compressed")).toBe(true);
+    expect(screen.getAllByTestId("scoreboard-court-card").every((card) => card.getAttribute("data-card-vertical-density") === "final-compressed")).toBe(true);
 
     const standingsRows = screen.getAllByTestId("scoreboard-standings-row");
     expect(standingsRows).toHaveLength(16);
