@@ -153,28 +153,61 @@ describe("STEP 13 remote read-only UI", () => {
     expect(await screen.findByRole("heading", { name: "STEP_19_TEST Scoreboard" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Scoreboard-visning" }));
 
-    expect(screen.getByText("LEZGO PADEL")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /LEZGO PADEL/ })).toBeInTheDocument();
     expect(screen.getByText("Americano")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Standardvisning" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Kampe" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Live score" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Næste kampe" })).toBeInTheDocument();
-    expect(screen.getAllByText("Runde 2").length).toBeGreaterThan(0);
-    expect(screen.getByRole("heading", { name: "Stilling" })).toBeInTheDocument();
+    const liveScoreHeading = screen.getByRole("heading", { name: "Live score" });
+    const standingsHeading = screen.getByRole("heading", { name: "Stilling" });
+    expect(liveScoreHeading.compareDocumentPosition(standingsHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Kampe" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Næste kampe" })).not.toBeInTheDocument();
     expect(screen.getByText("Spiller")).toBeInTheDocument();
     expect(screen.getByText("MP")).toBeInTheDocument();
     expect(screen.getByText("Point")).toBeInTheDocument();
     expect(screen.getByText("17 - 7")).toBeInTheDocument();
+    expect(screen.queryByText("Alle spillere")).not.toBeInTheDocument();
     expect(screen.queryByText("Visning fra anden enhed - skrivebeskyttet")).not.toBeInTheDocument();
   });
 
-  it("updates next matches through the existing remote polling flow", async () => {
+  it.each([
+    { courts: 2, density: "low", players: 8, title: "STEP_22E_TEST 8 players 2 courts" },
+    { courts: 4, density: "medium", players: 16, title: "STEP_22E_TEST 16 players 4 courts" },
+    { courts: 6, density: "high", players: 24, title: "STEP_22E_TEST 24 players 6 courts" },
+    { courts: 8, density: "high", players: 32, title: "STEP_22E_TEST 32 players 8 courts" },
+  ])("renders adaptive one-screen scoreboard density for $players players and $courts courts", async ({ courts, density, players, title }) => {
+    const remoteState = scoreAdaptiveScoreboardState(title, players, courts);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(createReadResponse("standard", remoteState)));
+
+    render(<RemoteTournamentApp />);
+    fireEvent.change(screen.getByLabelText("Turneringskode"), { target: { value: "K7M4XP" } });
+    fireEvent.change(screen.getByLabelText("Adgangskode"), { target: { value: "2222" } });
+    fireEvent.click(screen.getByRole("button", { name: "Åbn turnering fra anden enhed" }));
+
+    expect(await screen.findByRole("heading", { name: title })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Scoreboard-visning" }));
+
+    expect(screen.getByTestId("scoreboard-court-grid")).toHaveAttribute("data-density", density);
+    expect(screen.getAllByTestId("scoreboard-court-card")).toHaveLength(courts);
+    for (let courtNumber = 1; courtNumber <= courts; courtNumber += 1) {
+      expect(screen.getByText(`Bane ${courtNumber}`)).toBeInTheDocument();
+    }
+    expect(screen.getByTestId("scoreboard-standings-grid")).toBeInTheDocument();
+    expect(screen.queryByText("Alle spillere")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Indtast score" })).not.toBeInTheDocument();
+  });
+
+  it("updates the scoreboard through the existing remote polling flow", async () => {
     vi.useFakeTimers();
     const initialRemoteState = scoreThreeRoundState("STEP_20_TEST Next Match", 17, 7);
-    const updatedRemoteState = {
-      ...scoreThreeRoundState("STEP_20_TEST Next Match", 20, 4),
+    const updatedBaseState = {
+      ...scoreThreeRoundState("STEP_20_TEST Next Match", 17, 7),
       activeRoundNumber: 2,
     };
+    const updatedRemoteState = saveMatchResult(updatedBaseState, {
+      matchId: updatedBaseState.rounds[1].matches[0].id,
+      teamAPoints: 20,
+      teamBPoints: 4,
+    });
     vi.stubGlobal("fetch", vi.fn()
       .mockResolvedValueOnce(createReadResponse("standard", initialRemoteState, "2026-08-13T12:00:00.000Z"))
       .mockResolvedValueOnce(createReadResponse("standard", updatedRemoteState, "2026-08-13T12:00:05.000Z")));
@@ -183,14 +216,15 @@ describe("STEP 13 remote read-only UI", () => {
 
     await flushPromises();
     fireEvent.click(screen.getByRole("button", { name: "Scoreboard-visning" }));
-    expect(screen.getAllByText("Runde 2").length).toBeGreaterThan(0);
+    expect(screen.getByText("17 - 7")).toBeInTheDocument();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(4000);
     });
 
-    expect(screen.getAllByText("Runde 3").length).toBeGreaterThan(0);
-    expect(screen.queryByText("Runde 2")).not.toBeInTheDocument();
+    expect(screen.getByText("20 - 4")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Runde 2 \/ 3/ })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Næste kampe" })).not.toBeInTheDocument();
     vi.useRealTimers();
   });
 
@@ -257,7 +291,7 @@ describe("STEP 13 remote read-only UI", () => {
 
     render(<RemoteTournamentApp initialHandoffReference="STEP_19_TEST_REFERENCE_WITH_ENTROPY_1234567890" />);
 
-    expect(await screen.findByRole("heading", { name: "STEP_19_TEST Direct Scoreboard" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /STEP_19_TEST Direct Scoreboard/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Standardvisning" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Live score" })).toBeInTheDocument();
     expect(screen.queryByText("Visning fra anden enhed - skrivebeskyttet")).not.toBeInTheDocument();
@@ -668,6 +702,29 @@ function scoreThreeRoundState(name: string, teamAPoints = 17, teamBPoints = 7): 
   });
 
   return saveMatchResult(state, { matchId: state.rounds[0].matches[0].id, teamAPoints, teamBPoints });
+}
+
+function scoreAdaptiveScoreboardState(name: string, playerCount: number, courts: number): LiveTournamentState {
+  const state = createTournamentFromSetup({
+    name,
+    format: "Americano",
+    playerText: Array.from({ length: playerCount }, (_, index) => `Spiller ${index + 1}`).join("\n"),
+    femalePlayerText: "",
+    malePlayerText: "",
+    courts,
+    rounds: 2,
+    scoringMode: "Fast antal point",
+    fixedScoreRule: "total",
+    fixedScorePoints: 24,
+    firstRoundOrder: "manual",
+    rankingMode: "matchPointsFirst",
+  });
+
+  return state.rounds[0].matches.reduce((currentState, match, index) => {
+    const teamAPoints = 12 + index;
+    const teamBPoints = 24 - teamAPoints;
+    return saveMatchResult(currentState, { matchId: match.id, teamAPoints, teamBPoints });
+  }, state);
 }
 
 function createTeamState(): TeamVsTeamTournamentState {
