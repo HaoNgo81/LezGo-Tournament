@@ -976,7 +976,7 @@ function RemoteScoreboardLayout({
   const layoutRowsClass = getScoreboardLayoutRowsClass(density);
 
   return (
-    <div className={`mx-auto grid min-h-[calc(100vh-1rem)] w-full max-w-[1920px] gap-1 overflow-x-hidden lg:h-[calc(100vh-2.5rem)] lg:min-h-0 ${layoutRowsClass} lg:overflow-hidden`} data-layout-density={density} data-testid="scoreboard-dashboard">
+    <div className={`mx-auto grid min-h-[calc(100vh-1rem)] w-full max-w-[1920px] gap-0.5 overflow-x-hidden pb-2 lg:h-[calc(100vh-2.5rem)] lg:min-h-0 lg:pb-3 ${layoutRowsClass} lg:overflow-hidden`} data-layout-density={density} data-vertical-spacing="tight" data-testid="scoreboard-dashboard">
       <RemoteScoreboardHeader
         formatLabel={formatLabel}
         isLoading={isLoading}
@@ -988,7 +988,7 @@ function RemoteScoreboardLayout({
         syncStatus={syncStatus}
         title={title}
       />
-      <section className="grid min-h-0 gap-1 lg:overflow-hidden" aria-label={t("liveScore")}>
+      <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-0.5 lg:overflow-hidden" aria-label={t("liveScore")}>
         <div className="flex min-w-0 items-center justify-between gap-2">
           <h2 className="text-sm font-black uppercase tracking-wide text-[var(--primary-strong)] lg:text-base">{t("liveScore")}</h2>
           <span className="rounded-md bg-[var(--primary-soft)] px-2 py-1 text-xs font-black uppercase text-[var(--primary-strong)]">{matches.length} {t("courts").toLowerCase()}</span>
@@ -1058,7 +1058,7 @@ function RemoteScoreboardScoreGrid({ density, matches }: { density: ScoreboardDe
   const dashText = density === "large" ? "text-[clamp(2rem,3.4vw,4rem)]" : density === "medium" ? "text-[clamp(1.25rem,2.2vw,2.45rem)]" : density === "compact" ? "text-[clamp(0.9rem,1.55vw,1.7rem)]" : "text-[clamp(0.75rem,1.25vw,1.4rem)]";
 
   return (
-    <div className={`grid min-h-0 gap-1.5 lg:overflow-hidden ${getScoreboardCourtGridClass(matches.length)}`} data-density={density} data-testid="scoreboard-court-grid">
+    <div className={`grid min-h-0 gap-1 lg:overflow-hidden ${getScoreboardCourtGridClass(matches.length)}`} data-density={density} data-testid="scoreboard-court-grid">
       {matches.map((match) => {
         const score = parseScore(match.score);
 
@@ -1115,9 +1115,9 @@ function RemoteScoreboardStandings({ density, standings }: { density: Scoreboard
   }
 
   return (
-    <section className="grid min-h-0 gap-1.5 overflow-hidden" aria-label={t("remoteTopStandings")}>
+    <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-0.5 overflow-hidden pb-1" aria-label={t("remoteTopStandings")} data-bottom-safe="true">
       <h2 className={`${labelText} font-black uppercase tracking-wide text-[var(--muted)]`}>{t("remoteTopStandings")}</h2>
-      <div className={`grid min-h-0 gap-1.5 overflow-hidden ${getScoreboardStandingsGridClass(groups.length)}`} data-density={density} data-testid="scoreboard-standings-grid">
+      <div className={`grid min-h-0 gap-1 overflow-hidden ${getScoreboardStandingsGridClass(groups.length)}`} data-density={density} data-testid="scoreboard-standings-grid">
         {groups.map((group, groupIndex) => (
           <div key={`standings-${groupIndex}`} className="min-h-0 overflow-hidden rounded-md border border-[var(--line)] bg-[var(--card)]">
             <div className={`grid bg-[var(--primary-soft)] font-black uppercase text-[var(--primary-strong)] ${headerGridClass}`}>

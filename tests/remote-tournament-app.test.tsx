@@ -187,12 +187,14 @@ describe("STEP 13 remote read-only UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "Scoreboard-visning" }));
 
     expect(screen.getByTestId("scoreboard-dashboard")).toHaveAttribute("data-layout-density", density);
+    expect(screen.getByTestId("scoreboard-dashboard")).toHaveAttribute("data-vertical-spacing", "tight");
     expect(screen.getByTestId("scoreboard-court-grid")).toHaveAttribute("data-density", density);
     expect(screen.getAllByTestId("scoreboard-court-card")).toHaveLength(courts);
     for (let courtNumber = 1; courtNumber <= courts; courtNumber += 1) {
       expect(screen.getByText(`Bane ${courtNumber}`)).toBeInTheDocument();
     }
     expect(screen.getByTestId("scoreboard-standings-grid")).toHaveAttribute("data-density", standingsDensity);
+    expect(screen.getByLabelText("Stilling")).toHaveAttribute("data-bottom-safe", "true");
     expect(screen.queryByText("Alle spillere")).not.toBeInTheDocument();
     expect(screen.queryByText("Visning fra anden enhed - skrivebeskyttet")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Indtast score" })).not.toBeInTheDocument();
