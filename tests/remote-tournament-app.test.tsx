@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RemoteTournamentApp } from "../components/tournament/remote-tournament-app";
 import { SyncStatusPanel } from "../components/tournament/sync-status-panel";
-import { createMockLiveTournamentState, saveMatchResult, type LiveTournamentState } from "../lib/live-scoring";
+import { calculateLiveStandings, createMockLiveTournamentState, saveMatchResult, type LiveTournamentState } from "../lib/live-scoring";
 import { createPoolTournamentFromSetup, createTeamVsTeamTournamentFromSetup, createTournamentFromSetup, loadActiveTournament, saveActiveTournament, type TeamVsTeamTournamentState } from "../lib/tournament-setup";
 
 describe("STEP 13 remote read-only UI", () => {
@@ -193,6 +193,30 @@ describe("STEP 13 remote read-only UI", () => {
     }
     expect(screen.getByTestId("scoreboard-standings-grid")).toBeInTheDocument();
     expect(screen.queryByText("Alle spillere")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Indtast score" })).not.toBeInTheDocument();
+  });
+
+  it("shows wins, draws and losses in TV standings without changing ranking, match points or scorepoints", async () => {
+    const remoteState = scoreWdlScoreboardState("STEP_22F_TEST WDL");
+    const expectedRows = calculateLiveStandings(remoteState).map((row) => `${row.rank} ${row.name} V ${row.wins} U ${row.draws} T ${row.losses} MP ${row.matchPoints} Point ${row.pointsFor}`);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(createReadResponse("standard", remoteState)));
+
+    render(<RemoteTournamentApp />);
+    fireEvent.change(screen.getByLabelText("Turneringskode"), { target: { value: "K7M4XP" } });
+    fireEvent.change(screen.getByLabelText("Adgangskode"), { target: { value: "2222" } });
+    fireEvent.click(screen.getByRole("button", { name: "Åbn turnering fra anden enhed" }));
+
+    expect(await screen.findByRole("heading", { name: "STEP_22F_TEST WDL" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Scoreboard-visning" }));
+
+    const standingsGrid = screen.getByTestId("scoreboard-standings-grid");
+    expect(standingsGrid).toHaveTextContent("V");
+    expect(standingsGrid).toHaveTextContent("U");
+    expect(standingsGrid).toHaveTextContent("T");
+    expectedRows.forEach((label) => {
+      expect(screen.getByLabelText(label)).toBeInTheDocument();
+    });
+    expect(screen.getAllByLabelText(/^\d+ .+ V \d+ U \d+ T \d+ MP \d+ Point \d+$/).map((row) => row.getAttribute("aria-label"))).toEqual(expectedRows);
     expect(screen.queryByRole("button", { name: "Indtast score" })).not.toBeInTheDocument();
   });
 
@@ -725,6 +749,25 @@ function scoreAdaptiveScoreboardState(name: string, playerCount: number, courts:
     const teamBPoints = 24 - teamAPoints;
     return saveMatchResult(currentState, { matchId: match.id, teamAPoints, teamBPoints });
   }, state);
+}
+
+function scoreWdlScoreboardState(name: string): LiveTournamentState {
+  const state = createTournamentFromSetup({
+    name,
+    format: "Americano",
+    playerText: Array.from({ length: 8 }, (_, index) => `Spiller ${index + 1}`).join("\n"),
+    femalePlayerText: "",
+    malePlayerText: "",
+    courts: 2,
+    rounds: 2,
+    scoringMode: "Fri scoring",
+    firstRoundOrder: "manual",
+    rankingMode: "matchPointsFirst",
+  });
+
+  const firstRoundMatches = state.rounds[0].matches;
+  const winLossState = saveMatchResult(state, { matchId: firstRoundMatches[0].id, teamAPoints: 12, teamBPoints: 9 });
+  return saveMatchResult(winLossState, { matchId: firstRoundMatches[1].id, teamAPoints: 10, teamBPoints: 10 });
 }
 
 function createTeamState(): TeamVsTeamTournamentState {

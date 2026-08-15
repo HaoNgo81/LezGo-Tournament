@@ -51,6 +51,9 @@ type ScoreboardStanding = {
   id: string;
   rank: number;
   name: string;
+  wins: number;
+  draws: number;
+  losses: number;
   matchPoints: number;
   pointsFor: number;
 };
@@ -917,6 +920,9 @@ function RemoteTeamVsTeamScoreboardView({
     id: standing.teamId,
     rank: standing.rank,
     name: standing.teamName,
+    wins: standing.won,
+    draws: 0,
+    losses: standing.lost,
     matchPoints: standing.matchWins,
     pointsFor: standing.matchLosses,
   }));
@@ -1097,16 +1103,26 @@ function RemoteScoreboardStandings({ standings }: { standings: ScoreboardStandin
       <div className={`grid min-h-0 gap-2 overflow-hidden ${getScoreboardStandingsGridClass(groups.length)}`} data-testid="scoreboard-standings-grid">
         {groups.map((group, groupIndex) => (
           <div key={`standings-${groupIndex}`} className="min-h-0 overflow-hidden rounded-md border border-[var(--line)] bg-[var(--card)]">
-            <div className="grid grid-cols-[2.5rem_minmax(0,1fr)_3.5rem_4.25rem] gap-2 bg-[var(--primary-soft)] px-3 py-1.5 text-xs font-black uppercase text-[var(--primary-strong)]">
+            <div className="grid grid-cols-[2rem_minmax(0,1fr)_2rem_2rem_2rem_3rem_3.75rem] gap-1.5 bg-[var(--primary-soft)] px-2 py-1.5 text-[0.68rem] font-black uppercase text-[var(--primary-strong)] lg:text-xs">
               <span>#</span>
               <span>Spiller</span>
+              <span className="text-right">V</span>
+              <span className="text-right">U</span>
+              <span className="text-right">T</span>
               <span className="text-right">MP</span>
               <span className="text-right">Point</span>
             </div>
             {group.map((row) => (
-              <article key={row.id} className="grid min-w-0 grid-cols-[2.5rem_minmax(0,1fr)_3.5rem_4.25rem] items-center gap-2 border-t border-[var(--line)] px-3 py-1.5">
+              <article
+                key={row.id}
+                aria-label={`${row.rank} ${row.name} V ${row.wins} U ${row.draws} T ${row.losses} MP ${row.matchPoints} Point ${row.pointsFor}`}
+                className="grid min-w-0 grid-cols-[2rem_minmax(0,1fr)_2rem_2rem_2rem_3rem_3.75rem] items-center gap-1.5 border-t border-[var(--line)] px-2 py-1.5"
+              >
                 <span className="text-lg font-black text-[var(--primary-strong)] lg:text-xl">{row.rank}</span>
                 <h3 className="min-w-0 text-sm font-black leading-tight lg:text-base" style={{ overflowWrap: "anywhere" }}>{row.name}</h3>
+                <p className="text-right text-sm font-black text-[var(--muted)] lg:text-base">{row.wins}</p>
+                <p className="text-right text-sm font-black text-[var(--muted)] lg:text-base">{row.draws}</p>
+                <p className="text-right text-sm font-black text-[var(--muted)] lg:text-base">{row.losses}</p>
                 <p className="text-right text-sm font-black text-[var(--muted)] lg:text-base">{row.matchPoints}</p>
                 <p className="text-right text-sm font-black text-[var(--muted)] lg:text-base">{row.pointsFor}</p>
               </article>
@@ -1349,19 +1365,25 @@ function RemoteMatchScoreGrid({ isTvMode, matches }: { isTvMode: boolean; matche
   );
 }
 
-function RemoteStandingsList({ isTvMode, standings }: { isTvMode: boolean; standings: Array<{ id: string; rank: number; name: string; matchPoints: number; pointsFor: number }> }) {
+function RemoteStandingsList({ isTvMode, standings }: { isTvMode: boolean; standings: Array<{ id: string; rank: number; name: string; wins: number; draws: number; losses: number; matchPoints: number; pointsFor: number }> }) {
   return (
     <div className="overflow-hidden rounded-md border border-[var(--line)] bg-[var(--card)]">
-      <div className={`grid grid-cols-[3.5rem_minmax(0,1fr)_5rem_5.5rem] gap-3 bg-[var(--primary-soft)] px-3 py-2 text-xs font-black uppercase text-[var(--primary-strong)] ${isTvMode ? "sm:grid-cols-[5rem_minmax(0,1fr)_7rem_7rem] sm:px-5 sm:text-base" : ""}`}>
+      <div className={`grid grid-cols-[2.75rem_minmax(0,1fr)_2.25rem_2.25rem_2.25rem_3.5rem_4.25rem] gap-2 bg-[var(--primary-soft)] px-3 py-2 text-xs font-black uppercase text-[var(--primary-strong)] ${isTvMode ? "sm:grid-cols-[4rem_minmax(0,1fr)_3.5rem_3.5rem_3.5rem_5rem_5.5rem] sm:px-4 sm:text-sm" : ""}`}>
         <span>#</span>
         <span>Spiller</span>
+        <span className="text-right">V</span>
+        <span className="text-right">U</span>
+        <span className="text-right">T</span>
         <span className="text-right">MP</span>
         <span className="text-right">Point</span>
       </div>
       {standings.map((row) => (
-        <article key={row.id} className={`grid grid-cols-[3.5rem_minmax(0,1fr)_5rem_5.5rem] items-center gap-3 border-t border-[var(--line)] px-3 py-3 ${isTvMode ? "sm:grid-cols-[5rem_minmax(0,1fr)_7rem_7rem] sm:px-5 sm:py-4" : ""}`}>
+        <article key={row.id} className={`grid grid-cols-[2.75rem_minmax(0,1fr)_2.25rem_2.25rem_2.25rem_3.5rem_4.25rem] items-center gap-2 border-t border-[var(--line)] px-3 py-3 ${isTvMode ? "sm:grid-cols-[4rem_minmax(0,1fr)_3.5rem_3.5rem_3.5rem_5rem_5.5rem] sm:px-4 sm:py-3" : ""}`}>
           <span className={`${isTvMode ? "text-4xl" : "text-2xl"} font-black text-[var(--primary-strong)]`}>{row.rank}</span>
           <h3 className={`${isTvMode ? "text-2xl" : "text-lg"} min-w-0 break-words font-black`} style={{ overflowWrap: "anywhere", wordBreak: "normal" }}>{row.name}</h3>
+          <p className={`${isTvMode ? "text-2xl" : "text-lg"} text-right font-black text-[var(--muted)]`}>{row.wins}</p>
+          <p className={`${isTvMode ? "text-2xl" : "text-lg"} text-right font-black text-[var(--muted)]`}>{row.draws}</p>
+          <p className={`${isTvMode ? "text-2xl" : "text-lg"} text-right font-black text-[var(--muted)]`}>{row.losses}</p>
           <p className={`${isTvMode ? "text-2xl" : "text-lg"} text-right font-black text-[var(--muted)]`}>{row.matchPoints}</p>
           <p className={`${isTvMode ? "text-2xl" : "text-lg"} text-right font-black text-[var(--muted)]`}>{row.pointsFor}</p>
         </article>
