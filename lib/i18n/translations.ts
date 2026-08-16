@@ -5,7 +5,6 @@ export type TranslationKey =
   | "active"
   | "alarmSound"
   | "allCourts"
-  | "allPlayers"
   | "appBrand"
   | "appSubtitle"
   | "background"
@@ -201,7 +200,6 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     active: "Aktive",
     alarmSound: "Alarmlyd",
     allCourts: "Alle baner",
-    allPlayers: "Alle spillere",
     appBrand: "LEZGO PADEL",
     appSubtitle: "Hurtig turneringsstyring til telefon og tablet.",
     background: "Baggrund",
@@ -396,7 +394,6 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     active: "Active",
     alarmSound: "Alarm sound",
     allCourts: "All courts",
-    allPlayers: "All players",
     appBrand: "LEZGO PADEL",
     appSubtitle: "Fast tournament management for phone and tablet.",
     background: "Background",

@@ -42,6 +42,26 @@ describe("STEP 13 remote read-only UI", () => {
     expect(payload).toEqual({ tournamentCode: "AB12CD", shareToken: "0427" });
   });
 
+  it("removes all-player cards from the actual production /remote render path", async () => {
+    const remoteState = scoreAdaptiveScoreboardState("STEP_22U_TEST Actual Remote Path", 16, 4);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(createReadResponse("standard", remoteState)));
+
+    render(<RemoteTournamentApp />);
+    fireEvent.change(screen.getByLabelText("Turneringskode"), { target: { value: "K7M4XP" } });
+    fireEvent.change(screen.getByLabelText("Adgangskode"), { target: { value: "2222" } });
+    fireEvent.click(screen.getByRole("button", { name: "Åbn turnering fra anden enhed" }));
+
+    expect(await screen.findByRole("heading", { name: "STEP_22U_TEST Actual Remote Path" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Live score" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Stilling" })).toBeInTheDocument();
+    expect(screen.getByText("Spiller 1")).toBeInTheDocument();
+    expect(screen.getByText("Spiller 16")).toBeInTheDocument();
+    expect(screen.queryByText("Alle spillere")).not.toBeInTheDocument();
+    expect(screen.queryByText("Placering #1")).not.toBeInTheDocument();
+    expect(screen.queryByText("Makker:")).not.toBeInTheDocument();
+    expect(screen.queryByText("Modstandere:")).not.toBeInTheDocument();
+  });
+
   it("keeps the last remote snapshot in memory when refresh fails", async () => {
     const firstState = scoreMockState("STEP_13_TEST First");
     const fetchMock = vi
