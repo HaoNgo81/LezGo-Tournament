@@ -28,8 +28,15 @@ describe("STEP 13 remote read-only UI", () => {
 
     expect(await screen.findByText("Visning fra anden enhed - skrivebeskyttet")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "STEP_13_TEST Remote" })).toBeInTheDocument();
+    expect(screen.getByTestId("remote-tournament-header")).toHaveTextContent("LEZGO PADEL");
+    expect(screen.getByTestId("remote-tournament-header")).toHaveTextContent("Runde 1 / 2");
+    expect(screen.getByTestId("remote-view-controls")).toHaveClass("flex-wrap");
+    expect(screen.getByRole("button", { name: "Standardvisning" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("button", { name: "TV-visning" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Scoreboard-visning" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Fuld skærm" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Opdater" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Luk visning" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Live score" })).toBeInTheDocument();
     expect(screen.getByText("Spiller")).toBeInTheDocument();
     expect(screen.getByText("MP")).toBeInTheDocument();

@@ -530,7 +530,7 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
 
   if (session) {
     return (
-      <div className={isTvMode ? "fixed inset-0 z-50 min-h-screen w-screen max-w-[100vw] overflow-auto overflow-x-hidden bg-[var(--background)] p-2 sm:p-4 lg:p-5" : "grid gap-5"}>
+      <div className={isTvMode ? "fixed inset-0 z-50 min-h-screen w-screen max-w-[100vw] overflow-auto overflow-x-hidden bg-[var(--background)] p-2 sm:p-4 lg:p-5" : "grid gap-3 sm:gap-4"}>
         {isScoreboardMode ? null : (
           <RemoteReadOnlyBanner
             onClose={handleClose}
@@ -544,7 +544,7 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
             syncTelemetry={syncTelemetry}
           />
         )}
-        {message && !isScoreboardMode ? <p className="rounded-md bg-green-50 p-3 font-bold text-[var(--primary-strong)]">{message}</p> : null}
+        {message && !isScoreboardMode ? <p className="rounded-md bg-green-50 px-3 py-2 text-sm font-bold text-[var(--primary-strong)] sm:text-base">{message}</p> : null}
         {error ? <RemoteErrorMessage message={error} isTerminal={syncStatus === "error"} onNewConnection={handleClose} /> : null}
         {isScoreboardMode ? (
           <RemoteScoreboardView
@@ -635,45 +635,101 @@ function RemoteReadOnlyBanner({
   const statusLabel = syncStatus === "reconnecting" ? t("remoteSyncRestoring") : t(statusCopy.label);
   const isTvMode = displayMode === "tv";
 
+  if (isTvMode) {
+    return (
+      <section className="sticky top-0 z-10 w-full max-w-full overflow-hidden rounded-md border border-[var(--line)] bg-[var(--card)] px-4 py-3 shadow-sm">
+        <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-xs font-black uppercase tracking-wide text-[var(--primary-strong)]">
+                <span className="sm:hidden">{t("remoteReadOnlyShort")}</span>
+                <span className="hidden sm:inline">{t("remoteReadOnlyBanner")}</span>
+              </p>
+              <span className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-black ${statusCopy.className}`} aria-label={t("remoteSyncStatus")}>
+                <span aria-hidden="true" className="h-2 w-2 rounded-full bg-current" />
+                {statusLabel}
+              </span>
+            </div>
+            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm font-bold text-[var(--muted)]">
+              {syncTelemetry.lastSuccessfulSyncAt ? <span>{t("remoteSyncLastUpdated")}: {formatRemoteSyncTime(syncTelemetry.lastSuccessfulSyncAt)}</span> : null}
+              {!syncTelemetry.lastSuccessfulSyncAt && syncTelemetry.lastCheckedAt ? <span>{t("remoteSyncLastChecked")}: {formatRemoteSyncTime(syncTelemetry.lastCheckedAt)}</span> : null}
+              {syncTelemetry.nextRetryAt ? <span>{t("remoteSyncNextRetry")}: {formatRemoteRetry(syncTelemetry.nextRetryAt)}</span> : null}
+            </div>
+          </div>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <button className="btn-primary-soft min-h-11 px-3 text-sm disabled:opacity-50" type="button" onClick={() => onSetDisplayMode("standard")}>
+              {t("remoteStandardMode")}
+            </button>
+            <button className="btn-primary-soft min-h-11 px-3 text-sm disabled:opacity-50" type="button" onClick={() => onSetDisplayMode("scoreboard")}>
+              {t("remoteScoreboardMode")}
+            </button>
+            <button className="btn-secondary min-h-11 px-3 text-sm disabled:opacity-50" type="button" onClick={onFullscreen}>
+              {t("remoteFullscreen")}
+            </button>
+            <button className="btn-secondary min-h-11 px-3 text-sm disabled:opacity-50" type="button" disabled={isLoading} onClick={onRefresh}>
+              {isLoading ? t("remoteLoadingTournament") : t("remoteRefresh")}
+            </button>
+            <button className="btn-outline-primary min-h-11 px-3 text-sm" type="button" onClick={onClose}>
+              {isTerminalError ? t("remoteNewConnection") : t("remoteCloseView")}
+            </button>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
-    <section className={`w-full max-w-full overflow-hidden rounded-md border border-[var(--line)] bg-[var(--card)] px-4 py-3 shadow-sm ${isTvMode ? "sticky top-0 z-10" : ""}`}>
-      <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
+    <section className="w-full max-w-full overflow-hidden rounded-md border border-[var(--line)] bg-[var(--card)] px-3 py-2 shadow-sm sm:px-4">
+      <div className="flex w-full min-w-0 flex-wrap items-start justify-between gap-2 lg:items-center">
+        <div className="min-w-[14rem] flex-1">
+          <div className="flex flex-wrap items-center gap-1.5">
             <p className="text-xs font-black uppercase tracking-wide text-[var(--primary-strong)]">
               <span className="sm:hidden">{t("remoteReadOnlyShort")}</span>
               <span className="hidden sm:inline">{t("remoteReadOnlyBanner")}</span>
             </p>
-            <span className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-black ${statusCopy.className}`} aria-label={t("remoteSyncStatus")}>
+            <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-black ${statusCopy.className}`} aria-label={t("remoteSyncStatus")}>
               <span aria-hidden="true" className="h-2 w-2 rounded-full bg-current" />
               {statusLabel}
             </span>
           </div>
-          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm font-bold text-[var(--muted)]">
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs font-bold text-[var(--muted)] sm:text-sm">
             {syncTelemetry.lastSuccessfulSyncAt ? <span>{t("remoteSyncLastUpdated")}: {formatRemoteSyncTime(syncTelemetry.lastSuccessfulSyncAt)}</span> : null}
             {!syncTelemetry.lastSuccessfulSyncAt && syncTelemetry.lastCheckedAt ? <span>{t("remoteSyncLastChecked")}: {formatRemoteSyncTime(syncTelemetry.lastCheckedAt)}</span> : null}
             {syncTelemetry.nextRetryAt ? <span>{t("remoteSyncNextRetry")}: {formatRemoteRetry(syncTelemetry.nextRetryAt)}</span> : null}
           </div>
         </div>
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <button className="btn-primary-soft min-h-11 px-3 text-sm disabled:opacity-50" type="button" onClick={() => onSetDisplayMode(isTvMode ? "standard" : "tv")}>
-            {isTvMode ? t("remoteStandardMode") : t("remoteTvMode")}
-          </button>
-          <button className="btn-primary-soft min-h-11 px-3 text-sm disabled:opacity-50" type="button" onClick={() => onSetDisplayMode("scoreboard")}>
-            {t("remoteScoreboardMode")}
-          </button>
-          <button className="btn-secondary min-h-11 px-3 text-sm disabled:opacity-50" type="button" onClick={onFullscreen}>
+        <div className="flex min-w-0 max-w-full flex-wrap items-center justify-start gap-1.5 sm:justify-end" data-testid="remote-view-controls">
+          <RemoteViewButton isActive={displayMode === "standard"} label={t("remoteStandardMode")} shortLabel="Standard" onClick={() => onSetDisplayMode("standard")} />
+          <RemoteViewButton isActive={false} label={t("remoteTvMode")} shortLabel="TV" onClick={() => onSetDisplayMode("tv")} />
+          <RemoteViewButton isActive={displayMode === "scoreboard"} label={t("remoteScoreboardMode")} shortLabel="Scoreboard" onClick={() => onSetDisplayMode("scoreboard")} />
+          <button className="btn-secondary min-h-9 px-2.5 text-xs font-black sm:min-h-10 sm:px-3 sm:text-sm" type="button" onClick={onFullscreen}>
             {t("remoteFullscreen")}
           </button>
-          <button className="btn-secondary min-h-11 px-3 text-sm disabled:opacity-50" type="button" disabled={isLoading} onClick={onRefresh}>
+          <button className="btn-secondary min-h-9 px-2.5 text-xs font-black disabled:opacity-50 sm:min-h-10 sm:px-3 sm:text-sm" type="button" disabled={isLoading} onClick={onRefresh}>
             {isLoading ? t("remoteLoadingTournament") : t("remoteRefresh")}
           </button>
-          <button className="btn-outline-primary min-h-11 px-3 text-sm" type="button" onClick={onClose}>
-            {isTerminalError ? t("remoteNewConnection") : t("remoteCloseView")}
+          <button aria-label={isTerminalError ? t("remoteNewConnection") : t("remoteCloseView")} className="btn-outline-primary min-h-9 px-2.5 text-xs font-black sm:min-h-10 sm:px-3 sm:text-sm" type="button" onClick={onClose}>
+            <span className="sm:hidden">{isTerminalError ? t("remoteNewConnection") : "Luk"}</span>
+            <span className="hidden sm:inline">{isTerminalError ? t("remoteNewConnection") : t("remoteCloseView")}</span>
           </button>
         </div>
       </div>
     </section>
+  );
+}
+
+function RemoteViewButton({ isActive, label, onClick, shortLabel }: { isActive: boolean; label: string; onClick: () => void; shortLabel: string }) {
+  return (
+    <button
+      aria-current={isActive ? "page" : undefined}
+      aria-label={label}
+      className={`${isActive ? "bg-[var(--primary-soft)] text-[var(--primary-strong)]" : "btn-primary-soft"} min-h-9 rounded-md border border-[var(--line)] px-2.5 text-xs font-black sm:min-h-10 sm:px-3 sm:text-sm`}
+      type="button"
+      onClick={onClick}
+    >
+      <span className="sm:hidden">{shortLabel}</span>
+      <span className="hidden sm:inline">{label}</span>
+    </button>
   );
 }
 
@@ -1321,15 +1377,38 @@ function RemoteTeamVsTeamView({ isTvMode, state }: { isTvMode: boolean; state: T
 }
 
 function RemoteTournamentHeader({ details, eyebrow, isTvMode, title }: { details: string; eyebrow: string; isTvMode: boolean; title: string }) {
+  const primaryDetail = getRemotePrimaryHeaderDetail(details);
+
+  if (isTvMode) {
+    return (
+      <section className="app-card grid min-w-0 max-w-full gap-3 overflow-hidden p-4 sm:p-5 lg:grid-cols-[1fr_auto] lg:items-end lg:p-7">
+        <div className="min-w-0">
+          <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{eyebrow}</p>
+          <h2 className="break-words text-2xl font-black leading-tight sm:text-4xl lg:text-6xl" style={{ overflowWrap: "anywhere", wordBreak: "normal" }}>{title}</h2>
+          <p className="mt-2 text-xl font-bold text-[var(--muted)]">{details}</p>
+        </div>
+      </section>
+    );
+  }
+
   return (
-    <section className={`app-card grid min-w-0 max-w-full gap-3 overflow-hidden p-4 sm:p-5 ${isTvMode ? "lg:grid-cols-[1fr_auto] lg:items-end lg:p-7" : ""}`}>
+    <section className="app-card grid min-w-0 max-w-full gap-1.5 overflow-hidden p-3 sm:p-4" data-testid="remote-tournament-header">
       <div className="min-w-0">
-        <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{eyebrow}</p>
-        <h2 className={`${isTvMode ? "text-2xl sm:text-4xl lg:text-6xl" : "text-2xl"} break-words font-black leading-tight`} style={{ overflowWrap: "anywhere", wordBreak: "normal" }}>{title}</h2>
-        <p className={`${isTvMode ? "text-xl" : ""} mt-2 font-bold text-[var(--muted)]`}>{details}</p>
+        <h2 aria-label={title} className="break-words text-lg font-black uppercase leading-tight sm:text-2xl" style={{ overflowWrap: "anywhere", wordBreak: "normal" }}>
+          LEZGO PADEL <span className="text-[var(--primary-strong)]">|</span> {title}{primaryDetail ? <> <span className="text-[var(--primary-strong)]">|</span> {primaryDetail}</> : null}
+        </h2>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-bold uppercase text-[var(--muted)] sm:text-sm">
+          <span>{eyebrow}</span>
+          <span className="inline-flex items-center gap-1 text-[var(--primary-strong)]"><span aria-hidden="true" className="h-2 w-2 rounded-full bg-current" />LIVE</span>
+          <span>{details}</span>
+        </div>
       </div>
     </section>
   );
+}
+
+function getRemotePrimaryHeaderDetail(details: string): string {
+  return details.match(/(?:Runde|Round)\s+\d+\s*\/\s*\d+/i)?.[0] ?? "";
 }
 
 function RemotePanel({ children, isTvMode, title }: { children: ReactNode; isTvMode: boolean; title: string }) {
