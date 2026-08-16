@@ -195,7 +195,7 @@ describe("STEP 13 remote read-only UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "Scoreboard-visning" }));
 
     expect(screen.getByTestId("scoreboard-dashboard")).toHaveAttribute("data-layout-density", density);
-    expect(screen.getByTestId("scoreboard-dashboard")).toHaveAttribute("data-standings-space", density === "high" ? "expanded" : "standard");
+    expect(screen.getByTestId("scoreboard-dashboard")).toHaveAttribute("data-standings-space", density === "high" ? "maximum" : "standard");
     expect(screen.getByTestId("scoreboard-dashboard")).toHaveAttribute("data-vertical-spacing", "tight");
     expect(screen.getByTestId("scoreboard-court-grid")).toHaveAttribute("data-density", density);
     expect(screen.getAllByTestId("scoreboard-court-card")).toHaveLength(courts);
@@ -224,7 +224,7 @@ describe("STEP 13 remote read-only UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "Scoreboard-visning" }));
 
     expect(screen.getByTestId("scoreboard-dashboard")).toHaveAttribute("data-layout-density", "high");
-    expect(screen.getByTestId("scoreboard-dashboard")).toHaveAttribute("data-standings-space", "expanded");
+    expect(screen.getByTestId("scoreboard-dashboard")).toHaveAttribute("data-standings-space", "maximum");
     expect(screen.getByTestId("scoreboard-court-grid")).toHaveAttribute("data-density", "high");
     expect(screen.getAllByTestId("scoreboard-court-card")).toHaveLength(8);
     expect(screen.getAllByTestId("scoreboard-court-card").every((card) => card.getAttribute("data-card-density") === "high")).toBe(true);

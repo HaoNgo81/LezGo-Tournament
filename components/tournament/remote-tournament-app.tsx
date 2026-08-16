@@ -974,9 +974,10 @@ function RemoteScoreboardLayout({
   const density = getScoreboardDensity(matches.length);
   const standingsDensity = getScoreboardStandingsDensity(standings.length);
   const layoutRowsClass = getScoreboardLayoutRowsClass(density);
+  const dashboardHeightClass = density === "high" ? "lg:h-[calc(100vh-0.5rem)] lg:pb-1" : "lg:h-[calc(100vh-2.5rem)] lg:pb-3";
 
   return (
-    <div className={`mx-auto grid min-h-[calc(100vh-1rem)] w-full max-w-[1920px] gap-0.5 overflow-x-hidden pb-2 lg:h-[calc(100vh-2.5rem)] lg:min-h-0 lg:pb-3 ${layoutRowsClass} lg:overflow-hidden`} data-layout-density={density} data-standings-space={density === "high" ? "expanded" : "standard"} data-vertical-spacing="tight" data-testid="scoreboard-dashboard">
+    <div className={`mx-auto grid min-h-[calc(100vh-1rem)] w-full max-w-[1920px] gap-0.5 overflow-x-hidden pb-2 lg:min-h-0 ${dashboardHeightClass} ${layoutRowsClass} lg:overflow-hidden`} data-layout-density={density} data-standings-space={density === "high" ? "maximum" : "standard"} data-vertical-spacing="tight" data-testid="scoreboard-dashboard">
       <RemoteScoreboardHeader
         formatLabel={formatLabel}
         isLoading={isLoading}
