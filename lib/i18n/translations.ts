@@ -133,6 +133,8 @@ export type TranslationKey =
   | "remoteReadOnlyBanner"
   | "remoteReadOnlyHelp"
   | "remoteReadOnlyShort"
+  | "remoteScoreEntryBanner"
+  | "remoteScoreEntryShort"
   | "remoteRefresh"
   | "remoteShareToken"
   | "remoteShareTokenCopied"
@@ -328,6 +330,8 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteReadOnlyBanner: "Visning fra anden enhed - skrivebeskyttet",
     remoteReadOnlyHelp: "Du kan se live score og stilling, men denne visning kan ikke gemme, redigere eller overskrive lokale turneringer.",
     remoteReadOnlyShort: "Skrivebeskyttet",
+    remoteScoreEntryBanner: "Visning fra anden enhed - scoreindtastning aktiv",
+    remoteScoreEntryShort: "Score aktiv",
     remoteRefresh: "Opdater",
     remoteShareToken: "Adgangskode",
     remoteShareTokenCopied: "Adgangskode kopieret.",
@@ -522,6 +526,8 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteReadOnlyBanner: "Opened from another device - read only",
     remoteReadOnlyHelp: "You can view live score and standings, but this view cannot save, edit or overwrite local tournaments.",
     remoteReadOnlyShort: "Read only",
+    remoteScoreEntryBanner: "Opened from another device - score entry active",
+    remoteScoreEntryShort: "Score active",
     remoteRefresh: "Refresh",
     remoteShareToken: "Access code",
     remoteShareTokenCopied: "Access code copied.",

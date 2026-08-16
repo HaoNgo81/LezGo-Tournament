@@ -32,6 +32,7 @@ export interface ReadTournamentByAccessResult {
   kind: "standard" | "team-vs-team";
   state: LiveTournamentState | TeamVsTeamTournamentState;
   updatedAt?: string;
+  legacyLocalId?: string;
 }
 
 export interface TournamentAccessRepository {
@@ -127,7 +128,7 @@ export function createTournamentAccessRepository(client: SupabaseRestClient = cr
         throw new TournamentAccessError("Tournament access was denied.", 403);
       }
 
-      const [tournament] = await client.select<{ id: string; format: string; team_competition_mode: string | null; updated_at?: string }>("tournaments", `id=eq.${encodeURIComponent(access.tournament_id)}&select=id,format,team_competition_mode,updated_at`);
+      const [tournament] = await client.select<{ id: string; format: string; legacy_local_id: string | null; team_competition_mode: string | null; updated_at?: string }>("tournaments", `id=eq.${encodeURIComponent(access.tournament_id)}&select=id,format,legacy_local_id,team_competition_mode,updated_at`);
 
       if (!tournament) {
         throw new TournamentAccessError("Tournament access was not found.", 404);
@@ -142,6 +143,7 @@ export function createTournamentAccessRepository(client: SupabaseRestClient = cr
           kind: "team-vs-team",
           state: await createTeamVsTeamTournamentRepository(client).read(tournament.id),
           updatedAt: tournament.updated_at,
+          legacyLocalId: tournament.legacy_local_id ?? undefined,
         };
       }
 
@@ -153,6 +155,7 @@ export function createTournamentAccessRepository(client: SupabaseRestClient = cr
         kind: "standard",
         state: await createStandardTournamentRepository(client).read(tournament.id),
         updatedAt: tournament.updated_at,
+        legacyLocalId: tournament.legacy_local_id ?? undefined,
       };
     },
     async revoke(tournamentCode) {

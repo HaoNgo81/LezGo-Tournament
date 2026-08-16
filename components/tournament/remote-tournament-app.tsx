@@ -6,6 +6,7 @@ import { Section } from "@/components/ui/section";
 import { createReadOnlyTournamentView, createTeamVsTeamReadOnlyView, type ReadOnlyMatchCard, type ReadOnlyTournamentView } from "@/lib/read-only-views";
 import type { LiveTournamentState } from "@/lib/live-scoring";
 import type { TeamVsTeamTournamentState } from "@/lib/tournament-setup";
+import { calculateFixedTotalScore } from "@/lib/tournament-setup/scoring";
 import { useAppTranslation } from "@/lib/preferences/client";
 import type { TranslationKey } from "@/lib/i18n/translations";
 
@@ -40,6 +41,20 @@ interface RemoteReadResponse {
   updatedAt?: string;
   remoteSessionToken?: string;
   remoteSessionExpiresAt?: string;
+}
+
+interface RemoteScoreSaveResponse extends RemoteReadResponse {
+  error?: string;
+  tournamentCode?: string;
+}
+
+interface RemoteScoreDraft {
+  matchId: string;
+  court: string;
+  teamA: string;
+  teamB: string;
+  teamAPoints: string;
+  teamBPoints: string;
 }
 
 const remotePollBaseIntervalMs = 4000;
@@ -93,8 +108,12 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
   const [syncStatus, setSyncStatus] = useState<RemoteSyncStatus>("connecting");
   const [syncTelemetry, setSyncTelemetry] = useState<RemoteSyncTelemetry>({ consecutiveFailures: 0 });
   const [displayMode, setDisplayMode] = useState<RemoteDisplayMode>(() => getInitialRemoteDisplayMode());
+  const [scoreDraft, setScoreDraft] = useState<RemoteScoreDraft | null>(null);
+  const [scoreError, setScoreError] = useState("");
+  const [isSavingScore, setIsSavingScore] = useState(false);
   const isTvMode = displayMode !== "standard";
   const isScoreboardMode = displayMode === "scoreboard";
+  const canEditRemoteScore = Boolean(session?.accessMode === "manual" && session.kind === "standard" && session.tournamentCode && session.shareToken && displayMode === "standard");
 
   const recordSuccessfulSync = useCallback(() => {
     autoSyncStoppedRef.current = false;
@@ -187,7 +206,9 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
       }
 
       return {
-        accessMode: "remote-session",
+        accessMode: "accessMode" in currentSession ? currentSession.accessMode : "remote-session",
+        tournamentCode: "tournamentCode" in currentSession ? currentSession.tournamentCode : undefined,
+        shareToken: "shareToken" in currentSession ? currentSession.shareToken : undefined,
         handoffReference: "handoffReference" in currentSession ? currentSession.handoffReference : undefined,
         remoteSessionToken,
         remoteSessionExpiresAt: body.remoteSessionExpiresAt ?? currentSession.remoteSessionExpiresAt,
@@ -508,7 +529,94 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
     setSession(null);
     setMessage("");
     setError("");
+    setScoreDraft(null);
+    setScoreError("");
     setDisplayMode("standard");
+  }
+
+  function handleOpenScoreDialog(match: ReadOnlyMatchCard) {
+    const score = parseScore(match.score);
+    setScoreError("");
+    setScoreDraft({
+      matchId: match.id,
+      court: match.court,
+      teamA: match.teamA,
+      teamB: match.teamB,
+      teamAPoints: score?.teamA ?? "",
+      teamBPoints: score?.teamB ?? "",
+    });
+  }
+
+  async function handleSaveRemoteScore(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (isSavingScore) {
+      return;
+    }
+
+    if (!scoreDraft || !session || session.accessMode !== "manual" || session.kind !== "standard" || !session.tournamentCode || !session.shareToken) {
+      setScoreError("Score kan kun gemmes med gyldig skriveadgang.");
+      return;
+    }
+
+    let teamAPoints: number;
+    let teamBPoints: number;
+
+    try {
+      const parsedTeamAPoints = parseRequiredRemoteScoreInput(scoreDraft.teamAPoints);
+      const fixedTotalPoints = getFixedTotalPoints(session.state as LiveTournamentState);
+      const score = fixedTotalPoints !== undefined
+        ? calculateFixedTotalScore(fixedTotalPoints, parsedTeamAPoints)
+        : {
+            teamAPoints: parsedTeamAPoints,
+            teamBPoints: parseRequiredRemoteScoreInput(scoreDraft.teamBPoints),
+          };
+
+      teamAPoints = score.teamAPoints;
+      teamBPoints = score.teamBPoints;
+    } catch (caughtError) {
+      setScoreError(caughtError instanceof Error ? caughtError.message : "Scoren er ugyldig.");
+      return;
+    }
+
+    setIsSavingScore(true);
+    setScoreError("");
+
+    try {
+      const response = await fetch("/api/supabase/tournament-access/score", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tournamentCode: session.tournamentCode,
+          shareToken: session.shareToken,
+          matchId: scoreDraft.matchId,
+          teamAPoints,
+          teamBPoints,
+          expectedUpdatedAt: session.updatedAt,
+        }),
+      });
+      const body = await readRemoteJson(response) as RemoteScoreSaveResponse;
+
+      if (!response.ok || !body.ok || body.kind !== "standard" || !body.state) {
+        throw new Error(body.error ?? "Score kunne ikke gemmes.");
+      }
+
+      const nextSession: RemoteTournamentSession = {
+        ...session,
+        kind: "standard",
+        state: body.state,
+        updatedAt: body.updatedAt,
+      };
+
+      applyRemoteSession(nextSession, { force: true });
+      recordSuccessfulSync();
+      setMessage("Score gemt.");
+      setScoreDraft(null);
+    } catch (caughtError) {
+      setScoreError(caughtError instanceof Error ? caughtError.message : "Score kunne ikke gemmes.");
+    } finally {
+      setIsSavingScore(false);
+    }
   }
 
   async function handleFullscreen() {
@@ -535,13 +643,20 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
           <RemoteReadOnlyBanner
             onClose={handleClose}
             onRefresh={handleRefresh}
-            onSetDisplayMode={setDisplayMode}
+            onSetDisplayMode={(nextDisplayMode) => {
+              if (nextDisplayMode !== "standard") {
+                setScoreDraft(null);
+                setScoreError("");
+              }
+              setDisplayMode(nextDisplayMode);
+            }}
             onFullscreen={handleFullscreen}
             displayMode={displayMode}
             isLoading={isLoading}
             isTerminalError={Boolean(error && syncStatus === "error")}
             syncStatus={syncStatus}
             syncTelemetry={syncTelemetry}
+            canEditScore={canEditRemoteScore}
           />
         )}
         {message && !isScoreboardMode ? <p className="rounded-md bg-green-50 px-3 py-2 text-sm font-bold text-[var(--primary-strong)] sm:text-base">{message}</p> : null}
@@ -560,7 +675,23 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
         ) : session.kind === "team-vs-team" ? (
           <RemoteTeamVsTeamView state={session.state as TeamVsTeamTournamentState} isTvMode={isTvMode} />
         ) : (
-          <RemoteStandardView state={session.state as LiveTournamentState} isTvMode={isTvMode} />
+          <>
+            <RemoteStandardView canEditScore={canEditRemoteScore} onEditScore={handleOpenScoreDialog} state={session.state as LiveTournamentState} isTvMode={isTvMode} />
+            {scoreDraft ? (
+              <RemoteScoreDialog
+                draft={scoreDraft}
+                error={scoreError}
+                isSaving={isSavingScore}
+                state={session.state as LiveTournamentState}
+                onCancel={() => {
+                  setScoreDraft(null);
+                  setScoreError("");
+                }}
+                onChange={setScoreDraft}
+                onSubmit={handleSaveRemoteScore}
+              />
+            ) : null}
+          </>
         )}
       </div>
     );
@@ -610,6 +741,7 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
 }
 
 function RemoteReadOnlyBanner({
+  canEditScore,
   displayMode,
   isLoading,
   isTerminalError,
@@ -620,6 +752,7 @@ function RemoteReadOnlyBanner({
   syncStatus,
   syncTelemetry,
 }: {
+  canEditScore: boolean;
   displayMode: RemoteDisplayMode;
   isLoading: boolean;
   isTerminalError: boolean;
@@ -634,6 +767,8 @@ function RemoteReadOnlyBanner({
   const statusCopy = getRemoteSyncStatusCopy(syncStatus);
   const statusLabel = syncStatus === "reconnecting" ? t("remoteSyncRestoring") : t(statusCopy.label);
   const isTvMode = displayMode === "tv";
+  const bannerLong = canEditScore ? t("remoteScoreEntryBanner") : t("remoteReadOnlyBanner");
+  const bannerShort = canEditScore ? t("remoteScoreEntryShort") : t("remoteReadOnlyShort");
 
   if (isTvMode) {
     return (
@@ -684,8 +819,8 @@ function RemoteReadOnlyBanner({
         <div className="min-w-[14rem] flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
             <p className="text-xs font-black uppercase tracking-wide text-[var(--primary-strong)]">
-              <span className="sm:hidden">{t("remoteReadOnlyShort")}</span>
-              <span className="hidden sm:inline">{t("remoteReadOnlyBanner")}</span>
+              <span className="sm:hidden">{bannerShort}</span>
+              <span className="hidden sm:inline">{bannerLong}</span>
             </p>
             <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-black ${statusCopy.className}`} aria-label={t("remoteSyncStatus")}>
               <span aria-hidden="true" className="h-2 w-2 rounded-full bg-current" />
@@ -1225,17 +1360,17 @@ function RemoteScoreboardStandings({ density, standings }: { density: Scoreboard
   );
 }
 
-function RemoteStandardView({ isTvMode, state }: { isTvMode: boolean; state: LiveTournamentState }) {
+function RemoteStandardView({ canEditScore = false, isTvMode, onEditScore, state }: { canEditScore?: boolean; isTvMode: boolean; onEditScore?: (match: ReadOnlyMatchCard) => void; state: LiveTournamentState }) {
   const view = useMemo(() => createReadOnlyTournamentView(state), [state]);
 
   if (view.poolPlay) {
     return <RemotePoolPlayView view={view} poolPlay={view.poolPlay} isTvMode={isTvMode} />;
   }
 
-  return <RemoteAmericanoView view={view} isTvMode={isTvMode} />;
+  return <RemoteAmericanoView canEditScore={canEditScore} onEditScore={onEditScore} view={view} isTvMode={isTvMode} />;
 }
 
-function RemoteAmericanoView({ isTvMode, view }: { isTvMode: boolean; view: ReadOnlyTournamentView }) {
+function RemoteAmericanoView({ canEditScore, isTvMode, onEditScore, view }: { canEditScore: boolean; isTvMode: boolean; onEditScore?: (match: ReadOnlyMatchCard) => void; view: ReadOnlyTournamentView }) {
   const { t } = useAppTranslation();
   const topStandings = view.standings.slice(0, isTvMode ? 8 : view.standings.length);
 
@@ -1249,7 +1384,7 @@ function RemoteAmericanoView({ isTvMode, view }: { isTvMode: boolean; view: Read
       />
       {view.byePlayers.length ? <p className="rounded-md bg-yellow-50 p-3 font-black text-yellow-800">{t("remotePausedPlayers")}: {view.byePlayers.join(" / ")}</p> : null}
       <RemotePanel title={t("liveScore")} isTvMode={isTvMode}>
-        <RemoteMatchScoreGrid matches={view.matches} isTvMode={isTvMode} />
+        <RemoteMatchScoreGrid canEditScore={canEditScore} matches={view.matches} onEditScore={onEditScore} isTvMode={isTvMode} />
       </RemotePanel>
       <RemotePanel title={t("remoteTopStandings")} isTvMode={isTvMode}>
         <RemoteStandingsList standings={topStandings} isTvMode={isTvMode} />
@@ -1420,7 +1555,7 @@ function RemotePanel({ children, isTvMode, title }: { children: ReactNode; isTvM
   );
 }
 
-function RemoteMatchScoreGrid({ isTvMode, matches }: { isTvMode: boolean; matches: ReadOnlyMatchCard[] }) {
+function RemoteMatchScoreGrid({ canEditScore = false, isTvMode, matches, onEditScore }: { canEditScore?: boolean; isTvMode: boolean; matches: ReadOnlyMatchCard[]; onEditScore?: (match: ReadOnlyMatchCard) => void }) {
   const { t } = useAppTranslation();
 
   return (
@@ -1483,6 +1618,11 @@ function RemoteMatchScoreGrid({ isTvMode, matches }: { isTvMode: boolean; matche
             ) : (
               <p className="justify-self-center rounded-md border border-[var(--line)] px-3 py-1.5 text-center text-base font-black uppercase text-[var(--muted)] sm:text-lg" data-testid="standard-remote-unsaved">{t("remoteNotSaved")}</p>
             )}
+            {canEditScore && onEditScore ? (
+              <button className="min-h-11 rounded-md bg-[var(--primary)] px-4 text-sm font-black uppercase text-[var(--primary-text)]" type="button" onClick={() => onEditScore(match)}>
+                {score ? t("editScore") : t("enterScore")}
+              </button>
+            ) : null}
           </article>
         );
       })}
@@ -1504,6 +1644,93 @@ function TeamName({ align, name }: { align: "left" | "right"; name: string }) {
         </Fragment>
       ))}
     </p>
+  );
+}
+
+function RemoteScoreDialog({
+  draft,
+  error,
+  isSaving,
+  onCancel,
+  onChange,
+  onSubmit,
+  state,
+}: {
+  draft: RemoteScoreDraft;
+  error: string;
+  isSaving: boolean;
+  onCancel: () => void;
+  onChange: (draft: RemoteScoreDraft) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  state: LiveTournamentState;
+}) {
+  const { t } = useAppTranslation();
+  const fixedTotalPoints = getFixedTotalPoints(state);
+  const parsedTeamAPoints = parseRemoteScoreInput(draft.teamAPoints);
+  const fixedTotalCalculation = fixedTotalPoints !== undefined && parsedTeamAPoints !== null ? getRemoteFixedTotalCalculation(fixedTotalPoints, parsedTeamAPoints) : null;
+  const calculatedTeamBPoints = fixedTotalCalculation && "score" in fixedTotalCalculation ? fixedTotalCalculation.score.teamBPoints : null;
+  const fixedTotalError = fixedTotalCalculation && "error" in fixedTotalCalculation ? fixedTotalCalculation.error : "";
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-end bg-black/30 p-0 sm:place-items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="remote-score-dialog-heading">
+      <form className="grid max-h-[92svh] w-full max-w-xl gap-4 overflow-y-auto rounded-t-md border border-[var(--line)] bg-white p-4 shadow-2xl sm:rounded-md sm:p-5" onSubmit={onSubmit}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{draft.court}</p>
+            <h2 id="remote-score-dialog-heading" className="text-2xl font-black">{t("registerScorePoints")}</h2>
+          </div>
+          <button className="btn-secondary min-h-11" type="button" onClick={onCancel}>{t("cancel")}</button>
+        </div>
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_2.5rem_minmax(0,1fr)] items-center gap-2 text-center text-lg font-black">
+          <TeamName name={draft.teamA} align="right" />
+          <span className="text-sm uppercase text-[var(--muted)]">vs</span>
+          <TeamName name={draft.teamB} align="left" />
+        </div>
+        {fixedTotalPoints !== undefined ? (
+          <p className="rounded-md bg-[var(--primary-soft)] p-3 text-sm font-bold text-[var(--primary-strong)]">
+            Fast samlet score: indtast venstre score. Højre score beregnes automatisk til samlet {fixedTotalPoints}.
+          </p>
+        ) : null}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="grid gap-2 font-bold">
+            {draft.teamA}
+            <input
+              required
+              inputMode="numeric"
+              min="0"
+              pattern="[0-9]*"
+              className="field-control min-h-16 text-center text-3xl font-black"
+              value={draft.teamAPoints}
+              onChange={(event) => onChange({ ...draft, teamAPoints: event.target.value })}
+              aria-label="Venstre score"
+            />
+          </label>
+          <label className="grid gap-2 font-bold">
+            {draft.teamB}
+            {fixedTotalPoints !== undefined ? (
+              <output className="field-control flex min-h-16 items-center justify-center text-center text-3xl font-black" aria-label="Højre score">
+                {calculatedTeamBPoints ?? "-"}
+              </output>
+            ) : (
+              <input
+                required
+                inputMode="numeric"
+                min="0"
+                pattern="[0-9]*"
+                className="field-control min-h-16 text-center text-3xl font-black"
+                value={draft.teamBPoints}
+                onChange={(event) => onChange({ ...draft, teamBPoints: event.target.value })}
+                aria-label="Højre score"
+              />
+            )}
+          </label>
+        </div>
+        {fixedTotalError || error ? <p className="rounded-md bg-red-50 p-3 font-bold text-red-700">{fixedTotalError || error}</p> : null}
+        <button className="min-h-14 rounded-md bg-[var(--primary)] px-5 text-lg font-black text-[var(--primary-text)] disabled:bg-gray-300" type="submit" disabled={isSaving || Boolean(fixedTotalError)}>
+          {isSaving ? "Gemmer..." : t("save")}
+        </button>
+      </form>
+    </div>
   );
 }
 
@@ -1679,6 +1906,40 @@ function parseScore(score: string): { teamA: string; teamB: string } | null {
   const match = /^(\d+)\s*[-–]\s*(\d+)/.exec(score);
 
   return match ? { teamA: match[1], teamB: match[2] } : null;
+}
+
+function parseRemoteScoreInput(value: string): number | null {
+  const normalized = value.trim();
+
+  if (!/^\d+$/.test(normalized)) {
+    return null;
+  }
+
+  const score = Number(normalized);
+
+  return Number.isSafeInteger(score) ? score : null;
+}
+
+function parseRequiredRemoteScoreInput(value: string): number {
+  const score = parseRemoteScoreInput(value);
+
+  if (score === null) {
+    throw new Error("Indtast en gyldig score.");
+  }
+
+  return score;
+}
+
+function getFixedTotalPoints(state: LiveTournamentState): number | undefined {
+  return state.scoringMode === "Fast antal point" && state.fixedScoreRule === "total" ? state.fixedScorePoints : undefined;
+}
+
+function getRemoteFixedTotalCalculation(fixedScoreTotal: number, enteredScore: number): { score: ReturnType<typeof calculateFixedTotalScore> } | { error: string } {
+  try {
+    return { score: calculateFixedTotalScore(fixedScoreTotal, enteredScore) };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Scoren er ugyldig." };
+  }
 }
 
 function splitScoreboardTeamName(teamName: string): string[] {

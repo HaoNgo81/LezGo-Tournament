@@ -15,7 +15,7 @@ describe("STEP 13 remote read-only UI", () => {
     window.history.pushState({}, "", "/");
   });
 
-  it("opens a standard remote tournament as read-only without changing localStorage", async () => {
+  it("opens a standard remote tournament with score entry without changing primary localStorage", async () => {
     const localState = createMockLiveTournamentState();
     const remoteState = scoreMockState("STEP_13_TEST Remote");
     saveActiveTournament(localState);
@@ -26,7 +26,7 @@ describe("STEP 13 remote read-only UI", () => {
     fireEvent.change(screen.getByLabelText("Adgangskode"), { target: { value: " 0427 " } });
     fireEvent.click(screen.getByRole("button", { name: "Åbn turnering fra anden enhed" }));
 
-    expect(await screen.findByText("Visning fra anden enhed - skrivebeskyttet")).toBeInTheDocument();
+    expect(await screen.findByText("Visning fra anden enhed - scoreindtastning aktiv")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "STEP_13_TEST Remote" })).toBeInTheDocument();
     expect(screen.getByTestId("remote-tournament-header")).toHaveTextContent("LEZGO PADEL");
     expect(screen.getByTestId("remote-tournament-header")).toHaveTextContent("Runde 1 / 2");
@@ -42,11 +42,122 @@ describe("STEP 13 remote read-only UI", () => {
     expect(screen.getByText("MP")).toBeInTheDocument();
     expect(screen.getByText("Point")).toBeInTheDocument();
     expect(screen.queryByText("Alle spillere")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Indtast score" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Rediger score" }).length).toBeGreaterThan(0);
     expect(loadActiveTournament()).toEqual(localState);
 
     const payload = JSON.parse((vi.mocked(fetch).mock.calls[0][1] as RequestInit).body as string) as { tournamentCode: string; shareToken: string };
     expect(payload).toEqual({ tournamentCode: "AB12CD", shareToken: "0427" });
+  });
+
+  it("saves a fixed-total score from standard remote PIN access and auto-calculates the remaining score", async () => {
+    const remoteState = createLongNameStandardState("STEP_23A_TEST Remote Score");
+    const match = remoteState.rounds[0].matches[0];
+    const updatedState = saveMatchResult(remoteState, { matchId: match.id, teamAPoints: 17, teamBPoints: 7 });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(createReadResponse("standard", remoteState, "2026-08-13T12:00:00.000Z"))
+      .mockResolvedValueOnce(createReadResponse("standard", updatedState, "2026-08-13T12:00:05.000Z"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<RemoteTournamentApp />);
+    fireEvent.change(screen.getByLabelText("Turneringskode"), { target: { value: "K7M4XP" } });
+    fireEvent.change(screen.getByLabelText("Adgangskode"), { target: { value: "2222" } });
+    fireEvent.click(screen.getByRole("button", { name: "Åbn turnering fra anden enhed" }));
+
+    expect(await screen.findByRole("heading", { name: "STEP_23A_TEST Remote Score" })).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Indtast score" })[0]);
+    expect(screen.getByRole("dialog", { name: "Registrer scorepoint" })).toBeInTheDocument();
+    expect(screen.getByText("Fast samlet score: indtast venstre score. Højre score beregnes automatisk til samlet 24.")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Venstre score"), { target: { value: "17" } });
+    expect(screen.getByLabelText("Højre score")).toHaveTextContent("7");
+    fireEvent.click(screen.getByRole("button", { name: "Gem" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/supabase/tournament-access/score");
+    expect(JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string)).toEqual({
+      tournamentCode: "K7M4XP",
+      shareToken: "2222",
+      matchId: match.id,
+      teamAPoints: 17,
+      teamBPoints: 7,
+      expectedUpdatedAt: "2026-08-13T12:00:00.000Z",
+    });
+    expect(await screen.findByText("Score gemt.")).toBeInTheDocument();
+    expect(screen.getByText("17 - 7")).toBeInTheDocument();
+  });
+
+  it("edits an existing standard remote score through the same score entry flow", async () => {
+    const baseState = createLongNameStandardState("STEP_23A_TEST Edit Remote Score");
+    const scoredState = saveMatchResult(baseState, { matchId: baseState.rounds[0].matches[0].id, teamAPoints: 17, teamBPoints: 7 });
+    const match = scoredState.rounds[0].matches[0];
+    const updatedState = saveMatchResult(scoredState, { matchId: match.id, teamAPoints: 15, teamBPoints: 9 });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(createReadResponse("standard", scoredState, "2026-08-13T12:00:00.000Z"))
+      .mockResolvedValueOnce(createReadResponse("standard", updatedState, "2026-08-13T12:00:06.000Z"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<RemoteTournamentApp />);
+    fireEvent.change(screen.getByLabelText("Turneringskode"), { target: { value: "K7M4XP" } });
+    fireEvent.change(screen.getByLabelText("Adgangskode"), { target: { value: "2222" } });
+    fireEvent.click(screen.getByRole("button", { name: "Åbn turnering fra anden enhed" }));
+
+    expect(await screen.findByRole("heading", { name: "STEP_23A_TEST Edit Remote Score" })).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Rediger score" })[0]);
+    expect(screen.getByLabelText("Venstre score")).toHaveValue("17");
+    expect(screen.getByLabelText("Højre score")).toHaveTextContent("7");
+
+    fireEvent.change(screen.getByLabelText("Venstre score"), { target: { value: "15" } });
+    expect(screen.getByLabelText("Højre score")).toHaveTextContent("9");
+    fireEvent.click(screen.getByRole("button", { name: "Gem" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string)).toMatchObject({
+      matchId: match.id,
+      teamAPoints: 15,
+      teamBPoints: 9,
+      expectedUpdatedAt: "2026-08-13T12:00:00.000Z",
+    });
+    expect(await screen.findByText("15 - 9")).toBeInTheDocument();
+  });
+
+  it("keeps invalid fixed-total remote score input client-side without saving", async () => {
+    const remoteState = createLongNameStandardState("STEP_23A_TEST Invalid Remote Score");
+    const fetchMock = vi.fn().mockResolvedValue(createReadResponse("standard", remoteState));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<RemoteTournamentApp />);
+    fireEvent.change(screen.getByLabelText("Turneringskode"), { target: { value: "K7M4XP" } });
+    fireEvent.change(screen.getByLabelText("Adgangskode"), { target: { value: "2222" } });
+    fireEvent.click(screen.getByRole("button", { name: "Åbn turnering fra anden enhed" }));
+
+    expect(await screen.findByRole("heading", { name: "STEP_23A_TEST Invalid Remote Score" })).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Indtast score" })[0]);
+    fireEvent.change(screen.getByLabelText("Venstre score"), { target: { value: "25" } });
+
+    expect(screen.getByText("Scoren skal være mellem 0 og 24.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Gem" })).toBeDisabled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows remote score save errors without closing the score dialog", async () => {
+    const remoteState = createLongNameStandardState("STEP_23A_TEST Save Error");
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(createReadResponse("standard", remoteState))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: false, error: "Conflict: newer version exists." }), { status: 409 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<RemoteTournamentApp />);
+    fireEvent.change(screen.getByLabelText("Turneringskode"), { target: { value: "K7M4XP" } });
+    fireEvent.change(screen.getByLabelText("Adgangskode"), { target: { value: "2222" } });
+    fireEvent.click(screen.getByRole("button", { name: "Åbn turnering fra anden enhed" }));
+
+    expect(await screen.findByRole("heading", { name: "STEP_23A_TEST Save Error" })).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Indtast score" })[0]);
+    fireEvent.change(screen.getByLabelText("Venstre score"), { target: { value: "17" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gem" }));
+
+    expect(await screen.findByText("Conflict: newer version exists.")).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Registrer scorepoint" })).toBeInTheDocument();
   });
 
   it("removes all-player cards from the actual production /remote render path", async () => {
