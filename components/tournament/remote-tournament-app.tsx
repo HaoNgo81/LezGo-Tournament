@@ -1058,7 +1058,7 @@ function RemoteScoreboardScoreGrid({ density, matches }: { density: ScoreboardDe
   const cardGap = isHighDensity ? "gap-0" : "gap-1.5";
   const cardLayoutClass = isHighDensity ? "grid-rows-[auto_auto] content-start" : "grid-rows-[auto_minmax(0,1fr)] content-between";
   const matchGridGap = isHighDensity ? "gap-x-1 gap-y-0" : "gap-x-2 gap-y-1";
-  const matchGridRowsClass = isHighDensity ? "grid-rows-[auto_auto]" : "grid-rows-[minmax(0,1fr)_auto]";
+  const matchGridRowsClass = "grid-rows-[auto_auto_auto]";
   const statusBadgeClass = density === "high" ? "px-1 py-0.5 text-[0.55rem]" : "px-2 py-1 text-[0.65rem]";
   const courtText = density === "large" ? "text-[clamp(1.8rem,2.6vw,3.25rem)]" : density === "medium" ? "text-[clamp(1.2rem,1.55vw,1.9rem)]" : density === "compact" ? "text-[clamp(0.95rem,1.1vw,1.35rem)]" : "text-[clamp(0.82rem,0.92vw,1.1rem)]";
   const teamText = density === "large" ? "text-[clamp(1.55rem,2.3vw,2.75rem)]" : density === "medium" ? "text-[clamp(0.95rem,1.22vw,1.35rem)]" : density === "compact" ? "text-[clamp(0.76rem,0.9vw,1rem)]" : "text-[clamp(0.66rem,0.76vw,0.88rem)]";
@@ -1070,6 +1070,12 @@ function RemoteScoreboardScoreGrid({ density, matches }: { density: ScoreboardDe
     <div className={`grid min-h-0 ${gridGap} lg:overflow-hidden ${getScoreboardCourtGridClass(matches.length)}`} data-density={density} data-testid="scoreboard-court-grid">
       {matches.map((match) => {
         const score = parseScore(match.score);
+        const teamAPlayers = splitScoreboardTeamName(match.teamA);
+        const teamBPlayers = splitScoreboardTeamName(match.teamB);
+        const teamAPlayer1 = teamAPlayers[0] ?? match.teamA;
+        const teamAPlayer2 = teamAPlayers[1] ?? "";
+        const teamBPlayer1 = teamBPlayers[0] ?? match.teamB;
+        const teamBPlayer2 = teamBPlayers[1] ?? "";
 
         return (
           <article key={match.id} className={`grid min-w-0 ${cardLayoutClass} ${cardGap} rounded-md border text-center ${cardPadding} ${getScoreboardMatchTone(match.status)}`} data-card-density={density} data-card-vertical-density={isHighDensity ? "final-compressed" : "standard"} data-testid="scoreboard-court-card">
@@ -1078,17 +1084,11 @@ function RemoteScoreboardScoreGrid({ density, matches }: { density: ScoreboardDe
               <span className={`rounded-md bg-white/75 font-black uppercase text-[var(--muted)] ${statusBadgeClass}`}>{match.status}</span>
             </div>
             <div className={`grid min-h-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] ${matchGridRowsClass} items-center ${matchGridGap}`}>
-              <div className={`flex min-w-0 flex-col items-start justify-center text-left ${teamText} font-black leading-tight`} data-testid="scoreboard-left-team">
-                {splitScoreboardTeamName(match.teamA).map((name, index) => (
-                  <span key={`${match.id}-team-a-${index}`} className="max-w-full" style={{ overflowWrap: "anywhere" }}>{name}</span>
-                ))}
-              </div>
+              <span className={`min-w-0 justify-self-start text-left ${teamText} font-black leading-tight`} data-testid="scoreboard-left-player-1" style={{ overflowWrap: "anywhere" }}>{teamAPlayer1}</span>
               <div className={`row-span-2 self-center rounded-md bg-white/65 px-1.5 py-1 font-black uppercase leading-none text-[var(--muted)] ${vsText}`} data-testid="scoreboard-vs">VS</div>
-              <div className={`flex min-w-0 flex-col items-end justify-center text-right ${teamText} font-black leading-tight`} data-testid="scoreboard-right-team">
-                {splitScoreboardTeamName(match.teamB).map((name, index) => (
-                  <span key={`${match.id}-team-b-${index}`} className="max-w-full" style={{ overflowWrap: "anywhere" }}>{name}</span>
-                ))}
-              </div>
+              <span className={`min-w-0 justify-self-end text-right ${teamText} font-black leading-tight`} data-testid="scoreboard-right-player-1" style={{ overflowWrap: "anywhere" }}>{teamBPlayer1}</span>
+              <span className={`min-w-0 justify-self-start text-left ${teamText} font-black leading-tight`} data-testid="scoreboard-left-player-2" style={{ overflowWrap: "anywhere" }}>{teamAPlayer2}</span>
+              <span className={`min-w-0 justify-self-end text-right ${teamText} font-black leading-tight`} data-testid="scoreboard-right-player-2" style={{ overflowWrap: "anywhere" }}>{teamBPlayer2}</span>
               {score ? (
                 <>
                   <p className="sr-only">{match.score}</p>
