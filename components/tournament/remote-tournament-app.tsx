@@ -1083,20 +1083,20 @@ function RemoteScoreboardScoreGrid({ density, matches }: { density: ScoreboardDe
               <h3 className={`${courtText} font-black uppercase leading-none text-[var(--primary-strong)]`}>{match.court}</h3>
               <span className={`rounded-md bg-white/75 font-black uppercase text-[var(--muted)] ${statusBadgeClass}`}>{match.status}</span>
             </div>
-            <div className={`grid min-h-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] ${matchGridRowsClass} items-center ${matchGridGap}`}>
-              <span className={`min-w-0 justify-self-start text-left ${teamText} font-black leading-tight`} data-testid="scoreboard-left-player-1" style={{ overflowWrap: "anywhere" }}>{teamAPlayer1}</span>
-              <div className={`row-span-2 self-center rounded-md bg-white/65 px-1.5 py-1 font-black uppercase leading-none text-[var(--muted)] ${vsText}`} data-testid="scoreboard-vs">VS</div>
-              <span className={`min-w-0 justify-self-end text-right ${teamText} font-black leading-tight`} data-testid="scoreboard-right-player-1" style={{ overflowWrap: "anywhere" }}>{teamBPlayer1}</span>
-              <span className={`min-w-0 justify-self-start text-left ${teamText} font-black leading-tight`} data-testid="scoreboard-left-player-2" style={{ overflowWrap: "anywhere" }}>{teamAPlayer2}</span>
-              <span className={`min-w-0 justify-self-end text-right ${teamText} font-black leading-tight`} data-testid="scoreboard-right-player-2" style={{ overflowWrap: "anywhere" }}>{teamBPlayer2}</span>
+            <div className={`grid min-h-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] ${matchGridRowsClass} items-center ${matchGridGap}`} data-testid="scoreboard-player-grid">
+              <span className={`col-start-1 row-start-1 w-full min-w-0 justify-self-start text-left ${teamText} font-black leading-tight`} data-position="left-top" data-testid="scoreboard-left-player-1" style={{ overflowWrap: "anywhere" }}>{teamAPlayer1}</span>
+              <div className={`col-start-2 row-span-2 row-start-1 justify-self-center self-center rounded-md bg-white/65 px-1.5 py-1 font-black uppercase leading-none text-[var(--muted)] ${vsText}`} data-position="center-middle" data-testid="scoreboard-vs">VS</div>
+              <span className={`col-start-3 row-start-1 w-full min-w-0 justify-self-end text-right ${teamText} font-black leading-tight`} data-position="right-top" data-testid="scoreboard-right-player-1" style={{ overflowWrap: "anywhere" }}>{teamBPlayer1}</span>
+              <span className={`col-start-1 row-start-2 w-full min-w-0 justify-self-start text-left ${teamText} font-black leading-tight`} data-position="left-bottom" data-testid="scoreboard-left-player-2" style={{ overflowWrap: "anywhere" }}>{teamAPlayer2}</span>
+              <span className={`col-start-3 row-start-2 w-full min-w-0 justify-self-end text-right ${teamText} font-black leading-tight`} data-position="right-bottom" data-testid="scoreboard-right-player-2" style={{ overflowWrap: "anywhere" }}>{teamBPlayer2}</span>
               {score ? (
                 <>
                   <p className="sr-only">{match.score}</p>
-                  <span className={`${scoreText} justify-self-start font-black leading-none`} data-testid="scoreboard-left-score">{score.teamA}</span>
-                  <span className={`${scoreText} justify-self-end font-black leading-none`} data-testid="scoreboard-right-score">{score.teamB}</span>
+                  <span className={`col-start-1 row-start-3 w-full justify-self-start text-left ${scoreText} font-black leading-none`} data-score-align="left" data-testid="scoreboard-left-score">{score.teamA}</span>
+                  <span className={`col-start-3 row-start-3 w-full justify-self-end text-right ${scoreText} font-black leading-none`} data-score-align="right" data-testid="scoreboard-right-score">{score.teamB}</span>
                 </>
               ) : (
-                <div className={`col-span-3 justify-self-center rounded-md bg-white/70 px-2 py-1 font-black uppercase leading-tight text-[var(--muted)] ${statusText}`} data-testid="scoreboard-unsaved-status">
+                <div className={`col-span-3 col-start-1 row-start-3 justify-self-center rounded-md bg-white/70 px-2 py-1 font-black uppercase leading-tight text-[var(--muted)] ${statusText}`} data-badge-position="center-bottom" data-testid="scoreboard-unsaved-status">
                   {match.score}
                 </div>
               )}
