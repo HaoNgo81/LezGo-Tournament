@@ -1056,10 +1056,10 @@ function RemoteScoreboardScoreGrid({ density, matches }: { density: ScoreboardDe
   const gridGap = isHighDensity ? "gap-0.5" : "gap-1";
   const cardPadding = density === "large" ? "p-5 lg:p-6" : density === "medium" ? "p-3.5" : density === "compact" ? "p-2.5" : "px-1 py-0.5";
   const cardGap = isHighDensity ? "gap-0" : "gap-1.5";
-  const cardLayoutClass = isHighDensity ? "grid-rows-[auto_auto] content-start" : "grid-rows-[auto_minmax(0,1fr)] content-between";
+  const cardLayoutClass = isHighDensity ? "grid-rows-[auto_minmax(0,1fr)] content-stretch" : "grid-rows-[auto_minmax(0,1fr)] content-between";
   const matchGridGap = isHighDensity ? "gap-x-1 gap-y-0" : "gap-x-2 gap-y-1";
   const matchGridRowsClass = "grid-rows-[auto_auto_auto]";
-  const matchAreaWidthClass = density === "large" ? "w-[62%]" : density === "medium" ? "w-[72%]" : density === "compact" ? "w-[78%]" : "w-[82%]";
+  const matchAreaWidthClass = density === "large" ? "w-[62%]" : density === "medium" ? "w-[68%]" : density === "compact" ? "w-[70%]" : "w-[68%]";
   const statusBadgeClass = density === "high" ? "px-1 py-0.5 text-[0.55rem]" : "px-2 py-1 text-[0.65rem]";
   const courtText = density === "large" ? "text-[clamp(1.8rem,2.6vw,3.25rem)]" : density === "medium" ? "text-[clamp(1.2rem,1.55vw,1.9rem)]" : density === "compact" ? "text-[clamp(0.95rem,1.1vw,1.35rem)]" : "text-[clamp(0.82rem,0.92vw,1.1rem)]";
   const teamText = density === "large" ? "text-[clamp(1.55rem,2.3vw,2.75rem)]" : density === "medium" ? "text-[clamp(0.95rem,1.22vw,1.35rem)]" : density === "compact" ? "text-[clamp(0.76rem,0.9vw,1rem)]" : "text-[clamp(0.66rem,0.76vw,0.88rem)]";
@@ -1084,17 +1084,17 @@ function RemoteScoreboardScoreGrid({ density, matches }: { density: ScoreboardDe
               <h3 className={`${courtText} font-black uppercase leading-none text-[var(--primary-strong)]`}>{match.court}</h3>
               <span className={`rounded-md bg-white/75 font-black uppercase text-[var(--muted)] ${statusBadgeClass}`}>{match.status}</span>
             </div>
-            <div className={`mx-auto grid min-h-0 max-w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] ${matchAreaWidthClass} ${matchGridRowsClass} items-center ${matchGridGap}`} data-match-area="centered" data-match-area-width={density} data-testid="scoreboard-player-grid">
-              <span className={`col-start-1 row-start-1 w-full min-w-0 justify-self-end text-right ${teamText} font-black leading-tight`} data-position="left-top" data-team-align="toward-center" data-testid="scoreboard-left-player-1" style={{ overflowWrap: "anywhere" }}>{teamAPlayer1}</span>
+            <div className={`mx-auto grid min-h-0 max-w-full self-center grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] ${matchAreaWidthClass} ${matchGridRowsClass} items-center ${matchGridGap}`} data-horizontal-layout="33-50-67" data-match-area="centered" data-match-area-width={density} data-vertical-position="centered-in-card" data-testid="scoreboard-player-grid">
+              <span className={`col-start-1 row-start-1 w-full min-w-0 justify-self-center text-center ${teamText} font-black leading-tight`} data-position="left-top" data-team-align="centered-at-left-third" data-testid="scoreboard-left-player-1" style={{ overflowWrap: "anywhere" }}>{teamAPlayer1}</span>
               <div className={`col-start-2 row-span-2 row-start-1 justify-self-center self-center rounded-md bg-white/65 px-1.5 py-1 font-black uppercase leading-none text-[var(--muted)] ${vsText}`} data-position="center-middle" data-testid="scoreboard-vs">VS</div>
-              <span className={`col-start-3 row-start-1 w-full min-w-0 justify-self-start text-left ${teamText} font-black leading-tight`} data-position="right-top" data-team-align="toward-center" data-testid="scoreboard-right-player-1" style={{ overflowWrap: "anywhere" }}>{teamBPlayer1}</span>
-              <span className={`col-start-1 row-start-2 w-full min-w-0 justify-self-end text-right ${teamText} font-black leading-tight`} data-position="left-bottom" data-team-align="toward-center" data-testid="scoreboard-left-player-2" style={{ overflowWrap: "anywhere" }}>{teamAPlayer2}</span>
-              <span className={`col-start-3 row-start-2 w-full min-w-0 justify-self-start text-left ${teamText} font-black leading-tight`} data-position="right-bottom" data-team-align="toward-center" data-testid="scoreboard-right-player-2" style={{ overflowWrap: "anywhere" }}>{teamBPlayer2}</span>
+              <span className={`col-start-3 row-start-1 w-full min-w-0 justify-self-center text-center ${teamText} font-black leading-tight`} data-position="right-top" data-team-align="centered-at-right-third" data-testid="scoreboard-right-player-1" style={{ overflowWrap: "anywhere" }}>{teamBPlayer1}</span>
+              <span className={`col-start-1 row-start-2 w-full min-w-0 justify-self-center text-center ${teamText} font-black leading-tight`} data-position="left-bottom" data-team-align="centered-at-left-third" data-testid="scoreboard-left-player-2" style={{ overflowWrap: "anywhere" }}>{teamAPlayer2}</span>
+              <span className={`col-start-3 row-start-2 w-full min-w-0 justify-self-center text-center ${teamText} font-black leading-tight`} data-position="right-bottom" data-team-align="centered-at-right-third" data-testid="scoreboard-right-player-2" style={{ overflowWrap: "anywhere" }}>{teamBPlayer2}</span>
               {score ? (
                 <>
                   <p className="sr-only">{match.score}</p>
-                  <span className={`col-start-1 row-start-3 w-full justify-self-end text-center ${scoreText} font-black leading-none`} data-score-align="left-team-center" data-testid="scoreboard-left-score">{score.teamA}</span>
-                  <span className={`col-start-3 row-start-3 w-full justify-self-start text-center ${scoreText} font-black leading-none`} data-score-align="right-team-center" data-testid="scoreboard-right-score">{score.teamB}</span>
+                  <span className={`col-start-1 row-start-3 w-full justify-self-center text-center ${scoreText} font-black leading-none`} data-score-align="left-third-center" data-testid="scoreboard-left-score">{score.teamA}</span>
+                  <span className={`col-start-3 row-start-3 w-full justify-self-center text-center ${scoreText} font-black leading-none`} data-score-align="right-third-center" data-testid="scoreboard-right-score">{score.teamB}</span>
                 </>
               ) : (
                 <div className={`col-start-2 row-start-3 justify-self-center rounded-md bg-white/70 px-2 py-1 font-black uppercase leading-tight text-[var(--muted)] ${statusText}`} data-badge-position="under-vs" data-testid="scoreboard-unsaved-status">
