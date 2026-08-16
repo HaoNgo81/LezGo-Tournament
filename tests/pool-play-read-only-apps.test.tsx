@@ -2,13 +2,26 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { QrTournamentApp } from "../components/tournament/qr-tournament-app";
 import { TvTournamentApp } from "../components/tournament/tv-tournament-app";
-import { advanceLivePoolPlayState, saveNextPoolPhaseResult } from "../lib/live-scoring";
+import { advanceLivePoolPlayState, createMockLiveTournamentState, saveNextPoolPhaseResult } from "../lib/live-scoring";
 import { createPoolTournamentFromSetup, saveActiveTournament } from "../lib/tournament-setup";
 
 describe("pool-play read-only apps", () => {
   afterEach(() => {
     cleanup();
     window.localStorage.clear();
+  });
+
+  it("removes all-player cards from the actual standard read-only render path", async () => {
+    saveActiveTournament(createMockLiveTournamentState());
+
+    render(<QrTournamentApp />);
+
+    expect(await screen.findByRole("heading", { name: "Kampe i aktiv runde" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Hele stillingen" })).toBeInTheDocument();
+    expect(screen.queryByText("Alle spillere")).not.toBeInTheDocument();
+    expect(screen.queryByText("Placering #1")).not.toBeInTheDocument();
+    expect(screen.queryByText("Makker:")).not.toBeInTheDocument();
+    expect(screen.queryByText("Modstandere:")).not.toBeInTheDocument();
   });
 
   it("shows unmatched final player-pool Americano placement play in QR view", async () => {

@@ -58,26 +58,6 @@ function StandardQrView({ state }: { state: LiveTournamentState }) {
         </div>
       </Section>
 
-      <Section title={t("allPlayers")}>
-        <div className="grid gap-3">
-          {view.playerInfo.map((player) => (
-            <article key={player.playerId} className="app-card p-4 shadow-sm">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h3 className="text-xl font-black">{player.playerName}</h3>
-                  <p className="mt-1 text-sm font-bold text-[var(--muted)]">Placering #{player.rank}</p>
-                </div>
-                <span className="rounded-md bg-green-100 px-3 py-1 text-sm font-bold text-[var(--primary-strong)]">{player.court}</span>
-              </div>
-              <div className="mt-4 grid gap-2 text-lg leading-7">
-                <p><strong>Makker:</strong> {player.partnerName}</p>
-                <p><strong>Modstandere:</strong> {player.opponents}</p>
-              </div>
-            </article>
-          ))}
-        </div>
-      </Section>
-
       <Section title={t("matchesInActiveRound")}>
         <MatchCards matches={view.matches} />
       </Section>
