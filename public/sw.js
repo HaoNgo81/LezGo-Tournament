@@ -1,4 +1,4 @@
-const CACHE_NAME = "lezgo-padel-v2";
+const CACHE_NAME = "lezgo-padel-v3";
 const SCOPE_PATH = new URL(self.registration.scope).pathname.replace(/\/$/, "");
 const APP_SHELL_ROUTES = ["/", "/new-tournament", "/tournaments", "/templates", "/settings"];
 const APP_SHELL = APP_SHELL_ROUTES.map((route) => `${SCOPE_PATH}${route}`);
@@ -32,7 +32,11 @@ if (IS_LOCAL_OR_LAN) {
   });
 } else {
   self.addEventListener("install", (event) => {
-    event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
+    event.waitUntil(
+      caches.open(CACHE_NAME)
+        .then((cache) => cache.addAll(APP_SHELL))
+        .then(() => self.skipWaiting()),
+    );
   });
 
   self.addEventListener("activate", (event) => {
@@ -47,6 +51,14 @@ if (IS_LOCAL_OR_LAN) {
 
   self.addEventListener("fetch", (event) => {
     if (event.request.method !== "GET") return;
+    const requestUrl = new URL(event.request.url);
+    const isNextStaticAsset = requestUrl.pathname.startsWith(`${SCOPE_PATH}/_next/static/`);
+
+    if (isNextStaticAsset) {
+      event.respondWith(fetch(event.request));
+      return;
+    }
+
     event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
   });
 }

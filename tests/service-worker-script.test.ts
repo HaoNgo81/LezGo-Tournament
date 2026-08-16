@@ -20,7 +20,7 @@ function runServiceWorkerScript(hostname: string) {
     URL,
     caches: {
       delete: cacheDelete,
-      keys: vi.fn().mockResolvedValue(["lezgo-padel-v1", "lezgo-padel-v2"]),
+      keys: vi.fn().mockResolvedValue(["lezgo-padel-v1", "lezgo-padel-v2", "lezgo-padel-v3"]),
       match: vi.fn().mockResolvedValue(new Response("cached")),
       open: cacheOpen,
     },
@@ -42,7 +42,7 @@ function runServiceWorkerScript(hostname: string) {
   const script = readFileSync(join(process.cwd(), "public", "sw.js"), "utf8");
   new Script(script).runInNewContext(context);
 
-  return { cacheAddAll, cacheDelete, cacheOpen, claim, fetch, handlers, skipWaiting, unregister };
+  return { cacheAddAll, cacheDelete, cacheMatch: context.caches.match, cacheOpen, claim, fetch, handlers, skipWaiting, unregister };
 }
 
 describe("service worker script", () => {
@@ -60,12 +60,13 @@ describe("service worker script", () => {
     expect(serviceWorker.skipWaiting).toHaveBeenCalled();
     expect(serviceWorker.cacheDelete).toHaveBeenCalledWith("lezgo-padel-v1");
     expect(serviceWorker.cacheDelete).toHaveBeenCalledWith("lezgo-padel-v2");
+    expect(serviceWorker.cacheDelete).toHaveBeenCalledWith("lezgo-padel-v3");
     expect(serviceWorker.claim).toHaveBeenCalled();
     expect(serviceWorker.unregister).toHaveBeenCalled();
     expect(serviceWorker.cacheOpen).not.toHaveBeenCalled();
   });
 
-  it("keeps the production app-shell cache behavior on public origins", async () => {
+  it("activates fresh production app-shell caches and removes obsolete caches on public origins", async () => {
     const serviceWorker = runServiceWorkerScript("haongo81.github.io");
     const installPromises: Promise<unknown>[] = [];
     const activatePromises: Promise<unknown>[] = [];
@@ -75,11 +76,46 @@ describe("service worker script", () => {
     await Promise.all(installPromises);
     await Promise.all(activatePromises);
 
-    expect(serviceWorker.cacheOpen).toHaveBeenCalledWith("lezgo-padel-v2");
+    expect(serviceWorker.cacheOpen).toHaveBeenCalledWith("lezgo-padel-v3");
     expect(serviceWorker.cacheAddAll).toHaveBeenCalledWith(["/", "/new-tournament", "/tournaments", "/templates", "/settings"]);
+    expect(serviceWorker.skipWaiting).toHaveBeenCalled();
     expect(serviceWorker.cacheDelete).toHaveBeenCalledWith("lezgo-padel-v1");
-    expect(serviceWorker.cacheDelete).not.toHaveBeenCalledWith("lezgo-padel-v2");
+    expect(serviceWorker.cacheDelete).toHaveBeenCalledWith("lezgo-padel-v2");
+    expect(serviceWorker.cacheDelete).not.toHaveBeenCalledWith("lezgo-padel-v3");
     expect(serviceWorker.claim).toHaveBeenCalled();
     expect(serviceWorker.unregister).not.toHaveBeenCalled();
+  });
+
+  it("does not serve stale Next.js static chunks from the app-shell cache", async () => {
+    const serviceWorker = runServiceWorkerScript("lez-go-tournament.vercel.app");
+    const responsePromises: Promise<unknown>[] = [];
+
+    serviceWorker.handlers.get("fetch")?.({
+      request: new Request("https://lez-go-tournament.vercel.app/_next/static/chunks/old.js"),
+      respondWith: (promise) => responsePromises.push(promise),
+    });
+    await Promise.all(responsePromises);
+
+    expect(serviceWorker.fetch).toHaveBeenCalledWith(expect.objectContaining({
+      url: "https://lez-go-tournament.vercel.app/_next/static/chunks/old.js",
+    }));
+    expect(serviceWorker.cacheMatch).not.toHaveBeenCalled();
+  });
+
+  it("keeps navigation requests network-first with cache fallback for the current app shell", async () => {
+    const serviceWorker = runServiceWorkerScript("lez-go-tournament.vercel.app");
+    const responsePromises: Promise<unknown>[] = [];
+
+    serviceWorker.fetch.mockRejectedValueOnce(new Error("offline"));
+    serviceWorker.handlers.get("fetch")?.({
+      request: new Request("https://lez-go-tournament.vercel.app/remote"),
+      respondWith: (promise) => responsePromises.push(promise),
+    });
+    await Promise.all(responsePromises);
+
+    expect(serviceWorker.fetch).toHaveBeenCalled();
+    expect(serviceWorker.cacheMatch).toHaveBeenCalledWith(expect.objectContaining({
+      url: "https://lez-go-tournament.vercel.app/remote",
+    }));
   });
 });
