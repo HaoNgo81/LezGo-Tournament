@@ -34,6 +34,7 @@ describe("STEP 13 remote read-only UI", () => {
     expect(screen.getByText("Spiller")).toBeInTheDocument();
     expect(screen.getByText("MP")).toBeInTheDocument();
     expect(screen.getByText("Point")).toBeInTheDocument();
+    expect(screen.queryByText("Alle spillere")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Indtast score" })).not.toBeInTheDocument();
     expect(loadActiveTournament()).toEqual(localState);
 

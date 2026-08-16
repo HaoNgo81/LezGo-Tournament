@@ -1198,25 +1198,6 @@ function RemoteAmericanoView({ isTvMode, view }: { isTvMode: boolean; view: Read
       <RemotePanel title={t("remoteTopStandings")} isTvMode={isTvMode}>
         <RemoteStandingsList standings={topStandings} isTvMode={isTvMode} />
       </RemotePanel>
-      {isTvMode ? null : (
-        <Section title={t("allPlayers")}>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {view.playerInfo.map((player) => (
-              <article key={player.playerId} className="app-card p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="text-lg font-black">{player.playerName}</h3>
-                    <p className="font-bold text-[var(--muted)]">#{player.rank}</p>
-                  </div>
-                  <span className="rounded-md bg-[var(--primary-soft)] px-3 py-1 text-sm font-black text-[var(--primary-strong)]">{player.court}</span>
-                </div>
-                <p className="mt-3 font-bold">{player.partnerName}</p>
-                <p className="font-bold text-[var(--muted)]">{player.opponents}</p>
-              </article>
-            ))}
-          </div>
-        </Section>
-      )}
     </div>
   );
 }
