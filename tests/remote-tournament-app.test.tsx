@@ -70,7 +70,7 @@ describe("STEP 13 remote read-only UI", () => {
 
     fireEvent.change(screen.getByLabelText("Venstre score"), { target: { value: "17" } });
     expect(screen.getByLabelText("Højre score")).toHaveTextContent("7");
-    fireEvent.click(screen.getByRole("button", { name: "Gem" }));
+    fireEvent.click(screen.getByRole("button", { name: "Gem score" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     expect(fetchMock.mock.calls[1][0]).toBe("/api/supabase/tournament-access/score");
@@ -84,6 +84,59 @@ describe("STEP 13 remote read-only UI", () => {
     });
     expect(await screen.findByText("Score gemt.")).toBeInTheDocument();
     expect(screen.getByText("17 - 7")).toBeInTheDocument();
+  });
+
+  it("blocks duplicate remote score writes while a save request is pending", async () => {
+    const remoteState = createLongNameStandardState("STEP_23B_TEST Duplicate Save");
+    const match = remoteState.rounds[0].matches[0];
+    const updatedState = saveMatchResult(remoteState, { matchId: match.id, teamAPoints: 17, teamBPoints: 7 });
+    const deferredSave = createDeferred<Response>();
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(createReadResponse("standard", remoteState))
+      .mockReturnValueOnce(deferredSave.promise);
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<RemoteTournamentApp />);
+    fireEvent.change(screen.getByLabelText("Turneringskode"), { target: { value: "K7M4XP" } });
+    fireEvent.change(screen.getByLabelText("Adgangskode"), { target: { value: "2222" } });
+    fireEvent.click(screen.getByRole("button", { name: "Åbn turnering fra anden enhed" }));
+
+    expect(await screen.findByRole("heading", { name: "STEP_23B_TEST Duplicate Save" })).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Indtast score" })[0]);
+    fireEvent.change(screen.getByLabelText("Venstre score"), { target: { value: "17" } });
+
+    const saveButton = screen.getByRole("button", { name: "Gem score" });
+    fireEvent.click(saveButton);
+    fireEvent.click(saveButton);
+    fireEvent.submit(screen.getByRole("dialog", { name: "Registrer scorepoint" }).querySelector("form") as HTMLFormElement);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Gemmer..." })).toBeDisabled());
+    expect(screen.getByLabelText("Venstre score")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Annuller" })).toBeDisabled();
+
+    deferredSave.resolve(createReadResponse("standard", updatedState, "2026-08-13T12:00:05.000Z"));
+    expect(await screen.findByText("Score gemt.")).toBeInTheDocument();
+    expect(screen.getByText("17 - 7")).toBeInTheDocument();
+  });
+
+  it("cancels remote score entry without writing", async () => {
+    const remoteState = createLongNameStandardState("STEP_23B_TEST Cancel Score");
+    const fetchMock = vi.fn().mockResolvedValue(createReadResponse("standard", remoteState));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<RemoteTournamentApp />);
+    fireEvent.change(screen.getByLabelText("Turneringskode"), { target: { value: "K7M4XP" } });
+    fireEvent.change(screen.getByLabelText("Adgangskode"), { target: { value: "2222" } });
+    fireEvent.click(screen.getByRole("button", { name: "Åbn turnering fra anden enhed" }));
+
+    expect(await screen.findByRole("heading", { name: "STEP_23B_TEST Cancel Score" })).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Indtast score" })[0]);
+    fireEvent.change(screen.getByLabelText("Venstre score"), { target: { value: "17" } });
+    fireEvent.click(screen.getByRole("button", { name: "Annuller" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("edits an existing standard remote score through the same score entry flow", async () => {
@@ -103,12 +156,13 @@ describe("STEP 13 remote read-only UI", () => {
 
     expect(await screen.findByRole("heading", { name: "STEP_23A_TEST Edit Remote Score" })).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole("button", { name: "Rediger score" })[0]);
+    expect(screen.getByRole("dialog", { name: "Rediger score" })).toBeInTheDocument();
     expect(screen.getByLabelText("Venstre score")).toHaveValue("17");
     expect(screen.getByLabelText("Højre score")).toHaveTextContent("7");
 
     fireEvent.change(screen.getByLabelText("Venstre score"), { target: { value: "15" } });
     expect(screen.getByLabelText("Højre score")).toHaveTextContent("9");
-    fireEvent.click(screen.getByRole("button", { name: "Gem" }));
+    fireEvent.click(screen.getByRole("button", { name: "Gem score" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     expect(JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string)).toMatchObject({
@@ -118,6 +172,35 @@ describe("STEP 13 remote read-only UI", () => {
       expectedUpdatedAt: "2026-08-13T12:00:00.000Z",
     });
     expect(await screen.findByText("15 - 9")).toBeInTheDocument();
+  });
+
+  it("accepts both score inputs for free-scoring remote tournaments", async () => {
+    const remoteState = createFreeScoringState("STEP_23B_TEST Free Score");
+    const match = remoteState.rounds[0].matches[0];
+    const updatedState = saveMatchResult(remoteState, { matchId: match.id, teamAPoints: 17, teamBPoints: 14 });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(createReadResponse("standard", remoteState))
+      .mockResolvedValueOnce(createReadResponse("standard", updatedState, "2026-08-13T12:00:07.000Z"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<RemoteTournamentApp />);
+    fireEvent.change(screen.getByLabelText("Turneringskode"), { target: { value: "K7M4XP" } });
+    fireEvent.change(screen.getByLabelText("Adgangskode"), { target: { value: "2222" } });
+    fireEvent.click(screen.getByRole("button", { name: "Åbn turnering fra anden enhed" }));
+
+    expect(await screen.findByRole("heading", { name: "STEP_23B_TEST Free Score" })).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Indtast score" })[0]);
+    fireEvent.change(screen.getByLabelText("Venstre score"), { target: { value: "17" } });
+    fireEvent.change(screen.getByLabelText("Højre score"), { target: { value: "14" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gem score" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string)).toMatchObject({
+      matchId: match.id,
+      teamAPoints: 17,
+      teamBPoints: 14,
+    });
+    expect(await screen.findByText("17 - 14")).toBeInTheDocument();
   });
 
   it("keeps invalid fixed-total remote score input client-side without saving", async () => {
@@ -135,11 +218,32 @@ describe("STEP 13 remote read-only UI", () => {
     fireEvent.change(screen.getByLabelText("Venstre score"), { target: { value: "25" } });
 
     expect(screen.getByText("Scoren skal være mellem 0 og 24.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Gem" })).toBeDisabled();
+    expect(screen.getByText("Automatisk")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Gem score" })).toBeDisabled();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("shows remote score save errors without closing the score dialog", async () => {
+  it("rejects negative and non-numeric remote score input without saving", async () => {
+    const remoteState = createFreeScoringState("STEP_23B_TEST Invalid Text Score");
+    const fetchMock = vi.fn().mockResolvedValue(createReadResponse("standard", remoteState));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<RemoteTournamentApp />);
+    fireEvent.change(screen.getByLabelText("Turneringskode"), { target: { value: "K7M4XP" } });
+    fireEvent.change(screen.getByLabelText("Adgangskode"), { target: { value: "2222" } });
+    fireEvent.click(screen.getByRole("button", { name: "Åbn turnering fra anden enhed" }));
+
+    expect(await screen.findByRole("heading", { name: "STEP_23B_TEST Invalid Text Score" })).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Indtast score" })[0]);
+    fireEvent.change(screen.getByLabelText("Venstre score"), { target: { value: "-1" } });
+    fireEvent.change(screen.getByLabelText("Højre score"), { target: { value: "abc" } });
+    fireEvent.submit(screen.getByRole("dialog", { name: "Registrer scorepoint" }).querySelector("form") as HTMLFormElement);
+
+    expect(screen.getByText("Indtast en gyldig score.")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows conflict save errors without closing the score dialog or losing typed values", async () => {
     const remoteState = createLongNameStandardState("STEP_23A_TEST Save Error");
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(createReadResponse("standard", remoteState))
@@ -154,10 +258,42 @@ describe("STEP 13 remote read-only UI", () => {
     expect(await screen.findByRole("heading", { name: "STEP_23A_TEST Save Error" })).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole("button", { name: "Indtast score" })[0]);
     fireEvent.change(screen.getByLabelText("Venstre score"), { target: { value: "17" } });
-    fireEvent.click(screen.getByRole("button", { name: "Gem" }));
+    fireEvent.click(screen.getByRole("button", { name: "Gem score" }));
 
-    expect(await screen.findByText("Conflict: newer version exists.")).toBeInTheDocument();
+    expect(await screen.findByText("Resultatet er blevet ændret fra en anden enhed. Hent seneste version og prøv igen.")).toBeInTheDocument();
     expect(screen.getByRole("dialog", { name: "Registrer scorepoint" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Venstre score")).toHaveValue("17");
+    expect(screen.getByLabelText("Højre score")).toHaveTextContent("7");
+  });
+
+  it("shows network save errors, keeps typed values and allows retry", async () => {
+    const remoteState = createLongNameStandardState("STEP_23B_TEST Network Retry");
+    const match = remoteState.rounds[0].matches[0];
+    const updatedState = saveMatchResult(remoteState, { matchId: match.id, teamAPoints: 17, teamBPoints: 7 });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(createReadResponse("standard", remoteState))
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(createReadResponse("standard", updatedState, "2026-08-13T12:00:08.000Z"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<RemoteTournamentApp />);
+    fireEvent.change(screen.getByLabelText("Turneringskode"), { target: { value: "K7M4XP" } });
+    fireEvent.change(screen.getByLabelText("Adgangskode"), { target: { value: "2222" } });
+    fireEvent.click(screen.getByRole("button", { name: "Åbn turnering fra anden enhed" }));
+
+    expect(await screen.findByRole("heading", { name: "STEP_23B_TEST Network Retry" })).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Indtast score" })[0]);
+    fireEvent.change(screen.getByLabelText("Venstre score"), { target: { value: "17" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gem score" }));
+
+    expect(await screen.findByText("Forbindelsen blev afbrudt. Prøv igen.")).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Registrer scorepoint" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Venstre score")).toHaveValue("17");
+    expect(screen.getByRole("button", { name: "Gem score" })).not.toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Gem score" }));
+    expect(await screen.findByText("17 - 7")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it("removes all-player cards from the actual production /remote render path", async () => {
@@ -1006,6 +1142,30 @@ function createLongNameStandardState(name: string): LiveTournamentState {
   });
 }
 
+function createFreeScoringState(name: string): LiveTournamentState {
+  return createTournamentFromSetup({
+    name,
+    format: "Americano",
+    playerText: [
+      "Martin Langgaard",
+      "Klaus Nord",
+      "Lindon West",
+      "Aqeel Sønder",
+      "Ronni Vester",
+      "Daniel Øster",
+      "Hao Trinh",
+      "Johnnie Midt",
+    ].join("\n"),
+    femalePlayerText: "",
+    malePlayerText: "",
+    courts: 2,
+    rounds: 2,
+    scoringMode: "Fri scoring",
+    firstRoundOrder: "manual",
+    rankingMode: "matchPointsFirst",
+  });
+}
+
 function scoreAdaptiveScoreboardState(name: string, playerCount: number, courts: number): LiveTournamentState {
   const state = createTournamentFromSetup({
     name,
@@ -1106,4 +1266,15 @@ function createTeamState(): TeamVsTeamTournamentState {
 
 function createPlayers(prefix: string, label: string) {
   return Array.from({ length: 4 }, (_, index) => ({ id: `${prefix}${index + 1}`, name: `${label} ${index + 1}` }));
+}
+
+function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void; reject: (reason?: unknown) => void } {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+
+  return { promise, resolve, reject };
 }

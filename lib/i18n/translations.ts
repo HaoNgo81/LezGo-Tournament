@@ -135,6 +135,12 @@ export type TranslationKey =
   | "remoteReadOnlyShort"
   | "remoteScoreEntryBanner"
   | "remoteScoreEntryShort"
+  | "remoteScoreAutomatic"
+  | "remoteScoreConflictError"
+  | "remoteScoreNetworkError"
+  | "remoteScoreSave"
+  | "remoteScoreSaveError"
+  | "remoteScoreSaving"
   | "remoteRefresh"
   | "remoteShareToken"
   | "remoteShareTokenCopied"
@@ -332,6 +338,12 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteReadOnlyShort: "Skrivebeskyttet",
     remoteScoreEntryBanner: "Visning fra anden enhed - scoreindtastning aktiv",
     remoteScoreEntryShort: "Score aktiv",
+    remoteScoreAutomatic: "Automatisk",
+    remoteScoreConflictError: "Resultatet er blevet ændret fra en anden enhed. Hent seneste version og prøv igen.",
+    remoteScoreNetworkError: "Forbindelsen blev afbrudt. Prøv igen.",
+    remoteScoreSave: "Gem score",
+    remoteScoreSaveError: "Kunne ikke gemme score. Prøv igen.",
+    remoteScoreSaving: "Gemmer...",
     remoteRefresh: "Opdater",
     remoteShareToken: "Adgangskode",
     remoteShareTokenCopied: "Adgangskode kopieret.",
@@ -528,6 +540,12 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteReadOnlyShort: "Read only",
     remoteScoreEntryBanner: "Opened from another device - score entry active",
     remoteScoreEntryShort: "Score active",
+    remoteScoreAutomatic: "Automatic",
+    remoteScoreConflictError: "The result was changed from another device. Load the latest version and try again.",
+    remoteScoreNetworkError: "The connection was interrupted. Try again.",
+    remoteScoreSave: "Save score",
+    remoteScoreSaveError: "Could not save score. Try again.",
+    remoteScoreSaving: "Saving...",
     remoteRefresh: "Refresh",
     remoteShareToken: "Access code",
     remoteShareTokenCopied: "Access code copied.",

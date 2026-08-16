@@ -55,6 +55,7 @@ interface RemoteScoreDraft {
   teamB: string;
   teamAPoints: string;
   teamBPoints: string;
+  isEditing: boolean;
 }
 
 const remotePollBaseIntervalMs = 4000;
@@ -96,6 +97,7 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
   const autoOpenAttempted = useRef(false);
   const autoSyncStoppedRef = useRef(false);
   const sessionRef = useRef<RemoteTournamentSession | null>(null);
+  const scoreSaveInFlightRef = useRef(false);
   const pollGenerationRef = useRef(0);
   const syncTelemetryRef = useRef<RemoteSyncTelemetry>({ consecutiveFailures: 0 });
   const [tournamentCode, setTournamentCode] = useState("");
@@ -544,13 +546,14 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
       teamB: match.teamB,
       teamAPoints: score?.teamA ?? "",
       teamBPoints: score?.teamB ?? "",
+      isEditing: score !== null,
     });
   }
 
   async function handleSaveRemoteScore(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (isSavingScore) {
+    if (scoreSaveInFlightRef.current) {
       return;
     }
 
@@ -579,6 +582,7 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
       return;
     }
 
+    scoreSaveInFlightRef.current = true;
     setIsSavingScore(true);
     setScoreError("");
 
@@ -598,7 +602,7 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
       const body = await readRemoteJson(response) as RemoteScoreSaveResponse;
 
       if (!response.ok || !body.ok || body.kind !== "standard" || !body.state) {
-        throw new Error(body.error ?? "Score kunne ikke gemmes.");
+        throw new Error(getRemoteScoreResponseErrorMessage(response.status, body.error, t));
       }
 
       const nextSession: RemoteTournamentSession = {
@@ -613,8 +617,9 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
       setMessage("Score gemt.");
       setScoreDraft(null);
     } catch (caughtError) {
-      setScoreError(caughtError instanceof Error ? caughtError.message : "Score kunne ikke gemmes.");
+      setScoreError(caughtError instanceof TypeError ? t("remoteScoreNetworkError") : caughtError instanceof Error ? caughtError.message : t("remoteScoreSaveError"));
     } finally {
+      scoreSaveInFlightRef.current = false;
       setIsSavingScore(false);
     }
   }
@@ -940,6 +945,18 @@ function getRemoteReadErrorMessage(error: unknown, fallbackMessage: string): str
   }
 
   return remoteError.message;
+}
+
+function getRemoteScoreResponseErrorMessage(status: number, apiError: string | undefined, t: (key: TranslationKey) => string): string {
+  if (status === 409 || apiError?.toLocaleLowerCase("en").includes("conflict")) {
+    return t("remoteScoreConflictError");
+  }
+
+  if (status >= 500) {
+    return t("remoteScoreSaveError");
+  }
+
+  return apiError || t("remoteScoreSaveError");
 }
 
 function getRemoteSyncStatusForError(error: RemoteReadError): RemoteSyncStatus {
@@ -1670,6 +1687,7 @@ function RemoteScoreDialog({
   const fixedTotalCalculation = fixedTotalPoints !== undefined && parsedTeamAPoints !== null ? getRemoteFixedTotalCalculation(fixedTotalPoints, parsedTeamAPoints) : null;
   const calculatedTeamBPoints = fixedTotalCalculation && "score" in fixedTotalCalculation ? fixedTotalCalculation.score.teamBPoints : null;
   const fixedTotalError = fixedTotalCalculation && "error" in fixedTotalCalculation ? fixedTotalCalculation.error : "";
+  const title = draft.isEditing ? t("editScore") : t("registerScorePoints");
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-end bg-black/30 p-0 sm:place-items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="remote-score-dialog-heading">
@@ -1677,9 +1695,9 @@ function RemoteScoreDialog({
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{draft.court}</p>
-            <h2 id="remote-score-dialog-heading" className="text-2xl font-black">{t("registerScorePoints")}</h2>
+            <h2 id="remote-score-dialog-heading" className="text-2xl font-black">{title}</h2>
           </div>
-          <button className="btn-secondary min-h-11" type="button" onClick={onCancel}>{t("cancel")}</button>
+          <button className="btn-secondary min-h-11 disabled:opacity-50" type="button" disabled={isSaving} onClick={onCancel}>{t("cancel")}</button>
         </div>
         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_2.5rem_minmax(0,1fr)] items-center gap-2 text-center text-lg font-black">
           <TeamName name={draft.teamA} align="right" />
@@ -1700,6 +1718,7 @@ function RemoteScoreDialog({
               min="0"
               pattern="[0-9]*"
               className="field-control min-h-16 text-center text-3xl font-black"
+              disabled={isSaving}
               value={draft.teamAPoints}
               onChange={(event) => onChange({ ...draft, teamAPoints: event.target.value })}
               aria-label="Venstre score"
@@ -1708,9 +1727,12 @@ function RemoteScoreDialog({
           <label className="grid gap-2 font-bold">
             {draft.teamB}
             {fixedTotalPoints !== undefined ? (
-              <output className="field-control flex min-h-16 items-center justify-center text-center text-3xl font-black" aria-label="Højre score">
-                {calculatedTeamBPoints ?? "-"}
-              </output>
+              <div className="grid gap-1">
+                <output className="field-control flex min-h-16 items-center justify-center text-center text-3xl font-black" aria-label="Højre score">
+                  {calculatedTeamBPoints ?? "-"}
+                </output>
+                <span className="text-xs font-black uppercase text-[var(--muted)]">{t("remoteScoreAutomatic")}</span>
+              </div>
             ) : (
               <input
                 required
@@ -1718,6 +1740,7 @@ function RemoteScoreDialog({
                 min="0"
                 pattern="[0-9]*"
                 className="field-control min-h-16 text-center text-3xl font-black"
+                disabled={isSaving}
                 value={draft.teamBPoints}
                 onChange={(event) => onChange({ ...draft, teamBPoints: event.target.value })}
                 aria-label="Højre score"
@@ -1727,7 +1750,7 @@ function RemoteScoreDialog({
         </div>
         {fixedTotalError || error ? <p className="rounded-md bg-red-50 p-3 font-bold text-red-700">{fixedTotalError || error}</p> : null}
         <button className="min-h-14 rounded-md bg-[var(--primary)] px-5 text-lg font-black text-[var(--primary-text)] disabled:bg-gray-300" type="submit" disabled={isSaving || Boolean(fixedTotalError)}>
-          {isSaving ? "Gemmer..." : t("save")}
+          {isSaving ? t("remoteScoreSaving") : t("remoteScoreSave")}
         </button>
       </form>
     </div>

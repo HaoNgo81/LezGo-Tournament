@@ -125,6 +125,40 @@ describe("STEP 23A remote score API", () => {
     expect(repositoryMocks.save).not.toHaveBeenCalled();
   });
 
+  it("rejects read-only remote-session tokens before any write path is reached", async () => {
+    const response = await POST(new Request("http://localhost/api/supabase/tournament-access/score", {
+      method: "POST",
+      body: JSON.stringify({
+        remoteSessionToken: "READ_ONLY_REMOTE_SESSION_TOKEN",
+        matchId: "match-1",
+        teamAPoints: 17,
+        teamBPoints: 7,
+      }),
+    }));
+
+    expect(response.status).toBe(400);
+    expect(repositoryMocks.readByAccess).not.toHaveBeenCalled();
+    expect(repositoryMocks.save).not.toHaveBeenCalled();
+  });
+
+  it("rejects negative score payloads before writing tournament data", async () => {
+    const response = await POST(new Request("http://localhost/api/supabase/tournament-access/score", {
+      method: "POST",
+      body: JSON.stringify({
+        tournamentCode: "K7M4XP",
+        shareToken: "2222",
+        matchId: "match-1",
+        teamAPoints: -1,
+        teamBPoints: 7,
+      }),
+    }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, error: "Indtast en gyldig score." });
+    expect(repositoryMocks.readByAccess).not.toHaveBeenCalled();
+    expect(repositoryMocks.save).not.toHaveBeenCalled();
+  });
+
   it("returns a typed conflict response without hiding the save failure", async () => {
     const state = createMockLiveTournamentState();
     repositoryMocks.readByAccess.mockResolvedValue({
