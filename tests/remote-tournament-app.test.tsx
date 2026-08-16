@@ -65,11 +65,20 @@ describe("STEP 13 remote read-only UI", () => {
 
     expect(await screen.findByRole("heading", { name: "STEP_23A_TEST Remote Score" })).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole("button", { name: "Indtast score" })[0]);
-    expect(screen.getByRole("dialog", { name: "Registrer scorepoint" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Indtast score" })).toBeInTheDocument();
     expect(screen.getByText("Fast samlet score: indtast venstre score. Højre score beregnes automatisk til samlet 24.")).toBeInTheDocument();
+    expect(screen.getByTestId("remote-score-entry-layout")).toHaveClass("min-w-0");
+    expect(screen.getByTestId("remote-score-dialog-form")).toHaveClass("overflow-x-hidden");
 
-    fireEvent.change(screen.getByLabelText("Venstre score"), { target: { value: "17" } });
+    const leftScoreInput = screen.getByLabelText("Venstre score");
+    expect(leftScoreInput).toHaveAttribute("inputmode", "numeric");
+    expect(leftScoreInput).toHaveAttribute("pattern", "[0-9]*");
+    expect(leftScoreInput).toHaveClass("min-h-20", "text-5xl");
+
+    fireEvent.change(leftScoreInput, { target: { value: "17" } });
     expect(screen.getByLabelText("Højre score")).toHaveTextContent("7");
+    expect(screen.getByLabelText("Højre score").tagName).toBe("OUTPUT");
+    expect(screen.getByText("Automatisk")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Gem score" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
@@ -108,7 +117,7 @@ describe("STEP 13 remote read-only UI", () => {
     const saveButton = screen.getByRole("button", { name: "Gem score" });
     fireEvent.click(saveButton);
     fireEvent.click(saveButton);
-    fireEvent.submit(screen.getByRole("dialog", { name: "Registrer scorepoint" }).querySelector("form") as HTMLFormElement);
+    fireEvent.submit(screen.getByRole("dialog", { name: "Indtast score" }).querySelector("form") as HTMLFormElement);
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     await waitFor(() => expect(screen.getByRole("button", { name: "Gemmer..." })).toBeDisabled());
@@ -157,10 +166,14 @@ describe("STEP 13 remote read-only UI", () => {
     expect(await screen.findByRole("heading", { name: "STEP_23A_TEST Edit Remote Score" })).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole("button", { name: "Rediger score" })[0]);
     expect(screen.getByRole("dialog", { name: "Rediger score" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Venstre score")).toHaveValue("17");
+    const leftScoreInput = screen.getByLabelText("Venstre score") as HTMLInputElement;
+    await waitFor(() => expect(leftScoreInput).toHaveFocus());
+    expect(leftScoreInput).toHaveValue("17");
+    expect(leftScoreInput.selectionStart).toBe(0);
+    expect(leftScoreInput.selectionEnd).toBe(leftScoreInput.value.length);
     expect(screen.getByLabelText("Højre score")).toHaveTextContent("7");
 
-    fireEvent.change(screen.getByLabelText("Venstre score"), { target: { value: "15" } });
+    fireEvent.change(leftScoreInput, { target: { value: "15" } });
     expect(screen.getByLabelText("Højre score")).toHaveTextContent("9");
     fireEvent.click(screen.getByRole("button", { name: "Gem score" }));
 
@@ -190,7 +203,12 @@ describe("STEP 13 remote read-only UI", () => {
 
     expect(await screen.findByRole("heading", { name: "STEP_23B_TEST Free Score" })).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole("button", { name: "Indtast score" })[0]);
+    expect(screen.getByRole("dialog", { name: "Indtast score" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Venstre score").tagName).toBe("INPUT");
+    expect(screen.getByLabelText("Højre score").tagName).toBe("INPUT");
     fireEvent.change(screen.getByLabelText("Venstre score"), { target: { value: "17" } });
+    fireEvent.keyDown(screen.getByLabelText("Venstre score"), { key: "Enter" });
+    expect(screen.getByLabelText("Højre score")).toHaveFocus();
     fireEvent.change(screen.getByLabelText("Højre score"), { target: { value: "14" } });
     fireEvent.click(screen.getByRole("button", { name: "Gem score" }));
 
@@ -237,7 +255,7 @@ describe("STEP 13 remote read-only UI", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Indtast score" })[0]);
     fireEvent.change(screen.getByLabelText("Venstre score"), { target: { value: "-1" } });
     fireEvent.change(screen.getByLabelText("Højre score"), { target: { value: "abc" } });
-    fireEvent.submit(screen.getByRole("dialog", { name: "Registrer scorepoint" }).querySelector("form") as HTMLFormElement);
+    fireEvent.submit(screen.getByRole("dialog", { name: "Indtast score" }).querySelector("form") as HTMLFormElement);
 
     expect(screen.getByText("Indtast en gyldig score.")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -261,7 +279,7 @@ describe("STEP 13 remote read-only UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "Gem score" }));
 
     expect(await screen.findByText("Resultatet er blevet ændret fra en anden enhed. Hent seneste version og prøv igen.")).toBeInTheDocument();
-    expect(screen.getByRole("dialog", { name: "Registrer scorepoint" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Indtast score" })).toBeInTheDocument();
     expect(screen.getByLabelText("Venstre score")).toHaveValue("17");
     expect(screen.getByLabelText("Højre score")).toHaveTextContent("7");
   });
@@ -287,7 +305,7 @@ describe("STEP 13 remote read-only UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "Gem score" }));
 
     expect(await screen.findByText("Forbindelsen blev afbrudt. Prøv igen.")).toBeInTheDocument();
-    expect(screen.getByRole("dialog", { name: "Registrer scorepoint" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Indtast score" })).toBeInTheDocument();
     expect(screen.getByLabelText("Venstre score")).toHaveValue("17");
     expect(screen.getByRole("button", { name: "Gem score" })).not.toBeDisabled();
 

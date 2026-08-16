@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FocusEvent, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { MatchCards } from "@/components/tournament/match-cards";
 import { Section } from "@/components/ui/section";
 import { createReadOnlyTournamentView, createTeamVsTeamReadOnlyView, type ReadOnlyMatchCard, type ReadOnlyTournamentView } from "@/lib/read-only-views";
@@ -1682,76 +1682,130 @@ function RemoteScoreDialog({
   state: LiveTournamentState;
 }) {
   const { t } = useAppTranslation();
+  const leftScoreInputRef = useRef<HTMLInputElement>(null);
+  const rightScoreInputRef = useRef<HTMLInputElement>(null);
   const fixedTotalPoints = getFixedTotalPoints(state);
   const parsedTeamAPoints = parseRemoteScoreInput(draft.teamAPoints);
   const fixedTotalCalculation = fixedTotalPoints !== undefined && parsedTeamAPoints !== null ? getRemoteFixedTotalCalculation(fixedTotalPoints, parsedTeamAPoints) : null;
   const calculatedTeamBPoints = fixedTotalCalculation && "score" in fixedTotalCalculation ? fixedTotalCalculation.score.teamBPoints : null;
   const fixedTotalError = fixedTotalCalculation && "error" in fixedTotalCalculation ? fixedTotalCalculation.error : "";
-  const title = draft.isEditing ? t("editScore") : t("registerScorePoints");
+  const title = draft.isEditing ? t("editScore") : t("enterScore");
+  const errorId = "remote-score-dialog-error";
+
+  useEffect(() => {
+    const input = leftScoreInputRef.current;
+
+    if (!input) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      input.focus({ preventScroll: true });
+      input.select();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, []);
+
+  function handleScoreInputFocus(event: FocusEvent<HTMLInputElement>) {
+    event.currentTarget.select();
+  }
+
+  function handleLeftScoreKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Enter" || fixedTotalPoints !== undefined || !draft.teamAPoints.trim()) {
+      return;
+    }
+
+    event.preventDefault();
+    rightScoreInputRef.current?.focus({ preventScroll: true });
+    rightScoreInputRef.current?.select();
+  }
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-end bg-black/30 p-0 sm:place-items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="remote-score-dialog-heading">
-      <form className="grid max-h-[92svh] w-full max-w-xl gap-4 overflow-y-auto rounded-t-md border border-[var(--line)] bg-white p-4 shadow-2xl sm:rounded-md sm:p-5" onSubmit={onSubmit}>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{draft.court}</p>
-            <h2 id="remote-score-dialog-heading" className="text-2xl font-black">{title}</h2>
-          </div>
-          <button className="btn-secondary min-h-11 disabled:opacity-50" type="button" disabled={isSaving} onClick={onCancel}>{t("cancel")}</button>
+      <form className="grid max-h-[92svh] w-full max-w-2xl gap-4 overflow-y-auto overflow-x-hidden rounded-t-md border border-[var(--line)] bg-white p-4 shadow-2xl sm:rounded-md sm:p-5" data-testid="remote-score-dialog-form" onSubmit={onSubmit}>
+        <div className="grid gap-1">
+          <p className="text-sm font-black uppercase text-[var(--primary-strong)]">{draft.court}</p>
+          <h2 id="remote-score-dialog-heading" className="text-3xl font-black uppercase leading-tight">{title}</h2>
         </div>
-        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_2.5rem_minmax(0,1fr)] items-center gap-2 text-center text-lg font-black">
-          <TeamName name={draft.teamA} align="right" />
-          <span className="text-sm uppercase text-[var(--muted)]">vs</span>
-          <TeamName name={draft.teamB} align="left" />
-        </div>
+
         {fixedTotalPoints !== undefined ? (
           <p className="rounded-md bg-[var(--primary-soft)] p-3 text-sm font-bold text-[var(--primary-strong)]">
             Fast samlet score: indtast venstre score. Højre score beregnes automatisk til samlet {fixedTotalPoints}.
           </p>
         ) : null}
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="grid gap-2 font-bold">
-            {draft.teamA}
-            <input
-              required
-              inputMode="numeric"
-              min="0"
-              pattern="[0-9]*"
-              className="field-control min-h-16 text-center text-3xl font-black"
-              disabled={isSaving}
-              value={draft.teamAPoints}
-              onChange={(event) => onChange({ ...draft, teamAPoints: event.target.value })}
-              aria-label="Venstre score"
-            />
-          </label>
-          <label className="grid gap-2 font-bold">
-            {draft.teamB}
-            {fixedTotalPoints !== undefined ? (
-              <div className="grid gap-1">
-                <output className="field-control flex min-h-16 items-center justify-center text-center text-3xl font-black" aria-label="Højre score">
-                  {calculatedTeamBPoints ?? "-"}
-                </output>
-                <span className="text-xs font-black uppercase text-[var(--muted)]">{t("remoteScoreAutomatic")}</span>
-              </div>
-            ) : (
+
+        <div className="grid min-w-0 gap-3" data-testid="remote-score-entry-layout">
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_3rem_minmax(0,1fr)] items-end gap-2 text-center sm:grid-cols-[minmax(0,1fr)_4rem_minmax(0,1fr)] sm:gap-4">
+            <h3 className="min-w-0 text-lg font-black leading-tight sm:text-xl" style={{ overflowWrap: "break-word", wordBreak: "normal" }}>
+              {draft.teamA}
+            </h3>
+            <span className="self-center text-sm font-black uppercase text-[var(--muted)]">VS</span>
+            <h3 className="min-w-0 text-lg font-black leading-tight sm:text-xl" style={{ overflowWrap: "break-word", wordBreak: "normal" }}>
+              {draft.teamB}
+            </h3>
+          </div>
+
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_3rem_minmax(0,1fr)] items-start gap-2 text-center sm:grid-cols-[minmax(0,1fr)_4rem_minmax(0,1fr)] sm:gap-4">
+            <label className="grid min-w-0 gap-2 font-bold">
+              <span className="sr-only">{draft.teamA}</span>
+              <span className="sr-only">Venstre score</span>
               <input
+                ref={leftScoreInputRef}
                 required
                 inputMode="numeric"
                 min="0"
                 pattern="[0-9]*"
-                className="field-control min-h-16 text-center text-3xl font-black"
+                aria-describedby={fixedTotalError || error ? errorId : undefined}
+                className="field-control min-h-20 w-full text-center text-5xl font-black leading-none outline-none focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary-soft)] disabled:bg-gray-100 sm:min-h-24 sm:text-6xl"
                 disabled={isSaving}
-                value={draft.teamBPoints}
-                onChange={(event) => onChange({ ...draft, teamBPoints: event.target.value })}
-                aria-label="Højre score"
+                value={draft.teamAPoints}
+                onChange={(event) => onChange({ ...draft, teamAPoints: event.target.value })}
+                onFocus={handleScoreInputFocus}
+                onKeyDown={handleLeftScoreKeyDown}
+                aria-label="Venstre score"
               />
-            )}
-          </label>
+            </label>
+            <span className="pt-6 text-lg font-black uppercase text-[var(--muted)] sm:pt-8 sm:text-xl">VS</span>
+            <label className="grid min-w-0 gap-2 font-bold">
+              <span className="sr-only">{draft.teamB}</span>
+              <span className="sr-only">Højre score</span>
+              {fixedTotalPoints !== undefined ? (
+                <div className="grid min-w-0 gap-1">
+                  <output className="field-control flex min-h-20 w-full items-center justify-center text-center text-5xl font-black leading-none sm:min-h-24 sm:text-6xl" aria-label="Højre score">
+                    {calculatedTeamBPoints ?? "-"}
+                  </output>
+                  <span className="text-xs font-black uppercase text-[var(--muted)]">{t("remoteScoreAutomatic")}</span>
+                </div>
+              ) : (
+                <input
+                  ref={rightScoreInputRef}
+                  required
+                  inputMode="numeric"
+                  min="0"
+                  pattern="[0-9]*"
+                  aria-describedby={fixedTotalError || error ? errorId : undefined}
+                  className="field-control min-h-20 w-full text-center text-5xl font-black leading-none outline-none focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary-soft)] disabled:bg-gray-100 sm:min-h-24 sm:text-6xl"
+                  disabled={isSaving}
+                  value={draft.teamBPoints}
+                  onChange={(event) => onChange({ ...draft, teamBPoints: event.target.value })}
+                  onFocus={handleScoreInputFocus}
+                  aria-label="Højre score"
+                />
+              )}
+            </label>
+          </div>
         </div>
-        {fixedTotalError || error ? <p className="rounded-md bg-red-50 p-3 font-bold text-red-700">{fixedTotalError || error}</p> : null}
-        <button className="min-h-14 rounded-md bg-[var(--primary)] px-5 text-lg font-black text-[var(--primary-text)] disabled:bg-gray-300" type="submit" disabled={isSaving || Boolean(fixedTotalError)}>
-          {isSaving ? t("remoteScoreSaving") : t("remoteScoreSave")}
-        </button>
+
+        {fixedTotalError || error ? <p id={errorId} className="rounded-md bg-red-50 p-3 font-bold text-red-700">{fixedTotalError || error}</p> : null}
+        <div className="grid gap-2">
+          <button className="min-h-14 w-full rounded-md bg-[var(--primary)] px-5 text-lg font-black uppercase text-[var(--primary-text)] disabled:bg-gray-300" type="submit" disabled={isSaving || Boolean(fixedTotalError)}>
+            {isSaving ? t("remoteScoreSaving") : t("remoteScoreSave")}
+          </button>
+          <button className="min-h-11 justify-self-center rounded-md px-4 text-sm font-black uppercase text-[var(--muted)] disabled:opacity-50" type="button" disabled={isSaving} onClick={onCancel}>
+            {t("cancel")}
+          </button>
+        </div>
       </form>
     </div>
   );
