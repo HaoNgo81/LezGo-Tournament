@@ -169,6 +169,7 @@ describe("STEP 13 remote read-only UI", () => {
     expect(within(firstCourtCard).getByTestId("scoreboard-player-grid")).toHaveAttribute("data-match-area", "centered");
     expect(within(firstCourtCard).getByTestId("scoreboard-player-grid")).toHaveAttribute("data-match-area-width", "large");
     expect(within(firstCourtCard).getByTestId("scoreboard-player-grid")).toHaveAttribute("data-horizontal-layout", "33-50-67");
+    expect(within(firstCourtCard).getByTestId("scoreboard-player-grid")).toHaveAttribute("data-player-size", "enlarged");
     expect(within(firstCourtCard).getByTestId("scoreboard-player-grid")).toHaveAttribute("data-vertical-position", "centered-in-card");
     expect(within(firstCourtCard).getByTestId("scoreboard-left-player-1")).toHaveTextContent("Anna");
     expect(within(firstCourtCard).getByTestId("scoreboard-left-player-1")).toHaveAttribute("data-position", "left-top");
@@ -186,8 +187,10 @@ describe("STEP 13 remote read-only UI", () => {
     expect(within(firstCourtCard).getByTestId("scoreboard-right-player-2")).toHaveAttribute("data-team-align", "centered-at-right-third");
     expect(within(firstCourtCard).getByTestId("scoreboard-left-score")).toHaveTextContent("17");
     expect(within(firstCourtCard).getByTestId("scoreboard-left-score")).toHaveAttribute("data-score-align", "left-third-center");
+    expect(within(firstCourtCard).getByTestId("scoreboard-left-score")).toHaveAttribute("data-name-score-spacing", "increased");
     expect(within(firstCourtCard).getByTestId("scoreboard-right-score")).toHaveTextContent("7");
     expect(within(firstCourtCard).getByTestId("scoreboard-right-score")).toHaveAttribute("data-score-align", "right-third-center");
+    expect(within(firstCourtCard).getByTestId("scoreboard-right-score")).toHaveAttribute("data-name-score-spacing", "increased");
     expect(screen.queryByText("Alle spillere")).not.toBeInTheDocument();
     expect(screen.queryByText("Visning fra anden enhed - skrivebeskyttet")).not.toBeInTheDocument();
   });
@@ -218,6 +221,7 @@ describe("STEP 13 remote read-only UI", () => {
     expect(screen.getAllByTestId("scoreboard-player-grid").every((grid) => grid.getAttribute("data-match-area") === "centered")).toBe(true);
     expect(screen.getAllByTestId("scoreboard-player-grid").every((grid) => grid.getAttribute("data-match-area-width") === density)).toBe(true);
     expect(screen.getAllByTestId("scoreboard-player-grid").every((grid) => grid.getAttribute("data-horizontal-layout") === "33-50-67")).toBe(true);
+    expect(screen.getAllByTestId("scoreboard-player-grid").every((grid) => grid.getAttribute("data-player-size") === "enlarged")).toBe(true);
     expect(screen.getAllByTestId("scoreboard-player-grid").every((grid) => grid.getAttribute("data-vertical-position") === "centered-in-card")).toBe(true);
     expect(screen.getAllByTestId("scoreboard-vs")).toHaveLength(courts);
     for (let courtNumber = 1; courtNumber <= courts; courtNumber += 1) {
@@ -378,6 +382,7 @@ describe("STEP 13 remote read-only UI", () => {
     expect(within(firstCourtCard).getByTestId("scoreboard-right-player-2")).toHaveTextContent("Noah");
     expect(within(firstCourtCard).getByTestId("scoreboard-unsaved-status")).toHaveTextContent("Ikke gemt");
     expect(within(firstCourtCard).getByTestId("scoreboard-unsaved-status")).toHaveAttribute("data-badge-position", "under-vs");
+    expect(within(firstCourtCard).getByTestId("scoreboard-unsaved-status")).toHaveAttribute("data-name-score-spacing", "increased");
     expect(screen.queryByRole("button", { name: "Indtast score" })).not.toBeInTheDocument();
   });
 
