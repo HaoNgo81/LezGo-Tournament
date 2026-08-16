@@ -54,12 +54,44 @@ describe("STEP 13 remote read-only UI", () => {
     expect(await screen.findByRole("heading", { name: "STEP_22U_TEST Actual Remote Path" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Live score" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Stilling" })).toBeInTheDocument();
-    expect(screen.getByText("Spiller 1")).toBeInTheDocument();
-    expect(screen.getByText("Spiller 16")).toBeInTheDocument();
+    expect(screen.getAllByText("Spiller 1").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Spiller 16").length).toBeGreaterThan(0);
     expect(screen.queryByText("Alle spillere")).not.toBeInTheDocument();
     expect(screen.queryByText("Placering #1")).not.toBeInTheDocument();
     expect(screen.queryByText("Makker:")).not.toBeInTheDocument();
     expect(screen.queryByText("Modstandere:")).not.toBeInTheDocument();
+  });
+
+  it("keeps standard remote court cards readable and symmetric on narrow layouts", async () => {
+    const remoteState = createLongNameStandardState("STEP_22Y_TEST Responsive Remote");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(createReadResponse("standard", remoteState)));
+
+    render(<RemoteTournamentApp />);
+    fireEvent.change(screen.getByLabelText("Turneringskode"), { target: { value: "K7M4XP" } });
+    fireEvent.change(screen.getByLabelText("Adgangskode"), { target: { value: "2222" } });
+    fireEvent.click(screen.getByRole("button", { name: "Åbn turnering fra anden enhed" }));
+
+    expect(await screen.findByRole("heading", { name: "STEP_22Y_TEST Responsive Remote" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Live score" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Stilling" })).toBeInTheDocument();
+
+    const courtGrid = screen.getByTestId("standard-remote-court-grid");
+    expect(courtGrid).toHaveClass("md:grid-cols-2");
+    expect(screen.getAllByTestId("standard-remote-court-card")).toHaveLength(2);
+    expect(screen.getAllByTestId("standard-remote-matchup")).toHaveLength(2);
+    expect(screen.getAllByTestId("standard-remote-vs")).toHaveLength(2);
+    expect(screen.getAllByTestId("standard-remote-unsaved")).toHaveLength(2);
+    expect(screen.getAllByText("Ikke gemt")).toHaveLength(2);
+    expect(screen.getByTestId("standard-remote-standings")).toBeInTheDocument();
+
+    const firstCard = screen.getAllByTestId("standard-remote-court-card")[0];
+    expect(within(firstCard).getByText("Martin Langgaard")).toBeInTheDocument();
+    expect(within(firstCard).getByText("Lindon West")).toBeInTheDocument();
+    expect(within(firstCard).getByText("Klaus Nord")).toBeInTheDocument();
+    expect(within(firstCard).getByText("Aqeel Sønder")).toBeInTheDocument();
+    expect(within(firstCard).getByText("Martin Langgaard")).toHaveStyle({ wordBreak: "normal" });
+    expect(within(firstCard).getByText("Klaus Nord")).toHaveStyle({ wordBreak: "normal" });
+    expect(screen.queryByText("Alle spillere")).not.toBeInTheDocument();
   });
 
   it("keeps the last remote snapshot in memory when refresh fails", async () => {
@@ -828,6 +860,32 @@ function scoreThreeRoundState(name: string, teamAPoints = 17, teamBPoints = 7): 
   });
 
   return saveMatchResult(state, { matchId: state.rounds[0].matches[0].id, teamAPoints, teamBPoints });
+}
+
+function createLongNameStandardState(name: string): LiveTournamentState {
+  return createTournamentFromSetup({
+    name,
+    format: "Americano",
+    playerText: [
+      "Martin Langgaard",
+      "Klaus Nord",
+      "Lindon West",
+      "Aqeel Sønder",
+      "Ronni Vester",
+      "Daniel Øster",
+      "Hao Trinh",
+      "Johnnie Midt",
+    ].join("\n"),
+    femalePlayerText: "",
+    malePlayerText: "",
+    courts: 2,
+    rounds: 2,
+    scoringMode: "Fast antal point",
+    fixedScoreRule: "total",
+    fixedScorePoints: 24,
+    firstRoundOrder: "manual",
+    rankingMode: "matchPointsFirst",
+  });
 }
 
 function scoreAdaptiveScoreboardState(name: string, playerCount: number, courts: number): LiveTournamentState {

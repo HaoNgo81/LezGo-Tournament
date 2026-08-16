@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { MatchCards } from "@/components/tournament/match-cards";
 import { Section } from "@/components/ui/section";
 import { createReadOnlyTournamentView, createTeamVsTeamReadOnlyView, type ReadOnlyMatchCard, type ReadOnlyTournamentView } from "@/lib/read-only-views";
@@ -1345,34 +1345,64 @@ function RemoteMatchScoreGrid({ isTvMode, matches }: { isTvMode: boolean; matche
   const { t } = useAppTranslation();
 
   return (
-    <div className="grid min-w-0 max-w-full gap-3">
+    <div className={`grid min-w-0 max-w-full gap-3 ${isTvMode ? "" : "md:grid-cols-2"}`} data-testid="standard-remote-court-grid">
       {matches.map((match) => {
         const score = parseScore(match.score);
 
+        if (isTvMode) {
+          return (
+            <article key={match.id} className="grid min-w-0 gap-4 rounded-md border border-[var(--line)] bg-[var(--card)] p-4 shadow-sm lg:grid-cols-[auto_1fr_auto] lg:items-center lg:p-6">
+              <div className="flex items-center justify-between gap-3 md:grid md:gap-2">
+                <h3 className="text-3xl font-black uppercase text-[var(--primary-strong)] lg:text-4xl">{match.court}</h3>
+                <span className={`rounded-full px-3 py-1 text-xs font-black uppercase ${match.status === "Afsluttet" ? "bg-green-100 text-[var(--primary-strong)]" : match.status === "I gang" ? "bg-yellow-100 text-yellow-800" : "bg-gray-100 text-[var(--muted)]"}`}>
+                  {match.status}
+                </span>
+              </div>
+              <div className="grid min-w-0 gap-2 text-center text-2xl font-black leading-tight md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-center lg:text-[clamp(1.55rem,2vw,2.75rem)]">
+                <p className="min-w-0 md:text-right" style={{ overflowWrap: "anywhere" }}>{match.teamA}</p>
+                <p className="text-sm uppercase text-[var(--muted)]">vs</p>
+                <p className="min-w-0 md:text-left" style={{ overflowWrap: "anywhere" }}>{match.teamB}</p>
+              </div>
+              {score ? (
+                <>
+                  <p className="sr-only">{match.score}</p>
+                  <div className="flex items-center justify-center gap-4 text-center">
+                    <span className="text-7xl font-black leading-none lg:text-[clamp(4rem,6vw,8rem)]">{score.teamA}</span>
+                    <span className="text-5xl font-black leading-none text-[var(--muted)]">-</span>
+                    <span className="text-7xl font-black leading-none lg:text-[clamp(4rem,6vw,8rem)]">{score.teamB}</span>
+                  </div>
+                </>
+              ) : (
+                <p className="text-center text-2xl font-black text-[var(--muted)]">{t("remoteNotSaved")}</p>
+              )}
+            </article>
+          );
+        }
+
         return (
-          <article key={match.id} className={`grid min-w-0 gap-4 rounded-md border border-[var(--line)] bg-[var(--card)] p-4 shadow-sm ${isTvMode ? "lg:grid-cols-[auto_1fr_auto] lg:items-center lg:p-6" : "md:grid-cols-[auto_1fr_auto] md:items-center"}`}>
-            <div className="flex items-center justify-between gap-3 md:grid md:gap-2">
-              <h3 className={`${isTvMode ? "text-3xl lg:text-4xl" : "text-2xl"} font-black uppercase text-[var(--primary-strong)]`}>{match.court}</h3>
-              <span className={`rounded-md px-3 py-1 text-xs font-black uppercase ${match.status === "Afsluttet" ? "bg-green-100 text-[var(--primary-strong)]" : match.status === "I gang" ? "bg-yellow-100 text-yellow-800" : "bg-gray-100 text-[var(--muted)]"}`}>
+          <article key={match.id} className="grid min-w-0 gap-3 rounded-md border border-[var(--line)] bg-[var(--card)] p-3 shadow-sm sm:p-4" data-testid="standard-remote-court-card">
+            <div className="flex min-w-0 items-start justify-between gap-3">
+              <h3 className="min-w-0 text-xl font-black uppercase text-[var(--primary-strong)] sm:text-2xl">{match.court}</h3>
+              <span className={`shrink-0 rounded-md px-2.5 py-1 text-[0.68rem] font-black uppercase leading-none sm:px-3 sm:text-xs ${match.status === "Afsluttet" ? "bg-green-100 text-[var(--primary-strong)]" : match.status === "I gang" ? "bg-yellow-100 text-yellow-800" : "bg-gray-100 text-[var(--muted)]"}`}>
                 {match.status}
               </span>
             </div>
-            <div className={`grid min-w-0 gap-2 text-center font-black leading-tight ${isTvMode ? "lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center lg:text-[clamp(1.55rem,2vw,2.75rem)]" : "md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-center md:text-xl"}`}>
-              <p className="min-w-0 md:text-right" style={{ overflowWrap: "anywhere" }}>{match.teamA}</p>
-              <p className="text-sm uppercase text-[var(--muted)] md:px-3">vs</p>
-              <p className="min-w-0 md:text-left" style={{ overflowWrap: "anywhere" }}>{match.teamB}</p>
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_2.25rem_minmax(0,1fr)] items-center gap-1.5 text-center text-[clamp(0.98rem,4vw,1.35rem)] font-black leading-tight sm:grid-cols-[minmax(0,1fr)_2.75rem_minmax(0,1fr)] sm:gap-2 md:text-lg xl:text-xl" data-testid="standard-remote-matchup">
+              <TeamName name={match.teamA} align="right" />
+              <p className="self-center text-xs uppercase text-[var(--muted)] sm:text-sm" data-testid="standard-remote-vs">vs</p>
+              <TeamName name={match.teamB} align="left" />
             </div>
             {score ? (
               <>
                 <p className="sr-only">{match.score}</p>
-                <div className="grid grid-cols-[1fr_auto_1fr] items-center justify-center gap-3 text-center">
-                  <span className={`${isTvMode ? "text-7xl lg:text-[clamp(4rem,6vw,8rem)]" : "text-5xl"} font-black leading-none`}>{score.teamA}</span>
-                  <span className={`${isTvMode ? "text-5xl" : "text-3xl"} font-black leading-none text-[var(--muted)]`}>-</span>
-                  <span className={`${isTvMode ? "text-7xl lg:text-[clamp(4rem,6vw,8rem)]" : "text-5xl"} font-black leading-none`}>{score.teamB}</span>
+                <div className="grid grid-cols-[minmax(0,1fr)_2.25rem_minmax(0,1fr)] items-center justify-center gap-1.5 text-center sm:grid-cols-[minmax(0,1fr)_2.75rem_minmax(0,1fr)] sm:gap-2" data-testid="standard-remote-score-row">
+                  <span className="text-4xl font-black leading-none sm:text-5xl">{score.teamA}</span>
+                  <span className="text-2xl font-black leading-none text-[var(--muted)] sm:text-3xl">-</span>
+                  <span className="text-4xl font-black leading-none sm:text-5xl">{score.teamB}</span>
                 </div>
               </>
             ) : (
-              <p className={`${isTvMode ? "text-2xl" : "text-xl"} text-center font-black uppercase text-[var(--muted)]`}>{t("remoteNotSaved")}</p>
+              <p className="justify-self-center rounded-md border border-[var(--line)] px-3 py-1.5 text-center text-base font-black uppercase text-[var(--muted)] sm:text-lg" data-testid="standard-remote-unsaved">{t("remoteNotSaved")}</p>
             )}
           </article>
         );
@@ -1381,10 +1411,35 @@ function RemoteMatchScoreGrid({ isTvMode, matches }: { isTvMode: boolean; matche
   );
 }
 
-function RemoteStandingsList({ isTvMode, standings }: { isTvMode: boolean; standings: Array<{ id: string; rank: number; name: string; wins: number; draws: number; losses: number; matchPoints: number; pointsFor: number }> }) {
+function TeamName({ align, name }: { align: "left" | "right"; name: string }) {
+  const players = name.split(" / ");
+
   return (
-    <div className="overflow-hidden rounded-md border border-[var(--line)] bg-[var(--card)]">
-      <div className={`grid grid-cols-[2.75rem_minmax(0,1fr)_2.25rem_2.25rem_2.25rem_3.5rem_4.25rem] gap-2 bg-[var(--primary-soft)] px-3 py-2 text-xs font-black uppercase text-[var(--primary-strong)] ${isTvMode ? "sm:grid-cols-[4rem_minmax(0,1fr)_3.5rem_3.5rem_3.5rem_5rem_5.5rem] sm:px-4 sm:text-sm" : ""}`}>
+    <p className={`min-w-0 ${align === "right" ? "text-right" : "text-left"}`} data-testid={`standard-remote-team-${align}`}>
+      {players.map((player, index) => (
+        <Fragment key={`${player}-${index}`}>
+          {index > 0 ? <span className="mx-1 inline-block text-[var(--muted)]">/</span> : null}
+          <span className="inline-block max-w-full align-bottom" style={{ overflowWrap: "break-word", wordBreak: "normal" }}>
+            {player}
+          </span>
+        </Fragment>
+      ))}
+    </p>
+  );
+}
+
+function RemoteStandingsList({ isTvMode, standings }: { isTvMode: boolean; standings: Array<{ id: string; rank: number; name: string; wins: number; draws: number; losses: number; matchPoints: number; pointsFor: number }> }) {
+  const gridClass = isTvMode
+    ? "grid-cols-[2.75rem_minmax(0,1fr)_2rem_2rem_2rem_3rem_3.5rem] sm:grid-cols-[4rem_minmax(0,1fr)_3.5rem_3.5rem_3.5rem_5rem_5.5rem]"
+    : "grid-cols-[2rem_minmax(0,1fr)_1.55rem_1.55rem_1.55rem_2.25rem_2.85rem] min-[390px]:grid-cols-[2.25rem_minmax(0,1fr)_1.75rem_1.75rem_1.75rem_2.6rem_3.25rem]";
+  const headerClass = isTvMode ? "px-3 text-xs sm:px-4 sm:text-sm" : "px-2 text-[0.63rem] sm:px-3 sm:text-xs";
+  const rowClass = isTvMode ? "px-3 py-3 sm:px-4" : "px-2 py-2 sm:px-3 sm:py-3";
+  const rankClass = isTvMode ? "text-4xl" : "text-xl sm:text-2xl";
+  const textClass = isTvMode ? "text-2xl" : "text-sm min-[390px]:text-base sm:text-lg";
+
+  return (
+    <div className="max-w-full overflow-hidden rounded-md border border-[var(--line)] bg-[var(--card)]" data-testid="standard-remote-standings">
+      <div className={`grid ${gridClass} ${headerClass} gap-1 bg-[var(--primary-soft)] py-2 font-black uppercase text-[var(--primary-strong)] sm:gap-2`}>
         <span>#</span>
         <span>Spiller</span>
         <span className="text-right">V</span>
@@ -1394,14 +1449,14 @@ function RemoteStandingsList({ isTvMode, standings }: { isTvMode: boolean; stand
         <span className="text-right">Point</span>
       </div>
       {standings.map((row) => (
-        <article key={row.id} className={`grid grid-cols-[2.75rem_minmax(0,1fr)_2.25rem_2.25rem_2.25rem_3.5rem_4.25rem] items-center gap-2 border-t border-[var(--line)] px-3 py-3 ${isTvMode ? "sm:grid-cols-[4rem_minmax(0,1fr)_3.5rem_3.5rem_3.5rem_5rem_5.5rem] sm:px-4 sm:py-3" : ""}`}>
-          <span className={`${isTvMode ? "text-4xl" : "text-2xl"} font-black text-[var(--primary-strong)]`}>{row.rank}</span>
-          <h3 className={`${isTvMode ? "text-2xl" : "text-lg"} min-w-0 break-words font-black`} style={{ overflowWrap: "anywhere", wordBreak: "normal" }}>{row.name}</h3>
-          <p className={`${isTvMode ? "text-2xl" : "text-lg"} text-right font-black text-[var(--muted)]`}>{row.wins}</p>
-          <p className={`${isTvMode ? "text-2xl" : "text-lg"} text-right font-black text-[var(--muted)]`}>{row.draws}</p>
-          <p className={`${isTvMode ? "text-2xl" : "text-lg"} text-right font-black text-[var(--muted)]`}>{row.losses}</p>
-          <p className={`${isTvMode ? "text-2xl" : "text-lg"} text-right font-black text-[var(--muted)]`}>{row.matchPoints}</p>
-          <p className={`${isTvMode ? "text-2xl" : "text-lg"} text-right font-black text-[var(--muted)]`}>{row.pointsFor}</p>
+        <article key={row.id} className={`grid ${gridClass} ${rowClass} items-center gap-1 border-t border-[var(--line)] sm:gap-2`}>
+          <span className={`${rankClass} font-black text-[var(--primary-strong)]`}>{row.rank}</span>
+          <h3 className={`${textClass} min-w-0 font-black leading-tight`} style={{ overflowWrap: "break-word", wordBreak: "normal" }}>{row.name}</h3>
+          <p className={`${textClass} text-right font-black text-[var(--muted)]`}>{row.wins}</p>
+          <p className={`${textClass} text-right font-black text-[var(--muted)]`}>{row.draws}</p>
+          <p className={`${textClass} text-right font-black text-[var(--muted)]`}>{row.losses}</p>
+          <p className={`${textClass} text-right font-black text-[var(--muted)]`}>{row.matchPoints}</p>
+          <p className={`${textClass} text-right font-black text-[var(--muted)]`}>{row.pointsFor}</p>
         </article>
       ))}
     </div>
