@@ -366,6 +366,57 @@ describe("STEP 13 remote read-only UI", () => {
     expect(screen.queryByText("Alle spillere")).not.toBeInTheDocument();
   });
 
+  it("renders saved standard mobile court cards with scoreboard-style symmetry and opens the score dialog", async () => {
+    const baseState = createFreeScoringState("STEP_23D_TEST Mobile Scoreboard Cards");
+    const remoteState = saveMatchResult(baseState, { matchId: baseState.rounds[0].matches[0].id, teamAPoints: 21, teamBPoints: 5 });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(createReadResponse("standard", remoteState)));
+
+    render(<RemoteTournamentApp />);
+    fireEvent.change(screen.getByLabelText("Turneringskode"), { target: { value: "K7M4XP" } });
+    fireEvent.change(screen.getByLabelText("Adgangskode"), { target: { value: "2222" } });
+    fireEvent.click(screen.getByRole("button", { name: "Åbn turnering fra anden enhed" }));
+
+    expect(await screen.findByRole("heading", { name: "STEP_23D_TEST Mobile Scoreboard Cards" })).toBeInTheDocument();
+
+    const firstCard = screen.getAllByTestId("standard-remote-court-card")[0];
+    expect(firstCard).toHaveAttribute("data-card-style", "scoreboard-mobile");
+    expect(within(firstCard).getByRole("heading", { name: "Bane 1" })).toHaveClass("text-2xl", "text-[var(--primary-strong)]");
+    expect(within(firstCard).getByText("Afsluttet")).toBeInTheDocument();
+    expect(within(firstCard).getByTestId("standard-remote-matchup")).toHaveAttribute("data-layout", "scoreboard-symmetric");
+    expect(within(firstCard).getByTestId("standard-remote-vs")).toHaveTextContent("VS");
+    within(firstCard).getAllByTestId("standard-remote-team-center").forEach((team) => {
+      expect(team).toHaveStyle({ wordBreak: "normal" });
+    });
+    expect(within(firstCard).getByTestId("standard-remote-score-row")).toHaveAttribute("data-layout", "scoreboard-symmetric");
+    expect(within(firstCard).getByTestId("standard-remote-left-score")).toHaveTextContent("21");
+    expect(within(firstCard).getByTestId("standard-remote-left-score")).toHaveClass("text-6xl");
+    expect(within(firstCard).getByTestId("standard-remote-score-separator")).toHaveTextContent("-");
+    expect(within(firstCard).getByTestId("standard-remote-right-score")).toHaveTextContent("5");
+    expect(within(firstCard).getByRole("button", { name: "Rediger score" })).toHaveClass("w-full");
+
+    fireEvent.click(within(firstCard).getByRole("button", { name: "Rediger score" }));
+    expect(screen.getByRole("dialog", { name: "Rediger score" })).toBeInTheDocument();
+  });
+
+  it("keeps three-digit standard mobile scores symmetric", async () => {
+    const baseState = createFreeScoringState("STEP_23D_TEST Three Digit Score");
+    const remoteState = saveMatchResult(baseState, { matchId: baseState.rounds[0].matches[0].id, teamAPoints: 100, teamBPoints: 98 });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(createReadResponse("standard", remoteState)));
+
+    render(<RemoteTournamentApp />);
+    fireEvent.change(screen.getByLabelText("Turneringskode"), { target: { value: "K7M4XP" } });
+    fireEvent.change(screen.getByLabelText("Adgangskode"), { target: { value: "2222" } });
+    fireEvent.click(screen.getByRole("button", { name: "Åbn turnering fra anden enhed" }));
+
+    expect(await screen.findByRole("heading", { name: "STEP_23D_TEST Three Digit Score" })).toBeInTheDocument();
+
+    const firstCard = screen.getAllByTestId("standard-remote-court-card")[0];
+    expect(within(firstCard).getByTestId("standard-remote-score-row")).toHaveAttribute("data-layout", "scoreboard-symmetric");
+    expect(within(firstCard).getByTestId("standard-remote-left-score")).toHaveTextContent("100");
+    expect(within(firstCard).getByTestId("standard-remote-right-score")).toHaveTextContent("98");
+    expect(screen.getByTestId("standard-remote-standings")).toBeInTheDocument();
+  });
+
   it("keeps the last remote snapshot in memory when refresh fails", async () => {
     const firstState = scoreMockState("STEP_13_TEST First");
     const fetchMock = vi

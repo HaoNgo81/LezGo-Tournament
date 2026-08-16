@@ -1611,32 +1611,32 @@ function RemoteMatchScoreGrid({ canEditScore = false, isTvMode, matches, onEditS
         }
 
         return (
-          <article key={match.id} className="grid min-w-0 gap-3 rounded-md border border-[var(--line)] bg-[var(--card)] p-3 shadow-sm sm:p-4" data-testid="standard-remote-court-card">
+          <article key={match.id} className="grid min-w-0 gap-3 overflow-hidden rounded-md border border-[var(--line)] bg-[var(--card)] p-3 text-center shadow-sm sm:gap-4 sm:p-4" data-testid="standard-remote-court-card" data-card-style="scoreboard-mobile">
             <div className="flex min-w-0 items-start justify-between gap-3">
-              <h3 className="min-w-0 text-xl font-black uppercase text-[var(--primary-strong)] sm:text-2xl">{match.court}</h3>
+              <h3 className="min-w-0 text-2xl font-black uppercase leading-none text-[var(--primary-strong)] sm:text-3xl">{match.court}</h3>
               <span className={`shrink-0 rounded-md px-2.5 py-1 text-[0.68rem] font-black uppercase leading-none sm:px-3 sm:text-xs ${match.status === "Afsluttet" ? "bg-green-100 text-[var(--primary-strong)]" : match.status === "I gang" ? "bg-yellow-100 text-yellow-800" : "bg-gray-100 text-[var(--muted)]"}`}>
                 {match.status}
               </span>
             </div>
-            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_2.25rem_minmax(0,1fr)] items-center gap-1.5 text-center text-[clamp(0.98rem,4vw,1.35rem)] font-black leading-tight sm:grid-cols-[minmax(0,1fr)_2.75rem_minmax(0,1fr)] sm:gap-2 md:text-lg xl:text-xl" data-testid="standard-remote-matchup">
-              <TeamName name={match.teamA} align="right" />
-              <p className="self-center text-xs uppercase text-[var(--muted)] sm:text-sm" data-testid="standard-remote-vs">vs</p>
-              <TeamName name={match.teamB} align="left" />
+            <div className="mx-auto grid w-full max-w-[34rem] min-w-0 grid-cols-[minmax(0,1fr)_3rem_minmax(0,1fr)] items-center gap-x-2 gap-y-1 text-center text-[clamp(1.02rem,4.6vw,1.45rem)] font-black leading-tight sm:grid-cols-[minmax(0,1fr)_4rem_minmax(0,1fr)] sm:gap-x-3 md:max-w-[38rem] md:text-xl" data-testid="standard-remote-matchup" data-layout="scoreboard-symmetric">
+              <TeamName name={match.teamA} align="center" />
+              <p className="self-center rounded-md bg-white/65 px-1.5 py-1 text-xs font-black uppercase leading-none text-[var(--muted)] sm:text-sm" data-testid="standard-remote-vs">VS</p>
+              <TeamName name={match.teamB} align="center" />
             </div>
             {score ? (
               <>
                 <p className="sr-only">{match.score}</p>
-                <div className="grid grid-cols-[minmax(0,1fr)_2.25rem_minmax(0,1fr)] items-center justify-center gap-1.5 text-center sm:grid-cols-[minmax(0,1fr)_2.75rem_minmax(0,1fr)] sm:gap-2" data-testid="standard-remote-score-row">
-                  <span className="text-4xl font-black leading-none sm:text-5xl">{score.teamA}</span>
-                  <span className="text-2xl font-black leading-none text-[var(--muted)] sm:text-3xl">-</span>
-                  <span className="text-4xl font-black leading-none sm:text-5xl">{score.teamB}</span>
+                <div className="mx-auto grid w-full max-w-[34rem] grid-cols-[minmax(0,1fr)_3rem_minmax(0,1fr)] items-center justify-center gap-x-2 text-center sm:grid-cols-[minmax(0,1fr)_4rem_minmax(0,1fr)] sm:gap-x-3 md:max-w-[38rem]" data-testid="standard-remote-score-row" data-layout="scoreboard-symmetric">
+                  <span className="text-6xl font-black leading-none sm:text-7xl" data-testid="standard-remote-left-score">{score.teamA}</span>
+                  <span className="text-4xl font-black leading-none text-[var(--muted)] sm:text-5xl" data-testid="standard-remote-score-separator">-</span>
+                  <span className="text-6xl font-black leading-none sm:text-7xl" data-testid="standard-remote-right-score">{score.teamB}</span>
                 </div>
               </>
             ) : (
-              <p className="justify-self-center rounded-md border border-[var(--line)] px-3 py-1.5 text-center text-base font-black uppercase text-[var(--muted)] sm:text-lg" data-testid="standard-remote-unsaved">{t("remoteNotSaved")}</p>
+              <p className="justify-self-center rounded-md border border-[var(--line)] bg-white/70 px-4 py-2 text-center text-base font-black uppercase text-[var(--muted)] sm:text-lg" data-testid="standard-remote-unsaved" data-badge-position="centered">{t("remoteNotSaved")}</p>
             )}
             {canEditScore && onEditScore ? (
-              <button className="min-h-11 rounded-md bg-[var(--primary)] px-4 text-sm font-black uppercase text-[var(--primary-text)]" type="button" onClick={() => onEditScore(match)}>
+              <button className="mt-1 min-h-12 w-full rounded-md bg-[var(--primary)] px-4 text-sm font-black uppercase text-[var(--primary-text)] shadow-sm" type="button" onClick={() => onEditScore(match)}>
                 {score ? t("editScore") : t("enterScore")}
               </button>
             ) : null}
@@ -1647,11 +1647,12 @@ function RemoteMatchScoreGrid({ canEditScore = false, isTvMode, matches, onEditS
   );
 }
 
-function TeamName({ align, name }: { align: "left" | "right"; name: string }) {
+function TeamName({ align, name }: { align: "center" | "left" | "right"; name: string }) {
   const players = name.split(" / ");
+  const alignClass = align === "right" ? "text-right" : align === "left" ? "text-left" : "text-center";
 
   return (
-    <p className={`min-w-0 ${align === "right" ? "text-right" : "text-left"}`} data-testid={`standard-remote-team-${align}`}>
+    <p className={`min-w-0 ${alignClass}`} data-testid={`standard-remote-team-${align}`}>
       {players.map((player, index) => (
         <Fragment key={`${player}-${index}`}>
           {index > 0 ? <span className="mx-1 inline-block text-[var(--muted)]">/</span> : null}
