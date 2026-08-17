@@ -1,16 +1,17 @@
 type ModuleValue = boolean | null;
 
 const qrVersions = [
-  { version: 1, size: 21, dataCodewords: 19, errorCodewords: 7 },
-  { version: 2, size: 25, dataCodewords: 34, errorCodewords: 10 },
-  { version: 3, size: 29, dataCodewords: 55, errorCodewords: 15 },
-  { version: 4, size: 33, dataCodewords: 80, errorCodewords: 20 },
-  { version: 5, size: 37, dataCodewords: 108, errorCodewords: 26 },
+  { version: 1, size: 21, dataCodewords: 19, errorCodewords: 7, alignmentCenters: [] },
+  { version: 2, size: 25, dataCodewords: 34, errorCodewords: 10, alignmentCenters: [6, 18] },
+  { version: 3, size: 29, dataCodewords: 55, errorCodewords: 15, alignmentCenters: [6, 22] },
+  { version: 4, size: 33, dataCodewords: 80, errorCodewords: 20, alignmentCenters: [6, 26] },
+  { version: 5, size: 37, dataCodewords: 108, errorCodewords: 26, alignmentCenters: [6, 30] },
 ] as const;
 
 export interface QrCodeMatrix {
   size: number;
   modules: boolean[][];
+  payload: string;
 }
 
 export function createShareUrl(origin: string, path = "/qr"): string {
@@ -28,6 +29,7 @@ export function createQrCodeMatrix(text: string): QrCodeMatrix {
   const matrix = createEmptyMatrix(config.size);
   const reserved = createReservedMatrix(config.size);
   addFunctionPatterns(matrix, reserved, config.size);
+  addAlignmentPatterns(matrix, reserved, config.alignmentCenters);
   const dataCodewords = createDataCodewords(bytes, config.dataCodewords);
   const errorCodewords = createErrorCorrectionCodewords(dataCodewords, config.errorCodewords);
   const bits = [...dataCodewords, ...errorCodewords].flatMap((codeword) => toBits(codeword, 8));
@@ -39,6 +41,7 @@ export function createQrCodeMatrix(text: string): QrCodeMatrix {
   return {
     size: config.size,
     modules: matrix.map((row) => row.map(Boolean)),
+    payload: text,
   };
 }
 
@@ -82,6 +85,34 @@ function addFinderPattern(matrix: ModuleValue[][], reserved: boolean[][], x: num
       const isInner = dx >= 2 && dx <= 4 && dy >= 2 && dy <= 4;
 
       setModule(matrix, reserved, currentX, currentY, (dx >= 0 && dx <= 6 && dy >= 0 && dy <= 6 && (isOuter || isInner)), true);
+    }
+  }
+}
+
+function addAlignmentPatterns(matrix: ModuleValue[][], reserved: boolean[][], centers: readonly number[]): void {
+  for (const centerY of centers) {
+    for (const centerX of centers) {
+      if (reserved[centerY]?.[centerX]) {
+        continue;
+      }
+
+      addAlignmentPattern(matrix, reserved, centerX, centerY);
+    }
+  }
+}
+
+function addAlignmentPattern(matrix: ModuleValue[][], reserved: boolean[][], centerX: number, centerY: number): void {
+  for (let dy = -2; dy <= 2; dy += 1) {
+    for (let dx = -2; dx <= 2; dx += 1) {
+      const currentX = centerX + dx;
+      const currentY = centerY + dy;
+
+      if (!isInBounds(matrix.length, currentX, currentY)) {
+        continue;
+      }
+
+      const distance = Math.max(Math.abs(dx), Math.abs(dy));
+      setModule(matrix, reserved, currentX, currentY, distance !== 1, true);
     }
   }
 }

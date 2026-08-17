@@ -1,13 +1,21 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { LiveScoringApp } from "../components/tournament/live-scoring-app";
 import { advanceLivePoolPlayState, createMockLiveTournamentState, saveMatchResult, saveNextPoolPhaseResult } from "../lib/live-scoring";
-import { createPoolTournamentFromSetup, createTournamentFromSetup, saveActiveTournament, type TournamentSetupFormat } from "../lib/tournament-setup";
+import { createPoolTournamentFromSetup, createStandardShadowSaveLocalId, createTournamentFromSetup, saveActiveTournament, saveActiveTournamentFromRemoteSync, type TournamentSetupFormat } from "../lib/tournament-setup";
 
 const sixteenPlayerText = Array.from({ length: 16 }, (_, index) => `Spiller ${index + 1}`).join("\n");
+const originalShadowSaveFlag = process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE;
 
 describe("LiveScoringApp score sheet", () => {
   afterEach(() => {
+    if (originalShadowSaveFlag === undefined) {
+      delete process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE;
+    } else {
+      process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE = originalShadowSaveFlag;
+    }
+    vi.useRealTimers();
+    vi.restoreAllMocks();
     cleanup();
     window.localStorage.clear();
   });
@@ -98,6 +106,183 @@ describe("LiveScoringApp score sheet", () => {
     expect(screen.getByRole("textbox", { name: "Hold A scorepoint" })).toHaveValue("21");
     expect(screen.getByRole("textbox", { name: "Hold B scorepoint" })).toHaveValue("12");
   });
+
+  it("pulls a newer remote score into the organizer live view without triggering a browser refresh", async () => {
+    const localState = createTournamentFromSetup({
+      name: "Organizer remote sync",
+      format: "Mexicano",
+      playerText: sixteenPlayerText,
+      femalePlayerText: "",
+      malePlayerText: "",
+      courts: 4,
+      rounds: 5,
+      scoringMode: "Fast antal point",
+      fixedScoreRule: "total",
+      fixedScorePoints: 24,
+      firstRoundOrder: "manual",
+      rankingMode: "matchPointsFirst",
+    });
+    const remoteState = saveMatchResult(localState, {
+      matchId: localState.rounds[0].matches[0].id,
+      teamAPoints: 17,
+      teamBPoints: 7,
+    });
+    const localId = createStandardShadowSaveLocalId(localState);
+    saveActiveTournamentFromRemoteSync(localState);
+    saveShadowMetadata(localId, {
+      kind: "standard",
+      lastLocalSaveAt: "2026-08-13T12:00:00.000Z",
+      lastShadowSaveVersion: "2026-08-13T12:00:00.000Z",
+      organizerToken: "STEP_24C_ORGANIZER_TOKEN",
+      status: "synced",
+      supabaseTournamentId: "00000000-0000-4000-8000-000000000240",
+    });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      ok: true,
+      kind: "standard",
+      state: remoteState,
+      tournamentId: "00000000-0000-4000-8000-000000000240",
+      updatedAt: "2026-08-13T12:00:05.000Z",
+    }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<LiveScoringApp />);
+
+    expect(await screen.findByText("Organizer remote sync")).toBeInTheDocument();
+    expect(screen.queryByText("17 - 7")).not.toBeInTheDocument();
+
+    await waitFor(() => expectLiveCourtScore("17", "7"), { timeout: 3500 });
+    expect(screen.getByTestId("live-compact-standings")).toHaveTextContent("17");
+    expect(fetchMock).toHaveBeenCalledWith("/api/supabase/organizer-tournament/read", expect.objectContaining({
+      method: "POST",
+    }));
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toMatchObject({
+      kind: "standard",
+      legacyLocalId: localId,
+      organizerToken: "STEP_24C_ORGANIZER_TOKEN",
+      tournamentId: "00000000-0000-4000-8000-000000000240",
+    });
+  }, 10000);
+
+  it("starts organizer polling after sharing is activated on an already mounted local tournament", async () => {
+    process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE = "1";
+    const localState = createTournamentFromSetup({
+      name: "Mounted sharing sync",
+      format: "Mexicano",
+      playerText: sixteenPlayerText,
+      femalePlayerText: "",
+      malePlayerText: "",
+      courts: 4,
+      rounds: 5,
+      scoringMode: "Fast antal point",
+      fixedScoreRule: "total",
+      fixedScorePoints: 24,
+      firstRoundOrder: "manual",
+      rankingMode: "matchPointsFirst",
+    });
+    const remoteState = saveMatchResult(localState, {
+      matchId: localState.rounds[0].matches[0].id,
+      teamAPoints: 19,
+      teamBPoints: 5,
+    });
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = input.toString();
+
+      if (url === "/api/supabase/shadow-save") {
+        return Promise.resolve(new Response(JSON.stringify({
+          ok: true,
+          saveMode: "insert",
+          tournamentId: "00000000-0000-4000-8000-000000000242",
+          organizerToken: "STEP_24C_ORGANIZER_TOKEN",
+          updatedAt: "2026-08-13T12:00:00.000Z",
+        }), { status: 200 }));
+      }
+
+      if (url === "/api/supabase/organizer-tournament/read") {
+        return Promise.resolve(new Response(JSON.stringify({
+          ok: true,
+          kind: "standard",
+          state: remoteState,
+          tournamentId: "00000000-0000-4000-8000-000000000242",
+          updatedAt: "2026-08-13T12:00:05.000Z",
+        }), { status: 200 }));
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({ ok: false, error: `Unexpected URL ${url}` }), { status: 500 }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    saveActiveTournament(localState);
+    render(<LiveScoringApp />);
+
+    expect(await screen.findByText("Mounted sharing sync")).toBeInTheDocument();
+    expect(screen.getByLabelText("Sync status")).toHaveTextContent("Kun gemt lokalt");
+
+    fireEvent.click(screen.getByRole("button", { name: "Aktivér deling" }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Scoreindtastning" })).toBeInTheDocument());
+    await waitFor(() => expectLiveCourtScore("19", "5"), { timeout: 3500 });
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/supabase/shadow-save", expect.objectContaining({
+      method: "POST",
+    }));
+    expect(fetchMock).toHaveBeenCalledWith("/api/supabase/organizer-tournament/read", expect.objectContaining({
+      cache: "no-store",
+      method: "POST",
+    }));
+  }, 10000);
+
+  it("pulls a newer remote score edit into the organizer live view", async () => {
+    const baseState = createTournamentFromSetup({
+      name: "Organizer remote edit sync",
+      format: "Fast Makker Mexicano",
+      playerText: sixteenPlayerText,
+      femalePlayerText: "",
+      malePlayerText: "",
+      courts: 4,
+      rounds: 5,
+      scoringMode: "Fast antal point",
+      fixedScoreRule: "total",
+      fixedScorePoints: 24,
+      firstRoundOrder: "manual",
+      rankingMode: "matchPointsFirst",
+    });
+    const localState = saveMatchResult(baseState, {
+      matchId: baseState.rounds[0].matches[0].id,
+      teamAPoints: 17,
+      teamBPoints: 7,
+    });
+    const remoteEditedState = saveMatchResult(baseState, {
+      matchId: baseState.rounds[0].matches[0].id,
+      teamAPoints: 15,
+      teamBPoints: 9,
+    });
+    const localId = createStandardShadowSaveLocalId(localState);
+    saveActiveTournamentFromRemoteSync(localState);
+    saveShadowMetadata(localId, {
+      kind: "standard",
+      lastLocalSaveAt: "2026-08-13T12:00:00.000Z",
+      lastShadowSaveVersion: "2026-08-13T12:00:00.000Z",
+      organizerToken: "STEP_24C_ORGANIZER_TOKEN",
+      status: "synced",
+      supabaseTournamentId: "00000000-0000-4000-8000-000000000241",
+    });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      ok: true,
+      kind: "standard",
+      state: remoteEditedState,
+      tournamentId: "00000000-0000-4000-8000-000000000241",
+      updatedAt: "2026-08-13T12:00:06.000Z",
+    }), { status: 200 })));
+
+    render(<LiveScoringApp />);
+
+    expect(await screen.findByText("Organizer remote edit sync")).toBeInTheDocument();
+    expectLiveCourtScore("17", "7");
+
+    await waitFor(() => expectLiveCourtScore("15", "9"), { timeout: 3500 });
+    expect(screen.queryByText("17 - 7")).not.toBeInTheDocument();
+  }, 10000);
 
   it("calculates the opponent score from one input for fixed total scoring", async () => {
     saveActiveTournament(createFixedPartnerAmericanoTotalScoreTournament());
@@ -418,6 +603,15 @@ function expectLiveCourtScore(teamA: string, teamB: string, cardIndex = 0): HTML
   expect(within(scoreRow).getByTestId("live-court-right-score")).toHaveTextContent(teamB);
 
   return card;
+}
+
+function saveShadowMetadata(localId: string, metadata: Record<string, unknown>): void {
+  window.localStorage.setItem("lezgo.shadowSaveMetadata.v1", JSON.stringify({
+    [localId]: {
+      localId,
+      ...metadata,
+    },
+  }));
 }
 
 function createPoolTournament() {

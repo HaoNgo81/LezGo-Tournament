@@ -18,18 +18,39 @@ vi.mock("@/lib/database", async (importOriginal) => {
     createTournamentHandoffRepository: () => ({
       provision: repositoryMocks.provisionHandoff,
     }),
+    assertOrganizerToken: (token: string | undefined) => {
+      if (token !== "VALID_ORGANIZER_TOKEN") {
+        throw new actual.OrganizerTokenError();
+      }
+
+      return {
+        v: 1,
+        scope: "tournament-organizer",
+        tournamentId: "00000000-0000-4000-8000-000000000000",
+        kind: "standard",
+        legacyLocalId: "step-24c-origin-test",
+        iat: 0,
+      };
+    },
   };
 });
 
 import { POST as provisionAccess } from "../app/api/supabase/tournament-access/provision/route";
 import { POST as revokeAccess } from "../app/api/supabase/tournament-access/revoke/route";
 import { POST as provisionHandoff } from "../app/api/supabase/tournament-handoff/provision/route";
+import { POST as readOrganizerTournament } from "../app/api/supabase/organizer-tournament/read/route";
 
 describe("STEP 24B remote access provisioning API", () => {
   const previousAccessFlag = process.env.LEZGO_ENABLE_SUPABASE_ACCESS;
+  const previousPublicOrigin = process.env.LEZGO_PUBLIC_APP_ORIGIN;
+  const previousVercelProjectProductionUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  const previousVercelUrl = process.env.VERCEL_URL;
 
   beforeEach(() => {
     process.env.LEZGO_ENABLE_SUPABASE_ACCESS = "1";
+    delete process.env.LEZGO_PUBLIC_APP_ORIGIN;
+    delete process.env.VERCEL_PROJECT_PRODUCTION_URL;
+    delete process.env.VERCEL_URL;
     repositoryMocks.provisionAccess.mockReset();
     repositoryMocks.provisionHandoff.mockReset();
     repositoryMocks.revoke.mockReset();
@@ -40,6 +61,21 @@ describe("STEP 24B remote access provisioning API", () => {
       delete process.env.LEZGO_ENABLE_SUPABASE_ACCESS;
     } else {
       process.env.LEZGO_ENABLE_SUPABASE_ACCESS = previousAccessFlag;
+    }
+    if (previousPublicOrigin === undefined) {
+      delete process.env.LEZGO_PUBLIC_APP_ORIGIN;
+    } else {
+      process.env.LEZGO_PUBLIC_APP_ORIGIN = previousPublicOrigin;
+    }
+    if (previousVercelProjectProductionUrl === undefined) {
+      delete process.env.VERCEL_PROJECT_PRODUCTION_URL;
+    } else {
+      process.env.VERCEL_PROJECT_PRODUCTION_URL = previousVercelProjectProductionUrl;
+    }
+    if (previousVercelUrl === undefined) {
+      delete process.env.VERCEL_URL;
+    } else {
+      process.env.VERCEL_URL = previousVercelUrl;
     }
   });
 
@@ -73,11 +109,79 @@ describe("STEP 24B remote access provisioning API", () => {
     expect(await response.json()).toMatchObject({ ok: false, error: "Organizer authorization was denied." });
     expect(repositoryMocks.revoke).not.toHaveBeenCalled();
   });
+
+  it("rejects organizer tournament sync reads without organizer authorization", async () => {
+    const response = await readOrganizerTournament(createJsonRequest("/api/supabase/organizer-tournament/read", {
+      kind: "standard",
+      legacyLocalId: "mexicano-mexicano",
+      tournamentId: "00000000-0000-4000-8000-000000000104",
+    }));
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ ok: false, error: "Organizer authorization was denied." });
+  });
+
+  it("uses the configured reachable public origin for TV handoff links instead of the bind host", async () => {
+    process.env.LEZGO_PUBLIC_APP_ORIGIN = "http://192.168.0.60:3015";
+    repositoryMocks.provisionHandoff.mockResolvedValue({
+      tournamentId: "00000000-0000-4000-8000-000000000105",
+      handoffReference: "STEP_24C_HANDOFF_REFERENCE",
+      expiresAt: "2026-08-17T20:00:00.000Z",
+    });
+
+    const response = await provisionHandoff(createAuthorizedHandoffRequest("http://0.0.0.0:3015/api/supabase/tournament-handoff/provision", "00000000-0000-4000-8000-000000000105"));
+    const body = await response.json() as { handoffUrl?: string; expiresAt?: string };
+
+    expect(response.status).toBe(200);
+    expect(body.handoffUrl).toBe("http://192.168.0.60:3015/remote/handoff/STEP_24C_HANDOFF_REFERENCE");
+    expect(body.handoffUrl).not.toContain("0.0.0.0");
+    expect(body.expiresAt).toBe("2026-08-17T20:00:00.000Z");
+  });
+
+  it("uses the production Vercel HTTPS origin for TV handoff links when no explicit public origin is configured", async () => {
+    process.env.VERCEL_PROJECT_PRODUCTION_URL = "lez-go-tournament.vercel.app";
+    repositoryMocks.provisionHandoff.mockResolvedValue({
+      tournamentId: "00000000-0000-4000-8000-000000000106",
+      handoffReference: "STEP_24C_VERCEL_HANDOFF",
+      expiresAt: "2026-08-17T20:05:00.000Z",
+    });
+
+    const response = await provisionHandoff(createAuthorizedHandoffRequest("http://0.0.0.0:3015/api/supabase/tournament-handoff/provision", "00000000-0000-4000-8000-000000000106"));
+    const body = await response.json() as { handoffUrl?: string };
+
+    expect(response.status).toBe(200);
+    expect(body.handoffUrl).toBe("https://lez-go-tournament.vercel.app/remote/handoff/STEP_24C_VERCEL_HANDOFF");
+  });
+
+  it("does not expose 0.0.0.0 in TV handoff links even without public origin configuration", async () => {
+    repositoryMocks.provisionHandoff.mockResolvedValue({
+      tournamentId: "00000000-0000-4000-8000-000000000107",
+      handoffReference: "STEP_24C_LOCALHOST_HANDOFF",
+      expiresAt: "2026-08-17T20:10:00.000Z",
+    });
+
+    const response = await provisionHandoff(createAuthorizedHandoffRequest("http://0.0.0.0:3015/api/supabase/tournament-handoff/provision", "00000000-0000-4000-8000-000000000107"));
+    const body = await response.json() as { handoffUrl?: string };
+
+    expect(response.status).toBe(200);
+    expect(body.handoffUrl).toBe("http://localhost:3015/remote/handoff/STEP_24C_LOCALHOST_HANDOFF");
+    expect(body.handoffUrl).not.toContain("0.0.0.0");
+  });
 });
 
 function createJsonRequest(path: string, body: Record<string, unknown>): Request {
   return new Request(`http://localhost${path}`, {
     method: "POST",
     body: JSON.stringify(body),
+  });
+}
+
+function createAuthorizedHandoffRequest(url: string, tournamentId: string): Request {
+  return new Request(url, {
+    method: "POST",
+    body: JSON.stringify({
+      tournamentId,
+      organizerToken: "VALID_ORGANIZER_TOKEN",
+    }),
   });
 }

@@ -12,6 +12,7 @@ import { useAppTranslation } from "@/lib/preferences/client";
 import type { TranslationKey } from "@/lib/i18n/translations";
 
 type RemoteTournamentKind = "standard" | "team-vs-team";
+type RemoteAccessLevel = "score-entry" | "read-only";
 type RemoteSyncStatus = "connecting" | "live" | "reconnecting" | "offline" | "error";
 type RemoteReadErrorKind = "access-denied" | "expired" | "network" | "server";
 type RemoteDisplayMode = "standard" | "tv" | "scoreboard";
@@ -30,6 +31,7 @@ interface RemoteTournamentSession {
   handoffReference?: string;
   remoteSessionToken?: string;
   remoteSessionExpiresAt?: string;
+  accessLevel: RemoteAccessLevel;
   kind: RemoteTournamentKind;
   state: LiveTournamentState | TeamVsTeamTournamentState;
   updatedAt?: string;
@@ -37,6 +39,7 @@ interface RemoteTournamentSession {
 
 interface RemoteReadResponse {
   ok?: boolean;
+  accessLevel?: RemoteAccessLevel;
   kind?: RemoteTournamentKind;
   state?: LiveTournamentState | TeamVsTeamTournamentState;
   updatedAt?: string;
@@ -116,7 +119,7 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
   const [isSavingScore, setIsSavingScore] = useState(false);
   const isTvMode = displayMode !== "standard";
   const isScoreboardMode = displayMode === "scoreboard";
-  const canEditRemoteScore = Boolean(session?.accessMode === "manual" && session.kind === "standard" && session.tournamentCode && session.shareToken && displayMode === "standard");
+  const canEditRemoteScore = Boolean(session?.accessLevel === "score-entry" && session.kind === "standard" && session.tournamentCode && session.shareToken && displayMode === "standard");
 
   const recordSuccessfulSync = useCallback(() => {
     autoSyncStoppedRef.current = false;
@@ -144,6 +147,7 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
 
     return {
       accessMode: "manual",
+      accessLevel: body.accessLevel === "score-entry" ? "score-entry" : "read-only",
       tournamentCode: normalizedCode,
       shareToken: normalizedToken,
       remoteSessionToken: body.remoteSessionToken,
@@ -176,6 +180,7 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
 
       return {
         accessMode: "handoff",
+        accessLevel: "read-only",
         handoffReference: normalizedReference,
         remoteSessionToken: body.remoteSessionToken,
         remoteSessionExpiresAt: body.remoteSessionExpiresAt,
@@ -210,6 +215,7 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
 
       return {
         accessMode: "accessMode" in currentSession ? currentSession.accessMode : "remote-session",
+        accessLevel: hasManualScoreCredentials(currentSession) ? "score-entry" : "read-only",
         tournamentCode: "tournamentCode" in currentSession ? currentSession.tournamentCode : undefined,
         shareToken: "shareToken" in currentSession ? currentSession.shareToken : undefined,
         handoffReference: "handoffReference" in currentSession ? currentSession.handoffReference : undefined,
@@ -558,7 +564,7 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
       return;
     }
 
-    if (!scoreDraft || !session || session.accessMode !== "manual" || session.kind !== "standard" || !session.tournamentCode || !session.shareToken) {
+    if (!scoreDraft || !session || session.accessLevel !== "score-entry" || session.kind !== "standard" || !session.tournamentCode || !session.shareToken) {
       setScoreError("Score kan kun gemmes med gyldig skriveadgang.");
       return;
     }
@@ -2035,6 +2041,15 @@ interface StoredRemoteSession {
   remoteSessionToken: string;
   remoteSessionExpiresAt: string;
   handoffReference?: string;
+}
+
+function hasManualScoreCredentials(session: RemoteTournamentSession | StoredRemoteSession): session is RemoteTournamentSession & { tournamentCode: string; shareToken: string } {
+  return "accessMode" in session
+    && session.accessMode === "manual"
+    && typeof session.tournamentCode === "string"
+    && session.tournamentCode.trim().length > 0
+    && typeof session.shareToken === "string"
+    && isValidRemoteAccessPin(session.shareToken);
 }
 
 function persistEstablishedRemoteSession(session: RemoteTournamentSession, handoffReference?: string): void {

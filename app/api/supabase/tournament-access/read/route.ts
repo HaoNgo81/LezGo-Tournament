@@ -38,6 +38,7 @@ export async function POST(request: Request): Promise<Response> {
       ok: true,
       tournamentId: result.tournamentId,
       tournamentCode: result.tournamentCode,
+      accessLevel: "score-entry",
       kind: result.kind,
       state: result.state,
       updatedAt: result.updatedAt,

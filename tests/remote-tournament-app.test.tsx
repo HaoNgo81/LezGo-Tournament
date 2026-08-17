@@ -49,6 +49,56 @@ describe("STEP 13 remote read-only UI", () => {
     expect(payload).toEqual({ tournamentCode: "AB12CD", shareToken: "0427" });
   });
 
+  it("keeps score-entry controls available for a fresh code and PIN session with an issued read-only remote session token", async () => {
+    const remoteState = scoreMockState("STEP_24C_TEST Score Entry Capability");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(createReadResponse("standard", remoteState, "2026-08-13T12:00:00.000Z", {
+      remoteSessionToken: "STEP_24C_READ_ONLY_REMOTE_SESSION_TOKEN",
+      remoteSessionExpiresAt: "2099-01-01T00:00:00.000Z",
+    })));
+
+    render(<RemoteTournamentApp />);
+    fireEvent.change(screen.getByLabelText("Turneringskode"), { target: { value: "K7M4XP" } });
+    fireEvent.change(screen.getByLabelText("Adgangskode"), { target: { value: "2222" } });
+    fireEvent.click(screen.getByRole("button", { name: "Åbn turnering fra anden enhed" }));
+
+    expect(await screen.findByText("Visning fra anden enhed - scoreindtastning aktiv")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Rediger score" }).length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Rediger score" })[0]);
+
+    expect(screen.getByRole("dialog", { name: "Rediger score" })).toBeInTheDocument();
+  });
+
+  it("does not auto-open plain /remote from a stored remote session without a handoff reference", () => {
+    window.sessionStorage.setItem("lezgo.remoteSession.v1", JSON.stringify({
+      remoteSessionToken: "STEP_24C_STORED_REMOTE_SESSION",
+      remoteSessionExpiresAt: "2099-01-01T00:00:00.000Z",
+    }));
+    vi.stubGlobal("fetch", vi.fn());
+
+    render(<RemoteTournamentApp />);
+
+    expect(screen.getByLabelText("Turneringskode")).toBeInTheDocument();
+    expect(screen.getByLabelText("Adgangskode")).toBeInTheDocument();
+    expect(screen.queryByText("Visning fra anden enhed - scoreindtastning aktiv")).not.toBeInTheDocument();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("keeps a fresh read-only handoff session without score-entry controls", async () => {
+    const remoteState = scoreMockState("STEP_24C_TEST Read Only Handoff");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(createReadResponse("standard", remoteState, "2026-08-13T12:00:00.000Z", {
+      remoteSessionToken: "STEP_24C_HANDOFF_REMOTE_SESSION_TOKEN",
+      remoteSessionExpiresAt: "2099-01-01T00:00:00.000Z",
+    })));
+
+    render(<RemoteTournamentApp initialHandoffReference="STEP_24C_HANDOFF_REFERENCE_WITH_ENTROPY_1234567890" />);
+
+    expect(await screen.findByText("Visning fra anden enhed - skrivebeskyttet")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Rediger score" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Indtast score" })).not.toBeInTheDocument();
+  });
+
+
   it("saves a fixed-total score from standard remote PIN access and auto-calculates the remaining score", async () => {
     const remoteState = createLongNameStandardState("STEP_23A_TEST Remote Score");
     const match = remoteState.rounds[0].matches[0];
@@ -1252,7 +1302,7 @@ function expectScoreboardCourtScore(teamA: string, teamB: string, cardIndex = 0)
 function createReadResponse(kind: "standard", state: LiveTournamentState, updatedAt?: string, session?: { remoteSessionToken: string; remoteSessionExpiresAt: string }): Response;
 function createReadResponse(kind: "team-vs-team", state: TeamVsTeamTournamentState, updatedAt?: string, session?: { remoteSessionToken: string; remoteSessionExpiresAt: string }): Response;
 function createReadResponse(kind: "standard" | "team-vs-team", state: LiveTournamentState | TeamVsTeamTournamentState, updatedAt = "2026-08-13T12:00:00.000Z", session?: { remoteSessionToken: string; remoteSessionExpiresAt: string }): Response {
-  return new Response(JSON.stringify({ ok: true, kind, state, updatedAt, ...session }), { status: 200 });
+  return new Response(JSON.stringify({ ok: true, accessLevel: "score-entry", kind, state, updatedAt, ...session }), { status: 200 });
 }
 
 function scoreMockState(name: string, teamAPoints = 17, teamBPoints = 7): LiveTournamentState {

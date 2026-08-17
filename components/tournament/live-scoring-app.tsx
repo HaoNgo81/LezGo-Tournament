@@ -36,7 +36,7 @@ import { SyncStatusPanel } from "@/components/tournament/sync-status-panel";
 import { UnifiedCourtCard } from "@/components/tournament/unified-court-card";
 import { useAppTranslation } from "@/lib/preferences/client";
 import type { TranslationKey } from "@/lib/i18n/translations";
-import { calculateInitialPoolStandings, createStandardShadowSaveLocalId, loadActiveTournament, saveActiveTournament, saveCompletedTournament, type CrossMatchFinalEncounter, type CrossMatchFinalStage, type PoolMatchResult, type PoolParticipant } from "@/lib/tournament-setup";
+import { calculateInitialPoolStandings, createStandardShadowSaveLocalId, loadActiveTournament, loadShadowSaveMetadata, markRemoteShadowSaveApplied, saveActiveTournament, saveActiveTournamentFromRemoteSync, saveCompletedTournament, type CrossMatchFinalEncounter, type CrossMatchFinalStage, type PoolMatchResult, type PoolParticipant } from "@/lib/tournament-setup";
 import { calculateFixedTotalScore } from "@/lib/tournament-setup/scoring";
 import { loadTournamentSettings, playTournamentAlarmSound } from "@/lib/tournament-settings";
 import type { MatchResult, StandingsRankingMode, TournamentPlayer } from "@/lib/tournament-engine";
@@ -46,6 +46,16 @@ const rankingModeLabels: Record<StandingsRankingMode, TranslationKey> = {
   matchPointsFirst: "mostMatchPoints",
   partiPointsFirst: "mostScorePoints",
 };
+const organizerRemoteSyncIntervalMs = 2000;
+
+interface OrganizerRemoteReadResponse {
+  ok?: boolean;
+  kind?: "standard" | "team-vs-team";
+  state?: LiveTournamentState;
+  tournamentId?: string;
+  updatedAt?: string;
+  error?: string;
+}
 
 export function LiveScoringApp() {
   const { t } = useAppTranslation();
@@ -104,6 +114,97 @@ export function LiveScoringApp() {
 
     return () => window.clearInterval(intervalId);
   }, [state.roundTimer?.status]);
+
+  useEffect(() => {
+    if (!hasHydrated || state.status !== "active") {
+      return undefined;
+    }
+
+    let isDisposed = false;
+    let timeoutId: number | undefined;
+    let isInFlight = false;
+
+    async function pollOrganizerRemoteState() {
+      if (isDisposed || isInFlight) {
+        return;
+      }
+
+      const currentState = stateRef.current;
+      const localId = createStandardShadowSaveLocalId(currentState);
+      const metadata = loadShadowSaveMetadata(localId);
+
+      if (
+        !metadata?.supabaseTournamentId
+        || !metadata.organizerToken
+        || metadata.kind !== "standard"
+        || metadata.status === "conflict"
+      ) {
+        scheduleNextPoll();
+        return;
+      }
+
+      isInFlight = true;
+
+      try {
+        const response = await fetch("/api/supabase/organizer-tournament/read", {
+          method: "POST",
+          cache: "no-store",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            kind: "standard",
+            legacyLocalId: localId,
+            organizerToken: metadata.organizerToken,
+            tournamentId: metadata.supabaseTournamentId,
+          }),
+        });
+        const body = await response.json() as OrganizerRemoteReadResponse;
+
+        if (
+          !response.ok
+          || !body.ok
+          || body.kind !== "standard"
+          || !body.state
+          || !body.updatedAt
+          || body.tournamentId !== metadata.supabaseTournamentId
+          || !isNewerOrganizerRemoteVersion(metadata.lastShadowSaveVersion, body.updatedAt)
+        ) {
+          return;
+        }
+
+        const latestMetadata = loadShadowSaveMetadata(localId);
+
+        if (latestMetadata?.status && latestMetadata.status !== "synced") {
+          return;
+        }
+
+        saveActiveTournamentFromRemoteSync(body.state);
+        markRemoteShadowSaveApplied(localId, "standard", body.updatedAt);
+        stateRef.current = body.state;
+        setState(body.state);
+      } catch {
+        // Organizer sync is best-effort; the local tournament remains primary if remote read fails.
+      } finally {
+        isInFlight = false;
+        scheduleNextPoll();
+      }
+    }
+
+    function scheduleNextPoll() {
+      if (!isDisposed) {
+        timeoutId = window.setTimeout(pollOrganizerRemoteState, organizerRemoteSyncIntervalMs);
+      }
+    }
+
+    scheduleNextPoll();
+
+    return () => {
+      isDisposed = true;
+
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [hasHydrated, state.status, state.tournamentName, state.format]);
 
   useEffect(() => {
     if (state.scoringMode === "Spil på tid" && state.roundTimer?.status === "expired" && alarmPlayedForRound.current !== state.roundTimer.roundNumber) {
@@ -1112,6 +1213,21 @@ function getFixedTotalCalculation(fixedScoreTotal: number, enteredScore: number)
   } catch (caughtError) {
     return { error: caughtError instanceof Error ? caughtError.message : "Scoren er ugyldig." };
   }
+}
+
+function isNewerOrganizerRemoteVersion(currentUpdatedAt: string | undefined, nextUpdatedAt: string): boolean {
+  if (!currentUpdatedAt) {
+    return true;
+  }
+
+  const currentTime = Date.parse(currentUpdatedAt);
+  const nextTime = Date.parse(nextUpdatedAt);
+
+  if (Number.isNaN(currentTime) || Number.isNaN(nextTime)) {
+    return nextUpdatedAt !== currentUpdatedAt;
+  }
+
+  return nextTime > currentTime;
 }
 
 function formatClock(totalSeconds: number): string {

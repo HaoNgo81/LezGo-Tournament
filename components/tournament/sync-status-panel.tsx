@@ -320,7 +320,7 @@ function QrSvg({ modules, size, label }: { modules: boolean[][]; size: number; l
   const svgSize = size + quietZone * 2;
 
   return (
-    <svg className="mx-auto h-auto w-full max-w-64 rounded-md bg-white p-3 shadow-sm" viewBox={`0 0 ${svgSize} ${svgSize}`} role="img" aria-label={label}>
+    <svg className="mx-auto h-auto w-full max-w-80 rounded-md bg-white p-3 shadow-sm" viewBox={`0 0 ${svgSize} ${svgSize}`} role="img" aria-label={label} shapeRendering="crispEdges">
       <rect width={svgSize} height={svgSize} fill="white" />
       {modules.map((row, y) =>
         row.map((isDark, x) => (

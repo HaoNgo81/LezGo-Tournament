@@ -1,4 +1,5 @@
 import { assertOrganizerToken, createTournamentHandoffRepository, OrganizerTokenError, TournamentHandoffError, toHandoffError } from "@/lib/database";
+import { resolvePublicAppOrigin } from "@/lib/server/public-origin";
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +49,7 @@ export async function POST(request: Request): Promise<Response> {
 
 function createHandoffUrl(request: Request, handoffReference: string): string {
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
-  const url = new URL(request.url);
+  const url = new URL(resolvePublicAppOrigin(request));
   url.pathname = `${basePath}/remote/handoff/${encodeURIComponent(handoffReference)}`.replace(/\/{2,}/g, "/");
   url.search = "";
   url.hash = "";

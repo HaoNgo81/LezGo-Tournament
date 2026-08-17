@@ -38,6 +38,19 @@ export function saveActiveTournament(state: LiveTournamentState): void {
   queueStandardTournamentShadowSave(tournamentId, state);
 }
 
+export function saveActiveTournamentFromRemoteSync(state: LiveTournamentState): void {
+  window.localStorage.setItem(activeTournamentStorageKey, JSON.stringify(state));
+  window.localStorage.removeItem(activeTeamVsTeamStorageKey);
+
+  if (state.status !== "active") {
+    return;
+  }
+
+  const tournamentId = createActiveTournamentId(state);
+  const activeTournaments = loadActiveTournaments().filter((tournament) => createActiveTournamentId(tournament) !== tournamentId);
+  window.localStorage.setItem(activeTournamentsStorageKey, JSON.stringify([state, ...activeTournaments].slice(0, maxActiveTournaments)));
+}
+
 export function loadActiveTournament(): LiveTournamentState | null {
   if (typeof window === "undefined") {
     return null;

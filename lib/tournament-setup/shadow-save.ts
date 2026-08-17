@@ -102,6 +102,23 @@ export function clearShadowSaveMetadata(): void {
   inFlightLocalIds.clear();
 }
 
+export function markRemoteShadowSaveApplied(localId: string, kind: ShadowSaveKind, updatedAt?: string, appliedAt = new Date().toISOString()): ShadowSaveMetadata {
+  const metadata = loadShadowSaveMetadata(localId);
+  const nextMetadata: ShadowSaveMetadata = {
+    ...metadata,
+    localId,
+    kind,
+    status: "synced",
+    lastLocalSaveAt: appliedAt,
+    lastSuccessfulShadowSaveAt: appliedAt,
+    lastShadowSaveVersion: updatedAt ?? metadata?.lastShadowSaveVersion,
+    lastError: undefined,
+  };
+
+  saveShadowSaveMetadata(nextMetadata);
+  return nextMetadata;
+}
+
 function queueShadowSave({ kind, localId, state }: { kind: ShadowSaveKind; localId: string; state: unknown }): void {
   if (typeof window === "undefined" || !isShadowSaveEnabled()) {
     return;

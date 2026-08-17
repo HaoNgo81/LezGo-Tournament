@@ -38,6 +38,7 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({
       ok: true,
       tournamentId: result.tournamentId,
+      accessLevel: "read-only",
       kind: result.kind,
       state: result.state,
       updatedAt: result.updatedAt,
