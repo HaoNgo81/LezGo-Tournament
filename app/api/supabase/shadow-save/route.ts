@@ -1,4 +1,4 @@
-import { createStandardTournamentRepository, createTeamVsTeamTournamentRepository } from "@/lib/database";
+import { createOrganizerToken, createStandardTournamentRepository, createTeamVsTeamTournamentRepository } from "@/lib/database";
 import type { LiveTournamentState } from "@/lib/live-scoring";
 import type { TeamVsTeamTournamentState } from "@/lib/tournament-setup";
 
@@ -36,7 +36,13 @@ export async function POST(request: Request): Promise<Response> {
         tournamentId: body.tournamentId,
         expectedUpdatedAt: body.expectedUpdatedAt,
       });
-      return Response.json({ ok: true, tournamentId: result.tournamentId, updatedAt: result.updatedAt, saveMode: result.saveMode });
+      return Response.json({
+        ok: true,
+        tournamentId: result.tournamentId,
+        updatedAt: result.updatedAt,
+        saveMode: result.saveMode,
+        organizerToken: createOrganizerToken({ tournamentId: result.tournamentId, kind: body.kind, legacyLocalId: body.legacyLocalId }),
+      });
     }
 
     if (body.kind === "team-vs-team" && isTeamVsTeamTournamentState(body.state)) {
@@ -45,7 +51,13 @@ export async function POST(request: Request): Promise<Response> {
         tournamentId: body.tournamentId,
         expectedUpdatedAt: body.expectedUpdatedAt,
       });
-      return Response.json({ ok: true, tournamentId: result.tournamentId, updatedAt: result.updatedAt, saveMode: result.saveMode });
+      return Response.json({
+        ok: true,
+        tournamentId: result.tournamentId,
+        updatedAt: result.updatedAt,
+        saveMode: result.saveMode,
+        organizerToken: createOrganizerToken({ tournamentId: result.tournamentId, kind: body.kind, legacyLocalId: body.legacyLocalId }),
+      });
     }
 
     return Response.json({ ok: false, error: "Invalid shadow-save payload." }, { status: 400 });

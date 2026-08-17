@@ -1,90 +1,60 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { createMockLiveTournamentState, type LiveTournamentState } from "@/lib/live-scoring";
-import { createQrCodeMatrix, createShareUrl } from "@/lib/sharing";
-import { loadActiveTournament } from "@/lib/tournament-setup";
+import { useEffect, useState } from "react";
+import { SyncStatusPanel } from "@/components/tournament/sync-status-panel";
+import type { LiveTournamentState } from "@/lib/live-scoring";
 import { useAppTranslation } from "@/lib/preferences/client";
+import { createStandardShadowSaveLocalId, createTeamVsTeamShadowSaveLocalId, loadActiveTeamVsTeamTournament, loadActiveTournament, type TeamVsTeamTournamentState } from "@/lib/tournament-setup";
 import { useHasHydrated } from "@/hooks/use-has-hydrated";
 
 export function ShareTournamentApp() {
   const { t } = useAppTranslation();
   const hasHydrated = useHasHydrated();
-  const [state, setState] = useState<LiveTournamentState>(() => createMockLiveTournamentState());
-  const [origin, setOrigin] = useState("http://localhost:3000");
-  const [copyStatus, setCopyStatus] = useState("");
-  const shareUrl = useMemo(() => createShareUrl(origin, "/qr"), [origin]);
-  const qrCode = useMemo(() => createQrCodeMatrix(shareUrl), [shareUrl]);
+  const [standardState, setStandardState] = useState<LiveTournamentState | null>(null);
+  const [teamState, setTeamState] = useState<TeamVsTeamTournamentState | null>(null);
 
   useEffect(() => {
     if (!hasHydrated) {
-      return undefined;
+      return;
     }
 
-    const timeoutId = window.setTimeout(() => {
-      setState(loadActiveTournament() ?? createMockLiveTournamentState());
-      setOrigin(window.location.origin);
+    const loadTimer = window.setTimeout(() => {
+      setTeamState(loadActiveTeamVsTeamTournament());
+      setStandardState(loadActiveTournament());
     }, 0);
 
-    return () => window.clearTimeout(timeoutId);
+    return () => window.clearTimeout(loadTimer);
   }, [hasHydrated]);
 
   if (!hasHydrated) {
     return <div className="app-card p-4 font-bold text-[var(--muted)]">{t("loadingShare")}</div>;
   }
 
-  async function handleCopy() {
-    await navigator.clipboard.writeText(shareUrl);
-    setCopyStatus(t("linkCopied"));
+  if (teamState) {
+    return (
+      <div className="grid gap-4">
+        <section className="app-card grid gap-2 p-4 sm:p-5">
+          <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{t("remoteUnifiedShareTitle")}</p>
+          <h2 className="text-2xl font-black">{teamState.name}</h2>
+          <p className="font-bold text-[var(--muted)]">{t("remoteShareUnifiedHelp")}</p>
+        </section>
+        <SyncStatusPanel kind="team-vs-team" localId={createTeamVsTeamShadowSaveLocalId(teamState)} state={teamState} />
+      </div>
+    );
   }
 
-  return (
-    <div className="grid gap-5">
-      <section className="grid gap-4 app-card p-4">
-        <div>
-          <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{t("shareTournament")}</p>
-          <h2 className="mt-1 text-2xl font-black">{state.tournamentName}</h2>
-          <p className="mt-1 text-sm font-bold text-[var(--muted)]">QR-koden åbner spillerens read-only visning.</p>
-        </div>
+  if (standardState) {
+    return (
+      <div className="grid gap-4">
+        <section className="app-card grid gap-2 p-4 sm:p-5">
+          <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{t("remoteUnifiedShareTitle")}</p>
+          <h2 className="text-2xl font-black">{standardState.tournamentName}</h2>
+          <p className="font-bold text-[var(--muted)]">{t("remoteShareUnifiedHelp")}</p>
+        </section>
+        <SyncStatusPanel kind="standard" localId={createStandardShadowSaveLocalId(standardState)} state={standardState} />
+      </div>
+    );
+  }
 
-        <QrSvg modules={qrCode.modules} size={qrCode.size} />
-
-        <label className="grid gap-2 text-base font-bold">
-          Link
-          <input className="min-h-12 rounded-md border border-[var(--line)] bg-gray-50 p-3 font-mono text-sm" readOnly value={shareUrl} />
-        </label>
-
-        <div className="action-grid">
-          <button className="btn-primary" type="button" onClick={handleCopy}>
-            {t("copyLink")}
-          </button>
-          <Link className="btn-outline-primary" href="/qr">
-            {t("openQr")}
-          </Link>
-          <Link className="btn-outline-primary" href="/tv">
-            {t("openTvScreen")}
-          </Link>
-        </div>
-
-        {copyStatus ? <p className="rounded-md bg-green-50 p-3 font-bold text-[var(--primary-strong)]">{copyStatus}</p> : null}
-      </section>
-    </div>
-  );
-}
-
-function QrSvg({ modules, size }: { modules: boolean[][]; size: number }) {
-  const quietZone = 4;
-  const svgSize = size + quietZone * 2;
-
-  return (
-    <svg className="mx-auto h-auto w-full max-w-72 rounded-md bg-white p-3" viewBox={`0 0 ${svgSize} ${svgSize}`} role="img" aria-label="QR-kode til turnering">
-      <rect width={svgSize} height={svgSize} fill="white" />
-      {modules.map((row, y) =>
-        row.map((isDark, x) => (
-          isDark ? <rect key={`${x}-${y}`} x={x + quietZone} y={y + quietZone} width="1" height="1" fill="black" /> : null
-        )),
-      )}
-    </svg>
-  );
+  return <div className="app-card p-4 font-bold text-[var(--muted)]">{t("noActiveTournaments")}</div>;
 }

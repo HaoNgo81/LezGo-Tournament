@@ -252,8 +252,6 @@ export function LiveScoringApp() {
           <SyncStatusPanel kind="standard" localId={createStandardShadowSaveLocalId(state)} state={state} />
         </div>
         <div className="mt-4 action-grid">
-          <Link className="btn-outline-primary" href="/share">{t("shareTournament")}</Link>
-          <Link className="btn-outline-primary" href="/tv">{t("tvMirror")}</Link>
           <Link className="btn-outline-primary" href="/finish">{t("finishTournament")}</Link>
         </div>
       </div>
@@ -406,8 +404,6 @@ function PoolPlayLiveView({
           <SyncStatusPanel kind="standard" localId={createStandardShadowSaveLocalId(state)} state={state} />
         </div>
         <div className="mt-4 action-grid">
-          <Link className="btn-outline-primary" href="/share">Del turnering</Link>
-          <Link className="btn-outline-primary" href="/tv">TV / Mirror</Link>
           <Link className="btn-outline-primary" href="/finish">Afslut turnering</Link>
         </div>
       </div>

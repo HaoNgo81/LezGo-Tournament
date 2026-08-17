@@ -5,6 +5,7 @@ export { createStandardTournamentWritePlan, createTeamVsTeamTournamentWritePlan 
 export { assertStandardWritePlanSupported, createStandardTournamentRepository, getOperationRows, TournamentPersistenceError } from "./supabase-standard-repository";
 export { createTeamVsTeamTournamentRepository } from "./supabase-team-vs-team-repository";
 export { createRemoteSession, parseRemoteSessionToken, readRemoteSession, RemoteSessionError, toRemoteSessionError } from "./remote-session";
+export { assertOrganizerToken, createOrganizerToken, OrganizerTokenError } from "./organizer-token";
 export { mapTeamVsTeamTournamentToPersistencePayload } from "./team-vs-team-mapper";
 export { mapPersistenceRowsToTeamVsTeamTournamentState } from "./team-vs-team-readback";
 export { createTournamentHandoffRepository, generateHandoffReference, hashHandoffReference, toHandoffError, TournamentHandoffError } from "./tournament-handoff";

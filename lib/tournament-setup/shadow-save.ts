@@ -9,6 +9,7 @@ export interface ShadowSaveMetadata {
   kind: ShadowSaveKind;
   status: ShadowSaveStatus;
   supabaseTournamentId?: string;
+  organizerToken?: string;
   lastLocalSaveAt?: string;
   lastSuccessfulShadowSaveAt?: string;
   lastShadowSaveVersion?: string;
@@ -27,6 +28,7 @@ interface ShadowSaveResponse {
   ok: boolean;
   tournamentId?: string;
   updatedAt?: string;
+  organizerToken?: string;
   error?: string;
 }
 
@@ -177,6 +179,7 @@ async function performShadowSave({ kind, localId, state }: { kind: ShadowSaveKin
       kind,
       status: "synced",
       supabaseTournamentId: body.tournamentId,
+      organizerToken: body.organizerToken ?? metadata?.organizerToken,
       lastSuccessfulShadowSaveAt: savedAt,
       lastShadowSaveVersion: body.updatedAt ?? metadata?.lastShadowSaveVersion,
       lastError: undefined,

@@ -3,6 +3,10 @@ import { saveMatchResult, type LiveTournamentState } from "@/lib/live-scoring";
 
 export const dynamic = "force-dynamic";
 
+const scoreWriteAttempts = new Map<string, { count: number; resetAt: number }>();
+const maxScoreWritesPerWindow = 30;
+const scoreWriteWindowMs = 60_000;
+
 interface SaveRemoteScoreRequest {
   tournamentCode?: string;
   shareToken?: string;
@@ -27,6 +31,10 @@ export async function POST(request: Request): Promise<Response> {
 
   if (!body.tournamentCode || !body.shareToken || !body.matchId) {
     return Response.json({ ok: false, error: "Tournament code, access code and match are required." }, { status: 400 });
+  }
+
+  if (isRateLimited(request, body.tournamentCode)) {
+    return Response.json({ ok: false, error: "Too many score attempts." }, { status: 429 });
   }
 
   const teamAPoints = parseScore(body.teamAPoints);
@@ -71,6 +79,21 @@ export async function POST(request: Request): Promise<Response> {
     const message = error instanceof Error ? error.message : "Score could not be saved.";
     return Response.json({ ok: false, error: message }, { status });
   }
+}
+
+function isRateLimited(request: Request, tournamentCode: string): boolean {
+  const now = Date.now();
+  const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const key = `${forwardedFor}:${tournamentCode.trim().toLocaleUpperCase("en")}`;
+  const current = scoreWriteAttempts.get(key);
+
+  if (!current || current.resetAt <= now) {
+    scoreWriteAttempts.set(key, { count: 1, resetAt: now + scoreWriteWindowMs });
+    return false;
+  }
+
+  current.count += 1;
+  return current.count > maxScoreWritesPerWindow;
 }
 
 function parseScore(value: unknown): number | null {

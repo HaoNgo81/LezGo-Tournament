@@ -3,7 +3,7 @@ import { ShareTournamentApp } from "@/components/tournament/share-tournament-app
 
 export default function SharePage() {
   return (
-    <AppShell title="Del turnering" subtitle="Vis QR-kode, kopier link eller åbn TV-skærm.">
+    <AppShell title="Del / vis på anden enhed" subtitle="Opret scoreindtastning eller TV/livescore fra samme sikre flow.">
       <ShareTournamentApp />
     </AppShell>
   );

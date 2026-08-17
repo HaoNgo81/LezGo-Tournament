@@ -6,6 +6,7 @@ import { advanceLivePoolPlayState, saveInitialPoolResult, saveMatchResult, type 
 import {
   createStandardTournamentRepository,
   createTeamVsTeamTournamentRepository,
+  createOrganizerToken,
   createTournamentAccessRepository,
   createTournamentHandoffRepository,
   type TournamentHandoffRecord,
@@ -38,7 +39,7 @@ describeE2E("STEP 14 secure QR handoff", () => {
     const standardState = createStandardState();
     const savedStandard = await standardRepository.save(standardState, { legacyLocalId: `STEP_14_TEST_STANDARD_${Date.now()}` });
     createdIds.push(savedStandard.tournamentId);
-    const standardHandoff = await provision(savedStandard.tournamentId);
+    const standardHandoff = await provision(savedStandard.tournamentId, createOrganizerToken({ tournamentId: savedStandard.tournamentId, kind: "standard", legacyLocalId: "STEP_14_ORGANIZER" }));
     expect(standardHandoff.handoffUrl).toContain("/remote/handoff/");
     expect(standardHandoff.handoffUrl).not.toContain("share");
     const standardRead = await redeem(standardHandoff.handoffReference);
@@ -50,7 +51,7 @@ describeE2E("STEP 14 secure QR handoff", () => {
     const poolState = createLaterStagePoolState();
     const savedPool = await standardRepository.save(poolState, { legacyLocalId: `STEP_14_TEST_POOL_${Date.now()}` });
     createdIds.push(savedPool.tournamentId);
-    const poolHandoff = await provision(savedPool.tournamentId);
+    const poolHandoff = await provision(savedPool.tournamentId, createOrganizerToken({ tournamentId: savedPool.tournamentId, kind: "standard", legacyLocalId: "STEP_14_POOL_ORGANIZER" }));
     const poolRead = await redeem(poolHandoff.handoffReference);
     expect(poolRead.kind).toBe("standard");
     expect(poolRead.state).toEqual(poolState);
@@ -58,7 +59,7 @@ describeE2E("STEP 14 secure QR handoff", () => {
     const teamState = createTeamState();
     const savedTeam = await teamRepository.save(teamState, { legacyLocalId: `STEP_14_TEST_TEAM_${Date.now()}` });
     createdIds.push(savedTeam.tournamentId);
-    const teamHandoff = await provision(savedTeam.tournamentId);
+    const teamHandoff = await provision(savedTeam.tournamentId, createOrganizerToken({ tournamentId: savedTeam.tournamentId, kind: "team-vs-team", legacyLocalId: "STEP_14_TEAM_ORGANIZER" }));
     const teamRead = await redeem(teamHandoff.handoffReference);
     expect(teamRead.kind).toBe("team-vs-team");
     expect(teamRead.state).toEqual(teamState);
@@ -81,10 +82,10 @@ describeE2E("STEP 14 secure QR handoff", () => {
   }, 60000);
 });
 
-async function provision(tournamentId: string): Promise<{ handoffReference: string; handoffUrl: string; expiresAt: string }> {
+async function provision(tournamentId: string, organizerToken: string): Promise<{ handoffReference: string; handoffUrl: string; expiresAt: string }> {
   const response = await provisionHandoff(new Request("http://localhost/api/supabase/tournament-handoff/provision", {
     method: "POST",
-    body: JSON.stringify({ tournamentId }),
+    body: JSON.stringify({ tournamentId, organizerToken }),
   }));
   const body = await response.json() as { ok: boolean; handoffReference?: string; handoffUrl?: string; expiresAt?: string; error?: string };
 

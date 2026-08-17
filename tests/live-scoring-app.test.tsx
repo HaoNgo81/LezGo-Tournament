@@ -24,13 +24,14 @@ describe("LiveScoringApp score sheet", () => {
     expect(screen.getByRole("textbox", { name: "Hold B scorepoint" })).toBeRequired();
   });
 
-  it("shows standings heading, a direct TV/Mirror link and a bottom next button", async () => {
+  it("shows standings heading, unified remote sharing and a bottom next button", async () => {
     saveActiveTournament(createMockLiveTournamentState());
     render(<LiveScoringApp />);
 
     expect(await screen.findByRole("heading", { name: "Stilling" })).toBeInTheDocument();
     expect(screen.getByLabelText("Sync status")).toHaveTextContent("Kun gemt lokalt");
-    expect(screen.getByRole("link", { name: "TV / Mirror" })).toHaveAttribute("href", "/tv");
+    expect(screen.getByText("Del / vis på anden enhed")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "TV / Mirror" })).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Næste" })).toHaveLength(2);
   });
 
@@ -56,6 +57,7 @@ describe("LiveScoringApp score sheet", () => {
 
     render(<LiveScoringApp />);
 
+    expect(await screen.findByRole("heading", { name: "Live compact" })).toBeInTheDocument();
     const section = await screen.findByTestId("live-standings-section");
     expect(within(section).getByRole("heading", { name: "Stilling" })).toBeInTheDocument();
     expect(within(section).queryByRole("heading", { name: "Live score" })).not.toBeInTheDocument();

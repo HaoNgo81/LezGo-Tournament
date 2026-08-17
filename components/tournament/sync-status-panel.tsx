@@ -17,6 +17,7 @@ import {
 interface AccessProvisionState {
   tournamentCode: string;
   shareToken?: string;
+  revoked?: boolean;
 }
 
 interface HandoffProvisionState {
@@ -60,6 +61,11 @@ export function SyncStatusPanel({
   const copy = getStatusCopy(status);
   const canRetry = status === "error";
   const canProvisionAccess = Boolean(metadata?.supabaseTournamentId);
+  const canManageAccess = Boolean(metadata?.supabaseTournamentId && metadata?.organizerToken);
+  const origin = typeof window === "undefined" ? "" : window.location.origin;
+  const scoreEntryUrl = origin && accessState?.tournamentCode ? createRemoteUrl(origin, { code: accessState.tournamentCode }) : "";
+  const tvHandoffUrl = handoffState?.handoffUrl ? withRemoteDisplayMode(handoffState.handoffUrl, "scoreboard") : "";
+  const tvQrCode = tvHandoffUrl ? createQrCodeMatrix(tvHandoffUrl) : null;
 
   function handleRetry() {
     if (kind === "standard") {
@@ -71,7 +77,8 @@ export function SyncStatusPanel({
   }
 
   async function handleProvisionAccess() {
-    if (!metadata?.supabaseTournamentId) {
+    if (!metadata?.supabaseTournamentId || !metadata.organizerToken) {
+      setAccessMessage(t("remoteOrganizerSyncRequired"));
       return;
     }
 
@@ -82,7 +89,7 @@ export function SyncStatusPanel({
       const response = await fetch("/api/supabase/tournament-access/provision", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tournamentId: metadata.supabaseTournamentId }),
+        body: JSON.stringify({ tournamentId: metadata.supabaseTournamentId, organizerToken: metadata.organizerToken }),
       });
       const body = await response.json() as { ok?: boolean; tournamentCode?: string; shareToken?: string };
 
@@ -90,7 +97,7 @@ export function SyncStatusPanel({
         throw new Error("Access provisioning failed.");
       }
 
-      setAccessState({ tournamentCode: body.tournamentCode, shareToken: body.shareToken });
+      setAccessState({ tournamentCode: body.tournamentCode, shareToken: body.shareToken, revoked: false });
       setAccessMessage(body.shareToken ? t("remoteAccessReady") : t("remoteTokenOnlyShownOnce"));
     } catch {
       setAccessMessage(t("remoteFetchError"));
@@ -100,7 +107,8 @@ export function SyncStatusPanel({
   }
 
   async function handleProvisionHandoff() {
-    if (!metadata?.supabaseTournamentId) {
+    if (!metadata?.supabaseTournamentId || !metadata.organizerToken) {
+      setAccessMessage(t("remoteOrganizerSyncRequired"));
       return;
     }
 
@@ -111,7 +119,7 @@ export function SyncStatusPanel({
       const response = await fetch("/api/supabase/tournament-handoff/provision", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tournamentId: metadata.supabaseTournamentId }),
+        body: JSON.stringify({ tournamentId: metadata.supabaseTournamentId, organizerToken: metadata.organizerToken }),
       });
       const body = await response.json() as { ok?: boolean; handoffUrl?: string; expiresAt?: string };
 
@@ -141,21 +149,57 @@ export function SyncStatusPanel({
     setAccessMessage(message);
   }
 
+  async function handleRevokeAccess() {
+    if (!metadata?.supabaseTournamentId || !metadata.organizerToken || !accessState?.tournamentCode) {
+      setAccessMessage(t("remoteOrganizerSyncRequired"));
+      return;
+    }
+
+    setAccessIsLoading(true);
+    setAccessMessage("");
+
+    try {
+      const response = await fetch("/api/supabase/tournament-access/revoke", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tournamentId: metadata.supabaseTournamentId,
+          tournamentCode: accessState.tournamentCode,
+          organizerToken: metadata.organizerToken,
+        }),
+      });
+      const body = await response.json() as { ok?: boolean };
+
+      if (!response.ok || !body.ok) {
+        throw new Error("Access revoke failed.");
+      }
+
+      setAccessState((current) => current ? { ...current, shareToken: undefined, revoked: true } : current);
+      setAccessMessage(t("remoteAccessRevoked"));
+    } catch {
+      setAccessMessage(t("remoteFetchError"));
+    } finally {
+      setAccessIsLoading(false);
+    }
+  }
+
   return (
     <div className={`rounded-md border p-3 text-sm font-bold ${copy.className}`} aria-label="Sync status">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="font-black">{copy.label}</p>
+          <p className="font-black">{t("remoteUnifiedShareTitle")}</p>
+          <p className="mt-1 text-xs font-black">{copy.label}</p>
           <p className="mt-1 text-xs opacity-80">{getStatusDetail(metadata, localId)}</p>
+          {canProvisionAccess && !canManageAccess ? <p className="mt-1 text-xs font-black text-yellow-800">{t("remoteOrganizerSyncRequired")}</p> : null}
         </div>
         <div className="flex flex-wrap gap-2">
           {canProvisionAccess ? (
             <>
-              <button className="rounded-md border border-current px-3 py-2 text-sm font-black disabled:opacity-50" type="button" disabled={accessIsLoading} onClick={handleProvisionHandoff}>
-                {handoffState ? t("remoteGenerateNewQr") : t("remoteViewOnAnotherDevice")}
+              <button className="rounded-md border border-current px-3 py-2 text-sm font-black disabled:opacity-50" type="button" disabled={accessIsLoading || !canManageAccess} onClick={handleProvisionHandoff}>
+                {handoffState ? t("remoteGenerateNewQr") : t("remoteTvLiveScore")}
               </button>
-              <button className="rounded-md border border-current px-3 py-2 text-sm font-black disabled:opacity-50" type="button" disabled={accessIsLoading} onClick={handleProvisionAccess}>
-                {accessState && !accessState.shareToken ? t("remoteGenerateNewAccessCode") : t("remoteAccessInfo")}
+              <button className="rounded-md border border-current px-3 py-2 text-sm font-black disabled:opacity-50" type="button" disabled={accessIsLoading || !canManageAccess} onClick={handleProvisionAccess}>
+                {accessState && !accessState.shareToken ? t("remoteGenerateNewAccessCode") : t("remoteScoreEntryAccess")}
               </button>
             </>
           ) : null}
@@ -168,15 +212,19 @@ export function SyncStatusPanel({
       </div>
       {accessState ? (
         <div className="mt-3 grid gap-3 border-t border-current/20 pt-3 text-xs">
-          <p>{t("remoteAccessOnlyInitialToken")}</p>
+          <div className="grid gap-1">
+            <p className="text-sm font-black">{t("remoteScoreEntryAccess")}</p>
+            <p>{accessState.revoked ? t("remoteAccessRevoked") : t("remoteScoreEntryWarning")}</p>
+            <p>{t("remoteAccessOnlyInitialToken")}</p>
+          </div>
           <div className="grid gap-2 sm:grid-cols-2">
             <div className="rounded-md border border-current/20 bg-white/60 p-3">
               <p className="font-black">{t("remoteTournamentCode")}</p>
               <div className="mt-2 flex items-center justify-between gap-2">
                 <code className="font-mono text-sm">{accessState.tournamentCode}</code>
-                <button className="rounded-md border border-current px-2 py-1 font-black" type="button" onClick={() => copyValue(accessState.tournamentCode, t("remoteCodeCopied"))}>
-                  {t("remoteCopy")}
-                </button>
+                  <button className="rounded-md border border-current px-2 py-1 font-black" type="button" onClick={() => copyValue(accessState.tournamentCode, t("remoteCodeCopied"))}>
+                    {t("remoteCopy")}
+                  </button>
               </div>
             </div>
             <div className="rounded-md border border-current/20 bg-white/60 p-3">
@@ -193,21 +241,39 @@ export function SyncStatusPanel({
               )}
             </div>
           </div>
+          {scoreEntryUrl ? (
+            <div className="rounded-md border border-current/20 bg-white/60 p-3">
+              <p className="font-black">{t("remoteScoreEntryLink")}</p>
+              <input className="mt-2 min-h-12 w-full rounded-md border border-current/20 bg-white/70 p-3 font-mono text-xs" readOnly value={scoreEntryUrl} />
+              <button className="mt-2 rounded-md border border-current px-3 py-2 font-black" type="button" onClick={() => copyValue(scoreEntryUrl, t("remoteHandoffLinkCopied"))}>
+                {t("copyLink")}
+              </button>
+            </div>
+          ) : null}
+          <div className="flex flex-wrap gap-2">
+            <button className="rounded-md border border-current px-3 py-2 font-black disabled:opacity-50" type="button" disabled={accessIsLoading || !canManageAccess} onClick={handleProvisionAccess}>
+              {t("remoteGenerateNewAccessCode")}
+            </button>
+            <button className="rounded-md border border-red-600 px-3 py-2 font-black text-red-700 disabled:opacity-50" type="button" disabled={accessIsLoading || !canManageAccess || !accessState.tournamentCode || accessState.revoked} onClick={handleRevokeAccess}>
+              {t("remoteRevokeAccess")}
+            </button>
+          </div>
         </div>
       ) : null}
-      {handoffState ? (
+      {handoffState && tvQrCode ? (
         <div className="mt-3 grid gap-3 border-t border-current/20 pt-3 text-xs">
           <div>
-            <p className="font-black">{t("remoteViewOnAnotherDevice")}</p>
-            <p className="mt-1 opacity-80">{t("remoteQrHelp")}</p>
+            <p className="font-black">{t("remoteTvLiveScore")}</p>
+            <p className="mt-1 opacity-80">{t("remoteTvReadOnlyHelp")}</p>
+            <p className="mt-1 opacity-80">{t("remoteQrValidTenMinutes")}</p>
           </div>
           <div className="grid gap-3 md:grid-cols-[minmax(180px,260px)_1fr] md:items-center">
-            <QrSvg modules={handoffState.qrCode.modules} size={handoffState.qrCode.size} label={t("remoteQrAlt")} />
+            <QrSvg modules={tvQrCode.modules} size={tvQrCode.size} label={t("remoteQrAlt")} />
             <div className="grid gap-2">
               <p className="font-black">{t("remoteQrExpiresAt")}: {formatSyncTime(handoffState.expiresAt)}</p>
-              <input className="min-h-12 rounded-md border border-current/20 bg-white/70 p-3 font-mono text-xs" readOnly value={handoffState.handoffUrl} />
+              <input className="min-h-12 rounded-md border border-current/20 bg-white/70 p-3 font-mono text-xs" readOnly value={tvHandoffUrl} />
               <div className="action-grid">
-                <button className="rounded-md border border-current px-3 py-2 font-black" type="button" onClick={() => copyValue(handoffState.handoffUrl, t("remoteHandoffLinkCopied"))}>
+                <button className="rounded-md border border-current px-3 py-2 font-black" type="button" onClick={() => copyValue(tvHandoffUrl, t("remoteHandoffLinkCopied"))}>
                   {t("copyLink")}
                 </button>
                 <button className="rounded-md border border-current px-3 py-2 font-black disabled:opacity-50" type="button" disabled={accessIsLoading} onClick={handleProvisionHandoff}>
@@ -293,4 +359,24 @@ function formatSyncTime(value?: string): string {
   }
 
   return new Intl.DateTimeFormat("da-DK", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
+}
+
+function createRemoteUrl(origin: string, options: { code?: string; display?: "tv" | "scoreboard" }): string {
+  const url = new URL("/remote", origin);
+
+  if (options.code) {
+    url.searchParams.set("code", options.code);
+  }
+
+  if (options.display) {
+    url.searchParams.set("display", options.display);
+  }
+
+  return url.toString();
+}
+
+function withRemoteDisplayMode(value: string, display: "tv" | "scoreboard"): string {
+  const url = new URL(value);
+  url.searchParams.set("display", display);
+  return url.toString();
 }

@@ -850,6 +850,7 @@ describe("STEP 13 remote read-only UI", () => {
         kind: "standard",
         status: "synced",
         supabaseTournamentId: "00000000-0000-4000-8000-000000000013",
+        organizerToken: "ORGANIZER_TOKEN",
       },
     }));
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
@@ -864,13 +865,15 @@ describe("STEP 13 remote read-only UI", () => {
     });
 
     render(<SyncStatusPanel kind="standard" localId="mock americano-americano" state={state} />);
-    fireEvent.click(screen.getByRole("button", { name: "Adgang til anden enhed" }));
+    fireEvent.click(screen.getByRole("button", { name: "Scoreindtastning" }));
 
     expect(await screen.findByText("K7M4XP")).toBeInTheDocument();
     expect(screen.getByText("0427")).toBeInTheDocument();
+    expect(screen.getByText("Del kun denne kode med personer, der må ændre kampresultater.")).toBeInTheDocument();
     expect(screen.queryByText("************")).not.toBeInTheDocument();
     fireEvent.click(screen.getAllByRole("button", { name: "Kopiér" })[1]);
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("0427"));
+    expect(JSON.parse((vi.mocked(fetch).mock.calls[0][1] as RequestInit).body as string)).toMatchObject({ organizerToken: "ORGANIZER_TOKEN" });
   });
 
   it("renews access from Device A when an existing PIN cannot be shown again", async () => {
@@ -881,6 +884,7 @@ describe("STEP 13 remote read-only UI", () => {
         kind: "standard",
         status: "synced",
         supabaseTournamentId: "00000000-0000-4000-8000-000000000013",
+        organizerToken: "ORGANIZER_TOKEN",
       },
     }));
     vi.stubGlobal("fetch", vi.fn()
@@ -895,11 +899,11 @@ describe("STEP 13 remote read-only UI", () => {
       }), { status: 200 })));
 
     render(<SyncStatusPanel kind="standard" localId="mock americano-americano" state={state} />);
-    fireEvent.click(screen.getByRole("button", { name: "Adgang til anden enhed" }));
+    fireEvent.click(screen.getByRole("button", { name: "Scoreindtastning" }));
 
     expect(await screen.findByText("SXVQUX")).toBeInTheDocument();
     expect(screen.getAllByText("Adgangskoden kunne ikke vises igen. Opret en ny adgang senere, hvis den er væk.").length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: "Generér ny adgangskode" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Generér ny adgangskode" })[1]);
 
     expect(await screen.findByText("4827")).toBeInTheDocument();
     expect(screen.queryByText("Adgangskoden kunne ikke vises igen. Opret en ny adgang senere, hvis den er væk.")).not.toBeInTheDocument();
@@ -913,6 +917,7 @@ describe("STEP 13 remote read-only UI", () => {
         kind: "standard",
         status: "synced",
         supabaseTournamentId: "00000000-0000-4000-8000-000000000014",
+        organizerToken: "ORGANIZER_TOKEN",
       },
     }));
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
@@ -922,11 +927,12 @@ describe("STEP 13 remote read-only UI", () => {
     }), { status: 200 })));
 
     render(<SyncStatusPanel kind="standard" localId="mock americano-americano" state={state} />);
-    fireEvent.click(screen.getByRole("button", { name: "Vis på anden enhed" }));
+    fireEvent.click(screen.getByRole("button", { name: "TV / Livescore" }));
 
     expect(await screen.findByRole("img", { name: "QR-kode til skrivebeskyttet turnering" })).toBeInTheDocument();
-    expect(screen.getByText("Scan QR-koden med en anden enhed for at åbne turneringen.")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("http://localhost/remote/handoff/STEP_14_TEST_REFERENCE_WITH_ENTROPY_1234567890")).toBeInTheDocument();
+    expect(screen.getByText("Scan QR-koden på TV/tablet for at åbne en skrivebeskyttet livescore-visning.")).toBeInTheDocument();
+    expect(screen.getByText("QR-linket er gyldigt i cirka 10 minutter og kan bruges igen indtil udløb.")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("http://localhost/remote/handoff/STEP_14_TEST_REFERENCE_WITH_ENTROPY_1234567890?display=scoreboard")).toBeInTheDocument();
     expect(screen.queryByText("STEP_13_TEST_SECRET_TOKEN")).not.toBeInTheDocument();
   });
 

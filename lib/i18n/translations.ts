@@ -98,6 +98,7 @@ export type TranslationKey =
   | "remoteAccessInfo"
   | "remoteAccessOnlyInitialToken"
   | "remoteAccessReady"
+  | "remoteAccessRevoked"
   | "remoteAutomaticAdvance"
   | "remoteAutoSyncError"
   | "remoteCloseView"
@@ -130,11 +131,15 @@ export type TranslationKey =
   | "remoteQrExpiresAt"
   | "remoteQrHelp"
   | "remoteQrReady"
+  | "remoteQrValidTenMinutes"
   | "remoteReadOnlyBanner"
   | "remoteReadOnlyHelp"
   | "remoteReadOnlyShort"
   | "remoteScoreEntryBanner"
   | "remoteScoreEntryShort"
+  | "remoteScoreEntryAccess"
+  | "remoteScoreEntryLink"
+  | "remoteScoreEntryWarning"
   | "remoteScoreAutomatic"
   | "remoteScoreConflictError"
   | "remoteScoreNetworkError"
@@ -144,6 +149,7 @@ export type TranslationKey =
   | "remoteRefresh"
   | "remoteShareToken"
   | "remoteShareTokenCopied"
+  | "remoteShareUnifiedHelp"
   | "remoteShowToken"
   | "remoteSessionDenied"
   | "remoteSessionExpired"
@@ -165,6 +171,11 @@ export type TranslationKey =
   | "remoteTournamentOpened"
   | "remoteTeamsAndCaptains"
   | "remoteTvMode"
+  | "remoteTvLiveScore"
+  | "remoteTvReadOnlyHelp"
+  | "remoteUnifiedShareTitle"
+  | "remoteOrganizerSyncRequired"
+  | "remoteRevokeAccess"
   | "remoteViewOnAnotherDevice"
   | "save"
   | "seeFinalStandings"
@@ -301,6 +312,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteAccessInfo: "Adgang til anden enhed",
     remoteAccessOnlyInitialToken: "Adgangskoden vises kun, når adgangen oprettes. Gem den sikkert uden for appen.",
     remoteAccessReady: "Adgang oprettet.",
+    remoteAccessRevoked: "Remote scoreadgang er lukket.",
     remoteAutomaticAdvance: "Automatisk videre",
     remoteAutoSyncError: "Live-opdatering kunne ikke hente nyeste version. Seneste viste turnering er bevaret.",
     remoteCloseView: "Luk visning",
@@ -333,11 +345,15 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteQrFuture: "QR-handoff kan senere bruge samme kode og en sikker engangsreference uden at gemme adgangskoden i databasen.",
     remoteQrHelp: "Scan QR-koden med en anden enhed for at åbne turneringen.",
     remoteQrReady: "QR-kode klar.",
+    remoteQrValidTenMinutes: "QR-linket er gyldigt i cirka 10 minutter og kan bruges igen indtil udløb.",
     remoteReadOnlyBanner: "Visning fra anden enhed - skrivebeskyttet",
     remoteReadOnlyHelp: "Du kan se live score og stilling, men denne visning kan ikke gemme, redigere eller overskrive lokale turneringer.",
     remoteReadOnlyShort: "Skrivebeskyttet",
     remoteScoreEntryBanner: "Visning fra anden enhed - scoreindtastning aktiv",
     remoteScoreEntryShort: "Score aktiv",
+    remoteScoreEntryAccess: "Scoreindtastning",
+    remoteScoreEntryLink: "Link til scoreindtastning",
+    remoteScoreEntryWarning: "Del kun denne kode med personer, der må ændre kampresultater.",
     remoteScoreAutomatic: "Automatisk",
     remoteScoreConflictError: "Resultatet er blevet ændret fra en anden enhed. Hent seneste version og prøv igen.",
     remoteScoreNetworkError: "Forbindelsen blev afbrudt. Prøv igen.",
@@ -347,6 +363,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteRefresh: "Opdater",
     remoteShareToken: "Adgangskode",
     remoteShareTokenCopied: "Adgangskode kopieret.",
+    remoteShareUnifiedHelp: "Opret scoreindtastning til en telefon/tablet eller en skrivebeskyttet TV/livescore-visning.",
     remoteShowToken: "Vis",
     remoteSessionDenied: "Remote-sessionen er ikke længere gyldig. Generér en ny QR-kode eller åbn en ny forbindelse.",
     remoteSessionExpired: "Remote-sessionen er udløbet. Generér en ny QR-kode eller åbn en ny forbindelse.",
@@ -368,6 +385,11 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteTournamentOpened: "Turnering åbnet.",
     remoteTeamsAndCaptains: "Hold og kaptajner",
     remoteTvMode: "TV-visning",
+    remoteTvLiveScore: "TV / Livescore",
+    remoteTvReadOnlyHelp: "Scan QR-koden på TV/tablet for at åbne en skrivebeskyttet livescore-visning.",
+    remoteUnifiedShareTitle: "Del / vis på anden enhed",
+    remoteOrganizerSyncRequired: "Gem/synkroniser turneringen fra hovedenheden, før adgang kan oprettes.",
+    remoteRevokeAccess: "Luk scoreadgang",
     remoteViewOnAnotherDevice: "Vis på anden enhed",
     save: "Gem",
     seeFinalStandings: "Se slutstilling",
@@ -503,6 +525,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteAccessInfo: "Access for another device",
     remoteAccessOnlyInitialToken: "The access code is only shown when access is created. Store it safely outside the app.",
     remoteAccessReady: "Access created.",
+    remoteAccessRevoked: "Remote score access has been closed.",
     remoteAutomaticAdvance: "Automatic advance",
     remoteAutoSyncError: "Live sync could not fetch the latest version. The last shown tournament is kept.",
     remoteCloseView: "Close view",
@@ -535,11 +558,15 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteQrFuture: "A later QR handoff can use the same code and a secure one-time reference without storing the access code in the database.",
     remoteQrHelp: "Scan the QR code with another device to open the tournament.",
     remoteQrReady: "QR code ready.",
+    remoteQrValidTenMinutes: "The QR link is valid for about 10 minutes and can be reused until it expires.",
     remoteReadOnlyBanner: "Opened from another device - read only",
     remoteReadOnlyHelp: "You can view live score and standings, but this view cannot save, edit or overwrite local tournaments.",
     remoteReadOnlyShort: "Read only",
     remoteScoreEntryBanner: "Opened from another device - score entry active",
     remoteScoreEntryShort: "Score active",
+    remoteScoreEntryAccess: "Score entry",
+    remoteScoreEntryLink: "Score entry link",
+    remoteScoreEntryWarning: "Only share this code with people who may change match scores.",
     remoteScoreAutomatic: "Automatic",
     remoteScoreConflictError: "The result was changed from another device. Load the latest version and try again.",
     remoteScoreNetworkError: "The connection was interrupted. Try again.",
@@ -549,6 +576,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteRefresh: "Refresh",
     remoteShareToken: "Access code",
     remoteShareTokenCopied: "Access code copied.",
+    remoteShareUnifiedHelp: "Create score entry for a phone/tablet or a read-only TV/live score view.",
     remoteShowToken: "Show",
     remoteSessionDenied: "The remote session is no longer valid. Generate a new QR code or open a new connection.",
     remoteSessionExpired: "The remote session has expired. Generate a new QR code or open a new connection.",
@@ -570,6 +598,11 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteTournamentOpened: "Tournament opened.",
     remoteTeamsAndCaptains: "Teams and captains",
     remoteTvMode: "TV View",
+    remoteTvLiveScore: "TV / Live score",
+    remoteTvReadOnlyHelp: "Scan the QR code on a TV/tablet to open a read-only live score view.",
+    remoteUnifiedShareTitle: "Share / show on another device",
+    remoteOrganizerSyncRequired: "Save/sync the tournament from the main device before creating access.",
+    remoteRevokeAccess: "Close score access",
     remoteViewOnAnotherDevice: "View on another device",
     save: "Save",
     seeFinalStandings: "See final standings",

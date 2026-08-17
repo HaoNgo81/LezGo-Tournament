@@ -101,7 +101,7 @@ export function RemoteTournamentApp({ initialHandoffReference }: { initialHandof
   const scoreSaveInFlightRef = useRef(false);
   const pollGenerationRef = useRef(0);
   const syncTelemetryRef = useRef<RemoteSyncTelemetry>({ consecutiveFailures: 0 });
-  const [tournamentCode, setTournamentCode] = useState("");
+  const [tournamentCode, setTournamentCode] = useState(() => getInitialRemoteTournamentCode());
   const [shareToken, setShareToken] = useState("");
   const [showToken, setShowToken] = useState(false);
   const [session, setSession] = useState<RemoteTournamentSession | null>(null);
@@ -1806,6 +1806,15 @@ function getInitialRemoteDisplayMode(): RemoteDisplayMode {
   const display = new URLSearchParams(window.location.search).get("display");
 
   return display === "scoreboard" || display === "tv" ? display : "standard";
+}
+
+function getInitialRemoteTournamentCode(): string {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  const code = new URLSearchParams(window.location.search).get("code") ?? "";
+  return normalizeTournamentCodeInput(code);
 }
 
 function formatLiveTournamentFormat(format: LiveTournamentState["format"], t: (key: TranslationKey) => string): string {

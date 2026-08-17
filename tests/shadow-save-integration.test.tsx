@@ -80,6 +80,7 @@ describe("STEP 10 shadow-save integration", () => {
       status: "synced",
       supabaseTournamentId: "00000000-0000-4000-8000-000000000010",
       lastShadowSaveVersion: "2026-08-13T08:01:00.000Z",
+      organizerToken: "STEP_24B_ORGANIZER_TOKEN",
     });
   });
 
@@ -227,7 +228,7 @@ describe("STEP 10 shadow-save integration", () => {
 });
 
 function createShadowSaveResponse(body: { tournamentId: string; updatedAt: string }): Response {
-  return new Response(JSON.stringify({ ok: true, saveMode: "insert", ...body }), { status: 200 });
+  return new Response(JSON.stringify({ ok: true, saveMode: "insert", organizerToken: "STEP_24B_ORGANIZER_TOKEN", ...body }), { status: 200 });
 }
 
 async function flushShadowSaveQueue(): Promise<void> {

@@ -186,6 +186,29 @@ describe("STEP 23A remote score API", () => {
     expect(await response.json()).toMatchObject({ ok: false, error: "Conflict: newer version exists." });
   });
 
+  it("rate limits repeated score writes per tournament code", async () => {
+    const state = createMockLiveTournamentState();
+    repositoryMocks.readByAccess.mockResolvedValue({
+      tournamentId: "00000000-0000-4000-8000-000000000026",
+      accessId: "access-26",
+      tournamentCode: "RATE24",
+      tokenVersion: 1,
+      kind: "standard",
+      state,
+    });
+    repositoryMocks.save.mockResolvedValue({ tournamentId: "00000000-0000-4000-8000-000000000026", updatedAt: "2026-08-13T12:00:05.000Z" });
+
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      const response = await POST(createScoreRequest("RATE24", state.rounds[0].matches[0].id));
+      expect(response.status).toBe(200);
+    }
+
+    const limitedResponse = await POST(createScoreRequest("RATE24", state.rounds[0].matches[0].id));
+
+    expect(limitedResponse.status).toBe(429);
+    expect(await limitedResponse.json()).toMatchObject({ ok: false, error: "Too many score attempts." });
+  });
+
   it("does not expose the route when tournament access is disabled", async () => {
     process.env.LEZGO_ENABLE_SUPABASE_ACCESS = "0";
 
@@ -205,3 +228,17 @@ describe("STEP 23A remote score API", () => {
     expect(repositoryMocks.save).not.toHaveBeenCalled();
   });
 });
+
+function createScoreRequest(tournamentCode: string, matchId: string): Request {
+  return new Request("http://localhost/api/supabase/tournament-access/score", {
+    method: "POST",
+    headers: { "x-forwarded-for": "remote-score-rate-limit-test" },
+    body: JSON.stringify({
+      tournamentCode,
+      shareToken: "2222",
+      matchId,
+      teamAPoints: 17,
+      teamBPoints: 7,
+    }),
+  });
+}

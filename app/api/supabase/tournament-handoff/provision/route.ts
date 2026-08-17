@@ -1,9 +1,10 @@
-import { createTournamentHandoffRepository, TournamentHandoffError, toHandoffError } from "@/lib/database";
+import { assertOrganizerToken, createTournamentHandoffRepository, OrganizerTokenError, TournamentHandoffError, toHandoffError } from "@/lib/database";
 
 export const dynamic = "force-dynamic";
 
 interface ProvisionHandoffRequest {
   tournamentId?: string;
+  organizerToken?: string;
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -24,6 +25,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
+    assertOrganizerToken(body.organizerToken, { tournamentId: body.tournamentId });
     const result = await createTournamentHandoffRepository().provision(body.tournamentId);
     const handoffUrl = createHandoffUrl(request, result.handoffReference);
 
@@ -35,6 +37,10 @@ export async function POST(request: Request): Promise<Response> {
       expiresAt: result.expiresAt,
     });
   } catch (error) {
+    if (error instanceof OrganizerTokenError) {
+      return Response.json({ ok: false, error: "Organizer authorization was denied." }, { status: error.status });
+    }
+
     const handoffError = error instanceof TournamentHandoffError ? error : toHandoffError("Could not provision tournament handoff.", error);
     return Response.json({ ok: false, error: handoffError.message }, { status: handoffError.status });
   }

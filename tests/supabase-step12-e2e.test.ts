@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { POST as provisionAccess } from "../app/api/supabase/tournament-access/provision/route";
 import { POST as readAccess } from "../app/api/supabase/tournament-access/read/route";
 import { saveMatchResult, type LiveTournamentState } from "../lib/live-scoring";
-import { createStandardTournamentRepository, createTeamVsTeamTournamentRepository, createTournamentAccessRepository } from "../lib/database";
+import { createOrganizerToken, createStandardTournamentRepository, createTeamVsTeamTournamentRepository, createTournamentAccessRepository } from "../lib/database";
 import { advanceLivePoolPlayState, saveInitialPoolResult } from "../lib/live-scoring";
 import { createPoolTournamentFromSetup, createTeamVsTeamTournamentFromSetup, createTournamentFromSetup, type TeamVsTeamTournamentState } from "../lib/tournament-setup";
 
@@ -37,7 +37,7 @@ describeE2E("STEP 12 secure tournament access", () => {
     const standardState = createStandardState();
     const savedStandard = await standardRepository.save(standardState, { legacyLocalId: `STEP_12_TEST_STANDARD_${Date.now()}` });
     createdIds.push(savedStandard.tournamentId);
-    const standardAccess = await provision(savedStandard.tournamentId);
+    const standardAccess = await provision(savedStandard.tournamentId, createOrganizerToken({ tournamentId: savedStandard.tournamentId, kind: "standard", legacyLocalId: "STEP_12_ORGANIZER" }));
     expect(standardAccess.tournamentCode).toMatch(/^[A-HJ-NP-Z2-9]{6}$/);
     expect(standardAccess.shareToken).toBeTruthy();
     if (!standardAccess.shareToken) throw new Error("Missing standard share token.");
@@ -46,7 +46,7 @@ describeE2E("STEP 12 secure tournament access", () => {
     expect(standardRead.kind).toBe("standard");
     expect(standardRead.state).toEqual(standardState);
 
-    const repeatedProvision = await provision(savedStandard.tournamentId);
+    const repeatedProvision = await provision(savedStandard.tournamentId, createOrganizerToken({ tournamentId: savedStandard.tournamentId, kind: "standard", legacyLocalId: "STEP_12_ORGANIZER" }));
     expect(repeatedProvision.tournamentCode).toBe(standardAccess.tournamentCode);
     expect(repeatedProvision.shareToken).toMatch(/^\d{4}$/);
     expect(repeatedProvision.tokenVersion).toBe(standardAccess.tokenVersion + 1);
@@ -60,7 +60,7 @@ describeE2E("STEP 12 secure tournament access", () => {
     const poolState = createLaterStagePoolState();
     const savedPool = await standardRepository.save(poolState, { legacyLocalId: `STEP_12_TEST_POOL_${Date.now()}` });
     createdIds.push(savedPool.tournamentId);
-    const poolAccess = await provision(savedPool.tournamentId);
+    const poolAccess = await provision(savedPool.tournamentId, createOrganizerToken({ tournamentId: savedPool.tournamentId, kind: "standard", legacyLocalId: "STEP_12_POOL_ORGANIZER" }));
     if (!poolAccess.shareToken) throw new Error("Missing pool share token.");
     const poolRead = await read(poolAccess.tournamentCode.toLocaleLowerCase("en"), poolAccess.shareToken);
     expect(poolRead.kind).toBe("standard");
@@ -69,7 +69,7 @@ describeE2E("STEP 12 secure tournament access", () => {
     const teamState = createTeamState();
     const savedTeam = await teamRepository.save(teamState, { legacyLocalId: `STEP_12_TEST_TEAM_${Date.now()}` });
     createdIds.push(savedTeam.tournamentId);
-    const teamAccess = await provision(savedTeam.tournamentId);
+    const teamAccess = await provision(savedTeam.tournamentId, createOrganizerToken({ tournamentId: savedTeam.tournamentId, kind: "team-vs-team", legacyLocalId: "STEP_12_TEAM_ORGANIZER" }));
     if (!teamAccess.shareToken) throw new Error("Missing Team vs Team share token.");
     const teamRead = await read(teamAccess.tournamentCode, teamAccess.shareToken);
     expect(teamRead.kind).toBe("team-vs-team");
@@ -80,10 +80,10 @@ describeE2E("STEP 12 secure tournament access", () => {
   }, 40000);
 });
 
-async function provision(tournamentId: string): Promise<{ tournamentCode: string; shareToken?: string; tokenVersion: number }> {
+async function provision(tournamentId: string, organizerToken: string): Promise<{ tournamentCode: string; shareToken?: string; tokenVersion: number }> {
   const response = await provisionAccess(new Request("http://localhost/api/supabase/tournament-access/provision", {
     method: "POST",
-    body: JSON.stringify({ tournamentId }),
+    body: JSON.stringify({ tournamentId, organizerToken }),
   }));
   const body = await response.json() as { ok: boolean; tournamentCode?: string; shareToken?: string; tokenVersion?: number; error?: string };
 
