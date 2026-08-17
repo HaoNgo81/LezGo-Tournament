@@ -197,7 +197,7 @@ async function performShadowSave({ kind, localId, state }: { kind: ShadowSaveKin
   }
 }
 
-function isShadowSaveEnabled(): boolean {
+export function isShadowSaveEnabled(): boolean {
   return process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE === "1";
 }
 

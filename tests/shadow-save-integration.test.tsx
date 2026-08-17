@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SyncStatusPanel } from "../components/tournament/sync-status-panel";
 import { createMockLiveTournamentState } from "../lib/live-scoring";
@@ -27,6 +27,7 @@ describe("STEP 10 shadow-save integration", () => {
     } else {
       process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE = originalFlag;
     }
+    cleanup();
     vi.restoreAllMocks();
   });
 
@@ -53,7 +54,39 @@ describe("STEP 10 shadow-save integration", () => {
     render(<SyncStatusPanel kind="standard" localId="mock americano-americano" state={state} />);
 
     expect(screen.getByLabelText("Sync status")).toHaveTextContent("Kun gemt lokalt");
+    expect(screen.getByRole("button", { name: "Aktivér deling" })).toBeInTheDocument();
     expect(loadActiveTournament()).toEqual(state);
+  });
+
+  it("activates sharing from a local-only tournament and then exposes score and TV controls", async () => {
+    process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE = "1";
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(createShadowSaveResponse({
+      tournamentId: "00000000-0000-4000-8000-000000000060",
+      updatedAt: "2026-08-13T10:00:00.000Z",
+    })));
+    vi.stubGlobal("fetch", fetchMock);
+    const state = createMockLiveTournamentState();
+
+    saveActiveTournament(state);
+    await flushShadowSaveQueue();
+    window.localStorage.setItem("lezgo.shadowSaveMetadata.v1", JSON.stringify({
+      "mock americano-americano": {
+        localId: "mock americano-americano",
+        kind: "standard",
+        status: "local-only",
+      },
+    }));
+
+    render(<SyncStatusPanel kind="standard" localId="mock americano-americano" state={state} />);
+    fireEvent.click(screen.getByRole("button", { name: "Aktivér deling" }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Scoreindtastning" })).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "TV / Livescore" })).toBeInTheDocument();
+    expect(loadShadowSaveMetadata("mock americano-americano")).toMatchObject({
+      status: "synced",
+      supabaseTournamentId: "00000000-0000-4000-8000-000000000060",
+      organizerToken: "STEP_24B_ORGANIZER_TOKEN",
+    });
   });
 
   it("stores Supabase mapping and reuses the same tournament id on later saves", async () => {

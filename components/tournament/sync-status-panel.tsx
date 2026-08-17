@@ -9,6 +9,7 @@ import {
   retryStandardTournamentShadowSave,
   retryTeamVsTeamShadowSave,
   shadowSaveMetadataChangedEvent,
+  isShadowSaveEnabled,
   type ShadowSaveKind,
   type ShadowSaveMetadata,
   type TeamVsTeamTournamentState,
@@ -62,6 +63,7 @@ export function SyncStatusPanel({
   const canRetry = status === "error";
   const canProvisionAccess = Boolean(metadata?.supabaseTournamentId);
   const canManageAccess = Boolean(metadata?.supabaseTournamentId && metadata?.organizerToken);
+  const canActivateSharing = !canProvisionAccess && status !== "syncing" && status !== "conflict";
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   const scoreEntryUrl = origin && accessState?.tournamentCode ? createRemoteUrl(origin, { code: accessState.tournamentCode }) : "";
   const tvHandoffUrl = handoffState?.handoffUrl ? withRemoteDisplayMode(handoffState.handoffUrl, "scoreboard") : "";
@@ -74,6 +76,16 @@ export function SyncStatusPanel({
     }
 
     retryTeamVsTeamShadowSave(localId, state as TeamVsTeamTournamentState);
+  }
+
+  function handleActivateSharing() {
+    if (!isShadowSaveEnabled()) {
+      setAccessMessage(t("remoteSharingNotEnabled"));
+      return;
+    }
+
+    setAccessMessage("");
+    handleRetry();
   }
 
   async function handleProvisionAccess() {
@@ -202,6 +214,11 @@ export function SyncStatusPanel({
                 {accessState && !accessState.shareToken ? t("remoteGenerateNewAccessCode") : t("remoteScoreEntryAccess")}
               </button>
             </>
+          ) : null}
+          {canActivateSharing ? (
+            <button className="rounded-md border border-current px-3 py-2 text-sm font-black" type="button" onClick={handleActivateSharing}>
+              {t("remoteActivateSharing")}
+            </button>
           ) : null}
           {canRetry ? (
             <button className="rounded-md border border-current px-3 py-2 text-sm font-black" type="button" onClick={handleRetry}>

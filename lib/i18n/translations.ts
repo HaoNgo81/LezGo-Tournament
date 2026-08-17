@@ -99,6 +99,7 @@ export type TranslationKey =
   | "remoteAccessOnlyInitialToken"
   | "remoteAccessReady"
   | "remoteAccessRevoked"
+  | "remoteActivateSharing"
   | "remoteAutomaticAdvance"
   | "remoteAutoSyncError"
   | "remoteCloseView"
@@ -150,6 +151,7 @@ export type TranslationKey =
   | "remoteShareToken"
   | "remoteShareTokenCopied"
   | "remoteShareUnifiedHelp"
+  | "remoteSharingNotEnabled"
   | "remoteShowToken"
   | "remoteSessionDenied"
   | "remoteSessionExpired"
@@ -313,6 +315,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteAccessOnlyInitialToken: "Adgangskoden vises kun, når adgangen oprettes. Gem den sikkert uden for appen.",
     remoteAccessReady: "Adgang oprettet.",
     remoteAccessRevoked: "Remote scoreadgang er lukket.",
+    remoteActivateSharing: "Aktivér deling",
     remoteAutomaticAdvance: "Automatisk videre",
     remoteAutoSyncError: "Live-opdatering kunne ikke hente nyeste version. Seneste viste turnering er bevaret.",
     remoteCloseView: "Luk visning",
@@ -364,6 +367,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteShareToken: "Adgangskode",
     remoteShareTokenCopied: "Adgangskode kopieret.",
     remoteShareUnifiedHelp: "Opret scoreindtastning til en telefon/tablet eller en skrivebeskyttet TV/livescore-visning.",
+    remoteSharingNotEnabled: "Supabase-deling er ikke slået til i dette miljø.",
     remoteShowToken: "Vis",
     remoteSessionDenied: "Remote-sessionen er ikke længere gyldig. Generér en ny QR-kode eller åbn en ny forbindelse.",
     remoteSessionExpired: "Remote-sessionen er udløbet. Generér en ny QR-kode eller åbn en ny forbindelse.",
@@ -526,6 +530,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteAccessOnlyInitialToken: "The access code is only shown when access is created. Store it safely outside the app.",
     remoteAccessReady: "Access created.",
     remoteAccessRevoked: "Remote score access has been closed.",
+    remoteActivateSharing: "Activate sharing",
     remoteAutomaticAdvance: "Automatic advance",
     remoteAutoSyncError: "Live sync could not fetch the latest version. The last shown tournament is kept.",
     remoteCloseView: "Close view",
@@ -577,6 +582,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteShareToken: "Access code",
     remoteShareTokenCopied: "Access code copied.",
     remoteShareUnifiedHelp: "Create score entry for a phone/tablet or a read-only TV/live score view.",
+    remoteSharingNotEnabled: "Supabase sharing is not enabled in this environment.",
     remoteShowToken: "Show",
     remoteSessionDenied: "The remote session is no longer valid. Generate a new QR code or open a new connection.",
     remoteSessionExpired: "The remote session has expired. Generate a new QR code or open a new connection.",
