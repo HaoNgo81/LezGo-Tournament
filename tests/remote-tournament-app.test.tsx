@@ -92,7 +92,7 @@ describe("STEP 13 remote read-only UI", () => {
       expectedUpdatedAt: "2026-08-13T12:00:00.000Z",
     });
     expect(await screen.findByText("Score gemt.")).toBeInTheDocument();
-    expect(screen.getByText("17 - 7")).toBeInTheDocument();
+    expectStandardRemoteScore("17", "7");
   });
 
   it("blocks duplicate remote score writes while a save request is pending", async () => {
@@ -126,7 +126,7 @@ describe("STEP 13 remote read-only UI", () => {
 
     deferredSave.resolve(createReadResponse("standard", updatedState, "2026-08-13T12:00:05.000Z"));
     expect(await screen.findByText("Score gemt.")).toBeInTheDocument();
-    expect(screen.getByText("17 - 7")).toBeInTheDocument();
+    expectStandardRemoteScore("17", "7");
   });
 
   it("cancels remote score entry without writing", async () => {
@@ -184,7 +184,7 @@ describe("STEP 13 remote read-only UI", () => {
       teamBPoints: 9,
       expectedUpdatedAt: "2026-08-13T12:00:00.000Z",
     });
-    expect(await screen.findByText("15 - 9")).toBeInTheDocument();
+    await waitFor(() => expectStandardRemoteScore("15", "9"));
   });
 
   it("accepts both score inputs for free-scoring remote tournaments", async () => {
@@ -218,7 +218,7 @@ describe("STEP 13 remote read-only UI", () => {
       teamAPoints: 17,
       teamBPoints: 14,
     });
-    expect(await screen.findByText("17 - 14")).toBeInTheDocument();
+    await waitFor(() => expectStandardRemoteScore("17", "14"));
   });
 
   it("keeps invalid fixed-total remote score input client-side without saving", async () => {
@@ -310,7 +310,7 @@ describe("STEP 13 remote read-only UI", () => {
     expect(screen.getByRole("button", { name: "Gem score" })).not.toBeDisabled();
 
     fireEvent.click(screen.getByRole("button", { name: "Gem score" }));
-    expect(await screen.findByText("17 - 7")).toBeInTheDocument();
+    await waitFor(() => expectStandardRemoteScore("17", "7"));
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
@@ -357,12 +357,24 @@ describe("STEP 13 remote read-only UI", () => {
     expect(screen.getByTestId("standard-remote-standings")).toBeInTheDocument();
 
     const firstCard = screen.getAllByTestId("standard-remote-court-card")[0];
+    expect(firstCard).toHaveAttribute("data-dom-structure", "split-scoreboard");
+    expect(within(firstCard).getByTestId("standard-remote-matchup")).toHaveAttribute("data-layout", "split-scoreboard-symmetric");
+    expect(within(firstCard).getByTestId("standard-remote-left-team")).toHaveTextContent("Martin Langgaard");
+    expect(within(firstCard).getByTestId("standard-remote-left-team")).toHaveTextContent("Klaus Nord");
+    expect(within(firstCard).getByTestId("standard-remote-vs")).toHaveTextContent("VS");
+    expect(within(firstCard).getByTestId("standard-remote-right-team")).toHaveTextContent("Lindon West");
+    expect(within(firstCard).getByTestId("standard-remote-right-team")).toHaveTextContent("Aqeel Sønder");
     expect(within(firstCard).getByText("Martin Langgaard")).toBeInTheDocument();
     expect(within(firstCard).getByText("Lindon West")).toBeInTheDocument();
     expect(within(firstCard).getByText("Klaus Nord")).toBeInTheDocument();
     expect(within(firstCard).getByText("Aqeel Sønder")).toBeInTheDocument();
     expect(within(firstCard).getByText("Martin Langgaard")).toHaveStyle({ wordBreak: "normal" });
     expect(within(firstCard).getByText("Klaus Nord")).toHaveStyle({ wordBreak: "normal" });
+    expect(within(firstCard).queryByText("Martin Langgaard / Klaus Nord vs Lindon West / Aqeel Sønder")).not.toBeInTheDocument();
+    expect(within(firstCard).queryByText("Martin Langgaard / Klaus Nord VS Lindon West / Aqeel Sønder")).not.toBeInTheDocument();
+    expect(within(firstCard).getByTestId("standard-remote-unsaved")).toHaveTextContent("Ikke gemt");
+    expect(within(firstCard).queryByTestId("standard-remote-score-row")).not.toBeInTheDocument();
+    expect(within(firstCard).getByRole("button", { name: "Indtast score" })).toBeInTheDocument();
     expect(screen.queryByText("Alle spillere")).not.toBeInTheDocument();
   });
 
@@ -380,14 +392,24 @@ describe("STEP 13 remote read-only UI", () => {
 
     const firstCard = screen.getAllByTestId("standard-remote-court-card")[0];
     expect(firstCard).toHaveAttribute("data-card-style", "scoreboard-mobile");
+    expect(firstCard).toHaveAttribute("data-dom-structure", "split-scoreboard");
     expect(within(firstCard).getByRole("heading", { name: "Bane 1" })).toHaveClass("text-2xl", "text-[var(--primary-strong)]");
     expect(within(firstCard).getByText("Afsluttet")).toBeInTheDocument();
-    expect(within(firstCard).getByTestId("standard-remote-matchup")).toHaveAttribute("data-layout", "scoreboard-symmetric");
+    expect(within(firstCard).getByTestId("standard-remote-matchup")).toHaveAttribute("data-layout", "split-scoreboard-symmetric");
+    expect(within(firstCard).getByTestId("standard-remote-left-team")).toBeInTheDocument();
+    expect(within(firstCard).getByTestId("standard-remote-left-team")).toHaveTextContent("Martin Langgaard");
+    expect(within(firstCard).getByTestId("standard-remote-left-team")).toHaveTextContent("Klaus Nord");
     expect(within(firstCard).getByTestId("standard-remote-vs")).toHaveTextContent("VS");
-    within(firstCard).getAllByTestId("standard-remote-team-center").forEach((team) => {
-      expect(team).toHaveStyle({ wordBreak: "normal" });
+    expect(within(firstCard).getByTestId("standard-remote-right-team")).toBeInTheDocument();
+    expect(within(firstCard).getByTestId("standard-remote-right-team")).toHaveTextContent("Lindon West");
+    expect(within(firstCard).getByTestId("standard-remote-right-team")).toHaveTextContent("Aqeel Sønder");
+    within(firstCard).getAllByTestId(/standard-remote-(left|right)-team-player/).forEach((player) => {
+      expect(player).toHaveStyle({ wordBreak: "normal" });
     });
-    expect(within(firstCard).getByTestId("standard-remote-score-row")).toHaveAttribute("data-layout", "scoreboard-symmetric");
+    expect(within(firstCard).queryByText("Martin Langgaard / Klaus Nord vs Lindon West / Aqeel Sønder")).not.toBeInTheDocument();
+    expect(within(firstCard).queryByText("21 - 5")).not.toBeInTheDocument();
+    expect(within(firstCard).getByTestId("standard-remote-score-row")).toHaveAttribute("data-layout", "split-scoreboard-symmetric");
+    expect(within(firstCard).getByTestId("standard-remote-score-row")).toHaveAccessibleName("Score 21 mod 5");
     expect(within(firstCard).getByTestId("standard-remote-left-score")).toHaveTextContent("21");
     expect(within(firstCard).getByTestId("standard-remote-left-score")).toHaveClass("text-6xl");
     expect(within(firstCard).getByTestId("standard-remote-score-separator")).toHaveTextContent("-");
@@ -411,9 +433,11 @@ describe("STEP 13 remote read-only UI", () => {
     expect(await screen.findByRole("heading", { name: "STEP_23D_TEST Three Digit Score" })).toBeInTheDocument();
 
     const firstCard = screen.getAllByTestId("standard-remote-court-card")[0];
-    expect(within(firstCard).getByTestId("standard-remote-score-row")).toHaveAttribute("data-layout", "scoreboard-symmetric");
+    expect(within(firstCard).getByTestId("standard-remote-score-row")).toHaveAttribute("data-layout", "split-scoreboard-symmetric");
     expect(within(firstCard).getByTestId("standard-remote-left-score")).toHaveTextContent("100");
+    expect(within(firstCard).getByTestId("standard-remote-score-separator")).toHaveTextContent("-");
     expect(within(firstCard).getByTestId("standard-remote-right-score")).toHaveTextContent("98");
+    expect(within(firstCard).queryByText("100 - 98")).not.toBeInTheDocument();
     expect(screen.getByTestId("standard-remote-standings")).toBeInTheDocument();
   });
 
@@ -906,14 +930,14 @@ describe("STEP 13 remote read-only UI", () => {
     await flushPromises();
 
     expect(screen.getByRole("heading", { name: "STEP_15_TEST Live" })).toBeInTheDocument();
-    expect(screen.getByText("17 - 7")).toBeInTheDocument();
+    expectStandardRemoteScore("17", "7");
     expect(screen.getByLabelText("Live-sync status")).toHaveTextContent("Live");
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(4000);
     });
 
-    expect(screen.getByText("20 - 4")).toBeInTheDocument();
+    expectStandardRemoteScore("20", "4");
     expect(screen.queryByText("17 - 7")).not.toBeInTheDocument();
     expect(loadActiveTournament()).toEqual(localState);
     vi.useRealTimers();
@@ -931,13 +955,13 @@ describe("STEP 13 remote read-only UI", () => {
 
     await flushPromises();
 
-    expect(screen.getByText("17 - 7")).toBeInTheDocument();
+    expectStandardRemoteScore("17", "7");
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(4000);
     });
 
-    expect(screen.getByText("17 - 7")).toBeInTheDocument();
+    expectStandardRemoteScore("17", "7");
     expect(screen.queryByText("10 - 14")).not.toBeInTheDocument();
     vi.useRealTimers();
   });
@@ -955,20 +979,20 @@ describe("STEP 13 remote read-only UI", () => {
 
     await flushPromises();
 
-    expect(screen.getByText("17 - 7")).toBeInTheDocument();
+    expectStandardRemoteScore("17", "7");
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(4000);
     });
 
     expect(screen.getByText("Live-opdatering kunne ikke hente nyeste version. Seneste viste turnering er bevaret.")).toBeInTheDocument();
-    expect(screen.getByText("17 - 7")).toBeInTheDocument();
+    expectStandardRemoteScore("17", "7");
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(4000);
     });
 
-    expect(screen.getByText("19 - 5")).toBeInTheDocument();
+    expectStandardRemoteScore("19", "5");
     expect(screen.getByLabelText("Live-sync status")).toHaveTextContent("Live");
     vi.useRealTimers();
   });
@@ -985,7 +1009,7 @@ describe("STEP 13 remote read-only UI", () => {
     render(<RemoteTournamentApp initialHandoffReference="STEP_16_TEST_BACKOFF_REFERENCE_WITH_ENTROPY_1234567890" />);
 
     await flushPromises();
-    expect(screen.getByText("17 - 7")).toBeInTheDocument();
+    expectStandardRemoteScore("17", "7");
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(4000);
@@ -1027,14 +1051,14 @@ describe("STEP 13 remote read-only UI", () => {
       await vi.advanceTimersByTimeAsync(4000);
     });
 
-    expect(screen.getByText("17 - 7")).toBeInTheDocument();
+    expectStandardRemoteScore("17", "7");
 
     await act(async () => {
       window.dispatchEvent(new Event("online"));
       await Promise.resolve();
     });
 
-    expect(screen.getByText("18 - 6")).toBeInTheDocument();
+    expectStandardRemoteScore("18", "6");
     expect(screen.getByLabelText("Live-sync status")).toHaveTextContent("Live");
     vi.useRealTimers();
   });
@@ -1084,13 +1108,13 @@ describe("STEP 13 remote read-only UI", () => {
     render(<RemoteTournamentApp initialHandoffReference="STEP_17_TEST_REFERENCE_WITH_ENTROPY_1234567890" />);
 
     await flushPromises();
-    expect(screen.getByText("17 - 7")).toBeInTheDocument();
+    expectStandardRemoteScore("17", "7");
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(4000);
     });
 
-    expect(screen.getByText("20 - 4")).toBeInTheDocument();
+    expectStandardRemoteScore("20", "4");
     expect(fetchMock.mock.calls[0][0]).toBe("/api/supabase/tournament-handoff/redeem");
     expect(fetchMock.mock.calls[1][0]).toBe("/api/supabase/remote-session/read");
     expect(JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string)).toEqual({ remoteSessionToken: "STEP_17_REMOTE_SESSION_TOKEN" });
@@ -1153,6 +1177,18 @@ async function flushPromises(): Promise<void> {
     await Promise.resolve();
     await Promise.resolve();
   });
+}
+
+function expectStandardRemoteScore(teamA: string, teamB: string, cardIndex = 0): HTMLElement {
+  const card = screen.getAllByTestId("standard-remote-court-card")[cardIndex];
+  const scoreRow = within(card).getByTestId("standard-remote-score-row");
+
+  expect(scoreRow).toHaveAttribute("data-layout", "split-scoreboard-symmetric");
+  expect(within(scoreRow).getByTestId("standard-remote-left-score")).toHaveTextContent(teamA);
+  expect(within(scoreRow).getByTestId("standard-remote-score-separator")).toHaveTextContent("-");
+  expect(within(scoreRow).getByTestId("standard-remote-right-score")).toHaveTextContent(teamB);
+
+  return card;
 }
 
 function createReadResponse(kind: "standard", state: LiveTournamentState, updatedAt?: string, session?: { remoteSessionToken: string; remoteSessionExpiresAt: string }): Response;

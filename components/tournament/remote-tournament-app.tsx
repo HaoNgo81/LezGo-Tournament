@@ -1611,27 +1611,24 @@ function RemoteMatchScoreGrid({ canEditScore = false, isTvMode, matches, onEditS
         }
 
         return (
-          <article key={match.id} className="grid min-w-0 gap-3 overflow-hidden rounded-md border border-[var(--line)] bg-[var(--card)] p-3 text-center shadow-sm sm:gap-4 sm:p-4" data-testid="standard-remote-court-card" data-card-style="scoreboard-mobile">
+          <article key={match.id} className="grid min-w-0 gap-3 overflow-hidden rounded-md border border-[var(--line)] bg-[var(--card)] p-3 text-center shadow-sm sm:gap-4 sm:p-4" data-testid="standard-remote-court-card" data-card-style="scoreboard-mobile" data-dom-structure="split-scoreboard">
             <div className="flex min-w-0 items-start justify-between gap-3">
               <h3 className="min-w-0 text-2xl font-black uppercase leading-none text-[var(--primary-strong)] sm:text-3xl">{match.court}</h3>
               <span className={`shrink-0 rounded-md px-2.5 py-1 text-[0.68rem] font-black uppercase leading-none sm:px-3 sm:text-xs ${match.status === "Afsluttet" ? "bg-green-100 text-[var(--primary-strong)]" : match.status === "I gang" ? "bg-yellow-100 text-yellow-800" : "bg-gray-100 text-[var(--muted)]"}`}>
                 {match.status}
               </span>
             </div>
-            <div className="mx-auto grid w-full max-w-[34rem] min-w-0 grid-cols-[minmax(0,1fr)_3rem_minmax(0,1fr)] items-center gap-x-2 gap-y-1 text-center text-[clamp(1.02rem,4.6vw,1.45rem)] font-black leading-tight sm:grid-cols-[minmax(0,1fr)_4rem_minmax(0,1fr)] sm:gap-x-3 md:max-w-[38rem] md:text-xl" data-testid="standard-remote-matchup" data-layout="scoreboard-symmetric">
-              <TeamName name={match.teamA} align="center" />
-              <p className="self-center rounded-md bg-white/65 px-1.5 py-1 text-xs font-black uppercase leading-none text-[var(--muted)] sm:text-sm" data-testid="standard-remote-vs">VS</p>
-              <TeamName name={match.teamB} align="center" />
+            <div className="mx-auto grid w-full max-w-[34rem] min-w-0 grid-cols-[minmax(0,1fr)_3rem_minmax(0,1fr)] items-center gap-x-2 gap-y-1 text-center text-[clamp(1.02rem,4.6vw,1.45rem)] font-black leading-tight sm:grid-cols-[minmax(0,1fr)_4rem_minmax(0,1fr)] sm:gap-x-3 md:max-w-[38rem] md:text-xl" data-testid="standard-remote-matchup" data-layout="split-scoreboard-symmetric">
+              <StandardRemoteTeamBlock name={match.teamA} side="left" />
+              <p className="self-center justify-self-center rounded-md bg-white/65 px-1.5 py-1 text-xs font-black uppercase leading-none text-[var(--muted)] sm:text-sm" data-testid="standard-remote-vs">VS</p>
+              <StandardRemoteTeamBlock name={match.teamB} side="right" />
             </div>
             {score ? (
-              <>
-                <p className="sr-only">{match.score}</p>
-                <div className="mx-auto grid w-full max-w-[34rem] grid-cols-[minmax(0,1fr)_3rem_minmax(0,1fr)] items-center justify-center gap-x-2 text-center sm:grid-cols-[minmax(0,1fr)_4rem_minmax(0,1fr)] sm:gap-x-3 md:max-w-[38rem]" data-testid="standard-remote-score-row" data-layout="scoreboard-symmetric">
-                  <span className="text-6xl font-black leading-none sm:text-7xl" data-testid="standard-remote-left-score">{score.teamA}</span>
-                  <span className="text-4xl font-black leading-none text-[var(--muted)] sm:text-5xl" data-testid="standard-remote-score-separator">-</span>
-                  <span className="text-6xl font-black leading-none sm:text-7xl" data-testid="standard-remote-right-score">{score.teamB}</span>
-                </div>
-              </>
+              <div className="mx-auto grid w-full max-w-[34rem] grid-cols-[minmax(0,1fr)_3rem_minmax(0,1fr)] items-center justify-center gap-x-2 text-center sm:grid-cols-[minmax(0,1fr)_4rem_minmax(0,1fr)] sm:gap-x-3 md:max-w-[38rem]" data-testid="standard-remote-score-row" data-layout="split-scoreboard-symmetric" aria-label={`Score ${score.teamA} mod ${score.teamB}`}>
+                <span className="text-6xl font-black leading-none sm:text-7xl" data-testid="standard-remote-left-score">{score.teamA}</span>
+                <span className="text-4xl font-black leading-none text-[var(--muted)] sm:text-5xl" data-testid="standard-remote-score-separator" aria-hidden="true">-</span>
+                <span className="text-6xl font-black leading-none sm:text-7xl" data-testid="standard-remote-right-score">{score.teamB}</span>
+              </div>
             ) : (
               <p className="justify-self-center rounded-md border border-[var(--line)] bg-white/70 px-4 py-2 text-center text-base font-black uppercase text-[var(--muted)] sm:text-lg" data-testid="standard-remote-unsaved" data-badge-position="centered">{t("remoteNotSaved")}</p>
             )}
@@ -1647,21 +1644,22 @@ function RemoteMatchScoreGrid({ canEditScore = false, isTvMode, matches, onEditS
   );
 }
 
-function TeamName({ align, name }: { align: "center" | "left" | "right"; name: string }) {
+function StandardRemoteTeamBlock({ name, side }: { name: string; side: "left" | "right" }) {
   const players = name.split(" / ");
-  const alignClass = align === "right" ? "text-right" : align === "left" ? "text-left" : "text-center";
 
   return (
-    <p className={`min-w-0 ${alignClass}`} data-testid={`standard-remote-team-${align}`}>
-      {players.map((player, index) => (
-        <Fragment key={`${player}-${index}`}>
-          {index > 0 ? <span className="mx-1 inline-block text-[var(--muted)]">/</span> : null}
-          <span className="inline-block max-w-full align-bottom" style={{ overflowWrap: "break-word", wordBreak: "normal" }}>
-            {player}
-          </span>
-        </Fragment>
-      ))}
-    </p>
+    <div className="grid min-w-0 justify-items-center gap-0.5 text-center" data-testid={`standard-remote-${side}-team`} data-team-side={side} aria-label={name}>
+      <p className="flex min-w-0 max-w-full flex-wrap items-center justify-center gap-x-1 gap-y-0.5">
+        {players.map((player, index) => (
+          <Fragment key={`${player}-${index}`}>
+            {index > 0 ? <span className="inline-block text-[var(--muted)]" data-testid={`standard-remote-${side}-team-separator`}>/</span> : null}
+            <span className="inline-block max-w-full align-bottom" data-testid={`standard-remote-${side}-team-player`} style={{ overflowWrap: "break-word", wordBreak: "normal" }}>
+              {player}
+            </span>
+          </Fragment>
+        ))}
+      </p>
+    </div>
   );
 }
 
