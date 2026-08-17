@@ -307,12 +307,9 @@ export function LiveScoringApp() {
           </div>
         </section>
 
-        <section className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <h2 className="text-xl font-black">{t("liveScore")}</h2>
-            <p className="text-sm font-bold text-[var(--muted)]">{t(rankingModeLabels[state.rankingMode])}</p>
-          </div>
-          <StandingsTable standings={standings} />
+        <section className="flex flex-col gap-2" data-testid="live-standings-section">
+          <h2 className="text-xl font-black uppercase">{t("remoteTopStandings")}</h2>
+          <StandingsTable standings={standings} variant="compactLive" />
           <button className="btn-primary min-h-14 disabled:bg-gray-300" type="button" disabled={!nextRoundIsAvailable} onClick={handleNextRound}>{t("next")}</button>
         </section>
       </div>

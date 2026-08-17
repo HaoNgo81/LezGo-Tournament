@@ -24,14 +24,65 @@ describe("LiveScoringApp score sheet", () => {
     expect(screen.getByRole("textbox", { name: "Hold B scorepoint" })).toBeRequired();
   });
 
-  it("shows live score heading, a direct TV/Mirror link and a bottom next button", async () => {
+  it("shows standings heading, a direct TV/Mirror link and a bottom next button", async () => {
     saveActiveTournament(createMockLiveTournamentState());
     render(<LiveScoringApp />);
 
-    expect(await screen.findByRole("heading", { name: "Live score" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Stilling" })).toBeInTheDocument();
     expect(screen.getByLabelText("Sync status")).toHaveTextContent("Kun gemt lokalt");
     expect(screen.getByRole("link", { name: "TV / Mirror" })).toHaveAttribute("href", "/tv");
     expect(screen.getAllByRole("button", { name: "Næste" })).toHaveLength(2);
+  });
+
+  it("uses the compact /live standings header without duplicate live score or sort label", async () => {
+    const state = createTournamentFromSetup({
+      name: "Live compact",
+      format: "Americano",
+      playerText: ["dfr", "sdfdsf", "ghil", "ghj", "dyx", "Aage My eng h", "Very Long Player Name", "Daniel"].join("\n"),
+      femalePlayerText: "",
+      malePlayerText: "",
+      courts: 2,
+      rounds: 2,
+      scoringMode: "Fri scoring",
+      firstRoundOrder: "manual",
+      rankingMode: "partiPointsFirst",
+    });
+    const scoredState = saveMatchResult(state, {
+      matchId: state.rounds[0].matches[0].id,
+      teamAPoints: 100,
+      teamBPoints: 98,
+    });
+    saveActiveTournament(scoredState);
+
+    render(<LiveScoringApp />);
+
+    const section = await screen.findByTestId("live-standings-section");
+    expect(within(section).getByRole("heading", { name: "Stilling" })).toBeInTheDocument();
+    expect(within(section).queryByRole("heading", { name: "Live score" })).not.toBeInTheDocument();
+    expect(within(section).queryByText("Flest scorepoint")).not.toBeInTheDocument();
+    expect(within(section).queryByText("Flest matchpoint")).not.toBeInTheDocument();
+
+    const compactStandings = within(section).getByTestId("live-compact-standings");
+    expect(compactStandings).toHaveAttribute("data-density", "compact-live");
+
+    const playerHeader = within(compactStandings).getByTestId("live-standings-player-header");
+    expect(playerHeader).toHaveStyle({ overflowWrap: "normal", wordBreak: "normal" });
+    expect(playerHeader.parentElement?.className).toContain("minmax(7rem,1fr)");
+
+    expect(compactStandings).toHaveTextContent("V");
+    expect(compactStandings).toHaveTextContent("U");
+    expect(compactStandings).toHaveTextContent("T");
+    expect(compactStandings).toHaveTextContent("MP");
+    expect(compactStandings).toHaveTextContent("Point");
+    expect(compactStandings).toHaveTextContent("100");
+
+    const rows = within(compactStandings).getAllByTestId("live-compact-standings-row");
+    expect(rows.every((row) => row.getAttribute("data-column-layout") === "player-priority")).toBe(true);
+    const playerNames = within(compactStandings).getAllByTestId("live-standings-player-name");
+    expect(playerNames.map((name) => name.textContent)).toEqual(expect.arrayContaining(["dfr", "sdfdsf", "ghil", "ghj"]));
+    playerNames.forEach((name) => {
+      expect(name).toHaveStyle({ overflowWrap: "normal", wordBreak: "normal" });
+    });
   });
 
   it("shows an existing score when a result is edited", async () => {
