@@ -215,7 +215,7 @@ export function TournamentSetupForm() {
         fixedScoreRule,
         fixedScorePoints: parsePositiveIntegerInput(fixedScorePoints, "Antal scorepoint"),
         timeLimitMinutes: parsePositiveIntegerInput(timeLimitMinutes, "Spilletid"),
-        firstRoundOrder: "manual",
+        firstRoundOrder: getInitialTemplate()?.firstRoundOrder ?? "random",
         rankingMode,
       });
 

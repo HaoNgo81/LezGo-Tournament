@@ -16,7 +16,7 @@ import {
   createMexicanoRoundFromRanking,
   createMixedAmericanoRound,
 } from "./round-generation";
-import { canonicalPairKey } from "./utils";
+import { canonicalPairKey, seededShuffle, shuffleItems } from "./utils";
 
 interface ByeTracker {
   pauseCounts: Map<string, number>;
@@ -40,7 +40,8 @@ export function createTournamentRounds(config: TournamentEngineConfig): Tourname
   assertCourts(config.courts);
   assertUniquePlayerIds(config.players);
 
-  const players = [...config.players];
+  const firstRoundOrder = config.firstRoundOrder ?? "random";
+  const players = seedPlayers(config.players, firstRoundOrder, config.randomSeed);
 
   switch (config.format) {
     case "americano":
@@ -48,16 +49,32 @@ export function createTournamentRounds(config: TournamentEngineConfig): Tourname
     case "mexicano":
       return [createNextMexicanoRoundFromPlayerRanking(players, 1, config.courts)];
     case "fixed-partner-americano":
-      return createFixedPartnerRounds(createFixedPartnerTeams(players), config.rounds, false, config.courts);
+      return createFixedPartnerRounds(seedTeams(createFixedPartnerTeams(config.players), firstRoundOrder, config.randomSeed), config.rounds, false, config.courts);
     case "fixed-partner-mexicano":
-      return [createNextFixedMexicanoRoundFromTeamRanking(createFixedPartnerTeams(players), 1, config.courts)];
+      return [createNextFixedMexicanoRoundFromTeamRanking(seedTeams(createFixedPartnerTeams(config.players), firstRoundOrder, config.randomSeed), 1, config.courts)];
     case "mixed-americano":
-      return createMixedAmericanoRounds(players, config.rounds, config.courts);
+      return createMixedAmericanoRounds(config.players, config.rounds, config.courts, firstRoundOrder, config.randomSeed);
     case "pool-play":
       throw new Error("Puljespil opretter runder via puljemotoren.");
     default:
       return assertNever(config.format);
   }
+}
+
+function seedPlayers(players: TournamentPlayer[], firstRoundOrder: "manual" | "random", randomSeed?: number): TournamentPlayer[] {
+  if (firstRoundOrder !== "random") {
+    return [...players];
+  }
+
+  return randomSeed === undefined ? shuffleItems(players) : seededShuffle(players, randomSeed);
+}
+
+function seedTeams(teams: Team[], firstRoundOrder: "manual" | "random", randomSeed?: number): Team[] {
+  if (firstRoundOrder !== "random") {
+    return [...teams];
+  }
+
+  return randomSeed === undefined ? shuffleItems(teams) : seededShuffle(teams, randomSeed);
 }
 
 export function createNextMexicanoRoundFromPlayerRanking(playersByRanking: TournamentEngineConfig["players"], roundNumber: number, courts?: number): TournamentRound {
@@ -127,11 +144,17 @@ function createFixedPartnerRounds(teams: Team[], rounds: number, mexicanoRanking
   return generatedRounds;
 }
 
-function createMixedAmericanoRounds(players: TournamentEngineConfig["players"], rounds: number, courts: number): TournamentRound[] {
+function createMixedAmericanoRounds(
+  players: TournamentEngineConfig["players"],
+  rounds: number,
+  courts: number,
+  firstRoundOrder: "manual" | "random",
+  randomSeed?: number,
+): TournamentRound[] {
   assertMixedPlayers(players);
 
-  const females = players.filter((player) => player.gender === "female");
-  const males = players.filter((player) => player.gender === "male");
+  const females = seedPlayers(players.filter((player) => player.gender === "female"), firstRoundOrder, randomSeed);
+  const males = seedPlayers(players.filter((player) => player.gender === "male"), firstRoundOrder, randomSeed === undefined ? undefined : randomSeed + 1);
   const activePairCount = Math.min(females.length, Math.max(2, Math.min(courts * 2, Math.floor(players.length / 2))));
   const playablePairCount = activePairCount - (activePairCount % 2);
   const femaleByeTracker = createByeTracker(females.map((player) => player.id));

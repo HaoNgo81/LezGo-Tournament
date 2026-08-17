@@ -519,7 +519,7 @@ describe("live scoring state", () => {
   });
 
   it.each(["Fast Makker Americano", "Fast Makker Mexicano"] as const)(
-    "keeps entered fixed partner pairs in entered order for %s starts",
+    "keeps fixed partner pairs intact while allowing randomized %s starts",
     (format) => {
       const state = createStandardTournament(format, sixteenPlayerText, "", "", { firstRoundOrder: "random" });
       const enteredPairIds = createTournamentRounds({ format: "fixed-partner-americano", players: state.players, rounds: 1, courts: 4, firstRoundOrder: "manual" })[0]
@@ -529,7 +529,12 @@ describe("live scoring state", () => {
       const firstRoundPairIds = state.rounds[0].matches.flatMap((match) => [match.teamA.id, match.teamB.id]).sort();
 
       expect(firstRoundPairIds).toEqual(enteredPairIds);
-      expect(state.rounds[0].matches[0].teamA.playerIds).toEqual(["p1", "p2"]);
+      expect(state.rounds[0].matches[0].teamA.playerIds).toHaveLength(2);
+      for (const team of state.rounds[0].matches.flatMap((match) => [match.teamA, match.teamB])) {
+        const indexes = team.playerIds.map((playerId) => Number(playerId.replace("p", ""))).sort((left, right) => left - right);
+        expect(indexes[1] - indexes[0]).toBe(1);
+        expect(indexes[0] % 2).toBe(1);
+      }
     },
   );
 
@@ -569,7 +574,7 @@ describe("live scoring state", () => {
       const state = {
         ...baseState,
         format,
-        rounds: createTournamentRounds({ format, players: baseState.players, rounds: 1, courts: 2 }),
+        rounds: createTournamentRounds({ format, players: baseState.players, rounds: 1, courts: 2, firstRoundOrder: "manual" }),
       };
       const matchId = state.rounds[0].matches[0].id;
       const updatedState = saveMatchResult(state, { matchId, teamAPoints: 21, teamBPoints: 12 });

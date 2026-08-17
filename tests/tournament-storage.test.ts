@@ -62,6 +62,26 @@ describe("tournament storage", () => {
     expect(loadCompletedTournaments()[0].state.status).toBe("finished");
   });
 
+  it("persists an already generated randomized first round without regenerating it on reload", () => {
+    const state = createTournamentFromSetup({
+      name: "Random seed persistence",
+      format: "Mexicano",
+      playerText: Array.from({ length: 16 }, (_, index) => `Spiller ${index + 1}`).join("\n"),
+      femalePlayerText: "",
+      malePlayerText: "",
+      courts: 4,
+      rounds: 10,
+      scoringMode: "Fri scoring",
+      firstRoundOrder: "random",
+      rankingMode: "matchPointsFirst",
+    });
+    const generatedRoundOne = state.rounds[0];
+
+    saveActiveTournament(state);
+
+    expect(loadActiveTournament()?.rounds[0]).toEqual(generatedRoundOne);
+  });
+
   it("restores a completed tournament as the active selected tournament for final standings", () => {
     const finishedState = finishTournament(createMockLiveTournamentState(), "2026-08-04T18:00:00.000Z");
     const completedTournament = saveCompletedTournament(finishedState);
