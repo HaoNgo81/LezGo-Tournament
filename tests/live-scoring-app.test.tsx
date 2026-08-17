@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { LiveScoringApp } from "../components/tournament/live-scoring-app";
 import { advanceLivePoolPlayState, createMockLiveTournamentState, saveMatchResult, saveNextPoolPhaseResult } from "../lib/live-scoring";
@@ -58,7 +58,7 @@ describe("LiveScoringApp score sheet", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Gem" }));
 
-    expect(await screen.findByText("18 - 6")).toBeInTheDocument();
+    await waitFor(() => expectLiveCourtScore("18", "6"));
   });
 
   it("calculates the opponent score for Mixed Americano fixed total scoring", async () => {
@@ -71,7 +71,7 @@ describe("LiveScoringApp score sheet", () => {
     expect(screen.getByLabelText("Hold B scorepoint")).toHaveTextContent("7");
     fireEvent.click(screen.getByRole("button", { name: "Gem" }));
 
-    expect(await screen.findByText("17 - 7")).toBeInTheDocument();
+    await waitFor(() => expectLiveCourtScore("17", "7"));
   });
 
   it("shows validation instead of crashing for invalid fixed total scoring", async () => {
@@ -108,8 +108,11 @@ describe("LiveScoringApp score sheet", () => {
 
     expect(screen.getByText("Næste runde åbnet.")).toBeInTheDocument();
     expect(screen.getByText("2 / 5")).toBeInTheDocument();
-    expect(screen.getByText("Spiller 1 / Spiller 5")).toBeInTheDocument();
-    expect(screen.getByText("Spiller 3 / Spiller 7")).toBeInTheDocument();
+    expect(screen.getAllByText("Spiller 1").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Spiller 5").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Spiller 3").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Spiller 7").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Spiller 1 / Spiller 5")).not.toBeInTheDocument();
   });
 
   it("opens the next round from the bottom next button below live score", async () => {
@@ -350,6 +353,18 @@ function scoreVisibleRound() {
     fireEvent.change(screen.getByRole("textbox", { name: "Hold B scorepoint" }), { target: { value: `${10 + matchIndex}` } });
     fireEvent.click(screen.getByRole("button", { name: "Gem" }));
   }
+}
+
+function expectLiveCourtScore(teamA: string, teamB: string, cardIndex = 0): HTMLElement {
+  const card = screen.getAllByTestId("live-court-card")[cardIndex];
+  const scoreRow = within(card).getByTestId("live-court-score-row");
+
+  expect(scoreRow).toHaveAttribute("data-layout", "split-scoreboard-symmetric");
+  expect(within(scoreRow).getByTestId("live-court-left-score")).toHaveTextContent(teamA);
+  expect(within(scoreRow).getByTestId("live-court-score-separator")).toHaveTextContent("-");
+  expect(within(scoreRow).getByTestId("live-court-right-score")).toHaveTextContent(teamB);
+
+  return card;
 }
 
 function createPoolTournament() {

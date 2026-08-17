@@ -1,8 +1,9 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FocusEvent, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FocusEvent, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { MatchCards } from "@/components/tournament/match-cards";
 import { Section } from "@/components/ui/section";
+import { UnifiedCourtCard, splitCourtTeamName } from "@/components/tournament/unified-court-card";
 import { createReadOnlyTournamentView, createTeamVsTeamReadOnlyView, type ReadOnlyMatchCard, type ReadOnlyTournamentView } from "@/lib/read-only-views";
 import type { LiveTournamentState } from "@/lib/live-scoring";
 import type { TeamVsTeamTournamentState } from "@/lib/tournament-setup";
@@ -1260,57 +1261,45 @@ function RemoteScoreboardHeader({
 }
 
 function RemoteScoreboardScoreGrid({ density, matches }: { density: ScoreboardDensity; matches: ScoreboardMatchCard[] }) {
+  const { t } = useAppTranslation();
   const isHighDensity = density === "high";
   const gridGap = isHighDensity ? "gap-0.5" : "gap-1";
-  const cardPadding = density === "large" ? "p-5 lg:p-6" : density === "medium" ? "p-3.5" : density === "compact" ? "p-2.5" : "px-1 py-0.5";
-  const cardGap = isHighDensity ? "gap-0" : "gap-1.5";
   const cardLayoutClass = isHighDensity ? "grid-rows-[auto_minmax(0,1fr)] content-stretch" : "grid-rows-[auto_minmax(0,1fr)] content-between";
-  const matchGridGap = isHighDensity ? "gap-x-1 gap-y-0" : "gap-x-2 gap-y-1";
-  const matchGridRowsClass = "grid-rows-[auto_auto_auto]";
   const matchAreaWidthClass = density === "large" ? "w-[62%]" : density === "medium" ? "w-[68%]" : density === "compact" ? "w-[70%]" : "w-[68%]";
-  const statusBadgeClass = density === "high" ? "px-1 py-0.5 text-[0.55rem]" : "px-2 py-1 text-[0.65rem]";
-  const courtText = density === "large" ? "text-[clamp(1.8rem,2.6vw,3.25rem)]" : density === "medium" ? "text-[clamp(1.2rem,1.55vw,1.9rem)]" : density === "compact" ? "text-[clamp(0.95rem,1.1vw,1.35rem)]" : "text-[clamp(0.82rem,0.92vw,1.1rem)]";
-  const teamText = density === "large" ? "text-[clamp(1.7rem,2.45vw,2.95rem)]" : density === "medium" ? "text-[clamp(1.04rem,1.32vw,1.48rem)]" : density === "compact" ? "text-[clamp(0.84rem,0.99vw,1.1rem)]" : "text-[clamp(0.78rem,0.9vw,1.05rem)]";
-  const scoreText = density === "large" ? "text-[clamp(4.6rem,8vw,9rem)]" : density === "medium" ? "text-[clamp(2.8rem,4.9vw,5.4rem)]" : density === "compact" ? "text-[clamp(1.85rem,3.2vw,3.5rem)]" : "text-[clamp(1.45rem,2.5vw,2.75rem)]";
-  const vsText = density === "large" ? "text-[clamp(1.15rem,1.65vw,2rem)]" : density === "medium" ? "text-[clamp(0.82rem,1.05vw,1.15rem)]" : density === "compact" ? "text-[clamp(0.64rem,0.78vw,0.86rem)]" : "text-[clamp(0.56rem,0.66vw,0.74rem)]";
-  const statusText = density === "large" ? "text-[clamp(1rem,1.35vw,1.7rem)]" : density === "medium" ? "text-[clamp(0.78rem,0.92vw,1rem)]" : density === "compact" ? "text-[clamp(0.62rem,0.74vw,0.82rem)]" : "text-[clamp(0.54rem,0.62vw,0.7rem)]";
 
   return (
     <div className={`grid min-h-0 ${gridGap} lg:overflow-hidden ${getScoreboardCourtGridClass(matches.length)}`} data-density={density} data-testid="scoreboard-court-grid">
       {matches.map((match) => {
         const score = parseScore(match.score);
-        const teamAPlayers = splitScoreboardTeamName(match.teamA);
-        const teamBPlayers = splitScoreboardTeamName(match.teamB);
-        const teamAPlayer1 = teamAPlayers[0] ?? match.teamA;
-        const teamAPlayer2 = teamAPlayers[1] ?? "";
-        const teamBPlayer1 = teamBPlayers[0] ?? match.teamB;
-        const teamBPlayer2 = teamBPlayers[1] ?? "";
 
         return (
-          <article key={match.id} className={`grid min-w-0 ${cardLayoutClass} ${cardGap} rounded-md border text-center ${cardPadding} ${getScoreboardMatchTone(match.status)}`} data-card-density={density} data-card-vertical-density={isHighDensity ? "final-compressed" : "standard"} data-testid="scoreboard-court-card">
-            <div className="flex min-w-0 items-start justify-between gap-2">
-              <h3 className={`${courtText} font-black uppercase leading-none text-[var(--primary-strong)]`}>{match.court}</h3>
-              <span className={`rounded-md bg-white/75 font-black uppercase text-[var(--muted)] ${statusBadgeClass}`}>{match.status}</span>
-            </div>
-            <div className={`mx-auto grid min-h-0 max-w-full self-center grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] ${matchAreaWidthClass} ${matchGridRowsClass} items-center ${matchGridGap}`} data-horizontal-layout="33-50-67" data-match-area="centered" data-match-area-width={density} data-player-size="enlarged" data-vertical-position="centered-in-card" data-testid="scoreboard-player-grid">
-              <span className={`col-start-1 row-start-1 w-full min-w-0 justify-self-center text-center ${teamText} font-black leading-tight`} data-position="left-top" data-team-align="centered-at-left-third" data-testid="scoreboard-left-player-1" style={{ overflowWrap: "anywhere" }}>{teamAPlayer1}</span>
-              <div className={`col-start-2 row-span-2 row-start-1 justify-self-center self-center rounded-md bg-white/65 px-1.5 py-1 font-black uppercase leading-none text-[var(--muted)] ${vsText}`} data-position="center-middle" data-testid="scoreboard-vs">VS</div>
-              <span className={`col-start-3 row-start-1 w-full min-w-0 justify-self-center text-center ${teamText} font-black leading-tight`} data-position="right-top" data-team-align="centered-at-right-third" data-testid="scoreboard-right-player-1" style={{ overflowWrap: "anywhere" }}>{teamBPlayer1}</span>
-              <span className={`col-start-1 row-start-2 w-full min-w-0 justify-self-center text-center ${teamText} font-black leading-tight`} data-position="left-bottom" data-team-align="centered-at-left-third" data-testid="scoreboard-left-player-2" style={{ overflowWrap: "anywhere" }}>{teamAPlayer2}</span>
-              <span className={`col-start-3 row-start-2 w-full min-w-0 justify-self-center text-center ${teamText} font-black leading-tight`} data-position="right-bottom" data-team-align="centered-at-right-third" data-testid="scoreboard-right-player-2" style={{ overflowWrap: "anywhere" }}>{teamBPlayer2}</span>
-              {score ? (
-                <>
-                  <p className="sr-only">{match.score}</p>
-                  <span className={`col-start-1 row-start-3 mt-2 w-full justify-self-center text-center ${scoreText} font-black leading-none`} data-name-score-spacing="increased" data-score-align="left-third-center" data-testid="scoreboard-left-score">{score.teamA}</span>
-                  <span className={`col-start-3 row-start-3 mt-2 w-full justify-self-center text-center ${scoreText} font-black leading-none`} data-name-score-spacing="increased" data-score-align="right-third-center" data-testid="scoreboard-right-score">{score.teamB}</span>
-                </>
-              ) : (
-                <div className={`col-start-2 row-start-3 mt-2 justify-self-center rounded-md bg-white/70 px-2 py-1 font-black uppercase leading-tight text-[var(--muted)] ${statusText}`} data-badge-position="under-vs" data-name-score-spacing="increased" data-testid="scoreboard-unsaved-status">
-                  {match.score}
-                </div>
-              )}
-            </div>
-          </article>
+          <UnifiedCourtCard
+            key={match.id}
+            articleProps={{
+              "data-card-density": density,
+              "data-card-vertical-density": isHighDensity ? "final-compressed" : "standard",
+            }}
+            className={`${cardLayoutClass} ${getScoreboardMatchTone(match.status)}`}
+            court={match.court}
+            density={`scoreboard-${density}`}
+            leftPlayers={splitCourtTeamName(match.teamA)}
+            leftScore={score?.teamA}
+            playerGridProps={{
+              className: matchAreaWidthClass,
+              "data-horizontal-layout": "33-50-67",
+              "data-match-area": "centered",
+              "data-match-area-width": density,
+              "data-player-size": "enlarged",
+              "data-vertical-position": "centered-in-card",
+            }}
+            rightPlayers={splitCourtTeamName(match.teamB)}
+            rightScore={score?.teamB}
+            status={match.status}
+            testId="scoreboard-court-card"
+            testIdPrefix="scoreboard"
+            tone="plain"
+            unsavedLabel={t("remoteNotSaved")}
+          />
         );
       })}
     </div>
@@ -1582,83 +1571,45 @@ function RemoteMatchScoreGrid({ canEditScore = false, isTvMode, matches, onEditS
 
         if (isTvMode) {
           return (
-            <article key={match.id} className="grid min-w-0 gap-4 rounded-md border border-[var(--line)] bg-[var(--card)] p-4 shadow-sm lg:grid-cols-[auto_1fr_auto] lg:items-center lg:p-6">
-              <div className="flex items-center justify-between gap-3 md:grid md:gap-2">
-                <h3 className="text-3xl font-black uppercase text-[var(--primary-strong)] lg:text-4xl">{match.court}</h3>
-                <span className={`rounded-full px-3 py-1 text-xs font-black uppercase ${match.status === "Afsluttet" ? "bg-green-100 text-[var(--primary-strong)]" : match.status === "I gang" ? "bg-yellow-100 text-yellow-800" : "bg-gray-100 text-[var(--muted)]"}`}>
-                  {match.status}
-                </span>
-              </div>
-              <div className="grid min-w-0 gap-2 text-center text-2xl font-black leading-tight md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-center lg:text-[clamp(1.55rem,2vw,2.75rem)]">
-                <p className="min-w-0 md:text-right" style={{ overflowWrap: "anywhere" }}>{match.teamA}</p>
-                <p className="text-sm uppercase text-[var(--muted)]">vs</p>
-                <p className="min-w-0 md:text-left" style={{ overflowWrap: "anywhere" }}>{match.teamB}</p>
-              </div>
-              {score ? (
-                <>
-                  <p className="sr-only">{match.score}</p>
-                  <div className="flex items-center justify-center gap-4 text-center">
-                    <span className="text-7xl font-black leading-none lg:text-[clamp(4rem,6vw,8rem)]">{score.teamA}</span>
-                    <span className="text-5xl font-black leading-none text-[var(--muted)]">-</span>
-                    <span className="text-7xl font-black leading-none lg:text-[clamp(4rem,6vw,8rem)]">{score.teamB}</span>
-                  </div>
-                </>
-              ) : (
-                <p className="text-center text-2xl font-black text-[var(--muted)]">{t("remoteNotSaved")}</p>
-              )}
-            </article>
+            <UnifiedCourtCard
+              key={match.id}
+              className="lg:grid-cols-[auto_1fr_auto] lg:items-center"
+              court={match.court}
+              density="tv"
+              leftPlayers={splitCourtTeamName(match.teamA)}
+              leftScore={score?.teamA}
+              rightPlayers={splitCourtTeamName(match.teamB)}
+              rightScore={score?.teamB}
+              status={match.status}
+              testId="remote-tv-court-card"
+              testIdPrefix="remote-tv-court"
+              unsavedLabel={t("remoteNotSaved")}
+            />
           );
         }
 
         return (
-          <article key={match.id} className="grid min-w-0 gap-3 overflow-hidden rounded-md border border-[var(--line)] bg-[var(--card)] p-3 text-center shadow-sm sm:gap-4 sm:p-4" data-testid="standard-remote-court-card" data-card-style="scoreboard-mobile" data-dom-structure="split-scoreboard">
-            <div className="flex min-w-0 items-start justify-between gap-3">
-              <h3 className="min-w-0 text-2xl font-black uppercase leading-none text-[var(--primary-strong)] sm:text-3xl">{match.court}</h3>
-              <span className={`shrink-0 rounded-md px-2.5 py-1 text-[0.68rem] font-black uppercase leading-none sm:px-3 sm:text-xs ${match.status === "Afsluttet" ? "bg-green-100 text-[var(--primary-strong)]" : match.status === "I gang" ? "bg-yellow-100 text-yellow-800" : "bg-gray-100 text-[var(--muted)]"}`}>
-                {match.status}
-              </span>
-            </div>
-            <div className="mx-auto grid w-full max-w-[34rem] min-w-0 grid-cols-[minmax(0,1fr)_3rem_minmax(0,1fr)] items-center gap-x-2 gap-y-1 text-center text-[clamp(1.02rem,4.6vw,1.45rem)] font-black leading-tight sm:grid-cols-[minmax(0,1fr)_4rem_minmax(0,1fr)] sm:gap-x-3 md:max-w-[38rem] md:text-xl" data-testid="standard-remote-matchup" data-layout="split-scoreboard-symmetric">
-              <StandardRemoteTeamBlock name={match.teamA} side="left" />
-              <p className="self-center justify-self-center rounded-md bg-white/65 px-1.5 py-1 text-xs font-black uppercase leading-none text-[var(--muted)] sm:text-sm" data-testid="standard-remote-vs">VS</p>
-              <StandardRemoteTeamBlock name={match.teamB} side="right" />
-            </div>
-            {score ? (
-              <div className="mx-auto grid w-full max-w-[34rem] grid-cols-[minmax(0,1fr)_3rem_minmax(0,1fr)] items-center justify-center gap-x-2 text-center sm:grid-cols-[minmax(0,1fr)_4rem_minmax(0,1fr)] sm:gap-x-3 md:max-w-[38rem]" data-testid="standard-remote-score-row" data-layout="split-scoreboard-symmetric" aria-label={`Score ${score.teamA} mod ${score.teamB}`}>
-                <span className="text-6xl font-black leading-none sm:text-7xl" data-testid="standard-remote-left-score">{score.teamA}</span>
-                <span className="text-4xl font-black leading-none text-[var(--muted)] sm:text-5xl" data-testid="standard-remote-score-separator" aria-hidden="true">-</span>
-                <span className="text-6xl font-black leading-none sm:text-7xl" data-testid="standard-remote-right-score">{score.teamB}</span>
-              </div>
-            ) : (
-              <p className="justify-self-center rounded-md border border-[var(--line)] bg-white/70 px-4 py-2 text-center text-base font-black uppercase text-[var(--muted)] sm:text-lg" data-testid="standard-remote-unsaved" data-badge-position="centered">{t("remoteNotSaved")}</p>
-            )}
-            {canEditScore && onEditScore ? (
-              <button className="mt-1 min-h-12 w-full rounded-md bg-[var(--primary)] px-4 text-sm font-black uppercase text-[var(--primary-text)] shadow-sm" type="button" onClick={() => onEditScore(match)}>
-                {score ? t("editScore") : t("enterScore")}
-              </button>
-            ) : null}
-          </article>
+          <UnifiedCourtCard
+            key={match.id}
+            articleProps={{
+              "data-card-style": "scoreboard-mobile",
+              "data-dom-structure": "unified-court-card",
+            }}
+            actionLabel={canEditScore && onEditScore ? (score ? t("editScore") : t("enterScore")) : undefined}
+            court={match.court}
+            density="mobile"
+            leftPlayers={splitCourtTeamName(match.teamA)}
+            leftScore={score?.teamA}
+            onAction={canEditScore && onEditScore ? () => onEditScore(match) : undefined}
+            rightPlayers={splitCourtTeamName(match.teamB)}
+            rightScore={score?.teamB}
+            status={match.status}
+            testId="standard-remote-court-card"
+            testIdPrefix="standard-remote"
+            unsavedLabel={t("remoteNotSaved")}
+          />
         );
       })}
-    </div>
-  );
-}
-
-function StandardRemoteTeamBlock({ name, side }: { name: string; side: "left" | "right" }) {
-  const players = name.split(" / ");
-
-  return (
-    <div className="grid min-w-0 justify-items-center gap-0.5 text-center" data-testid={`standard-remote-${side}-team`} data-team-side={side} aria-label={name}>
-      <p className="flex min-w-0 max-w-full flex-wrap items-center justify-center gap-x-1 gap-y-0.5">
-        {players.map((player, index) => (
-          <Fragment key={`${player}-${index}`}>
-            {index > 0 ? <span className="inline-block text-[var(--muted)]" data-testid={`standard-remote-${side}-team-separator`}>/</span> : null}
-            <span className="inline-block max-w-full align-bottom" data-testid={`standard-remote-${side}-team-player`} style={{ overflowWrap: "break-word", wordBreak: "normal" }}>
-              {player}
-            </span>
-          </Fragment>
-        ))}
-      </p>
     </div>
   );
 }
@@ -2016,11 +1967,6 @@ function getRemoteFixedTotalCalculation(fixedScoreTotal: number, enteredScore: n
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Scoren er ugyldig." };
   }
-}
-
-function splitScoreboardTeamName(teamName: string): string[] {
-  const parts = teamName.split("/").map((part) => part.trim()).filter(Boolean);
-  return parts.length ? parts : [teamName];
 }
 
 function normalizeTournamentCodeInput(value: string): string {

@@ -35,7 +35,8 @@ describe("pool-play read-only apps", () => {
     expect(screen.getByText("5.")).toBeInTheDocument();
     expect(screen.getAllByText("Jens").length).toBeGreaterThan(0);
     expect(screen.getByText("8.")).toBeInTheDocument();
-    expect(screen.getAllByText("30 - 0").length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText("Score 30 mod 0").length).toBeGreaterThan(0);
+    expect(screen.queryByText("30 - 0")).not.toBeInTheDocument();
   });
 
   it("shows unmatched final player-pool Americano placement play in TV view", async () => {
@@ -49,7 +50,8 @@ describe("pool-play read-only apps", () => {
     expect(screen.getByText("5.")).toBeInTheDocument();
     expect(screen.getAllByText("Jens").length).toBeGreaterThan(0);
     expect(screen.getByText("8.")).toBeInTheDocument();
-    expect(screen.getAllByText("10 - 15").length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText("Score 10 mod 15").length).toBeGreaterThan(0);
+    expect(screen.queryByText("10 - 15")).not.toBeInTheDocument();
   });
 });
 

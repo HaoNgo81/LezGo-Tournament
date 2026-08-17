@@ -350,20 +350,20 @@ describe("STEP 13 remote read-only UI", () => {
     const courtGrid = screen.getByTestId("standard-remote-court-grid");
     expect(courtGrid).toHaveClass("md:grid-cols-2");
     expect(screen.getAllByTestId("standard-remote-court-card")).toHaveLength(2);
-    expect(screen.getAllByTestId("standard-remote-matchup")).toHaveLength(2);
+    expect(screen.getAllByTestId("standard-remote-player-grid")).toHaveLength(2);
     expect(screen.getAllByTestId("standard-remote-vs")).toHaveLength(2);
-    expect(screen.getAllByTestId("standard-remote-unsaved")).toHaveLength(2);
+    expect(screen.getAllByTestId("standard-remote-unsaved-status")).toHaveLength(2);
     expect(screen.getAllByText("Ikke gemt")).toHaveLength(2);
     expect(screen.getByTestId("standard-remote-standings")).toBeInTheDocument();
 
     const firstCard = screen.getAllByTestId("standard-remote-court-card")[0];
-    expect(firstCard).toHaveAttribute("data-dom-structure", "split-scoreboard");
-    expect(within(firstCard).getByTestId("standard-remote-matchup")).toHaveAttribute("data-layout", "split-scoreboard-symmetric");
-    expect(within(firstCard).getByTestId("standard-remote-left-team")).toHaveTextContent("Martin Langgaard");
-    expect(within(firstCard).getByTestId("standard-remote-left-team")).toHaveTextContent("Klaus Nord");
+    expect(firstCard).toHaveAttribute("data-dom-structure", "unified-court-card");
+    expect(within(firstCard).getByTestId("standard-remote-player-grid")).toHaveAttribute("data-layout", "split-scoreboard-symmetric");
+    expect(within(firstCard).getByTestId("standard-remote-left-player-1")).toHaveTextContent("Martin Langgaard");
+    expect(within(firstCard).getByTestId("standard-remote-left-player-2")).toHaveTextContent("Klaus Nord");
     expect(within(firstCard).getByTestId("standard-remote-vs")).toHaveTextContent("VS");
-    expect(within(firstCard).getByTestId("standard-remote-right-team")).toHaveTextContent("Lindon West");
-    expect(within(firstCard).getByTestId("standard-remote-right-team")).toHaveTextContent("Aqeel Sønder");
+    expect(within(firstCard).getByTestId("standard-remote-right-player-1")).toHaveTextContent("Lindon West");
+    expect(within(firstCard).getByTestId("standard-remote-right-player-2")).toHaveTextContent("Aqeel Sønder");
     expect(within(firstCard).getByText("Martin Langgaard")).toBeInTheDocument();
     expect(within(firstCard).getByText("Lindon West")).toBeInTheDocument();
     expect(within(firstCard).getByText("Klaus Nord")).toBeInTheDocument();
@@ -372,7 +372,7 @@ describe("STEP 13 remote read-only UI", () => {
     expect(within(firstCard).getByText("Klaus Nord")).toHaveStyle({ wordBreak: "normal" });
     expect(within(firstCard).queryByText("Martin Langgaard / Klaus Nord vs Lindon West / Aqeel Sønder")).not.toBeInTheDocument();
     expect(within(firstCard).queryByText("Martin Langgaard / Klaus Nord VS Lindon West / Aqeel Sønder")).not.toBeInTheDocument();
-    expect(within(firstCard).getByTestId("standard-remote-unsaved")).toHaveTextContent("Ikke gemt");
+    expect(within(firstCard).getByTestId("standard-remote-unsaved-status")).toHaveTextContent("Ikke gemt");
     expect(within(firstCard).queryByTestId("standard-remote-score-row")).not.toBeInTheDocument();
     expect(within(firstCard).getByRole("button", { name: "Indtast score" })).toBeInTheDocument();
     expect(screen.queryByText("Alle spillere")).not.toBeInTheDocument();
@@ -392,18 +392,16 @@ describe("STEP 13 remote read-only UI", () => {
 
     const firstCard = screen.getAllByTestId("standard-remote-court-card")[0];
     expect(firstCard).toHaveAttribute("data-card-style", "scoreboard-mobile");
-    expect(firstCard).toHaveAttribute("data-dom-structure", "split-scoreboard");
+    expect(firstCard).toHaveAttribute("data-dom-structure", "unified-court-card");
     expect(within(firstCard).getByRole("heading", { name: "Bane 1" })).toHaveClass("text-2xl", "text-[var(--primary-strong)]");
     expect(within(firstCard).getByText("Afsluttet")).toBeInTheDocument();
-    expect(within(firstCard).getByTestId("standard-remote-matchup")).toHaveAttribute("data-layout", "split-scoreboard-symmetric");
-    expect(within(firstCard).getByTestId("standard-remote-left-team")).toBeInTheDocument();
-    expect(within(firstCard).getByTestId("standard-remote-left-team")).toHaveTextContent("Martin Langgaard");
-    expect(within(firstCard).getByTestId("standard-remote-left-team")).toHaveTextContent("Klaus Nord");
+    expect(within(firstCard).getByTestId("standard-remote-player-grid")).toHaveAttribute("data-layout", "split-scoreboard-symmetric");
+    expect(within(firstCard).getByTestId("standard-remote-left-player-1")).toHaveTextContent("Martin Langgaard");
+    expect(within(firstCard).getByTestId("standard-remote-left-player-2")).toHaveTextContent("Klaus Nord");
     expect(within(firstCard).getByTestId("standard-remote-vs")).toHaveTextContent("VS");
-    expect(within(firstCard).getByTestId("standard-remote-right-team")).toBeInTheDocument();
-    expect(within(firstCard).getByTestId("standard-remote-right-team")).toHaveTextContent("Lindon West");
-    expect(within(firstCard).getByTestId("standard-remote-right-team")).toHaveTextContent("Aqeel Sønder");
-    within(firstCard).getAllByTestId(/standard-remote-(left|right)-team-player/).forEach((player) => {
+    expect(within(firstCard).getByTestId("standard-remote-right-player-1")).toHaveTextContent("Lindon West");
+    expect(within(firstCard).getByTestId("standard-remote-right-player-2")).toHaveTextContent("Aqeel Sønder");
+    within(firstCard).getAllByTestId(/standard-remote-(left|right)-player-[12]/).forEach((player) => {
       expect(player).toHaveStyle({ wordBreak: "normal" });
     });
     expect(within(firstCard).queryByText("Martin Langgaard / Klaus Nord vs Lindon West / Aqeel Sønder")).not.toBeInTheDocument();
@@ -564,8 +562,7 @@ describe("STEP 13 remote read-only UI", () => {
     expect(screen.getByText("Spiller")).toBeInTheDocument();
     expect(screen.getByText("MP")).toBeInTheDocument();
     expect(screen.getByText("Point")).toBeInTheDocument();
-    expect(screen.getByText("17 - 7")).toBeInTheDocument();
-    const firstCourtCard = screen.getAllByTestId("scoreboard-court-card")[0];
+    const firstCourtCard = expectScoreboardCourtScore("17", "7");
     expect(within(firstCourtCard).getByTestId("scoreboard-player-grid")).toHaveAttribute("data-match-area", "centered");
     expect(within(firstCourtCard).getByTestId("scoreboard-player-grid")).toHaveAttribute("data-match-area-width", "large");
     expect(within(firstCourtCard).getByTestId("scoreboard-player-grid")).toHaveAttribute("data-horizontal-layout", "33-50-67");
@@ -711,13 +708,13 @@ describe("STEP 13 remote read-only UI", () => {
 
     await flushPromises();
     fireEvent.click(screen.getByRole("button", { name: "Scoreboard-visning" }));
-    expect(screen.getByText("17 - 7")).toBeInTheDocument();
+    expectScoreboardCourtScore("17", "7");
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(4000);
     });
 
-    expect(screen.getByText("20 - 4")).toBeInTheDocument();
+    expectScoreboardCourtScore("20", "4");
     expect(screen.getByRole("heading", { name: /Runde 2 \/ 3/ })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Næste kampe" })).not.toBeInTheDocument();
     vi.useRealTimers();
@@ -1187,6 +1184,18 @@ function expectStandardRemoteScore(teamA: string, teamB: string, cardIndex = 0):
   expect(within(scoreRow).getByTestId("standard-remote-left-score")).toHaveTextContent(teamA);
   expect(within(scoreRow).getByTestId("standard-remote-score-separator")).toHaveTextContent("-");
   expect(within(scoreRow).getByTestId("standard-remote-right-score")).toHaveTextContent(teamB);
+
+  return card;
+}
+
+function expectScoreboardCourtScore(teamA: string, teamB: string, cardIndex = 0): HTMLElement {
+  const card = screen.getAllByTestId("scoreboard-court-card")[cardIndex];
+  const scoreRow = within(card).getByTestId("scoreboard-score-row");
+
+  expect(scoreRow).toHaveAttribute("data-layout", "split-scoreboard-symmetric");
+  expect(within(scoreRow).getByTestId("scoreboard-left-score")).toHaveTextContent(teamA);
+  expect(within(scoreRow).getByTestId("scoreboard-score-separator")).toHaveTextContent("-");
+  expect(within(scoreRow).getByTestId("scoreboard-right-score")).toHaveTextContent(teamB);
 
   return card;
 }

@@ -33,6 +33,7 @@ import {
 import { CrossMatchStagePanel } from "@/components/tournament/cross-match-stage-panel";
 import { StandingsTable } from "@/components/tournament/standings-table";
 import { SyncStatusPanel } from "@/components/tournament/sync-status-panel";
+import { UnifiedCourtCard } from "@/components/tournament/unified-court-card";
 import { useAppTranslation } from "@/lib/preferences/client";
 import type { TranslationKey } from "@/lib/i18n/translations";
 import { calculateInitialPoolStandings, createStandardShadowSaveLocalId, loadActiveTournament, saveActiveTournament, saveCompletedTournament, type CrossMatchFinalEncounter, type CrossMatchFinalStage, type PoolMatchResult, type PoolParticipant } from "@/lib/tournament-setup";
@@ -979,29 +980,26 @@ function formatPoolPhase(phase: NonNullable<LiveTournamentState["poolPlay"]>["ph
 function LiveMatchCard({ liveMatch, players, onSelect }: { liveMatch: LiveMatchView; players: TournamentPlayer[]; onSelect: () => void }) {
   const { t } = useAppTranslation();
   const match = liveMatch.match;
-  const scoreText = liveMatch.result ? `${liveMatch.result.teamAPoints} - ${liveMatch.result.teamBPoints}` : "-";
-  const statusClass = liveMatch.status === "Afsluttet" ? "bg-green-100 text-[var(--primary-strong)]" : liveMatch.status === "I gang" ? "bg-yellow-100 text-yellow-800" : "bg-gray-100 text-[var(--muted)]";
-  const teamAName = formatTeam(match.teamA.playerIds, players);
-  const teamBName = formatTeam(match.teamB.playerIds, players);
+  const leftPlayers = formatTeamPlayers(match.teamA.playerIds, players);
+  const rightPlayers = formatTeamPlayers(match.teamB.playerIds, players);
 
   return (
-    <article className="app-card min-h-44 p-4 text-left transition hover:border-[var(--primary)] focus-within:ring-4 focus-within:ring-green-100">
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="text-xl font-black">{t("court")} {match.courtNumber}</h3>
-        <span className={`rounded-md px-3 py-1 text-sm font-bold ${statusClass}`}>
-          {liveMatch.status === "Afsluttet" ? t("completed") : liveMatch.status === "Klar" ? t("ready") : liveMatch.status}
-        </span>
-      </div>
-      <button className="mt-4 grid w-full gap-2 text-left text-lg font-bold" type="button" onClick={onSelect}>
-        <p className="leading-7">
-          <span>{teamAName}</span>{" "}
-          <span className="text-[var(--muted)]">vs</span>{" "}
-          <span>{teamBName}</span>
-        </p>
-        <span className="mt-2 text-2xl font-black">{scoreText}</span>
-      </button>
-      <button className="mt-4 min-h-12 w-full rounded-md bg-[var(--primary)] px-3 font-black text-[var(--primary-text)]" type="button" onClick={onSelect}>{liveMatch.result ? t("editScore") : t("enterScore")}</button>
-    </article>
+    <UnifiedCourtCard
+      actionLabel={liveMatch.result ? t("editScore") : t("enterScore")}
+      className="text-left transition hover:border-[var(--primary)] focus-within:ring-4 focus-within:ring-green-100"
+      court={`${t("court")} ${match.courtNumber}`}
+      density="standard"
+      leftPlayers={leftPlayers}
+      leftScore={liveMatch.result?.teamAPoints}
+      onAction={onSelect}
+      rightPlayers={rightPlayers}
+      rightScore={liveMatch.result?.teamBPoints}
+      status={liveMatch.status === "Afsluttet" ? t("completed") : liveMatch.status === "Klar" ? t("ready") : liveMatch.status}
+      testId="live-court-card"
+      testIdPrefix="live-court"
+      tone={liveMatch.status === "Afsluttet" ? "completed" : liveMatch.status === "I gang" ? "active" : "ready"}
+      unsavedLabel={t("remoteNotSaved")}
+    />
   );
 }
 
@@ -1090,6 +1088,10 @@ function ScoreSheet({ liveMatch, players, state, onClose, onSave }: { liveMatch:
 
 function formatTeam(playerIds: readonly string[], players: TournamentPlayer[]): string {
   return playerIds.map((playerId) => getPlayerName(players, playerId)).join(" / ");
+}
+
+function formatTeamPlayers(playerIds: readonly string[], players: TournamentPlayer[]): string[] {
+  return playerIds.map((playerId) => getPlayerName(players, playerId));
 }
 
 function parseScoreInput(value: string): number | null {
