@@ -409,7 +409,7 @@ describe("STEP 13 remote read-only UI", () => {
     expect(within(firstCard).getByTestId("standard-remote-score-row")).toHaveAttribute("data-layout", "split-scoreboard-symmetric");
     expect(within(firstCard).getByTestId("standard-remote-score-row")).toHaveAccessibleName("Score 21 mod 5");
     expect(within(firstCard).getByTestId("standard-remote-left-score")).toHaveTextContent("21");
-    expect(within(firstCard).getByTestId("standard-remote-left-score")).toHaveClass("text-6xl");
+    expect(within(firstCard).getByTestId("standard-remote-left-score")).toHaveClass("text-[3.4rem]", "whitespace-nowrap", "[word-break:keep-all]");
     expect(within(firstCard).getByTestId("standard-remote-score-separator")).toHaveTextContent("-");
     expect(within(firstCard).getByTestId("standard-remote-right-score")).toHaveTextContent("5");
     expect(within(firstCard).getByRole("button", { name: "Rediger score" })).toHaveClass("w-full");
@@ -631,6 +631,48 @@ describe("STEP 13 remote read-only UI", () => {
     expect(screen.queryByRole("button", { name: "Indtast score" })).not.toBeInTheDocument();
   });
 
+  it("keeps the scoreboard standings player column readable on narrow layouts", async () => {
+    const remoteState = scoreNarrowScoreboardStandingsState("STEP_23K_TEST Narrow Standings");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(createReadResponse("standard", remoteState)));
+
+    render(<RemoteTournamentApp />);
+    fireEvent.change(screen.getByLabelText("Turneringskode"), { target: { value: "K7M4XP" } });
+    fireEvent.change(screen.getByLabelText("Adgangskode"), { target: { value: "2222" } });
+    fireEvent.click(screen.getByRole("button", { name: "Åbn turnering fra anden enhed" }));
+
+    expect(await screen.findByRole("heading", { name: "STEP_23K_TEST Narrow Standings" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Scoreboard-visning" }));
+
+    const standingsGrid = screen.getByTestId("scoreboard-standings-grid");
+    expect(standingsGrid).toHaveAttribute("data-density", "large");
+
+    const playerHeader = screen.getByTestId("scoreboard-standings-player-header");
+    expect(playerHeader).toHaveTextContent("Spiller");
+    expect(playerHeader).toHaveStyle({ overflowWrap: "normal", wordBreak: "normal" });
+    expect(playerHeader.parentElement?.className).toContain("minmax(7rem,1fr)");
+    expect(playerHeader.parentElement).toHaveAttribute("data-column-layout", "player-priority");
+
+    const rows = screen.getAllByTestId("scoreboard-standings-row");
+    expect(rows.length).toBeGreaterThanOrEqual(8);
+    rows.forEach((row) => {
+      expect(row).toHaveAttribute("data-column-layout", "player-priority");
+      expect(row.className).toContain("minmax(7rem,1fr)");
+    });
+
+    const playerNames = screen.getAllByTestId("scoreboard-standings-player-name");
+    expect(playerNames.map((name) => name.textContent)).toEqual(expect.arrayContaining(["dfr", "sdfdsf", "Daniel", "Aage My eng h", "Very Long Player Name"]));
+    playerNames.forEach((name) => {
+      expect(name).toHaveStyle({ overflowWrap: "normal", wordBreak: "normal" });
+    });
+
+    expect(standingsGrid).toHaveTextContent("V");
+    expect(standingsGrid).toHaveTextContent("U");
+    expect(standingsGrid).toHaveTextContent("T");
+    expect(standingsGrid).toHaveTextContent("MP");
+    expect(standingsGrid).toHaveTextContent("Point");
+    expect(screen.getByLabelText(/^1 dfr V \d+ U \d+ T \d+ MP \d+ Point 100$/)).toBeInTheDocument();
+  });
+
   it("keeps all 16 fixed-partner standings rows visible in the 8-court high-density structure", async () => {
     const remoteState = scoreFixedPartnerScoreboardState("STEP_22K_TEST 16 pairs 8 courts");
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(createReadResponse("standard", remoteState)));
@@ -661,6 +703,7 @@ describe("STEP 13 remote read-only UI", () => {
     expect(standingsColumns).toHaveLength(2);
     expect(within(standingsColumns[0]).getAllByTestId("scoreboard-standings-row")).toHaveLength(8);
     expect(within(standingsColumns[1]).getAllByTestId("scoreboard-standings-row")).toHaveLength(8);
+    expect(screen.getAllByTestId("scoreboard-standings-row").every((row) => row.getAttribute("data-column-layout") === "player-priority")).toBe(true);
     expect(screen.queryByRole("button", { name: "Indtast score" })).not.toBeInTheDocument();
   });
 
@@ -1343,6 +1386,25 @@ function scoreWdlScoreboardState(name: string): LiveTournamentState {
   const firstRoundMatches = state.rounds[0].matches;
   const winLossState = saveMatchResult(state, { matchId: firstRoundMatches[0].id, teamAPoints: 12, teamBPoints: 9 });
   return saveMatchResult(winLossState, { matchId: firstRoundMatches[1].id, teamAPoints: 10, teamBPoints: 10 });
+}
+
+function scoreNarrowScoreboardStandingsState(name: string): LiveTournamentState {
+  const state = createTournamentFromSetup({
+    name,
+    format: "Americano",
+    playerText: ["dfr", "sdfdsf", "Daniel", "Aage My eng h", "Very Long Player Name", "Short Six", "Short Seven", "Short Eight"].join("\n"),
+    femalePlayerText: "",
+    malePlayerText: "",
+    courts: 2,
+    rounds: 2,
+    scoringMode: "Fri scoring",
+    firstRoundOrder: "manual",
+    rankingMode: "matchPointsFirst",
+  });
+
+  const firstRoundMatches = state.rounds[0].matches;
+  const firstResultState = saveMatchResult(state, { matchId: firstRoundMatches[0].id, teamAPoints: 100, teamBPoints: 98 });
+  return saveMatchResult(firstResultState, { matchId: firstRoundMatches[1].id, teamAPoints: 21, teamBPoints: 12 });
 }
 
 function createTeamState(): TeamVsTeamTournamentState {
