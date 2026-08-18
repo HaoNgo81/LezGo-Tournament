@@ -47,9 +47,77 @@ body {
 
 html[data-theme="hybridLezgo"] body {
   background:
-    linear-gradient(rgba(248, 243, 232, 0.82), rgba(247, 241, 229, 0.9)),
+    linear-gradient(rgba(247, 241, 229, 0.76), rgba(247, 241, 229, 0.84)),
     url("/themes/hybrid-lezgo/padel-court-background.svg") center / cover fixed,
     var(--background);
+}
+
+html[data-theme="hybridLezgo"] .app-card {
+  box-shadow: 0 8px 24px rgba(47, 39, 23, 0.10);
+}
+
+html[data-theme="hybridLezgo"] [data-card-structure="unified-court-card"] {
+  border-color: rgba(220, 174, 47, 0.20);
+  background: #1b211f;
+  color: #f4ebdd;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
+}
+
+html[data-theme="hybridLezgo"] [data-card-structure="unified-court-card"] h3 {
+  color: #e3b82f;
+}
+
+html[data-theme="hybridLezgo"] [data-card-structure="unified-court-card"] [data-testid$="-vs"] {
+  background: rgba(216, 170, 32, 0.12);
+  color: #d8aa20;
+}
+
+html[data-theme="hybridLezgo"] [data-card-structure="unified-court-card"] [data-testid$="-score-row"] {
+  color: #fff4de;
+}
+
+html[data-theme="hybridLezgo"] [data-card-structure="unified-court-card"] [data-testid$="-score-separator"] {
+  color: #d7cebc;
+}
+
+html[data-theme="hybridLezgo"] [data-card-structure="unified-court-card"] [data-testid$="-unsaved-status"] {
+  border-color: rgba(216, 170, 32, 0.32);
+  background: rgba(255, 244, 222, 0.10);
+  color: #d7cebc;
+}
+
+html[data-theme="hybridLezgo"] [data-card-structure="unified-court-card"] > div:first-child > span {
+  background: rgba(216, 170, 32, 0.16);
+  color: #e3b82f;
+}
+
+html[data-theme="hybridLezgo"] .metric-card,
+html[data-theme="hybridLezgo"] [data-testid="live-summary-metric"] {
+  border-color: rgba(220, 174, 47, 0.20);
+  background: #1b211f;
+  color: #fff5df;
+}
+
+html[data-theme="hybridLezgo"] .metric-card p:first-child,
+html[data-theme="hybridLezgo"] [data-testid="live-summary-metric"] p:first-child {
+  color: #d5ccba;
+}
+
+html[data-theme="hybridLezgo"] [data-testid="live-mobile-round-summary"] {
+  border-color: rgba(220, 174, 47, 0.20);
+  background: #1b211f;
+  color: #fff5df;
+}
+
+html[data-theme="hybridLezgo"] [data-testid="live-sync-status-panel"] {
+  border-color: rgba(220, 174, 47, 0.24);
+  background: #10251f;
+  color: #f4ebdd;
+}
+
+html[data-theme="hybridLezgo"] [data-testid="live-sync-status-panel"] input,
+html[data-theme="hybridLezgo"] [data-testid="live-sync-status-panel"] code {
+  color: #191d1b;
 }
 
 a {

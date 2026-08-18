@@ -45,7 +45,20 @@ describe("theme presets", () => {
     expect(existsSync(backgroundPath)).toBe(true);
     expect(globalCss).toMatch(/html\[data-theme="hybridLezgo"\] body \{/);
     expect(globalCss).toContain('url("/themes/hybrid-lezgo/padel-court-background.svg")');
-    expect(globalCss).toMatch(/linear-gradient\(rgba\(248, 243, 232, 0\.82\), rgba\(247, 241, 229, 0\.9\)\)/);
+    expect(globalCss).toMatch(/linear-gradient\(rgba\(247, 241, 229, 0\.76\), rgba\(247, 241, 229, 0\.84\)\)/);
+  });
+
+  it("keeps Hybrid LEZGO color fidelity scoped to court cards, metrics and sync status without layout rules", () => {
+    const globalCss = readFileSync(resolve(process.cwd(), "app/globals.css"), "utf8");
+
+    expect(globalCss).toContain('html[data-theme="hybridLezgo"] [data-card-structure="unified-court-card"]');
+    expect(globalCss).toContain("background: #1b211f;");
+    expect(globalCss).toContain('html[data-theme="hybridLezgo"] [data-testid="live-summary-metric"]');
+    expect(globalCss).toContain('html[data-theme="hybridLezgo"] [data-testid="live-sync-status-panel"]');
+    expect(globalCss).toContain("background: #10251f;");
+    const hybridRules = globalCss.match(/html\[data-theme="hybridLezgo"\][^{]+\{[^}]+\}/g) ?? [];
+
+    expect(hybridRules.join("\n")).not.toMatch(/grid-template-columns|font-size|width:|height:|padding:|margin:|position:/);
   });
 
   it("maps legacy dark theme settings to Dark Gold", () => {

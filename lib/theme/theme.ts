@@ -79,9 +79,11 @@ export const themePresets: Record<Exclude<ThemePreset, "custom">, AppTheme> = {
 export interface ThemeCssVariables {
   "--background": string;
   "--surface": string;
+  "--card": string;
   "--foreground": string;
   "--muted": string;
   "--line": string;
+  "--border": string;
   "--primary": string;
   "--primary-strong": string;
   "--primary-soft": string;
@@ -138,6 +140,34 @@ export function applyTheme(theme: AppTheme, root: HTMLElement = document.documen
 }
 
 export function createThemeCssVariables(theme: AppTheme): ThemeCssVariables {
+  if (theme.preset === "hybridLezgo") {
+    return {
+      "--background": "#f7f1e5",
+      "--surface": "#fff9ef",
+      "--card": "#fbf7ef",
+      "--foreground": "#191d1b",
+      "--muted": "#5e625b",
+      "--line": "rgba(153, 119, 39, 0.20)",
+      "--border": "rgba(153, 119, 39, 0.20)",
+      "--primary": "#d8aa20",
+      "--primary-strong": "#a87a08",
+      "--primary-soft": "#f2e3b5",
+      "--primary-text": "#161a18",
+      "--secondary": "#fbf7ef",
+      "--secondary-text": "#191d1b",
+      "--accent": "#c99712",
+      "--control-bg": "#fff9ef",
+      "--control-text": "#191d1b",
+      "--control-border": "rgba(205, 155, 20, 0.55)",
+      "--control-hover-bg": "#f4ead3",
+      "--selected-bg": "#1b211f",
+      "--selected-text": "#fff4de",
+      "--selected-border": "#d8aa20",
+      "--focus-ring": "rgba(216, 170, 32, 0.30)",
+      "--danger-bg": "#fff2ed",
+    };
+  }
+
   const primaryText = getReadableTextColor(theme.primary);
   const secondaryText = getReadableTextColor(theme.secondary);
   const muted = mixHex(theme.foreground, theme.background, 0.38);
@@ -151,9 +181,11 @@ export function createThemeCssVariables(theme: AppTheme): ThemeCssVariables {
   return {
     "--background": theme.background,
     "--surface": theme.surface,
+    "--card": theme.surface,
     "--foreground": theme.foreground,
     "--muted": muted,
     "--line": line,
+    "--border": line,
     "--primary": theme.primary,
     "--primary-strong": theme.accent,
     "--primary-soft": primarySoft,

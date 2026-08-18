@@ -61,9 +61,10 @@ describe("SettingsApp", () => {
 
     expect(document.documentElement.dataset.theme).toBe("hybridLezgo");
     expect(document.documentElement.style.getPropertyValue("--background")).toBe("#f7f1e5");
-    expect(document.documentElement.style.getPropertyValue("--surface")).toBe("#fbf7ef");
-    expect(document.documentElement.style.getPropertyValue("--primary")).toBe("#d7a91e");
-    expect(document.documentElement.style.getPropertyValue("--control-bg")).toBe("#1d2221");
+    expect(document.documentElement.style.getPropertyValue("--surface")).toBe("#fff9ef");
+    expect(document.documentElement.style.getPropertyValue("--primary")).toBe("#d8aa20");
+    expect(document.documentElement.style.getPropertyValue("--selected-bg")).toBe("#1b211f");
+    expect(document.documentElement.style.getPropertyValue("--control-bg")).toBe("#fff9ef");
 
     fireEvent.click(screen.getByRole("button", { name: "Gem indstillinger" }));
     await waitFor(() => expect(loadTournamentSettings().theme.preset).toBe("hybridLezgo"));
