@@ -206,7 +206,7 @@ function PlayerLine({ index, name, side, styles, testIdPrefix }: { index: 1 | 2;
     <span
       className={`${side === "left" ? "col-start-1" : "col-start-3"} ${index === 1 ? "row-start-1" : "row-start-2"} w-full min-w-0 justify-self-center text-center ${styles} font-black leading-tight`}
       data-testid={`${testIdPrefix}-${side}-player-${index}`}
-      style={{ overflowWrap: "anywhere", wordBreak: "normal" }}
+      style={{ overflowWrap: "break-word", wordBreak: "normal" }}
       {...scoreboardProps}
     >
       {name}

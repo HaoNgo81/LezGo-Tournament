@@ -344,23 +344,39 @@ export function LiveScoringApp() {
   }
 
   return (
-    <div className="grid gap-5">
-      <div className="app-card p-4 sm:p-5">
-        <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{state.status === "finished" ? t("completedTournament") : t("activeTournament")}</p>
-        <h2 className="mt-1 text-2xl font-black">{state.tournamentName}</h2>
-        <p className="mt-1 text-sm font-bold text-[var(--muted)]">{state.players.length} {t("players").toLowerCase()} · {state.configuredRounds ?? state.rounds.length} {t("rounds").toLowerCase()}</p>
-        <div className="mt-3">
+    <div className="grid gap-3 sm:gap-5" data-testid="live-layout">
+      <div className="app-card p-3 sm:p-5" data-testid="live-compact-mobile-header">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[0.72rem] font-bold uppercase text-[var(--primary-strong)] sm:text-sm">{state.status === "finished" ? t("completedTournament") : t("activeTournament")}</p>
+            <h2 className="mt-0.5 text-xl font-black leading-tight sm:mt-1 sm:text-2xl">{state.tournamentName}</h2>
+            <p className="mt-0.5 text-xs font-bold text-[var(--muted)] sm:mt-1 sm:text-sm">{state.players.length} {t("players").toLowerCase()} · {state.configuredRounds ?? state.rounds.length} {t("rounds").toLowerCase()}</p>
+          </div>
+          <details className="relative sm:hidden" data-testid="live-mobile-more-menu">
+            <summary className="flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-center rounded-md border border-[var(--line)] bg-white px-3 text-xl font-black text-[var(--primary-strong)]" aria-label={t("moreActions")} title={t("moreActions")}>
+              ⋯
+            </summary>
+            <div className="absolute right-0 z-10 mt-2 w-52 rounded-md border border-[var(--line)] bg-white p-2 shadow-2xl">
+              <Link className="btn-outline-primary min-h-11 w-full text-sm" href="/finish">{t("finishTournament")}</Link>
+            </div>
+          </details>
+        </div>
+        <div className="mt-2 sm:mt-3">
           <SyncStatusPanel kind="standard" localId={createStandardShadowSaveLocalId(state)} state={state} />
         </div>
-        <div className="mt-4 action-grid">
-          <Link className="btn-outline-primary" href="/finish">{t("finishTournament")}</Link>
+        <div className="mt-4 hidden sm:block">
+          <div className="action-grid">
+            <Link className="btn-outline-primary" href="/finish">{t("finishTournament")}</Link>
+          </div>
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-[repeat(4,minmax(0,1fr))_minmax(220px,1.2fr)]">
-        <div className="metric-card"><p className="text-sm font-bold text-[var(--muted)]">{t("round")}</p><p className="mt-1 text-2xl font-black">{state.activeRoundNumber} / {state.configuredRounds ?? state.rounds.length}</p></div>
-        <div className="metric-card"><p className="text-sm font-bold text-[var(--muted)]">{t("matches")}</p><p className="mt-1 text-2xl font-black">{liveMatches.length}</p></div>
-        <div className="metric-card"><p className="text-sm font-bold text-[var(--muted)]">{t("savedInRound")}</p><p className="mt-1 text-2xl font-black">{roundProgress?.completedMatches} / {roundProgress?.totalMatches}</p></div>
+      <div className="grid gap-2 sm:gap-3 sm:grid-cols-[repeat(4,minmax(0,1fr))_minmax(220px,1.2fr)]">
+        <div className="app-card grid grid-cols-3 divide-x divide-[var(--line)] overflow-hidden text-center sm:contents" data-testid="live-mobile-round-summary">
+          <MetricBlock label={t("round")} value={`${state.activeRoundNumber} / ${state.configuredRounds ?? state.rounds.length}`} />
+          <MetricBlock label={t("matches")} value={`${liveMatches.length}`} />
+          <MetricBlock label={t("savedShort")} value={`${roundProgress?.completedMatches ?? 0} / ${roundProgress?.totalMatches ?? 0}`} />
+        </div>
         <div className="grid gap-2 text-sm font-bold text-[var(--muted)]">
           <span>{t("rankingSort")}</span>
           {rankingModeIsLocked ? (
@@ -376,30 +392,27 @@ export function LiveScoringApp() {
       </div>
 
       {state.scoringMode === "Spil på tid" ? <RoundTimerPanel state={state} onReset={handleResetTimer} onStart={handleStartTimer} onStop={handleStopTimer} /> : null}
-      <section className="app-card grid gap-3 p-4 sm:p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <section className="app-card grid gap-1.5 p-2.5 sm:gap-3 sm:p-5" data-testid="live-round-navigation-card">
+        <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-3">
           <div>
-            <h2 className="text-xl font-black">{t("round")} {state.activeRoundNumber}</h2>
-            <p className="text-sm font-bold text-[var(--muted)]">
+            <h2 className="text-lg font-black sm:text-xl">{t("round")} {state.activeRoundNumber}</h2>
+            <p className="text-xs font-bold text-[var(--muted)] sm:text-sm">
               {roundProgress?.isComplete ? t("roundComplete") : t("roundIncomplete")}
             </p>
           </div>
-          <div className="action-grid">
-            <button className="btn-secondary disabled:opacity-40" type="button" disabled={state.activeRoundNumber === 1} onClick={handlePreviousRound}>{t("previous")}</button>
-            <button className="btn-primary disabled:bg-gray-300" type="button" disabled={!nextRoundIsAvailable} onClick={handleNextRound}>{t("next")}</button>
-          </div>
+          <RoundNavigationButtons canGoPrevious={state.activeRoundNumber > 1} canGoNext={nextRoundIsAvailable} onNext={handleNextRound} onPrevious={handlePreviousRound} />
         </div>
-        <div className="h-3 overflow-hidden rounded-full bg-gray-100">
+        <div className="h-1.5 overflow-hidden rounded-full bg-gray-100 sm:h-3">
           <div className="h-full bg-[var(--primary)] transition-all" style={{ width: `${((roundProgress?.completedMatches ?? 0) / (roundProgress?.totalMatches ?? 1)) * 100}%` }} />
         </div>
       </section>
 
       {toast ? <p className="rounded-md bg-green-50 p-3 font-bold text-[var(--primary-strong)]">{toast}</p> : null}
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-start">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-start" data-testid="live-desktop-content-grid">
         <section className="flex flex-col gap-3">
           <h2 className="text-xl font-black">{t("matches")}</h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2" data-testid="live-match-card-grid">
             {liveMatches.map((liveMatch) => (
               <LiveMatchCard key={liveMatch.match.id} liveMatch={liveMatch} players={state.players} onSelect={() => setSelectedMatchId(liveMatch.match.id)} />
             ))}
@@ -409,7 +422,7 @@ export function LiveScoringApp() {
         <section className="flex flex-col gap-2" data-testid="live-standings-section">
           <h2 className="text-xl font-black uppercase">{t("remoteTopStandings")}</h2>
           <StandingsTable standings={standings} variant="compactLive" />
-          <button className="btn-primary min-h-14 disabled:bg-gray-300" type="button" disabled={!nextRoundIsAvailable} onClick={handleNextRound}>{t("next")}</button>
+          <RoundNavigationButtons canGoPrevious={state.activeRoundNumber > 1} canGoNext={nextRoundIsAvailable} onNext={handleNextRound} onPrevious={handlePreviousRound} testId="live-bottom-round-navigation" />
         </section>
       </div>
 
@@ -1094,6 +1107,38 @@ function LiveMatchCard({ liveMatch, players, onSelect }: { liveMatch: LiveMatchV
       tone={liveMatch.status === "Afsluttet" ? "completed" : liveMatch.status === "I gang" ? "active" : "ready"}
       unsavedLabel={t("remoteNotSaved")}
     />
+  );
+}
+
+function MetricBlock({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="px-2 py-2 sm:rounded-md sm:border sm:border-[var(--line)] sm:bg-[var(--surface)] sm:p-4 sm:text-center" data-testid="live-summary-metric">
+      <p className="text-[0.68rem] font-bold uppercase text-[var(--muted)] sm:text-sm sm:normal-case">{label}</p>
+      <p className="mt-0.5 text-lg font-black sm:mt-1 sm:text-2xl">{value}</p>
+    </div>
+  );
+}
+
+function RoundNavigationButtons({
+  canGoNext,
+  canGoPrevious,
+  onNext,
+  onPrevious,
+  testId = "live-round-navigation-actions",
+}: {
+  canGoNext: boolean;
+  canGoPrevious: boolean;
+  onNext: () => void;
+  onPrevious: () => void;
+  testId?: string;
+}) {
+  const { t } = useAppTranslation();
+
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:min-w-72 sm:max-w-md sm:flex-1" data-testid={testId}>
+      <button className="btn-secondary min-h-11 px-3 py-2 text-sm disabled:opacity-40 sm:min-h-12 sm:text-base" type="button" disabled={!canGoPrevious} onClick={onPrevious}>{t("previous")}</button>
+      <button className="btn-primary min-h-11 px-3 py-2 text-sm disabled:bg-gray-300 sm:min-h-12 sm:text-base" type="button" disabled={!canGoNext} onClick={onNext}>{t("next")}</button>
+    </div>
   );
 }
 

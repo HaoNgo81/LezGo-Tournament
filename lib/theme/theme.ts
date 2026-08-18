@@ -1,4 +1,4 @@
-export type ThemePreset = "lezgo" | "dark" | "light" | "custom";
+export type ThemePreset = "lezgo" | "darkGold" | "midnight" | "ocean" | "forest" | "light" | "custom";
 
 export interface AppTheme {
   preset: ThemePreset;
@@ -20,14 +20,41 @@ export const themePresets: Record<Exclude<ThemePreset, "custom">, AppTheme> = {
     foreground: "#112018",
     accent: "#0f7d43",
   },
-  dark: {
-    preset: "dark",
+  darkGold: {
+    preset: "darkGold",
     primary: "#f7d046",
-    secondary: "#22332a",
-    background: "#0f1b14",
-    surface: "#18261d",
-    foreground: "#f7fff9",
-    accent: "#d6a447",
+    secondary: "#201d14",
+    background: "#0b0a07",
+    surface: "#15130d",
+    foreground: "#fff8df",
+    accent: "#caa253",
+  },
+  midnight: {
+    preset: "midnight",
+    primary: "#60a5fa",
+    secondary: "#182235",
+    background: "#080f1f",
+    surface: "#101827",
+    foreground: "#eef6ff",
+    accent: "#38bdf8",
+  },
+  ocean: {
+    preset: "ocean",
+    primary: "#22d3ee",
+    secondary: "#dff7fb",
+    background: "#eef9fb",
+    surface: "#ffffff",
+    foreground: "#082f49",
+    accent: "#0369a1",
+  },
+  forest: {
+    preset: "forest",
+    primary: "#22c55e",
+    secondary: "#e8f7ee",
+    background: "#f0f8f2",
+    surface: "#ffffff",
+    foreground: "#102519",
+    accent: "#166534",
   },
   light: {
     preset: "light",
@@ -40,6 +67,30 @@ export const themePresets: Record<Exclude<ThemePreset, "custom">, AppTheme> = {
   },
 };
 
+export interface ThemeCssVariables {
+  "--background": string;
+  "--surface": string;
+  "--foreground": string;
+  "--muted": string;
+  "--line": string;
+  "--primary": string;
+  "--primary-strong": string;
+  "--primary-soft": string;
+  "--primary-text": string;
+  "--secondary": string;
+  "--secondary-text": string;
+  "--accent": string;
+  "--control-bg": string;
+  "--control-text": string;
+  "--control-border": string;
+  "--control-hover-bg": string;
+  "--selected-bg": string;
+  "--selected-text": string;
+  "--selected-border": string;
+  "--focus-ring": string;
+  "--danger-bg": string;
+}
+
 export function createDefaultTheme(): AppTheme {
   return { ...themePresets.lezgo };
 }
@@ -49,11 +100,11 @@ export function normalizeTheme(input: Partial<AppTheme> | undefined): AppTheme {
     return createDefaultTheme();
   }
 
-  const preset = input.preset && input.preset !== "custom" ? input.preset : undefined;
+  const preset = normalizeThemePreset(input.preset);
   const base = preset ? themePresets[preset] : createDefaultTheme();
 
   return {
-    preset: input.preset ?? base.preset,
+    preset: input.preset === "custom" ? "custom" : base.preset,
     primary: normalizeColor(input.primary, base.primary),
     secondary: normalizeColor(input.secondary, base.secondary),
     background: normalizeColor(input.background, base.background),
@@ -68,35 +119,80 @@ export function getThemeForPreset(preset: Exclude<ThemePreset, "custom">): AppTh
 }
 
 export function applyTheme(theme: AppTheme, root: HTMLElement = document.documentElement): void {
+  const variables = createThemeCssVariables(theme);
+
+  for (const [key, value] of Object.entries(variables)) {
+    root.style.setProperty(key, value);
+  }
+}
+
+export function createThemeCssVariables(theme: AppTheme): ThemeCssVariables {
   const primaryText = getReadableTextColor(theme.primary);
   const secondaryText = getReadableTextColor(theme.secondary);
   const muted = mixHex(theme.foreground, theme.background, 0.38);
   const line = mixHex(theme.foreground, theme.background, 0.82);
   const primarySoft = mixHex(theme.primary, theme.surface, 0.84);
+  const selectedText = getReadableTextColor(primarySoft);
+  const focusRing = withAlpha(theme.primary, 0.28);
+  const controlHoverBg = mixHex(theme.primary, theme.secondary, 0.9);
+  const dangerBg = mixHex("#dc2626", theme.surface, 0.88);
 
-  root.style.setProperty("--background", theme.background);
-  root.style.setProperty("--surface", theme.surface);
-  root.style.setProperty("--foreground", theme.foreground);
-  root.style.setProperty("--muted", muted);
-  root.style.setProperty("--line", line);
-  root.style.setProperty("--primary", theme.primary);
-  root.style.setProperty("--primary-strong", theme.accent);
-  root.style.setProperty("--primary-soft", primarySoft);
-  root.style.setProperty("--primary-text", primaryText);
-  root.style.setProperty("--secondary", theme.secondary);
-  root.style.setProperty("--secondary-text", secondaryText);
-  root.style.setProperty("--accent", theme.accent);
+  return {
+    "--background": theme.background,
+    "--surface": theme.surface,
+    "--foreground": theme.foreground,
+    "--muted": muted,
+    "--line": line,
+    "--primary": theme.primary,
+    "--primary-strong": theme.accent,
+    "--primary-soft": primarySoft,
+    "--primary-text": primaryText,
+    "--secondary": theme.secondary,
+    "--secondary-text": secondaryText,
+    "--accent": theme.accent,
+    "--control-bg": theme.secondary,
+    "--control-text": secondaryText,
+    "--control-border": line,
+    "--control-hover-bg": controlHoverBg,
+    "--selected-bg": primarySoft,
+    "--selected-text": selectedText,
+    "--selected-border": theme.primary,
+    "--focus-ring": focusRing,
+    "--danger-bg": dangerBg,
+  };
+}
+
+export function getContrastRatio(colorA: string, colorB: string): number {
+  const a = getRelativeLuminance(colorA);
+  const b = getRelativeLuminance(colorB);
+  const lighter = Math.max(a, b);
+  const darker = Math.min(a, b);
+
+  return (lighter + 0.05) / (darker + 0.05);
 }
 
 function normalizeColor(value: unknown, fallback: string): string {
   return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value) ? value : fallback;
 }
 
+function normalizeThemePreset(value: unknown): Exclude<ThemePreset, "custom"> | undefined {
+  if (value === "dark") {
+    return "darkGold";
+  }
+
+  return typeof value === "string" && value in themePresets ? value as Exclude<ThemePreset, "custom"> : undefined;
+}
+
 function getReadableTextColor(backgroundColor: string): "#ffffff" | "#112018" {
-  const { r, g, b } = hexToRgb(backgroundColor);
-  const luminance = (0.2126 * srgb(r) + 0.7152 * srgb(g) + 0.0722 * srgb(b));
+  const luminance = getRelativeLuminance(backgroundColor);
 
   return luminance > 0.52 ? "#112018" : "#ffffff";
+}
+
+function getRelativeLuminance(color: string): number {
+  const { r, g, b } = hexToRgb(color);
+
+  return (0.2126 * srgb(r) + 0.7152 * srgb(g) + 0.0722 * srgb(b));
 }
 
 function srgb(value: number): number {
@@ -130,4 +226,10 @@ function rgbToHex({ r, g, b }: { r: number; g: number; b: number }): string {
 
 function toHex(value: number): string {
   return value.toString(16).padStart(2, "0");
+}
+
+function withAlpha(hex: string, alpha: number): string {
+  const { r, g, b } = hexToRgb(hex);
+
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }

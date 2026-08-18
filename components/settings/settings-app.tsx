@@ -21,6 +21,15 @@ const rankingOptions: Array<{ labelKey: "mostMatchPoints" | "mostScorePoints"; v
   { labelKey: "mostScorePoints", value: "partiPointsFirst" },
 ];
 
+const themePresetOptions: Array<{ labelKey: "lezgo" | "darkGold" | "midnight" | "ocean" | "forest" | "light"; value: Exclude<ThemePreset, "custom"> }> = [
+  { labelKey: "lezgo", value: "lezgo" },
+  { labelKey: "darkGold", value: "darkGold" },
+  { labelKey: "midnight", value: "midnight" },
+  { labelKey: "ocean", value: "ocean" },
+  { labelKey: "forest", value: "forest" },
+  { labelKey: "light", value: "light" },
+];
+
 export function SettingsApp() {
   const hasHydrated = useHasHydrated();
   const [settings, setSettings] = useState<TournamentSettings>(() => createDefaultTournamentSettings());
@@ -138,9 +147,7 @@ export function SettingsApp() {
           <label className="grid gap-2 text-lg font-bold">
             {t("themePreset")}
             <select className="field-control" value={settings.theme.preset} onChange={(event) => handleThemePresetChange(event.target.value as ThemePreset)}>
-              <option value="lezgo">{t("lezgo")}</option>
-              <option value="dark">{t("dark")}</option>
-              <option value="light">{t("light")}</option>
+              {themePresetOptions.map((option) => <option key={option.value} value={option.value}>{t(option.labelKey)}</option>)}
               <option value="custom">{t("themeCustom")}</option>
             </select>
           </label>

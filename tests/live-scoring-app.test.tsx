@@ -1,6 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { AppShell } from "../components/layout/app-shell";
 import { LiveScoringApp } from "../components/tournament/live-scoring-app";
+import { SyncStatusPanel } from "../components/tournament/sync-status-panel";
 import { advanceLivePoolPlayState, createMockLiveTournamentState, saveMatchResult, saveNextPoolPhaseResult } from "../lib/live-scoring";
 import { createPoolTournamentFromSetup, createStandardShadowSaveLocalId, createTournamentFromSetup, saveActiveTournament, saveActiveTournamentFromRemoteSync, type TournamentSetupFormat } from "../lib/tournament-setup";
 
@@ -41,6 +43,119 @@ describe("LiveScoringApp score sheet", () => {
     expect(screen.getByText("Del / vis på anden enhed")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "TV / Mirror" })).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Næste" })).toHaveLength(2);
+  });
+
+  it("uses a compact mobile header with combined round metrics and a protected more menu", async () => {
+    const state = createStandardTournament("Mexicano");
+    saveActiveTournament(state);
+    render(<LiveScoringApp />);
+
+    expect(await screen.findByText("Mexicano test")).toBeInTheDocument();
+
+    const header = screen.getByTestId("live-compact-mobile-header");
+    expect(header).toHaveClass("p-3", "sm:p-5");
+    expect(within(header).getByText("16 spillere · 5 runder")).toBeInTheDocument();
+
+    const summary = screen.getByTestId("live-mobile-round-summary");
+    expect(summary).toHaveClass("grid-cols-3", "sm:contents");
+    expect(within(summary).getByText("Runde")).toBeInTheDocument();
+    expect(within(summary).getByText("Kampe")).toBeInTheDocument();
+    expect(within(summary).getByText("Gemt")).toBeInTheDocument();
+    expect(within(summary).getByText("1 / 5")).toBeInTheDocument();
+    expect(within(summary).getByText("4")).toBeInTheDocument();
+    expect(within(summary).getByText("0 / 4")).toBeInTheDocument();
+
+    const roundCard = screen.getByTestId("live-round-navigation-card");
+    expect(roundCard).toHaveClass("p-2.5", "sm:p-5");
+    expect(within(roundCard).getByText("Alle kampe skal gemmes før næste runde.")).toBeInTheDocument();
+    const roundActions = within(roundCard).getByTestId("live-round-navigation-actions");
+    expect(roundActions).toHaveClass("grid-cols-2");
+    const roundButtons = within(roundActions).getAllByRole("button");
+    expect(roundButtons.map((button) => button.textContent)).toEqual(["Forrige", "Næste"]);
+    expect(roundButtons[0]).toBeDisabled();
+
+    const moreMenu = screen.getByTestId("live-mobile-more-menu");
+    expect(moreMenu).toHaveClass("sm:hidden");
+    expect(within(moreMenu).getByLabelText("Flere handlinger")).toBeInTheDocument();
+    expect(within(moreMenu).getByRole("link", { name: "Afslut turnering" })).toHaveAttribute("href", "/finish");
+  });
+
+  it("keeps /live mobile compact while allowing a wider desktop shell", async () => {
+    render(
+      <AppShell title="Live turnering" subtitle="En skærm til runde, kampe, scoring og stilling." compactMobile>
+        <p>Shell content</p>
+      </AppShell>,
+    );
+
+    const shell = screen.getByRole("main");
+    expect(shell).toHaveClass("max-w-4xl", "xl:max-w-6xl", "gap-3", "sm:gap-6");
+  });
+
+  it("uses a balanced desktop match and standings grid with natural player wrapping", async () => {
+    saveActiveTournament(createStandardTournament("Mexicano"));
+    render(<LiveScoringApp />);
+
+    expect(await screen.findByText("Mexicano test")).toBeInTheDocument();
+    expect(screen.getByTestId("live-desktop-content-grid")).toHaveClass("lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]");
+    expect(screen.getByTestId("live-match-card-grid")).toHaveClass("xl:grid-cols-2");
+
+    const playerLine = screen.getAllByTestId("live-court-left-player-1")[0];
+    expect(playerLine).toHaveStyle({ overflowWrap: "break-word", wordBreak: "normal" });
+    expect(playerLine).not.toHaveStyle({ overflowWrap: "anywhere" });
+  });
+
+  it("keeps synced sharing compact on mobile and exposes TV/access actions without the long UUID", async () => {
+    const state = createStandardTournament("Mexicano");
+    const localId = "step-24f-synced";
+    saveShadowMetadata(localId, {
+      kind: "standard",
+      lastLocalSaveAt: "2026-08-13T12:00:00.000Z",
+      lastShadowSaveVersion: "2026-08-13T12:00:00.000Z",
+      lastSuccessfulShadowSaveAt: "2026-08-13T12:00:00.000Z",
+      organizerToken: "STEP_24F_ORGANIZER_TOKEN",
+      status: "synced",
+      supabaseTournamentId: "00000000-0000-4000-8000-00000000024f",
+    });
+
+    render(<SyncStatusPanel kind="standard" localId={localId} state={state} />);
+
+    const syncPanel = screen.getByTestId("live-sync-status-panel");
+    expect(within(syncPanel).getByTestId("live-compact-sync-status")).toHaveTextContent("Synkroniseret");
+    expect(within(syncPanel).getByRole("button", { name: "TV / Livescore" })).toBeInTheDocument();
+    expect(within(syncPanel).getByRole("button", { name: "Scoreindtastning" })).toBeInTheDocument();
+    expect(within(syncPanel).getByText("TV")).toHaveClass("sm:hidden");
+    expect(within(syncPanel).getByText("Adgang")).toHaveClass("sm:hidden");
+    expect(within(syncPanel).getByText(/Sidst synkroniseret/)).toHaveClass("hidden", "sm:block");
+  });
+
+  it("keeps sync errors visible in the compact mobile status", async () => {
+    const state = createStandardTournament("Mexicano");
+    const localId = "step-24f-sync-error";
+    saveShadowMetadata(localId, {
+      kind: "standard",
+      lastError: "Supabase unavailable",
+      lastLocalSaveAt: "2026-08-13T12:00:00.000Z",
+      status: "error",
+    });
+
+    render(<SyncStatusPanel kind="standard" localId={localId} state={state} />);
+
+    const syncPanel = screen.getByTestId("live-sync-status-panel");
+    expect(within(syncPanel).getByText("Synkronisering fejlede")).toBeInTheDocument();
+    expect(within(syncPanel).getByText(/Supabase unavailable/)).not.toHaveClass("hidden");
+    expect(within(syncPanel).getByRole("button", { name: "Prøv igen" })).toBeInTheDocument();
+  });
+
+  it("uses English compact labels when English is selected", async () => {
+    window.localStorage.setItem("lezgo.tournamentSettings.v1", JSON.stringify({ language: "en" }));
+    saveActiveTournament(createStandardTournament("Mexicano"));
+    render(<LiveScoringApp />);
+
+    expect(await screen.findByText("Mexicano test")).toBeInTheDocument();
+    expect(await screen.findByLabelText("More actions")).toBeInTheDocument();
+    expect(await screen.findByText("Saved")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Activate sharing" })).toBeInTheDocument();
+    expect(screen.getByText("Share")).toHaveClass("sm:hidden");
   });
 
   it("uses the compact /live standings header without duplicate live score or sort label", async () => {
@@ -165,7 +280,7 @@ describe("LiveScoringApp score sheet", () => {
   }, 10000);
 
   it("starts organizer polling after sharing is activated on an already mounted local tournament", async () => {
-    process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE = "1";
+    delete process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE;
     const localState = createTournamentFromSetup({
       name: "Mounted sharing sync",
       format: "Mexicano",
@@ -218,6 +333,7 @@ describe("LiveScoringApp score sheet", () => {
     expect(await screen.findByText("Mounted sharing sync")).toBeInTheDocument();
     expect(screen.getByLabelText("Sync status")).toHaveTextContent("Kun gemt lokalt");
 
+    process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE = "1";
     fireEvent.click(screen.getByRole("button", { name: "Aktivér deling" }));
 
     await waitFor(() => expect(screen.getByRole("button", { name: "Scoreindtastning" })).toBeInTheDocument());
@@ -359,10 +475,29 @@ describe("LiveScoringApp score sheet", () => {
 
     expect(await screen.findByText("1 / 5")).toBeInTheDocument();
     scoreVisibleRound();
-    fireEvent.click(screen.getAllByRole("button", { name: "Næste" })[1]);
+    const bottomNavigation = screen.getByTestId("live-bottom-round-navigation");
+    expect(bottomNavigation).toHaveClass("grid-cols-2");
+    const bottomButtons = within(bottomNavigation).getAllByRole("button");
+    expect(bottomButtons.map((button) => button.textContent)).toEqual(["Forrige", "Næste"]);
+    expect(bottomButtons[0]).toBeDisabled();
+    fireEvent.click(within(bottomNavigation).getByRole("button", { name: "Næste" }));
 
     expect(screen.getByText("Næste runde åbnet.")).toBeInTheDocument();
     expect(screen.getByText("2 / 5")).toBeInTheDocument();
+  });
+
+  it("opens the previous round from the bottom standings navigation", async () => {
+    saveActiveTournament(createStandardTournament("Americano"));
+    render(<LiveScoringApp />);
+
+    expect(await screen.findByText("1 / 5")).toBeInTheDocument();
+    scoreVisibleRound();
+    fireEvent.click(screen.getAllByRole("button", { name: "Næste" })[0]);
+
+    expect(screen.getByText("2 / 5")).toBeInTheDocument();
+    fireEvent.click(within(screen.getByTestId("live-bottom-round-navigation")).getByRole("button", { name: "Forrige" }));
+
+    expect(screen.getByText("1 / 5")).toBeInTheDocument();
   });
 
   it("opens the next Fast Makker Mexicano round from the live pair standings", async () => {
@@ -606,12 +741,13 @@ function expectLiveCourtScore(teamA: string, teamB: string, cardIndex = 0): HTML
 }
 
 function saveShadowMetadata(localId: string, metadata: Record<string, unknown>): void {
-  window.localStorage.setItem("lezgo.shadowSaveMetadata.v1", JSON.stringify({
-    [localId]: {
-      localId,
+  const ids = Array.from(new Set([localId, localId.toLocaleLowerCase("da")]));
+  window.localStorage.setItem("lezgo.shadowSaveMetadata.v1", JSON.stringify(Object.fromEntries(
+    ids.map((id) => [id, {
+      localId: id,
       ...metadata,
-    },
-  }));
+    }]),
+  )));
 }
 
 function createPoolTournament() {

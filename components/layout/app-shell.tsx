@@ -11,27 +11,28 @@ interface AppShellProps {
   subtitle?: string;
   children: ReactNode;
   backHref?: string;
+  compactMobile?: boolean;
   primaryAction?: ReactNode;
 }
 
-export function AppShell({ title, subtitle, children, backHref = "/", primaryAction }: AppShellProps) {
+export function AppShell({ title, subtitle, children, backHref = "/", compactMobile = false, primaryAction }: AppShellProps) {
   const { t } = useAppTranslation();
   const translatedTitle = translateKnownShellText(title, t);
   const translatedSubtitle = subtitle ? translateKnownShellText(subtitle, t) : undefined;
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
   return (
-    <main className="safe-screen mx-auto flex w-full max-w-4xl flex-col gap-6">
-      <header className="flex flex-col gap-4">
+    <main className={`safe-screen mx-auto flex w-full flex-col ${compactMobile ? "max-w-4xl gap-3 sm:gap-6 xl:max-w-6xl" : "max-w-4xl gap-6"}`}>
+      <header className={`flex flex-col ${compactMobile ? "gap-2 sm:gap-4" : "gap-4"}`}>
         {backHref ? (
-          <Link className="inline-flex min-h-11 w-fit items-center rounded-md px-1 text-base font-black text-[var(--primary-strong)]" href={backHref}>
+          <Link className={`inline-flex w-fit items-center rounded-md px-1 font-black text-[var(--primary-strong)] ${compactMobile ? "min-h-9 text-sm sm:min-h-11 sm:text-base" : "min-h-11 text-base"}`} href={backHref}>
             {t("back")}
           </Link>
         ) : null}
         <div className="max-w-3xl">
-          <Image className="h-auto w-full max-w-[min(100%,24rem)]" src={`${basePath}/lezgo-padel-logo.png`} width={1399} height={184} priority unoptimized alt={t("appBrand")} />
-          <h1 className="mt-2 text-2xl font-black leading-tight text-[var(--foreground)] sm:text-4xl">{translatedTitle}</h1>
-          {translatedSubtitle ? <p className="mt-2 max-w-2xl text-base font-bold leading-7 text-[var(--muted)] sm:text-lg">{translatedSubtitle}</p> : null}
+          <Image className={`h-auto w-full ${compactMobile ? "max-w-[min(100%,16rem)] sm:max-w-[min(100%,24rem)]" : "max-w-[min(100%,24rem)]"}`} src={`${basePath}/lezgo-padel-logo.png`} width={1399} height={184} priority unoptimized alt={t("appBrand")} />
+          <h1 className={`font-black leading-tight text-[var(--foreground)] ${compactMobile ? "mt-1 text-xl sm:mt-2 sm:text-4xl" : "mt-2 text-2xl sm:text-4xl"}`}>{translatedTitle}</h1>
+          {translatedSubtitle ? <p className={`max-w-2xl font-bold text-[var(--muted)] ${compactMobile ? "mt-1 text-sm leading-5 sm:mt-2 sm:text-lg sm:leading-7" : "mt-2 text-base leading-7 sm:text-lg"}`}>{translatedSubtitle}</p> : null}
         </div>
       </header>
       {children}
@@ -50,6 +51,8 @@ function translateKnownShellText(text: string, t: (key: TranslationKey) => strin
     "Turneringsskabeloner": "homeTemplatesTitle",
     "Turneringer": "tournaments",
     "Aktive og afsluttede turneringer gemmes lokalt.": "tournamentsDescription",
+    "Live turnering": "liveTournamentTitle",
+    "En skærm til runde, kampe, scoring og stilling.": "liveTournamentDescription",
     "openRemoteTournament": "openRemoteTournament",
     "openRemoteTournamentDescription": "openRemoteTournamentDescription",
   };

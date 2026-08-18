@@ -19,6 +19,7 @@ export type TranslationKey =
   | "court"
   | "courts"
   | "dark"
+  | "darkGold"
   | "draws"
   | "edit"
   | "editScore"
@@ -27,9 +28,12 @@ export type TranslationKey =
   | "enterScore"
   | "finishTournament"
   | "finalStandings"
+  | "forest"
   | "foreground"
   | "fullStandings"
   | "language"
+  | "liveTournamentDescription"
+  | "liveTournamentTitle"
   | "lezgo"
   | "light"
   | "liveScore"
@@ -37,8 +41,10 @@ export type TranslationKey =
   | "matches"
   | "matchesInActiveRound"
   | "matchPoints"
+  | "midnight"
   | "mostMatchPoints"
   | "mostScorePoints"
+  | "moreActions"
   | "name"
   | "newTournamentDescription"
   | "newTournamentTitle"
@@ -82,6 +88,7 @@ export type TranslationKey =
   | "loadingShare"
   | "resumeTimer"
   | "savedInRound"
+  | "savedShort"
   | "registerScorePoints"
   | "linkCopied"
   | "noActiveTournaments"
@@ -92,7 +99,9 @@ export type TranslationKey =
   | "openQr"
   | "openTeamMatch"
   | "openTvScreen"
+  | "ocean"
   | "review"
+  | "retry"
   | "remoteAccessDenied"
   | "remoteAccessHelp"
   | "remoteAccessInfo"
@@ -201,6 +210,7 @@ export type TranslationKey =
   | "tournamentFormat"
   | "tournamentSettings"
   | "shareTournament"
+  | "shareShort"
   | "startTimer"
   | "stopTimer"
   | "surface"
@@ -213,6 +223,8 @@ export type TranslationKey =
   | "timerStartsAfterCountdown"
   | "timerStoppedCanResume"
   | "tvMirror"
+  | "tvShort"
+  | "accessShort"
   | "wins";
 
 export const translations: Record<AppLanguage, Record<TranslationKey, string>> = {
@@ -235,6 +247,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     court: "Bane",
     courts: "Baner",
     dark: "Mørk",
+    darkGold: "Dark Gold",
     draws: "Uafgjort",
     edit: "Rediger",
     editScore: "Rediger score",
@@ -243,9 +256,12 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     enterScore: "Indtast score",
     finishTournament: "Afslut turnering",
     finalStandings: "Slutstilling",
+    forest: "Forest",
     foreground: "Primær tekstfarve",
     fullStandings: "Hele stillingen",
     language: "Sprog",
+    liveTournamentDescription: "En skærm til runde, kampe, scoring og stilling.",
+    liveTournamentTitle: "Live turnering",
     lezgo: "LezGo",
     light: "Lys",
     liveScore: "Live score",
@@ -253,8 +269,10 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     matches: "Kampe",
     matchesInActiveRound: "Kampe i aktiv runde",
     matchPoints: "Matchpoint",
+    midnight: "Midnight",
     mostMatchPoints: "Flest matchpoint",
     mostScorePoints: "Flest scorepoint",
+    moreActions: "Flere handlinger",
     name: "Navn",
     newTournamentDescription: "Opret en turnering med format, spillere, baner, runder og stillingssortering.",
     newTournamentTitle: "Ny turnering",
@@ -298,6 +316,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     loadingShare: "Indlæser deling...",
     resumeTimer: "Fortsæt ur",
     savedInRound: "Gemt i runden",
+    savedShort: "Gemt",
     registerScorePoints: "Registrer scorepoint",
     linkCopied: "Link kopieret.",
     noActiveTournaments: "Ingen aktive turneringer.",
@@ -308,7 +327,9 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     openQr: "Åbn QR",
     openTeamMatch: "Åbn holdkamp",
     openTvScreen: "Åbn TV-skærm",
+    ocean: "Ocean",
     review: "Gennemse",
+    retry: "Prøv igen",
     remoteAccessDenied: "Turneringen kunne ikke åbnes. Kontrollér kode og adgangskode.",
     remoteAccessHelp: "Indtast koden og adgangskoden fra en turnering, der allerede er delt fra en anden enhed.",
     remoteAccessInfo: "Adgang til anden enhed",
@@ -417,6 +438,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     tournamentFormat: "Turneringsform",
     tournamentSettings: "Turneringsindstillinger",
     shareTournament: "Del turnering",
+    shareShort: "Del",
     startTimer: "Start ur",
     stopTimer: "Stop ur",
     surface: "Kortbaggrund",
@@ -429,6 +451,8 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     timerStartsAfterCountdown: "15 sekunders nedtælling før uret starter.",
     timerStoppedCanResume: "Uret er stoppet og fortsætter fra den viste tid.",
     tvMirror: "TV / Mirror",
+    tvShort: "TV",
+    accessShort: "Adgang",
     wins: "Sejre",
   },
   en: {
@@ -450,6 +474,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     court: "Court",
     courts: "Courts",
     dark: "Dark",
+    darkGold: "Dark Gold",
     draws: "Draws",
     edit: "Edit",
     editScore: "Edit score",
@@ -458,9 +483,12 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     enterScore: "Enter score",
     finishTournament: "Finish tournament",
     finalStandings: "Final standings",
+    forest: "Forest",
     foreground: "Primary text color",
     fullStandings: "Full standings",
     language: "Language",
+    liveTournamentDescription: "One screen for rounds, matches, scoring and standings.",
+    liveTournamentTitle: "Live tournament",
     lezgo: "LezGo",
     light: "Light",
     liveScore: "Live score",
@@ -468,8 +496,10 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     matches: "Matches",
     matchesInActiveRound: "Matches in active round",
     matchPoints: "Match points",
+    midnight: "Midnight",
     mostMatchPoints: "Most match points",
     mostScorePoints: "Most score points",
+    moreActions: "More actions",
     name: "Name",
     newTournamentDescription: "Create a tournament with format, players, courts, rounds and ranking settings.",
     newTournamentTitle: "New tournament",
@@ -513,6 +543,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     loadingShare: "Loading sharing...",
     resumeTimer: "Resume timer",
     savedInRound: "Saved this round",
+    savedShort: "Saved",
     registerScorePoints: "Enter score points",
     linkCopied: "Link copied.",
     noActiveTournaments: "No active tournaments.",
@@ -523,7 +554,9 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     openQr: "Open QR",
     openTeamMatch: "Open team match",
     openTvScreen: "Open TV screen",
+    ocean: "Ocean",
     review: "Review",
+    retry: "Try again",
     remoteAccessDenied: "The tournament could not be opened. Check the code and access code.",
     remoteAccessHelp: "Enter the code and 4-digit access code from a tournament already shared from another device.",
     remoteAccessInfo: "Access for another device",
@@ -632,6 +665,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     tournamentFormat: "Tournament format",
     tournamentSettings: "Tournament settings",
     shareTournament: "Share tournament",
+    shareShort: "Share",
     startTimer: "Start timer",
     stopTimer: "Stop timer",
     surface: "Card background",
@@ -644,6 +678,8 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     timerStartsAfterCountdown: "15 second countdown before the timer starts.",
     timerStoppedCanResume: "The timer is paused and will continue from the shown time.",
     tvMirror: "TV / Mirror",
+    tvShort: "TV",
+    accessShort: "Access",
     wins: "Wins",
   },
 };

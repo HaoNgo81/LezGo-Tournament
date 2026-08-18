@@ -68,6 +68,7 @@ export function SyncStatusPanel({
   const scoreEntryUrl = origin && accessState?.tournamentCode ? createRemoteUrl(origin, { code: accessState.tournamentCode }) : "";
   const tvHandoffUrl = handoffState?.handoffUrl ? withRemoteDisplayMode(handoffState.handoffUrl, "scoreboard") : "";
   const tvQrCode = tvHandoffUrl ? createQrCodeMatrix(tvHandoffUrl) : null;
+  const shouldShowCompactDetail = status === "error" || status === "conflict" || Boolean(accessMessage);
 
   function handleRetry() {
     if (kind === "standard") {
@@ -196,33 +197,39 @@ export function SyncStatusPanel({
   }
 
   return (
-    <div className={`rounded-md border p-3 text-sm font-bold ${copy.className}`} aria-label="Sync status">
+    <div className={`rounded-md border p-2 text-sm font-bold sm:p-3 ${copy.className}`} aria-label="Sync status" data-testid="live-sync-status-panel">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="font-black">{t("remoteUnifiedShareTitle")}</p>
-          <p className="mt-1 text-xs font-black">{copy.label}</p>
-          <p className="mt-1 text-xs opacity-80">{getStatusDetail(metadata, localId)}</p>
+        <div className="min-w-0">
+          <p className="hidden font-black sm:block">{t("remoteUnifiedShareTitle")}</p>
+          <p className="flex min-w-0 items-center gap-1.5 text-xs font-black sm:mt-1" data-testid="live-compact-sync-status">
+            <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-current" aria-hidden="true" />
+            <span>{copy.label}</span>
+          </p>
+          <p className={`mt-1 text-xs opacity-80 ${shouldShowCompactDetail ? "" : "hidden sm:block"}`}>{getStatusDetail(metadata, localId)}</p>
           {canProvisionAccess && !canManageAccess ? <p className="mt-1 text-xs font-black text-yellow-800">{t("remoteOrganizerSyncRequired")}</p> : null}
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5 sm:gap-2" data-testid="live-compact-share-actions">
           {canProvisionAccess ? (
             <>
-              <button className="rounded-md border border-current px-3 py-2 text-sm font-black disabled:opacity-50" type="button" disabled={accessIsLoading || !canManageAccess} onClick={handleProvisionHandoff}>
-                {handoffState ? t("remoteGenerateNewQr") : t("remoteTvLiveScore")}
+              <button className="min-h-11 rounded-md border border-current px-2.5 text-xs font-black disabled:opacity-50 sm:px-3 sm:py-2 sm:text-sm" type="button" disabled={accessIsLoading || !canManageAccess} onClick={handleProvisionHandoff} aria-label={handoffState ? t("remoteGenerateNewQr") : t("remoteTvLiveScore")} title={handoffState ? t("remoteGenerateNewQr") : t("remoteTvLiveScore")}>
+                <span className="sm:hidden">{t("tvShort")}</span>
+                <span className="hidden sm:inline">{handoffState ? t("remoteGenerateNewQr") : t("remoteTvLiveScore")}</span>
               </button>
-              <button className="rounded-md border border-current px-3 py-2 text-sm font-black disabled:opacity-50" type="button" disabled={accessIsLoading || !canManageAccess} onClick={handleProvisionAccess}>
-                {accessState && !accessState.shareToken ? t("remoteGenerateNewAccessCode") : t("remoteScoreEntryAccess")}
+              <button className="min-h-11 rounded-md border border-current px-2.5 text-xs font-black disabled:opacity-50 sm:px-3 sm:py-2 sm:text-sm" type="button" disabled={accessIsLoading || !canManageAccess} onClick={handleProvisionAccess} aria-label={accessState && !accessState.shareToken ? t("remoteGenerateNewAccessCode") : t("remoteScoreEntryAccess")} title={accessState && !accessState.shareToken ? t("remoteGenerateNewAccessCode") : t("remoteScoreEntryAccess")}>
+                <span className="sm:hidden">{t("accessShort")}</span>
+                <span className="hidden sm:inline">{accessState && !accessState.shareToken ? t("remoteGenerateNewAccessCode") : t("remoteScoreEntryAccess")}</span>
               </button>
             </>
           ) : null}
           {canActivateSharing ? (
-            <button className="rounded-md border border-current px-3 py-2 text-sm font-black" type="button" onClick={handleActivateSharing}>
-              {t("remoteActivateSharing")}
+            <button className="min-h-11 rounded-md border border-current px-2.5 text-xs font-black sm:px-3 sm:py-2 sm:text-sm" type="button" onClick={handleActivateSharing} aria-label={t("remoteActivateSharing")} title={t("remoteActivateSharing")}>
+              <span className="sm:hidden">{t("shareShort")}</span>
+              <span className="hidden sm:inline">{t("remoteActivateSharing")}</span>
             </button>
           ) : null}
           {canRetry ? (
-            <button className="rounded-md border border-current px-3 py-2 text-sm font-black" type="button" onClick={handleRetry}>
-              Prøv igen
+            <button className="min-h-11 rounded-md border border-current px-2.5 text-xs font-black sm:px-3 sm:py-2 sm:text-sm" type="button" onClick={handleRetry}>
+              {t("retry")}
             </button>
           ) : null}
         </div>

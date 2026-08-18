@@ -34,6 +34,24 @@ describe("SettingsApp", () => {
     await waitFor(() => expect(loadTournamentSettings().theme.primary).toBe("#123456"));
   });
 
+  it("offers and saves all built-in theme presets", async () => {
+    render(<SettingsApp />);
+
+    const themeSelect = await screen.findByRole("combobox", { name: "Tema" });
+    const expectedThemes = ["LezGo", "Dark Gold", "Midnight", "Ocean", "Forest", "Lys", "Brugerdefineret"];
+
+    for (const themeName of expectedThemes) {
+      expect(screen.getByRole("option", { name: themeName })).toBeInTheDocument();
+    }
+
+    fireEvent.change(themeSelect, { target: { value: "darkGold" } });
+    expect(document.documentElement.style.getPropertyValue("--background")).toBe("#0b0a07");
+    expect(document.documentElement.style.getPropertyValue("--control-bg")).toBe("#201d14");
+
+    fireEvent.click(screen.getByRole("button", { name: "Gem indstillinger" }));
+    await waitFor(() => expect(loadTournamentSettings().theme.preset).toBe("darkGold"));
+  });
+
   it("resets the theme to LezGo colors", async () => {
     render(<SettingsApp />);
 
