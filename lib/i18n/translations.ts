@@ -81,6 +81,7 @@ export type TranslationKey =
   | "homeTemplatesDescription"
   | "homeTemplatesTitle"
   | "homeTournamentsDescription"
+  | "hybridLezgo"
   | "loadingSettings"
   | "loadingTemplates"
   | "loadingTournament"
@@ -264,6 +265,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     liveTournamentTitle: "Live turnering",
     lezgo: "LezGo",
     light: "Lys",
+    hybridLezgo: "HYBRID LEZGO",
     liveScore: "Live score",
     losses: "Tab",
     matches: "Kampe",
@@ -491,6 +493,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     liveTournamentTitle: "Live tournament",
     lezgo: "LezGo",
     light: "Light",
+    hybridLezgo: "HYBRID LEZGO",
     liveScore: "Live score",
     losses: "Losses",
     matches: "Matches",

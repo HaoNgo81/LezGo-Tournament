@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createThemeCssVariables, getContrastRatio, normalizeTheme, themePresets } from "../lib/theme/theme";
 import { translations } from "../lib/i18n/translations";
@@ -13,15 +15,37 @@ const requiredControlTokens = [
 ] as const;
 
 describe("theme presets", () => {
-  it("defines the six built-in theme presets", () => {
-    expect(Object.keys(themePresets)).toEqual(["lezgo", "darkGold", "midnight", "ocean", "forest", "light"]);
+  it("defines the built-in theme presets", () => {
+    expect(Object.keys(themePresets)).toEqual(["lezgo", "darkGold", "midnight", "ocean", "forest", "light", "hybridLezgo"]);
   });
 
   it("has Danish and English labels for all built-in themes", () => {
-    for (const key of ["lezgo", "darkGold", "midnight", "ocean", "forest", "light"] as const) {
+    for (const key of ["lezgo", "darkGold", "midnight", "ocean", "forest", "light", "hybridLezgo"] as const) {
       expect(translations.da[key]).toBeTruthy();
       expect(translations.en[key]).toBeTruthy();
     }
+  });
+
+  it("adds Hybrid LEZGO as a warm cream, graphite and gold theme without replacing existing presets", () => {
+    expect(themePresets.hybridLezgo).toMatchObject({
+      preset: "hybridLezgo",
+      primary: "#d7a91e",
+      secondary: "#1d2221",
+      background: "#f7f1e5",
+      surface: "#fbf7ef",
+      foreground: "#181b18",
+      accent: "#a87a08",
+    });
+  });
+
+  it("scopes the Hybrid LEZGO background image to the Hybrid LEZGO theme only", () => {
+    const globalCss = readFileSync(resolve(process.cwd(), "app/globals.css"), "utf8");
+    const backgroundPath = resolve(process.cwd(), "public/themes/hybrid-lezgo/padel-court-background.svg");
+
+    expect(existsSync(backgroundPath)).toBe(true);
+    expect(globalCss).toMatch(/html\[data-theme="hybridLezgo"\] body \{/);
+    expect(globalCss).toContain('url("/themes/hybrid-lezgo/padel-court-background.svg")');
+    expect(globalCss).toMatch(/linear-gradient\(rgba\(248, 243, 232, 0\.82\), rgba\(247, 241, 229, 0\.9\)\)/);
   });
 
   it("maps legacy dark theme settings to Dark Gold", () => {

@@ -21,13 +21,14 @@ const rankingOptions: Array<{ labelKey: "mostMatchPoints" | "mostScorePoints"; v
   { labelKey: "mostScorePoints", value: "partiPointsFirst" },
 ];
 
-const themePresetOptions: Array<{ labelKey: "lezgo" | "darkGold" | "midnight" | "ocean" | "forest" | "light"; value: Exclude<ThemePreset, "custom"> }> = [
+const themePresetOptions: Array<{ labelKey: "lezgo" | "darkGold" | "midnight" | "ocean" | "forest" | "light" | "hybridLezgo"; value: Exclude<ThemePreset, "custom"> }> = [
   { labelKey: "lezgo", value: "lezgo" },
   { labelKey: "darkGold", value: "darkGold" },
   { labelKey: "midnight", value: "midnight" },
   { labelKey: "ocean", value: "ocean" },
   { labelKey: "forest", value: "forest" },
   { labelKey: "light", value: "light" },
+  { labelKey: "hybridLezgo", value: "hybridLezgo" },
 ];
 
 export function SettingsApp() {

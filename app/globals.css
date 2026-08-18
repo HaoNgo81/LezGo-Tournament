@@ -45,6 +45,13 @@ body {
   overflow-wrap: break-word;
 }
 
+html[data-theme="hybridLezgo"] body {
+  background:
+    linear-gradient(rgba(248, 243, 232, 0.82), rgba(247, 241, 229, 0.9)),
+    url("/themes/hybrid-lezgo/padel-court-background.svg") center / cover fixed,
+    var(--background);
+}
+
 a {
   color: inherit;
   text-decoration: none;

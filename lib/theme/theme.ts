@@ -1,4 +1,4 @@
-export type ThemePreset = "lezgo" | "darkGold" | "midnight" | "ocean" | "forest" | "light" | "custom";
+export type ThemePreset = "lezgo" | "darkGold" | "midnight" | "ocean" | "forest" | "light" | "hybridLezgo" | "custom";
 
 export interface AppTheme {
   preset: ThemePreset;
@@ -65,6 +65,15 @@ export const themePresets: Record<Exclude<ThemePreset, "custom">, AppTheme> = {
     foreground: "#102017",
     accent: "#d6a447",
   },
+  hybridLezgo: {
+    preset: "hybridLezgo",
+    primary: "#d7a91e",
+    secondary: "#1d2221",
+    background: "#f7f1e5",
+    surface: "#fbf7ef",
+    foreground: "#181b18",
+    accent: "#a87a08",
+  },
 };
 
 export interface ThemeCssVariables {
@@ -124,6 +133,8 @@ export function applyTheme(theme: AppTheme, root: HTMLElement = document.documen
   for (const [key, value] of Object.entries(variables)) {
     root.style.setProperty(key, value);
   }
+
+  root.dataset.theme = theme.preset;
 }
 
 export function createThemeCssVariables(theme: AppTheme): ThemeCssVariables {
