@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { LiveTournamentState } from "@/lib/live-scoring";
 import { createQrCodeMatrix } from "@/lib/sharing";
+import { normalizePublicResultUrl } from "@/lib/results-sharing/result-url";
 import { createStandardShadowSaveLocalId, loadShadowSaveMetadata } from "@/lib/tournament-setup";
 import { useAppTranslation } from "@/lib/preferences/client";
 
@@ -55,13 +56,15 @@ export function ResultSharePanel({ state }: { state: LiveTournamentState }) {
       });
       const body = await parsePublishResponse(response);
 
-      if (!response.ok || !body.ok || !body.resultUrl) {
+      if (!response.ok || !body.ok || !body.resultUrl || !body.resultId) {
         throw new Error(body.error ?? "Could not publish result.");
       }
 
-      setResultUrl(body.resultUrl);
+      const publicResultUrl = normalizePublicResultUrl(body.resultUrl, body.resultId, window.location.origin);
+
+      setResultUrl(publicResultUrl);
       setMessage(t("resultShareReady"));
-      return body.resultUrl;
+      return publicResultUrl;
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t("resultShareError"));
       return null;

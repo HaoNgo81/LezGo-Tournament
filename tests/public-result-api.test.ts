@@ -93,6 +93,35 @@ describe("STEP 25G public result API", () => {
     });
   });
 
+  it("falls back to the working Vercel result origin instead of stale custom domain for unreachable request origins", async () => {
+    const state = finishTournament(createMockLiveTournamentState(), "2026-08-19T18:30:00.000Z");
+    repositoryMocks.publishStandard.mockResolvedValue({
+      resultId: "ABCDEFGHJKLM2345",
+      tournamentId: "00000000-0000-4000-8000-000000000261",
+      tournamentName: state.tournamentName,
+      format: state.format,
+      formatLabel: "Americano",
+      participantCount: 8,
+      rows: [],
+    });
+
+    const response = await publishPublicResult(new Request("http://0.0.0.0:3015/api/supabase/result-snapshots/publish", {
+      method: "POST",
+      body: JSON.stringify({
+        kind: "standard",
+        legacyLocalId: "step-25g-result",
+        organizerToken: "VALID_ORGANIZER_TOKEN",
+        tournamentId: "00000000-0000-4000-8000-000000000261",
+        state,
+      }),
+    }));
+    const body = await response.json() as { ok: boolean; resultUrl?: string };
+
+    expect(response.status).toBe(200);
+    expect(body.resultUrl).toBe("https://lez-go-tournament.vercel.app/result/ABCDEFGHJKLM2345");
+    expect(body.resultUrl).not.toContain("app.lezgopadel.dk");
+  });
+
   it("rejects result publishing without organizer authorization", async () => {
     const response = await publishPublicResult(new Request("http://localhost/api/supabase/result-snapshots/publish", {
       method: "POST",

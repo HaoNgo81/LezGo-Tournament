@@ -1,5 +1,6 @@
 import type { LiveTournamentState } from "../live-scoring";
-import { createPublicResultSnapshot, generateResultId, validateResultId, type PublicResultSnapshot } from "../results-sharing/public-result-snapshot";
+import { createPublicResultSnapshot, generateResultId, type PublicResultSnapshot } from "../results-sharing/public-result-snapshot";
+import { validateResultId } from "../results-sharing/result-url";
 import { createSupabaseRestClient, SupabaseRestClientError, type SupabaseRestClient } from "../supabase/rest-client";
 
 export class PublicResultSnapshotError extends Error {

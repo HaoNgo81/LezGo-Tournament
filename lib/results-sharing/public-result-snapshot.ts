@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { validateResultId } from "./result-url";
 import { calculateLiveStandings, createPoolPlaySummary, type LiveTournamentState } from "../live-scoring";
 import type { StandingRow } from "../tournament-engine";
 
@@ -73,19 +74,8 @@ export function createPublicResultSnapshot(input: {
   };
 }
 
-export function createResultUrl(origin: string, resultId: string): string {
-  validateResultId(resultId);
-  return new URL(`/result/${resultId}`, new URL(origin).origin).toString();
-}
-
 export function generateResultId(): string {
   return toBase32NoAmbiguous(randomBytes(10));
-}
-
-export function validateResultId(resultId: string): void {
-  if (!/^[A-HJ-NP-Z2-9]{12,24}$/.test(resultId)) {
-    throw new Error("Result ID is invalid.");
-  }
 }
 
 function createPoolPlayRows(state: LiveTournamentState): PublicResultRow[] {

@@ -1,7 +1,6 @@
 import { assertOrganizerToken, createPublicResultSnapshotRepository, OrganizerTokenError, PublicResultSnapshotError } from "@/lib/database";
 import type { LiveTournamentState } from "@/lib/live-scoring";
-import { createResultUrl } from "@/lib/results-sharing";
-import { resolvePublicAppOrigin } from "@/lib/server/public-origin";
+import { CURRENT_PUBLIC_RESULT_ORIGIN, createResultUrl } from "@/lib/results-sharing";
 
 export const dynamic = "force-dynamic";
 
@@ -66,7 +65,7 @@ export async function POST(request: Request): Promise<Response> {
 
 function resolvePublicResultOrigin(request: Request): string {
   const requestOrigin = getReachableRequestOrigin(request);
-  return requestOrigin ?? resolvePublicAppOrigin(request);
+  return requestOrigin ?? CURRENT_PUBLIC_RESULT_ORIGIN;
 }
 
 function getReachableRequestOrigin(request: Request): string | null {

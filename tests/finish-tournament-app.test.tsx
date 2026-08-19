@@ -32,7 +32,7 @@ describe("FinishTournamentApp pool play", () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       ok: true,
       resultId: "ABCDEFGHJKLM2345",
-      resultUrl: "https://lez-go-tournament.vercel.app/result/ABCDEFGHJKLM2345",
+      resultUrl: "https://app.lezgopadel.dk/result/ABCDEFGHJKLM2345",
     }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -54,7 +54,8 @@ describe("FinishTournamentApp pool play", () => {
     fireEvent.click(screen.getByRole("button", { name: "Vis QR" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/supabase/result-snapshots/publish", expect.objectContaining({ method: "POST" })));
-    expect(await screen.findByText("https://lez-go-tournament.vercel.app/result/ABCDEFGHJKLM2345")).toBeInTheDocument();
+    expect(await screen.findByText("http://localhost:3000/result/ABCDEFGHJKLM2345")).toBeInTheDocument();
+    expect(screen.queryByText("https://app.lezgopadel.dk/result/ABCDEFGHJKLM2345")).not.toBeInTheDocument();
     expect(screen.getByRole("img", { name: "QR-kode til offentligt slutresultat" })).toBeInTheDocument();
     expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toMatchObject({
       kind: "standard",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createPublicResultSnapshot, createResultUrl, validateResultId } from "../lib/results-sharing";
+import { createPublicResultSnapshot, createResultUrl, normalizePublicResultUrl, validateResultId } from "../lib/results-sharing";
 import { calculateLiveStandings, createMockLiveTournamentState, finishTournament, saveMatchResult } from "../lib/live-scoring";
 
 const tournamentId = "00000000-0000-4000-8000-000000000251";
@@ -62,5 +62,19 @@ describe("STEP 25G public result snapshots", () => {
 
     expect(url).toBe(`https://lez-go-tournament.vercel.app/result/${resultId}`);
     expect(url).not.toMatch(/token|secret|password|pin|share/i);
+  });
+
+  it("normalizes stale custom-domain result URLs to the current working production origin while preserving the result ID", () => {
+    const url = normalizePublicResultUrl(`https://app.lezgopadel.dk/result/${resultId}`, resultId);
+
+    expect(url).toBe(`https://lez-go-tournament.vercel.app/result/${resultId}`);
+    expect(url).not.toContain("app.lezgopadel.dk");
+    expect(url).not.toMatch(/token|secret|password|pin|share/i);
+  });
+
+  it("uses the browser origin for QR/copy/share URLs when it is available", () => {
+    const url = normalizePublicResultUrl(`https://app.lezgopadel.dk/result/${resultId}`, resultId, "https://lez-go-tournament.vercel.app");
+
+    expect(url).toBe(`https://lez-go-tournament.vercel.app/result/${resultId}`);
   });
 });
