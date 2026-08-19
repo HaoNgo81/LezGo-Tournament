@@ -6,6 +6,7 @@ export { assertStandardWritePlanSupported, createStandardTournamentRepository, g
 export { createTeamVsTeamTournamentRepository } from "./supabase-team-vs-team-repository";
 export { createRemoteSession, parseRemoteSessionToken, readRemoteSession, RemoteSessionError, toRemoteSessionError } from "./remote-session";
 export { assertOrganizerToken, createOrganizerToken, OrganizerTokenError } from "./organizer-token";
+export { OwnerMatchScoreConflictError, readOwnedMatchScoreVersions, saveOwnedMatchScore } from "./owner-match-score";
 export { createPublicResultSnapshotRepository, PublicResultSnapshotError } from "./public-result-snapshots";
 export { mapTeamVsTeamTournamentToPersistencePayload } from "./team-vs-team-mapper";
 export { mapPersistenceRowsToTeamVsTeamTournamentState } from "./team-vs-team-readback";
@@ -44,6 +45,7 @@ export type { DatabaseOperationKind, DatabaseRow, DatabaseWriteOperation, Persis
 export type { SaveStandardTournamentOptions, SaveStandardTournamentResult, StandardTournamentRepository } from "./supabase-standard-repository";
 export type { SaveTeamVsTeamTournamentOptions, SaveTeamVsTeamTournamentResult, TeamVsTeamTournamentRepository } from "./supabase-team-vs-team-repository";
 export type { ReadRemoteSessionResult, RemoteSessionInput, RemoteSessionResult } from "./remote-session";
+export type { OwnedMatchScoreVersions, SaveOwnedMatchScoreInput, SaveOwnedMatchScoreResult } from "./owner-match-score";
 export type { PublicResultSnapshotRepository } from "./public-result-snapshots";
 export type { ProvisionTournamentHandoffOptions, ProvisionTournamentHandoffResult, RedeemTournamentHandoffResult, TournamentHandoffRecord, TournamentHandoffRepository } from "./tournament-handoff";
 export type { ProvisionTournamentAccessResult, ReadTournamentByAccessResult, TournamentAccessRecord, TournamentAccessRepository } from "./tournament-access";

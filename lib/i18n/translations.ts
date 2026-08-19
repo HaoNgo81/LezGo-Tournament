@@ -124,6 +124,7 @@ export type TranslationKey =
   | "openTeamMatch"
   | "openTvScreen"
   | "ocean"
+  | "ownerScoreConflictMessage"
   | "review"
   | "retry"
   | "remoteAccessDenied"
@@ -392,6 +393,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     openTeamMatch: "Åbn holdkamp",
     openTvScreen: "Åbn TV-skærm",
     ocean: "Ocean",
+    ownerScoreConflictMessage: "Scoren er blevet ændret på en anden enhed. Den nyeste score er indlæst.",
     review: "Gennemse",
     retry: "Prøv igen",
     remoteAccessDenied: "Turneringen kunne ikke åbnes. Kontrollér kode og adgangskode.",
@@ -659,6 +661,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     openTeamMatch: "Open team match",
     openTvScreen: "Open TV screen",
     ocean: "Ocean",
+    ownerScoreConflictMessage: "The score was changed on another device. The latest score has been loaded.",
     review: "Review",
     retry: "Try again",
     remoteAccessDenied: "The tournament could not be opened. Check the code and access code.",

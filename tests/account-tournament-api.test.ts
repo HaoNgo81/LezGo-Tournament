@@ -11,6 +11,7 @@ const authMocks = vi.hoisted(() => ({
 const databaseMocks = vi.hoisted(() => ({
   readStandard: vi.fn(),
   readTeamVsTeam: vi.fn(),
+  readOwnedMatchScoreVersions: vi.fn(),
 }));
 
 const restClientMocks = vi.hoisted(() => ({
@@ -38,6 +39,7 @@ vi.mock("@/lib/database", async (importOriginal) => {
     createStandardTournamentRepository: () => ({ read: databaseMocks.readStandard }),
     createTeamVsTeamTournamentRepository: () => ({ read: databaseMocks.readTeamVsTeam }),
     createOrganizerToken: () => "OWNER_ORGANIZER_TOKEN",
+    readOwnedMatchScoreVersions: databaseMocks.readOwnedMatchScoreVersions,
   };
 });
 
@@ -58,8 +60,10 @@ describe("STEP 25I-B1 owner cloud tournament open API", () => {
     authMocks.readAccountFromAccessToken.mockReset();
     databaseMocks.readStandard.mockReset();
     databaseMocks.readTeamVsTeam.mockReset();
+    databaseMocks.readOwnedMatchScoreVersions.mockReset();
     restClientMocks.select.mockReset();
     authMocks.readAuthAccessCookie.mockResolvedValue("auth-cookie-token");
+    databaseMocks.readOwnedMatchScoreVersions.mockResolvedValue({});
   });
 
   it("allows the owner to open an owned standard tournament from Supabase", async () => {
@@ -74,9 +78,10 @@ describe("STEP 25I-B1 owner cloud tournament open API", () => {
       updated_at: "2026-08-19T10:00:00.000Z",
     }]);
     databaseMocks.readStandard.mockResolvedValue(state);
+    databaseMocks.readOwnedMatchScoreVersions.mockResolvedValue({ "r1-c1": 1 });
 
     const response = await openOwnedTournament(new Request("http://localhost/api/account/tournaments/00000000-0000-4000-8000-000000000101"), createRouteContext("00000000-0000-4000-8000-000000000101"));
-    const body = await response.json() as { ok?: boolean; kind?: string; state?: LiveTournamentState; tournamentId?: string; updatedAt?: string; legacyLocalId?: string; organizerToken?: string };
+    const body = await response.json() as { ok?: boolean; kind?: string; state?: LiveTournamentState; tournamentId?: string; updatedAt?: string; legacyLocalId?: string; organizerToken?: string; matchScoreVersions?: Record<string, number> };
 
     expect(response.status).toBe(200);
     expect(body).toMatchObject({
@@ -86,6 +91,7 @@ describe("STEP 25I-B1 owner cloud tournament open API", () => {
       updatedAt: "2026-08-19T10:00:00.000Z",
       legacyLocalId: "cloud restored-americano",
       organizerToken: "OWNER_ORGANIZER_TOKEN",
+      matchScoreVersions: { "r1-c1": 1 },
     });
     expect(body.state?.tournamentName).toBe("Cloud restored");
     expect(databaseMocks.readStandard).toHaveBeenCalledWith("00000000-0000-4000-8000-000000000101");

@@ -60,6 +60,7 @@ describe("STEP 25I-B1 owner cloud tournament open UI", () => {
           updatedAt: "2026-08-19T10:00:00.000Z",
           legacyLocalId: "cloud restored-americano",
           organizerToken: "OWNER_ORGANIZER_TOKEN",
+          matchScoreVersions: { [serverState.rounds[0].matches[0].id]: 1 },
         }), { status: 200 });
       }
 
@@ -86,6 +87,7 @@ describe("STEP 25I-B1 owner cloud tournament open UI", () => {
       supabaseTournamentId: "00000000-0000-4000-8000-000000000101",
       lastShadowSaveVersion: "2026-08-19T10:00:00.000Z",
       organizerToken: "OWNER_ORGANIZER_TOKEN",
+      matchScoreVersions: { [serverState.rounds[0].matches[0].id]: 1 },
     });
     expect(createStandardShadowSaveLocalId(loadActiveTournament()!)).toBe("cloud restored-americano");
   });

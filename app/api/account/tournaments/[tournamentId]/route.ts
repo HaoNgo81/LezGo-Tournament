@@ -1,4 +1,4 @@
-import { createOrganizerToken, createStandardTournamentRepository, createTeamVsTeamTournamentRepository } from "@/lib/database";
+import { createOrganizerToken, createStandardTournamentRepository, createTeamVsTeamTournamentRepository, readOwnedMatchScoreVersions } from "@/lib/database";
 import { AuthError, readAccountFromAccessToken } from "@/lib/auth";
 import { readAuthAccessCookie } from "@/lib/auth/cookies";
 import { createSupabaseRestClient, SupabaseRestClientError } from "@/lib/supabase/rest-client";
@@ -48,6 +48,9 @@ export async function GET(_request: Request, context: RouteContext): Promise<Res
       ? await createTeamVsTeamTournamentRepository(client).read(tournament.id)
       : await createStandardTournamentRepository(client).read(tournament.id);
     const legacyLocalId = tournament.legacy_local_id ?? undefined;
+    const matchScoreVersions = kind === "standard"
+      ? await readOwnedMatchScoreVersions(client, tournament.id)
+      : undefined;
 
     return Response.json({
       ok: true,
@@ -56,6 +59,7 @@ export async function GET(_request: Request, context: RouteContext): Promise<Res
       tournamentId: tournament.id,
       updatedAt: tournament.updated_at,
       legacyLocalId,
+      matchScoreVersions,
       organizerToken: legacyLocalId ? createOrganizerToken({ tournamentId: tournament.id, kind, legacyLocalId }) : undefined,
     }, {
       headers: {

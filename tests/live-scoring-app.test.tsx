@@ -4,7 +4,7 @@ import { AppShell } from "../components/layout/app-shell";
 import { LiveScoringApp } from "../components/tournament/live-scoring-app";
 import { SyncStatusPanel } from "../components/tournament/sync-status-panel";
 import { advanceLivePoolPlayState, createMockLiveTournamentState, saveMatchResult, saveNextPoolPhaseResult } from "../lib/live-scoring";
-import { createPoolTournamentFromSetup, createStandardShadowSaveLocalId, createTournamentFromSetup, saveActiveTournament, saveActiveTournamentFromRemoteSync, type TournamentSetupFormat } from "../lib/tournament-setup";
+import { createPoolTournamentFromSetup, createStandardShadowSaveLocalId, createTournamentFromSetup, loadActiveTournament, saveActiveTournament, saveActiveTournamentFromRemoteSync, type TournamentSetupFormat } from "../lib/tournament-setup";
 
 const sixteenPlayerText = Array.from({ length: 16 }, (_, index) => `Spiller ${index + 1}`).join("\n");
 const originalShadowSaveFlag = process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE;
@@ -251,6 +251,7 @@ describe("LiveScoringApp score sheet", () => {
       organizerToken: "STEP_24C_ORGANIZER_TOKEN",
       status: "synced",
       supabaseTournamentId: "00000000-0000-4000-8000-000000000240",
+      matchScoreVersions: { [localState.rounds[0].matches[0].id]: 1 },
     });
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       ok: true,
@@ -258,6 +259,7 @@ describe("LiveScoringApp score sheet", () => {
       state: remoteState,
       tournamentId: "00000000-0000-4000-8000-000000000240",
       updatedAt: "2026-08-13T12:00:05.000Z",
+      matchScoreVersions: { [localState.rounds[0].matches[0].id]: 2 },
     }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -268,15 +270,78 @@ describe("LiveScoringApp score sheet", () => {
 
     await waitFor(() => expectLiveCourtScore("17", "7"), { timeout: 3500 });
     expect(screen.getByTestId("live-compact-standings")).toHaveTextContent("17");
-    expect(fetchMock).toHaveBeenCalledWith("/api/supabase/organizer-tournament/read", expect.objectContaining({
-      method: "POST",
+    expect(fetchMock).toHaveBeenCalledWith("/api/account/tournaments/00000000-0000-4000-8000-000000000240", expect.objectContaining({
+      cache: "no-store",
     }));
-    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toMatchObject({
-      kind: "standard",
-      legacyLocalId: localId,
-      organizerToken: "STEP_24C_ORGANIZER_TOKEN",
-      tournamentId: "00000000-0000-4000-8000-000000000240",
+    expect(loadActiveTournament()?.results).toEqual([{ matchId: localState.rounds[0].matches[0].id, teamAPoints: 17, teamBPoints: 7 }]);
+  }, 10000);
+
+  it("saves an owned cloud match through the owner score API with the loaded score version", async () => {
+    const localState = createMockLiveTournamentState();
+    const matchId = localState.rounds[0].matches[1].id;
+    const remoteState = saveMatchResult(localState, {
+      matchId,
+      teamAPoints: 14,
+      teamBPoints: 9,
     });
+    const localId = createStandardShadowSaveLocalId(localState);
+    saveActiveTournamentFromRemoteSync(localState);
+    saveShadowMetadata(localId, {
+      kind: "standard",
+      lastLocalSaveAt: "2026-08-19T12:00:00.000Z",
+      lastShadowSaveVersion: "2026-08-19T12:00:00.000Z",
+      status: "synced",
+      supabaseTournamentId: "00000000-0000-4000-8000-000000000252",
+      matchScoreVersions: { [matchId]: 3 },
+    });
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = input.toString();
+
+      if (url === "/api/account/tournaments/00000000-0000-4000-8000-000000000252/score") {
+        return Promise.resolve(new Response(JSON.stringify({
+          ok: true,
+          kind: "standard",
+          state: remoteState,
+          tournamentId: "00000000-0000-4000-8000-000000000252",
+          updatedAt: "2026-08-19T12:00:05.000Z",
+          matchScoreVersions: { [matchId]: 4 },
+        }), { status: 200 }));
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({
+        ok: true,
+        kind: "standard",
+        state: remoteState,
+        tournamentId: "00000000-0000-4000-8000-000000000252",
+        updatedAt: "2026-08-19T12:00:05.000Z",
+        matchScoreVersions: { [matchId]: 4 },
+      }), { status: 200 }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<LiveScoringApp />);
+
+    expect(await screen.findByText("Mock Americano")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Indtast score" })[1]);
+    fireEvent.change(screen.getByRole("textbox", { name: "Hold A scorepoint" }), { target: { value: "14" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Hold B scorepoint" }), { target: { value: "9" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gem" }));
+
+    await waitFor(() => expectLiveCourtScore("14", "9", 1));
+    expect(fetchMock).toHaveBeenCalledWith("/api/account/tournaments/00000000-0000-4000-8000-000000000252/score", expect.objectContaining({
+      method: "POST",
+      cache: "no-store",
+    }));
+    const scoreCall = (fetchMock.mock.calls as unknown as Array<[RequestInfo | URL, RequestInit?]>).find(
+      (call) => call[0] === "/api/account/tournaments/00000000-0000-4000-8000-000000000252/score",
+    );
+    expect(JSON.parse(scoreCall?.[1]?.body as string)).toEqual({
+      matchId,
+      teamAPoints: 14,
+      teamBPoints: 9,
+      expectedScoreVersion: 3,
+    });
+    expect(fetchMock).not.toHaveBeenCalledWith("/api/supabase/shadow-save", expect.anything());
   }, 10000);
 
   it("starts organizer polling after sharing is activated on an already mounted local tournament", async () => {

@@ -54,6 +54,8 @@ interface OrganizerRemoteReadResponse {
   state?: LiveTournamentState;
   tournamentId?: string;
   updatedAt?: string;
+  matchScoreVersions?: Record<string, number>;
+  conflict?: boolean;
   error?: string;
 }
 
@@ -146,18 +148,7 @@ export function LiveScoringApp() {
       isInFlight = true;
 
       try {
-        const response = await fetch("/api/supabase/organizer-tournament/read", {
-          method: "POST",
-          cache: "no-store",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            kind: "standard",
-            legacyLocalId: localId,
-            organizerToken: metadata.organizerToken,
-            tournamentId: metadata.supabaseTournamentId,
-          }),
-        });
-        const body = await response.json() as OrganizerRemoteReadResponse;
+        const { response, body } = await readOrganizerRemoteState(metadata, localId);
 
         if (
           !response.ok
@@ -178,7 +169,7 @@ export function LiveScoringApp() {
         }
 
         saveActiveTournamentFromRemoteSync(body.state);
-        markRemoteShadowSaveApplied(localId, "standard", body.updatedAt);
+        markRemoteShadowSaveApplied(localId, "standard", body.updatedAt, new Date().toISOString(), body.matchScoreVersions);
         stateRef.current = body.state;
         setState(body.state);
       } catch {
@@ -238,12 +229,75 @@ export function LiveScoringApp() {
 
   function handleSave(result: MatchResult) {
     try {
+      const ownedCloudSave = saveOwnedCloudMatchResult(result);
+
+      if (ownedCloudSave) {
+        void ownedCloudSave.catch((error) => {
+          setToast(error instanceof Error ? error.message : "Resultatet kunne ikke gemmes.");
+        });
+        return;
+      }
+
       commitState((currentState) => saveMatchResult(currentState, result));
       setSelectedMatchId(null);
       setToast("Resultat gemt.");
     } catch (caughtError) {
       setToast(caughtError instanceof Error ? caughtError.message : "Resultatet kunne ikke gemmes.");
     }
+  }
+
+  function saveOwnedCloudMatchResult(result: MatchResult): Promise<void> | null {
+    const currentState = stateRef.current;
+    const localId = createStandardShadowSaveLocalId(currentState);
+    const metadata = loadShadowSaveMetadata(localId);
+
+    if (!metadata?.supabaseTournamentId || metadata.kind !== "standard" || metadata.status !== "synced") {
+      return null;
+    }
+
+    const expectedScoreVersion = metadata.matchScoreVersions?.[result.matchId];
+
+    if (!expectedScoreVersion) {
+      return null;
+    }
+
+    return performOwnedCloudMatchSave(result, localId, metadata.supabaseTournamentId, expectedScoreVersion);
+  }
+
+  async function performOwnedCloudMatchSave(result: MatchResult, localId: string, tournamentId: string, expectedScoreVersion: number): Promise<void> {
+    const response = await fetch(`/api/account/tournaments/${encodeURIComponent(tournamentId)}/score`, {
+      method: "POST",
+      cache: "no-store",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        matchId: result.matchId,
+        teamAPoints: result.teamAPoints,
+        teamBPoints: result.teamBPoints,
+        expectedScoreVersion,
+      }),
+    });
+    const body = await response.json() as OrganizerRemoteReadResponse;
+
+    if (response.status === 409 && body.state && body.updatedAt) {
+      saveActiveTournamentFromRemoteSync(body.state);
+      markRemoteShadowSaveApplied(localId, "standard", body.updatedAt, new Date().toISOString(), body.matchScoreVersions);
+      stateRef.current = body.state;
+      setState(body.state);
+      setSelectedMatchId(null);
+      setToast(t("ownerScoreConflictMessage"));
+      return;
+    }
+
+    if (!response.ok || !body.ok || body.kind !== "standard" || !body.state || !body.updatedAt) {
+      throw new Error(body.error ?? "Resultatet kunne ikke gemmes.");
+    }
+
+    saveActiveTournamentFromRemoteSync(body.state);
+    markRemoteShadowSaveApplied(localId, "standard", body.updatedAt, new Date().toISOString(), body.matchScoreVersions);
+    stateRef.current = body.state;
+    setState(body.state);
+    setSelectedMatchId(null);
+    setToast("Resultat gemt.");
   }
 
   function handleSavePoolResult(result: PoolMatchResult) {
@@ -1142,7 +1196,7 @@ function RoundNavigationButtons({
   );
 }
 
-function ScoreSheet({ liveMatch, players, state, onClose, onSave }: { liveMatch: LiveMatchView; players: TournamentPlayer[]; state: LiveTournamentState; onClose: () => void; onSave: (result: MatchResult) => void }) {
+function ScoreSheet({ liveMatch, players, state, onClose, onSave }: { liveMatch: LiveMatchView; players: TournamentPlayer[]; state: LiveTournamentState; onClose: () => void; onSave: (result: MatchResult) => void | Promise<void> }) {
   const { t } = useAppTranslation();
   const fixedTotalPoints = state.scoringMode === "Fast antal point" && state.fixedScoreRule === "total" ? state.fixedScorePoints : undefined;
   const [teamAPoints, setTeamAPoints] = useState(liveMatch.result?.teamAPoints.toString() ?? "");
@@ -1167,7 +1221,7 @@ function ScoreSheet({ liveMatch, players, state, onClose, onSave }: { liveMatch:
           };
 
       setFormError("");
-      onSave({
+      void onSave({
         matchId: liveMatch.match.id,
         teamAPoints: score.teamAPoints,
         teamBPoints: score.teamBPoints,
@@ -1273,6 +1327,40 @@ function isNewerOrganizerRemoteVersion(currentUpdatedAt: string | undefined, nex
   }
 
   return nextTime > currentTime;
+}
+
+async function readOrganizerRemoteState(metadata: { supabaseTournamentId?: string; organizerToken?: string }, localId: string): Promise<{ response: Response; body: OrganizerRemoteReadResponse }> {
+  if (metadata.supabaseTournamentId) {
+    const response = await fetch(`/api/account/tournaments/${encodeURIComponent(metadata.supabaseTournamentId)}`, {
+      cache: "no-store",
+    });
+    const body = await response.json() as OrganizerRemoteReadResponse;
+
+    if (response.ok && body.ok) {
+      return { response, body };
+    }
+  }
+
+  if (!metadata.supabaseTournamentId || !metadata.organizerToken) {
+    return {
+      response: new Response(JSON.stringify({ ok: false, error: "Missing organizer sync metadata." }), { status: 400 }),
+      body: { ok: false, error: "Missing organizer sync metadata." },
+    };
+  }
+
+  const response = await fetch("/api/supabase/organizer-tournament/read", {
+    method: "POST",
+    cache: "no-store",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      kind: "standard",
+      legacyLocalId: localId,
+      organizerToken: metadata.organizerToken,
+      tournamentId: metadata.supabaseTournamentId,
+    }),
+  });
+  const body = await response.json() as OrganizerRemoteReadResponse;
+  return { response, body };
 }
 
 function formatClock(totalSeconds: number): string {

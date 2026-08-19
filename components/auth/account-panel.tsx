@@ -31,6 +31,7 @@ type CloudTournamentOpenResponse =
       updatedAt?: string;
       legacyLocalId?: string;
       organizerToken?: string;
+      matchScoreVersions?: Record<string, number>;
     }
   | {
       ok: true;
@@ -191,6 +192,7 @@ export function AccountPanel() {
           tournamentId: body.tournamentId,
           updatedAt: body.updatedAt,
           organizerToken: body.organizerToken,
+          matchScoreVersions: body.matchScoreVersions,
         });
         router.push("/live");
         return;
