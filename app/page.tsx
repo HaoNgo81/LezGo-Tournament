@@ -1,6 +1,7 @@
 "use client";
 
 import { AppShell } from "@/components/layout/app-shell";
+import { AccountAccess } from "@/components/auth/account-access";
 import { LargeAction } from "@/components/ui/large-action";
 import { useAppTranslation } from "@/lib/preferences/client";
 
@@ -8,7 +9,7 @@ export default function HomePage() {
   const { t } = useAppTranslation();
 
   return (
-    <AppShell title={t("appBrand")} subtitle={t("appSubtitle")} backHref="">
+    <AppShell title={t("appBrand")} subtitle={t("appSubtitle")} backHref="" headerAction={<AccountAccess />}>
       <nav className="grid gap-4">
         <LargeAction href="/new-tournament" title={t("newTournamentTitle")} description={t("homeNewTournamentDescription")} icon="+" />
         <LargeAction href="/templates" title={t("homeTemplatesTitle")} description={t("homeTemplatesDescription")} icon="=" />

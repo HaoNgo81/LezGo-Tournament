@@ -4,9 +4,26 @@ export type TranslationKey =
   | "activeTournament"
   | "active"
   | "account"
+  | "accountAlreadyHaveLogin"
+  | "accountCode"
+  | "accountCodeCouldNotReset"
+  | "accountCodeMismatch"
+  | "accountCodeReset"
   | "accountContinue"
+  | "accountCreateAccount"
   | "accountCreateOrLogin"
+  | "accountCreateSubmit"
+  | "accountCreated"
+  | "accountCreateError"
   | "accountEmail"
+  | "accountForgotCode"
+  | "accountForgotCodeHelp"
+  | "accountGenericRecovery"
+  | "accountHideCode"
+  | "accountIdentifier"
+  | "accountLogin"
+  | "accountLoginError"
+  | "accountNewCode"
   | "accountLoggedIn"
   | "accountLoggedOut"
   | "accountName"
@@ -17,8 +34,13 @@ export type TranslationKey =
   | "accountNoOwnTournaments"
   | "accountOpenTournament"
   | "accountOwnTournaments"
+  | "accountRepeatCode"
+  | "accountSaveNewCode"
+  | "accountSendInstructions"
+  | "accountShowCode"
   | "accountSignedIn"
   | "accountTournamentOpenError"
+  | "accountUsername"
   | "accountVerificationCode"
   | "accountVerify"
   | "admin"
@@ -273,9 +295,26 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     activeTournament: "Aktiv turnering",
     active: "Aktive",
     account: "Konto",
+    accountAlreadyHaveLogin: "Har du allerede en konto? Log ind",
+    accountCode: "6-tegns kode",
+    accountCodeCouldNotReset: "Koden kunne ikke gemmes.",
+    accountCodeMismatch: "Koderne er ikke ens.",
+    accountCodeReset: "Den nye kode er gemt.",
     accountContinue: "Fortsæt",
+    accountCreateAccount: "Opret konto",
     accountCreateOrLogin: "Opret konto / Log ind",
+    accountCreateSubmit: "Opret konto",
+    accountCreated: "Kontoen er oprettet. Log ind med email eller brugernavn og din kode.",
+    accountCreateError: "Kontoen kunne ikke oprettes.",
     accountEmail: "E-mail",
+    accountForgotCode: "Glemt kode",
+    accountForgotCodeHelp: "Indtast den email, der er tilknyttet din konto.",
+    accountGenericRecovery: "Hvis emailen er tilknyttet en konto, har vi sendt en mail med instruktioner.",
+    accountHideCode: "Skjul kode",
+    accountIdentifier: "Email eller brugernavn",
+    accountLogin: "Log ind",
+    accountLoginError: "Email/brugernavn eller kode er forkert.",
+    accountNewCode: "Ny 6-tegns kode",
     accountLoggedIn: "Du er logget ind.",
     accountLoggedOut: "Du er logget ud.",
     accountName: "Navn",
@@ -286,8 +325,13 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountNoOwnTournaments: "Ingen private Supabase-turneringer endnu.",
     accountOpenTournament: "Åbn turnering",
     accountOwnTournaments: "Mine turneringer",
+    accountRepeatCode: "Gentag kode",
+    accountSaveNewCode: "Gem ny kode",
+    accountSendInstructions: "Send vejledning",
+    accountShowCode: "Vis kode",
     accountSignedIn: "Logget ind",
     accountTournamentOpenError: "Turneringen kunne ikke åbnes fra Supabase.",
+    accountUsername: "Brugernavn",
     accountVerificationCode: "Verifikationskode",
     accountVerify: "Bekræft",
     admin: "Admin",
@@ -541,9 +585,26 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     activeTournament: "Active tournament",
     active: "Active",
     account: "Account",
+    accountAlreadyHaveLogin: "Already have an account? Log in",
+    accountCode: "6-character code",
+    accountCodeCouldNotReset: "The code could not be saved.",
+    accountCodeMismatch: "The codes do not match.",
+    accountCodeReset: "The new code has been saved.",
     accountContinue: "Continue",
+    accountCreateAccount: "Create account",
     accountCreateOrLogin: "Create account / Log in",
+    accountCreateSubmit: "Create account",
+    accountCreated: "The account has been created. Log in with email or username and your code.",
+    accountCreateError: "The account could not be created.",
     accountEmail: "Email",
+    accountForgotCode: "Forgot code",
+    accountForgotCodeHelp: "Enter the email linked to your account.",
+    accountGenericRecovery: "If the email is linked to an account, we have sent recovery instructions.",
+    accountHideCode: "Hide code",
+    accountIdentifier: "Email or username",
+    accountLogin: "Log in",
+    accountLoginError: "Email/username or code is incorrect.",
+    accountNewCode: "New 6-character code",
     accountLoggedIn: "You are logged in.",
     accountLoggedOut: "You are logged out.",
     accountName: "Name",
@@ -554,8 +615,13 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountNoOwnTournaments: "No private Supabase tournaments yet.",
     accountOpenTournament: "Open tournament",
     accountOwnTournaments: "My tournaments",
+    accountRepeatCode: "Repeat code",
+    accountSaveNewCode: "Save new code",
+    accountSendInstructions: "Send instructions",
+    accountShowCode: "Show code",
     accountSignedIn: "Signed in",
     accountTournamentOpenError: "The tournament could not be opened from Supabase.",
+    accountUsername: "Username",
     accountVerificationCode: "Verification code",
     accountVerify: "Verify",
     admin: "Admin",

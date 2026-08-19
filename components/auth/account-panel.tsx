@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAppTranslation } from "@/lib/preferences/client";
 import { createStandardShadowSaveLocalId, createTeamVsTeamShadowSaveLocalId, markCloudTournamentRestored, saveActiveTeamVsTeamTournamentFromRemoteSync, saveActiveTournamentFromRemoteSync, type TeamVsTeamTournamentState } from "@/lib/tournament-setup";
 import type { LiveTournamentState } from "@/lib/live-scoring";
 
-interface Account {
+export interface Account {
   userId: string;
   email: string;
   displayName: string;
+  username?: string;
   role: "admin" | "user";
 }
 
@@ -21,7 +22,7 @@ interface AccountTournament {
   status: string;
 }
 
-type LoginStep = "details" | "code";
+type AccountView = "login" | "create" | "forgot" | "reset";
 type CloudTournamentOpenResponse =
   | {
       ok: true;
@@ -47,20 +48,33 @@ type CloudTournamentOpenResponse =
       error?: string;
     };
 
-export function AccountPanel() {
+interface AccountPanelProps {
+  framed?: boolean;
+  onAccountChange?: (account: Account | null) => void;
+}
+
+export function AccountPanel({ framed = true, onAccountChange }: AccountPanelProps) {
   const router = useRouter();
   const { t } = useAppTranslation();
   const [account, setAccount] = useState<Account | null>(null);
+  const [view, setView] = useState<AccountView>("login");
+  const [identifier, setIdentifier] = useState("");
+  const [loginCode, setLoginCode] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
-  const [otp, setOtp] = useState("");
-  const [step, setStep] = useState<LoginStep>("details");
+  const [createCode, setCreateCode] = useState("");
+  const [repeatCode, setRepeatCode] = useState("");
+  const [recoveryEmail, setRecoveryEmail] = useState("");
+  const [newCode, setNewCode] = useState("");
+  const [repeatNewCode, setRepeatNewCode] = useState("");
+  const [showCode, setShowCode] = useState(false);
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [openingTournamentId, setOpeningTournamentId] = useState<string | null>(null);
   const [tournaments, setTournaments] = useState<AccountTournament[]>([]);
 
-  async function loadOwnTournaments() {
+  const loadOwnTournaments = useCallback(async function loadOwnTournaments() {
     try {
       const response = await fetch("/api/account/tournaments", { cache: "no-store" });
       const body = await response.json() as { ok?: boolean; tournaments?: AccountTournament[] };
@@ -71,7 +85,20 @@ export function AccountPanel() {
     } catch {
       setTournaments([]);
     }
-  }
+  }, []);
+
+  const setSignedInAccount = useCallback(function setSignedInAccount(nextAccount: Account | null) {
+    setAccount(nextAccount);
+    onAccountChange?.(nextAccount);
+
+    if (nextAccount) {
+      setDisplayName(nextAccount.displayName);
+      setUsername(nextAccount.username ?? "");
+      setEmail(nextAccount.email);
+      setIdentifier(nextAccount.username ?? nextAccount.email);
+      setView("login");
+    }
+  }, [onAccountChange]);
 
   useEffect(() => {
     let isDisposed = false;
@@ -82,13 +109,11 @@ export function AccountPanel() {
         const body = await response.json() as { ok?: boolean; account?: Account };
 
         if (!isDisposed && response.ok && body.ok && body.account) {
-          setAccount(body.account);
-          setDisplayName(body.account.displayName);
-          setEmail(body.account.email);
+          setSignedInAccount(body.account);
           void loadOwnTournaments();
         }
       } catch {
-        // Anonymous users simply see the login form.
+        // Anonymous users simply see the credential login form.
       }
     }
 
@@ -97,60 +122,122 @@ export function AccountPanel() {
     return () => {
       isDisposed = true;
     };
-  }, []);
+  }, [loadOwnTournaments, setSignedInAccount]);
 
-  async function handleRequestOtp(event: FormEvent<HTMLFormElement>) {
+  async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsLoading(true);
     setMessage("");
 
     try {
-      const response = await fetch("/api/auth/request-otp", {
+      const response = await fetch("/api/auth/credentials/login", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ displayName, email }),
+        body: JSON.stringify({ identifier, code: loginCode }),
       });
-      const body = await response.json() as { ok?: boolean; error?: string };
+      const body = await response.json() as { ok?: boolean; account?: Account; error?: string };
 
-      if (!response.ok || !body.ok) {
-        throw new Error(body.error ?? t("accountOtpCouldNotSend"));
+      if (!response.ok || !body.ok || !body.account) {
+        throw new Error(localizeAuthError(body.error, t("accountLoginError")));
       }
 
-      setStep("code");
-      setMessage(t("accountOtpSent"));
+      setSignedInAccount(body.account);
+      setLoginCode("");
+      setMessage(t("accountLoggedIn"));
+      void loadOwnTournaments();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : t("accountOtpCouldNotSend"));
+      setMessage(error instanceof Error ? error.message : t("accountLoginError"));
     } finally {
       setIsLoading(false);
     }
   }
 
-  async function handleVerifyOtp(event: FormEvent<HTMLFormElement>) {
+  async function handleCreateAccount(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsLoading(true);
     setMessage("");
 
     try {
-      const response = await fetch("/api/auth/verify-otp", {
+      if (createCode && repeatCode && createCode !== repeatCode) {
+        throw new Error(t("accountCodeMismatch"));
+      }
+
+      const response = await fetch("/api/auth/credentials/register", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ displayName, email, token: otp }),
+        body: JSON.stringify({ displayName, username, email, code: createCode, repeatCode }),
       });
       const body = await response.json() as { ok?: boolean; account?: Account; error?: string };
 
-      if (!response.ok || !body.ok || !body.account) {
-        throw new Error(body.error ?? t("accountOtpCouldNotVerify"));
+      if (!response.ok || !body.ok) {
+        throw new Error(localizeAuthError(body.error, t("accountCreateError")));
       }
 
-      setAccount(body.account);
-      setDisplayName(body.account.displayName);
-      setEmail(body.account.email);
-      setOtp("");
-      setStep("details");
-      setMessage(t("accountLoggedIn"));
-      void loadOwnTournaments();
+      setIdentifier(username || email);
+      setLoginCode("");
+      setCreateCode("");
+      setRepeatCode("");
+      setView("login");
+      setMessage(t("accountCreated"));
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : t("accountOtpCouldNotVerify"));
+      setMessage(error instanceof Error ? error.message : t("accountCreateError"));
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function handleForgotCode(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsLoading(true);
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/auth/credentials/recover", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: recoveryEmail }),
+      });
+      const body = await response.json() as { ok?: boolean; message?: string; error?: string };
+
+      if (!response.ok || !body.ok) {
+        throw new Error(localizeAuthError(body.error, t("accountGenericRecovery")));
+      }
+
+      setMessage(t("accountGenericRecovery"));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : t("accountGenericRecovery"));
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function handleResetCode(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsLoading(true);
+    setMessage("");
+
+    try {
+      if (newCode && repeatNewCode && newCode !== repeatNewCode) {
+        throw new Error(t("accountCodeMismatch"));
+      }
+
+      const response = await fetch("/api/auth/credentials/reset-code", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ code: newCode, repeatCode: repeatNewCode }),
+      });
+      const body = await response.json() as { ok?: boolean; error?: string };
+
+      if (!response.ok || !body.ok) {
+        throw new Error(localizeAuthError(body.error, t("accountCodeCouldNotReset")));
+      }
+
+      setNewCode("");
+      setRepeatNewCode("");
+      setView("login");
+      setMessage(t("accountCodeReset"));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : t("accountCodeCouldNotReset"));
     } finally {
       setIsLoading(false);
     }
@@ -162,10 +249,9 @@ export function AccountPanel() {
 
     try {
       await fetch("/api/auth/logout", { method: "POST" });
-      setAccount(null);
+      setSignedInAccount(null);
       setTournaments([]);
-      setOtp("");
-      setStep("details");
+      setLoginCode("");
       setMessage(t("accountLoggedOut"));
     } finally {
       setIsLoading(false);
@@ -214,13 +300,16 @@ export function AccountPanel() {
     }
   }
 
+  const containerClassName = framed ? "app-card grid gap-3 p-4 sm:p-5" : "grid gap-3";
+
   if (account) {
     return (
-      <div className="app-card grid gap-3 p-4 sm:p-5" data-testid="account-panel">
+      <div className={containerClassName} data-testid="account-panel">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-sm font-black uppercase tracking-wide text-[var(--primary-strong)]">{t("accountSignedIn")}</p>
-            <p className="mt-1 text-xl font-black">{account.displayName}</p>
+            <p className="mt-1 text-xl font-black">{account.displayName || account.username || t("account")}</p>
+            {account.username ? <p className="font-bold text-[var(--muted)]">@{account.username}</p> : null}
             <p className="font-bold text-[var(--muted)]">{account.email}</p>
           </div>
           {account.role === "admin" ? (
@@ -232,9 +321,6 @@ export function AccountPanel() {
             </div>
           ) : null}
         </div>
-        <button className="btn-secondary min-h-12" type="button" disabled={isLoading} onClick={handleLogout}>
-          {t("logout")}
-        </button>
         <div className="rounded-md border border-[var(--line)] bg-white/70 p-3">
           <p className="text-sm font-black uppercase tracking-wide text-[var(--primary-strong)]">{t("accountOwnTournaments")}</p>
           {tournaments.length ? (
@@ -253,48 +339,144 @@ export function AccountPanel() {
             <p className="mt-2 text-sm font-bold text-[var(--muted)]">{t("accountNoOwnTournaments")}</p>
           )}
         </div>
-        {message ? <p className="font-bold text-[var(--primary-strong)]">{message}</p> : null}
+        {view === "reset" ? (
+          <form className="grid gap-3 rounded-md border border-[var(--line)] bg-white/70 p-3" onSubmit={handleResetCode}>
+            <CodeField label={t("accountNewCode")} value={newCode} onChange={setNewCode} showCode={showCode} />
+            <CodeField label={t("accountRepeatCode")} value={repeatNewCode} onChange={setRepeatNewCode} showCode={showCode} />
+            <button className="btn-primary min-h-12" type="submit" disabled={isLoading}>
+              {t("accountSaveNewCode")}
+            </button>
+          </form>
+        ) : null}
+        <div className="action-grid">
+          <button className="btn-secondary min-h-12" type="button" disabled={isLoading} onClick={() => setView(view === "reset" ? "login" : "reset")}>
+            {view === "reset" ? t("cancel") : t("accountNewCode")}
+          </button>
+          <button className="btn-secondary min-h-12" type="button" disabled={isLoading} onClick={handleLogout}>
+            {t("logout")}
+          </button>
+        </div>
+        {message ? <p className="font-bold text-[var(--primary-strong)]" role="status">{message}</p> : null}
       </div>
     );
   }
 
   return (
-    <div className="app-card grid gap-3 p-4 sm:p-5" data-testid="account-panel">
-      <div>
-        <p className="text-lg font-black">{t("accountCreateOrLogin")}</p>
-        <p className="mt-1 font-bold text-[var(--muted)]">{t("accountOtpHelp")}</p>
-      </div>
-      {step === "details" ? (
-        <form className="grid gap-3" onSubmit={handleRequestOtp}>
-          <label className="grid gap-2 text-lg font-bold">
-            {t("accountName")}
-            <input className="field-control" value={displayName} onChange={(event) => setDisplayName(event.target.value)} autoComplete="name" />
+    <div className={containerClassName} data-testid="account-panel">
+      {view === "login" ? (
+        <form className="grid gap-3" onSubmit={handleLogin}>
+          <div>
+            <p className="text-lg font-black">{t("accountLogin")}</p>
+          </div>
+          <label className="grid gap-2 text-base font-bold">
+            {t("accountIdentifier")}
+            <input className="field-control" value={identifier} onChange={(event) => setIdentifier(event.target.value)} autoComplete="username" inputMode="email" />
           </label>
-          <label className="grid gap-2 text-lg font-bold">
-            {t("accountEmail")}
-            <input className="field-control" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" inputMode="email" type="email" />
-          </label>
+          <CodeField label={t("accountCode")} value={loginCode} onChange={setLoginCode} showCode={showCode} />
+          <ShowCodeButton showCode={showCode} onToggle={() => setShowCode((value) => !value)} />
           <button className="btn-primary min-h-12" type="submit" disabled={isLoading}>
-            {t("accountContinue")}
+            {t("accountLogin")}
           </button>
-        </form>
-      ) : (
-        <form className="grid gap-3" onSubmit={handleVerifyOtp}>
-          <label className="grid gap-2 text-lg font-bold">
-            {t("accountVerificationCode")}
-            <input className="field-control tracking-widest" value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" />
-          </label>
-          <div className="action-grid">
-            <button className="btn-primary min-h-12" type="submit" disabled={isLoading}>
-              {t("accountVerify")}
+          <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-black text-[var(--primary-strong)]">
+            <button className="rounded-md px-1 py-2 text-left" type="button" onClick={() => { setView("forgot"); setMessage(""); }}>
+              {t("accountForgotCode")}?
             </button>
-            <button className="btn-secondary min-h-12" type="button" disabled={isLoading} onClick={() => setStep("details")}>
-              {t("edit")}
+            <button className="rounded-md px-1 py-2 text-left" type="button" onClick={() => { setView("create"); setMessage(""); }}>
+              {t("accountCreateAccount")}
             </button>
           </div>
         </form>
-      )}
-      {message ? <p className="font-bold text-[var(--primary-strong)]">{message}</p> : null}
+      ) : null}
+      {view === "create" ? (
+        <form className="grid gap-3" onSubmit={handleCreateAccount}>
+          <div>
+            <p className="text-lg font-black">{t("accountCreateAccount")}</p>
+          </div>
+          <label className="grid gap-2 text-base font-bold">
+            {t("accountName")}
+            <input className="field-control" value={displayName} onChange={(event) => setDisplayName(event.target.value)} autoComplete="name" />
+          </label>
+          <label className="grid gap-2 text-base font-bold">
+            {t("accountUsername")}
+            <input className="field-control" value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" />
+          </label>
+          <label className="grid gap-2 text-base font-bold">
+            {t("accountEmail")}
+            <input className="field-control" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" inputMode="email" type="email" />
+          </label>
+          <CodeField label={t("accountCode")} value={createCode} onChange={setCreateCode} showCode={showCode} />
+          <CodeField label={t("accountRepeatCode")} value={repeatCode} onChange={setRepeatCode} showCode={showCode} />
+          <ShowCodeButton showCode={showCode} onToggle={() => setShowCode((value) => !value)} />
+          <button className="btn-primary min-h-12" type="submit" disabled={isLoading}>
+            {t("accountCreateSubmit")}
+          </button>
+          <button className="rounded-md px-1 py-2 text-left text-sm font-black text-[var(--primary-strong)]" type="button" onClick={() => { setView("login"); setMessage(""); }}>
+            {t("accountAlreadyHaveLogin")}
+          </button>
+        </form>
+      ) : null}
+      {view === "forgot" ? (
+        <form className="grid gap-3" onSubmit={handleForgotCode}>
+          <div>
+            <p className="text-lg font-black">{t("accountForgotCode")}</p>
+            <p className="mt-1 font-bold text-[var(--muted)]">{t("accountForgotCodeHelp")}</p>
+          </div>
+          <label className="grid gap-2 text-base font-bold">
+            {t("accountEmail")}
+            <input className="field-control" value={recoveryEmail} onChange={(event) => setRecoveryEmail(event.target.value)} autoComplete="email" inputMode="email" type="email" />
+          </label>
+          <button className="btn-primary min-h-12" type="submit" disabled={isLoading}>
+            {t("accountSendInstructions")}
+          </button>
+          <button className="rounded-md px-1 py-2 text-left text-sm font-black text-[var(--primary-strong)]" type="button" onClick={() => { setView("login"); setMessage(""); }}>
+            {t("accountLogin")}
+          </button>
+        </form>
+      ) : null}
+      {message ? <p className="font-bold text-[var(--primary-strong)]" role="status">{message}</p> : null}
     </div>
   );
+
+  function ShowCodeButton({ showCode: isShown, onToggle }: { showCode: boolean; onToggle: () => void }) {
+    return (
+      <button className="w-fit rounded-md px-1 py-2 text-sm font-black text-[var(--primary-strong)]" type="button" onClick={onToggle}>
+        {isShown ? t("accountHideCode") : t("accountShowCode")}
+      </button>
+    );
+  }
+}
+
+function CodeField({ label, value, onChange, showCode }: { label: string; value: string; onChange: (value: string) => void; showCode: boolean }) {
+  return (
+    <label className="grid gap-2 text-base font-bold">
+      {label}
+      <input
+        className="field-control tracking-[0.25em]"
+        value={value}
+        onChange={(event) => onChange(event.target.value.replace(/[^a-zA-Z0-9]/g, "").slice(0, 6))}
+        inputMode="text"
+        autoComplete="one-time-code"
+        maxLength={6}
+        type={showCode ? "text" : "password"}
+      />
+    </label>
+  );
+}
+
+function localizeAuthError(message: string | undefined, fallback: string): string {
+  if (!message) {
+    return fallback;
+  }
+
+  if (
+    message === "Email/username or code is incorrect." ||
+    message === "Login code is invalid." ||
+    message === "Username is invalid." ||
+    message === "Email is invalid." ||
+    message === "Too many attempts. Try again later."
+  ) {
+    return fallback;
+  }
+
+  return message;
 }

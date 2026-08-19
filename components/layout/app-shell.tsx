@@ -12,10 +12,11 @@ interface AppShellProps {
   children: ReactNode;
   backHref?: string;
   compactMobile?: boolean;
+  headerAction?: ReactNode;
   primaryAction?: ReactNode;
 }
 
-export function AppShell({ title, subtitle, children, backHref = "/", compactMobile = false, primaryAction }: AppShellProps) {
+export function AppShell({ title, subtitle, children, backHref = "/", compactMobile = false, headerAction, primaryAction }: AppShellProps) {
   const { t } = useAppTranslation();
   const translatedTitle = translateKnownShellText(title, t);
   const translatedSubtitle = subtitle ? translateKnownShellText(subtitle, t) : undefined;
@@ -29,10 +30,13 @@ export function AppShell({ title, subtitle, children, backHref = "/", compactMob
             {t("back")}
           </Link>
         ) : null}
-        <div className="max-w-3xl">
-          <Image className={`h-auto w-full ${compactMobile ? "max-w-[min(100%,16rem)] sm:max-w-[min(100%,24rem)]" : "max-w-[min(100%,24rem)]"}`} src={`${basePath}/lezgo-padel-logo.png`} width={1399} height={184} priority unoptimized alt={t("appBrand")} />
-          <h1 className={`font-black leading-tight text-[var(--foreground)] ${compactMobile ? "mt-1 text-xl sm:mt-2 sm:text-4xl" : "mt-2 text-2xl sm:text-4xl"}`}>{translatedTitle}</h1>
-          {translatedSubtitle ? <p className={`max-w-2xl font-bold text-[var(--muted)] ${compactMobile ? "mt-1 text-sm leading-5 sm:mt-2 sm:text-lg sm:leading-7" : "mt-2 text-base leading-7 sm:text-lg"}`}>{translatedSubtitle}</p> : null}
+        <div className="flex items-start justify-between gap-3">
+          <div className="max-w-3xl flex-1">
+            <Image className={`h-auto w-full ${compactMobile ? "max-w-[min(100%,16rem)] sm:max-w-[min(100%,24rem)]" : "max-w-[min(100%,24rem)]"}`} src={`${basePath}/lezgo-padel-logo.png`} width={1399} height={184} priority unoptimized alt={t("appBrand")} />
+            <h1 className={`font-black leading-tight text-[var(--foreground)] ${compactMobile ? "mt-1 text-xl sm:mt-2 sm:text-4xl" : "mt-2 text-2xl sm:text-4xl"}`}>{translatedTitle}</h1>
+            {translatedSubtitle ? <p className={`max-w-2xl font-bold text-[var(--muted)] ${compactMobile ? "mt-1 text-sm leading-5 sm:mt-2 sm:text-lg sm:leading-7" : "mt-2 text-base leading-7 sm:text-lg"}`}>{translatedSubtitle}</p> : null}
+          </div>
+          {headerAction ? <div className="shrink-0 pt-1 sm:pt-2">{headerAction}</div> : null}
         </div>
       </header>
       {children}
