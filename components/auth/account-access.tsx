@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { AccountPanel, type Account } from "./account-panel";
-import { useAppTranslation } from "@/lib/preferences/client";
+import { notifyPreferencesChanged, useAppTranslation } from "@/lib/preferences/client";
+import { loadTournamentSettings, saveTournamentSettings } from "@/lib/tournament-settings";
+import type { AppLanguage } from "@/lib/i18n/translations";
 
 type AccountDialogView = "login" | "create";
 
 export function AccountAccess() {
-  const { t } = useAppTranslation();
+  const { language, t } = useAppTranslation();
   const [account, setAccount] = useState<Account | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [dialogView, setDialogView] = useState<AccountDialogView>("login");
@@ -40,12 +42,31 @@ export function AccountAccess() {
     setDialogView(view);
     setIsOpen(true);
   };
+  const handleLanguageToggle = () => {
+    const settings = loadTournamentSettings();
+    const nextLanguage: AppLanguage = language === "da" ? "en" : "da";
+    saveTournamentSettings({ ...settings, language: nextLanguage });
+    notifyPreferencesChanged();
+  };
 
   return (
     <>
-      {account ? (
+      <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-x-2 gap-y-1 text-sm font-black text-[var(--foreground)] sm:gap-x-3 sm:text-base" data-testid="main-account-action-group">
         <button
-          className="inline-flex min-h-10 max-w-[10rem] shrink-0 items-center gap-2 rounded-md border border-[var(--primary)] bg-[var(--surface)] px-3 py-2 text-sm font-black text-[var(--foreground)] shadow-sm transition hover:bg-[var(--control-hover-bg)] focus:outline-none focus:ring-4 focus:ring-[var(--focus-ring)] sm:min-h-11 sm:max-w-[14rem] sm:px-4 sm:text-base"
+          className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-md px-1.5 py-1 text-[var(--foreground)] transition hover:bg-[var(--primary-soft)]/45 focus:outline-none focus:ring-4 focus:ring-[var(--focus-ring)] sm:px-2"
+          type="button"
+          aria-label={t("language")}
+          data-testid="main-language-control"
+          onClick={handleLanguageToggle}
+        >
+          <GlobeIcon />
+          <span>{language.toUpperCase()}</span>
+          <ChevronDownIcon />
+        </button>
+        <AccountSeparator />
+        {account ? (
+        <button
+          className="inline-flex min-h-9 max-w-[11rem] shrink-0 items-center gap-1.5 rounded-md px-1.5 py-1 text-[var(--foreground)] transition hover:bg-[var(--primary-soft)]/45 focus:outline-none focus:ring-4 focus:ring-[var(--focus-ring)] sm:max-w-[14rem] sm:px-2"
           type="button"
           aria-label={label}
           data-testid="main-account-control"
@@ -53,11 +74,12 @@ export function AccountAccess() {
         >
           <AccountIcon />
           <span className="truncate">{label}</span>
+          <ChevronDownIcon />
         </button>
       ) : (
-        <div className="flex max-w-[64vw] shrink-0 flex-wrap items-center justify-end gap-2 sm:max-w-none" data-testid="main-account-action-group">
+        <>
           <button
-            className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-md border border-[var(--primary)] bg-[var(--surface)] px-2.5 py-2 text-sm font-black text-[var(--foreground)] shadow-sm transition hover:bg-[var(--control-hover-bg)] focus:outline-none focus:ring-4 focus:ring-[var(--focus-ring)] sm:min-h-11 sm:gap-2 sm:px-4 sm:text-base"
+            className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-md px-1.5 py-1 text-[var(--foreground)] transition hover:bg-[var(--primary-soft)]/45 focus:outline-none focus:ring-4 focus:ring-[var(--focus-ring)] sm:px-2"
             type="button"
             aria-label={t("accountLogin")}
             data-testid="main-account-control"
@@ -66,8 +88,9 @@ export function AccountAccess() {
             <AccountIcon />
             <span className="whitespace-nowrap">{t("accountLogin")}</span>
           </button>
+          <AccountSeparator />
           <button
-            className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-md border border-[var(--primary)] bg-[var(--primary)] px-2.5 py-2 text-sm font-black text-[var(--primary-text)] shadow-sm transition hover:bg-[var(--accent)] focus:outline-none focus:ring-4 focus:ring-[var(--focus-ring)] sm:min-h-11 sm:gap-2 sm:px-4 sm:text-base"
+            className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[var(--primary-strong)] transition hover:bg-[var(--primary-soft)]/45 focus:outline-none focus:ring-4 focus:ring-[var(--focus-ring)] sm:gap-1.5 sm:px-2"
             type="button"
             aria-label={t("accountCreateAccount")}
             data-testid="main-account-create-control"
@@ -75,9 +98,11 @@ export function AccountAccess() {
           >
             <PlusIcon />
             <span className="whitespace-nowrap">{t("accountCreateAccount")}</span>
+            <ChevronRightIcon />
           </button>
-        </div>
+        </>
       )}
+      </div>
       {isOpen ? (
         <div className="fixed inset-0 z-50 grid place-items-end bg-black/30 p-0 sm:place-items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="account-dialog-title" data-testid="main-account-dialog">
           <div className="max-h-[92svh] w-full max-w-xl overflow-y-auto rounded-t-md border border-[var(--line)] bg-[var(--surface)] p-4 shadow-2xl sm:rounded-md sm:p-5">
@@ -97,7 +122,7 @@ export function AccountAccess() {
 
 function PlusIcon() {
   return (
-    <svg className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" aria-hidden="true" viewBox="0 0 24 24" fill="none">
+    <svg className="h-4 w-4 shrink-0" aria-hidden="true" viewBox="0 0 24 24" fill="none">
       <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
     </svg>
   );
@@ -105,9 +130,38 @@ function PlusIcon() {
 
 function AccountIcon() {
   return (
-    <svg className="h-5 w-5 shrink-0" aria-hidden="true" viewBox="0 0 24 24" fill="none">
+    <svg className="h-4 w-4 shrink-0" aria-hidden="true" viewBox="0 0 24 24" fill="none">
       <path d="M12 12.25a4.25 4.25 0 1 0 0-8.5 4.25 4.25 0 0 0 0 8.5Z" stroke="currentColor" strokeWidth="2" />
       <path d="M4.75 20.25a7.25 7.25 0 0 1 14.5 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
+}
+
+function GlobeIcon() {
+  return (
+    <svg className="h-4 w-4 shrink-0" aria-hidden="true" viewBox="0 0 24 24" fill="none">
+      <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z" stroke="currentColor" strokeWidth="2" />
+      <path d="M3.6 9h16.8M3.6 15h16.8M12 3c2.25 2.4 3.35 5.4 3.35 9S14.25 18.6 12 21M12 3C9.75 5.4 8.65 8.4 8.65 12s1.1 6.6 3.35 9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ChevronDownIcon() {
+  return (
+    <svg className="h-3.5 w-3.5 shrink-0 text-[var(--primary-strong)]" aria-hidden="true" viewBox="0 0 24 24" fill="none">
+      <path d="m7 10 5 5 5-5" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ChevronRightIcon() {
+  return (
+    <svg className="hidden h-3.5 w-3.5 shrink-0 text-[var(--primary-strong)] sm:block" aria-hidden="true" viewBox="0 0 24 24" fill="none">
+      <path d="m9 6 6 6-6 6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function AccountSeparator() {
+  return <span className="hidden h-5 w-px shrink-0 bg-[var(--line)] sm:inline-block" aria-hidden="true" />;
 }

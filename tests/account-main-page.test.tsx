@@ -24,12 +24,24 @@ describe("STEP 25I-C1-B main page account UI", () => {
 
     render(<HomePage />);
 
-    const loginButton = await screen.findByTestId("main-account-control");
-    const createButton = screen.getByTestId("main-account-create-control");
+    const topBar = await screen.findByTestId("main-account-top-bar");
+    const brandArea = screen.getByTestId("app-shell-brand-area");
+    const languageButton = within(topBar).getByTestId("main-language-control");
+    const loginButton = within(topBar).getByTestId("main-account-control");
+    const createButton = within(topBar).getByTestId("main-account-create-control");
+
+    expect(topBar).toContainElement(languageButton);
+    expect(topBar).toContainElement(loginButton);
+    expect(topBar).toContainElement(createButton);
+    expect(brandArea).not.toContainElement(loginButton);
+    expect(brandArea).not.toContainElement(createButton);
+    expect(languageButton).toHaveTextContent("DA");
     expect(loginButton).toHaveTextContent("Log ind");
     expect(createButton).toHaveTextContent("Opret bruger");
-    expect(loginButton).toHaveClass("min-h-10");
-    expect(createButton).toHaveClass("min-h-10");
+    expect(loginButton).toHaveClass("min-h-9");
+    expect(createButton).toHaveClass("min-h-9");
+    expect(createButton).toHaveClass("text-[var(--primary-strong)]");
+    expect(createButton).not.toHaveClass("bg-[var(--primary)]");
     expect(screen.getByRole("link", { name: /Ny turnering/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Turneringsskabeloner/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /^Turneringer/i })).toBeInTheDocument();
@@ -42,6 +54,19 @@ describe("STEP 25I-C1-B main page account UI", () => {
     expect(within(dialog).getByRole("heading", { name: "Konto" })).toBeInTheDocument();
     expect(within(dialog).getByLabelText("Email eller brugernavn")).toBeInTheDocument();
     expect(within(dialog).getByLabelText("6-tegns kode")).toHaveAttribute("type", "password");
+  });
+
+  it("changes language from the premium top bar through the existing preferences system", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: false }), { status: 401 })));
+
+    render(<HomePage />);
+
+    const topBar = await screen.findByTestId("main-account-top-bar");
+    fireEvent.click(within(topBar).getByTestId("main-language-control"));
+
+    await waitFor(() => expect(within(topBar).getByTestId("main-language-control")).toHaveTextContent("EN"));
+    expect(within(topBar).getByTestId("main-account-control")).toHaveTextContent("Log in");
+    expect(within(topBar).getByTestId("main-account-create-control")).toHaveTextContent("Create account");
   });
 
   it("opens the create-user state directly from the header create action", async () => {
