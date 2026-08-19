@@ -115,6 +115,12 @@ export function saveActiveTeamVsTeamTournament(state: TeamVsTeamTournamentState)
   queueTeamVsTeamShadowSave(tournamentId, state);
 }
 
+export function saveActiveTeamVsTeamTournamentFromRemoteSync(state: TeamVsTeamTournamentState): void {
+  window.localStorage.setItem(activeTeamVsTeamStorageKey, JSON.stringify(state));
+  window.localStorage.removeItem(activeTournamentStorageKey);
+  window.localStorage.removeItem(activeTournamentsStorageKey);
+}
+
 export function loadActiveTeamVsTeamTournament(): TeamVsTeamTournamentState | null {
   if (typeof window === "undefined") {
     return null;

@@ -119,6 +119,25 @@ export function markRemoteShadowSaveApplied(localId: string, kind: ShadowSaveKin
   return nextMetadata;
 }
 
+export function markCloudTournamentRestored(input: { localId: string; kind: ShadowSaveKind; tournamentId: string; updatedAt?: string; organizerToken?: string }, restoredAt = new Date().toISOString()): ShadowSaveMetadata {
+  const metadata = loadShadowSaveMetadata(input.localId);
+  const nextMetadata: ShadowSaveMetadata = {
+    ...metadata,
+    localId: input.localId,
+    kind: input.kind,
+    status: "synced",
+    supabaseTournamentId: input.tournamentId,
+    organizerToken: input.organizerToken ?? metadata?.organizerToken,
+    lastLocalSaveAt: restoredAt,
+    lastSuccessfulShadowSaveAt: restoredAt,
+    lastShadowSaveVersion: input.updatedAt ?? metadata?.lastShadowSaveVersion,
+    lastError: undefined,
+  };
+
+  saveShadowSaveMetadata(nextMetadata);
+  return nextMetadata;
+}
+
 function queueShadowSave({ kind, localId, state }: { kind: ShadowSaveKind; localId: string; state: unknown }): void {
   if (typeof window === "undefined" || !isShadowSaveEnabled()) {
     return;

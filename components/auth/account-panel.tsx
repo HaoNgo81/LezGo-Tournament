@@ -2,7 +2,10 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAppTranslation } from "@/lib/preferences/client";
+import { createStandardShadowSaveLocalId, createTeamVsTeamShadowSaveLocalId, markCloudTournamentRestored, saveActiveTeamVsTeamTournamentFromRemoteSync, saveActiveTournamentFromRemoteSync, type TeamVsTeamTournamentState } from "@/lib/tournament-setup";
+import type { LiveTournamentState } from "@/lib/live-scoring";
 
 interface Account {
   userId: string;
@@ -19,8 +22,32 @@ interface AccountTournament {
 }
 
 type LoginStep = "details" | "code";
+type CloudTournamentOpenResponse =
+  | {
+      ok: true;
+      kind: "standard";
+      state: LiveTournamentState;
+      tournamentId: string;
+      updatedAt?: string;
+      legacyLocalId?: string;
+      organizerToken?: string;
+    }
+  | {
+      ok: true;
+      kind: "team-vs-team";
+      state: TeamVsTeamTournamentState;
+      tournamentId: string;
+      updatedAt?: string;
+      legacyLocalId?: string;
+      organizerToken?: string;
+    }
+  | {
+      ok?: false;
+      error?: string;
+    };
 
 export function AccountPanel() {
+  const router = useRouter();
   const { t } = useAppTranslation();
   const [account, setAccount] = useState<Account | null>(null);
   const [displayName, setDisplayName] = useState("");
@@ -29,6 +56,7 @@ export function AccountPanel() {
   const [step, setStep] = useState<LoginStep>("details");
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [openingTournamentId, setOpeningTournamentId] = useState<string | null>(null);
   const [tournaments, setTournaments] = useState<AccountTournament[]>([]);
 
   async function loadOwnTournaments() {
@@ -143,6 +171,47 @@ export function AccountPanel() {
     }
   }
 
+  async function handleOpenTournament(tournamentId: string) {
+    setOpeningTournamentId(tournamentId);
+    setMessage("");
+
+    try {
+      const response = await fetch(`/api/account/tournaments/${encodeURIComponent(tournamentId)}`, { cache: "no-store" });
+      const body = await response.json() as CloudTournamentOpenResponse;
+
+      if (!response.ok || !body.ok) {
+        throw new Error("error" in body && body.error ? body.error : t("accountTournamentOpenError"));
+      }
+
+      if (body.kind === "standard") {
+        saveActiveTournamentFromRemoteSync(body.state);
+        markCloudTournamentRestored({
+          localId: body.legacyLocalId ?? createStandardShadowSaveLocalId(body.state),
+          kind: "standard",
+          tournamentId: body.tournamentId,
+          updatedAt: body.updatedAt,
+          organizerToken: body.organizerToken,
+        });
+        router.push("/live");
+        return;
+      }
+
+      saveActiveTeamVsTeamTournamentFromRemoteSync(body.state);
+      markCloudTournamentRestored({
+        localId: body.legacyLocalId ?? createTeamVsTeamShadowSaveLocalId(body.state),
+        kind: "team-vs-team",
+        tournamentId: body.tournamentId,
+        updatedAt: body.updatedAt,
+        organizerToken: body.organizerToken,
+      });
+      router.push("/team-vs-team");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : t("accountTournamentOpenError"));
+    } finally {
+      setOpeningTournamentId(null);
+    }
+  }
+
   if (account) {
     return (
       <div className="app-card grid gap-3 p-4 sm:p-5" data-testid="account-panel">
@@ -172,6 +241,9 @@ export function AccountPanel() {
                 <li key={tournament.id} className="grid gap-1 rounded-md border border-[var(--line)] p-2">
                   <span>{tournament.name}</span>
                   <span className="text-xs text-[var(--muted)]">{tournament.status} · {tournament.format}</span>
+                  <button className="btn-secondary min-h-10 text-sm" type="button" disabled={openingTournamentId === tournament.id || isLoading} onClick={() => void handleOpenTournament(tournament.id)}>
+                    {openingTournamentId === tournament.id ? t("loadingTournament") : t("accountOpenTournament")}
+                  </button>
                 </li>
               ))}
             </ul>

@@ -15,8 +15,10 @@ export type TranslationKey =
   | "accountOtpHelp"
   | "accountOtpSent"
   | "accountNoOwnTournaments"
+  | "accountOpenTournament"
   | "accountOwnTournaments"
   | "accountSignedIn"
+  | "accountTournamentOpenError"
   | "accountVerificationCode"
   | "accountVerify"
   | "admin"
@@ -281,8 +283,10 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountOtpHelp: "Indtast navn og e-mail. Vi sender en Supabase-verifikationskode til e-mailen.",
     accountOtpSent: "Tjek din e-mail og indtast verifikationskoden.",
     accountNoOwnTournaments: "Ingen private Supabase-turneringer endnu.",
+    accountOpenTournament: "Åbn turnering",
     accountOwnTournaments: "Mine turneringer",
     accountSignedIn: "Logget ind",
+    accountTournamentOpenError: "Turneringen kunne ikke åbnes fra Supabase.",
     accountVerificationCode: "Verifikationskode",
     accountVerify: "Bekræft",
     admin: "Admin",
@@ -546,8 +550,10 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountOtpHelp: "Enter name and email. We send a Supabase verification code to the email address.",
     accountOtpSent: "Check your email and enter the verification code.",
     accountNoOwnTournaments: "No private Supabase tournaments yet.",
+    accountOpenTournament: "Open tournament",
     accountOwnTournaments: "My tournaments",
     accountSignedIn: "Signed in",
+    accountTournamentOpenError: "The tournament could not be opened from Supabase.",
     accountVerificationCode: "Verification code",
     accountVerify: "Verify",
     admin: "Admin",

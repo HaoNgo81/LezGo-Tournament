@@ -1,11 +1,18 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { SettingsApp } from "../components/settings/settings-app";
 import { loadTournamentSettings } from "../lib/tournament-settings";
+
+const { push } = vi.hoisted(() => ({ push: vi.fn() }));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push }),
+}));
 
 describe("SettingsApp", () => {
   afterEach(() => {
     cleanup();
+    push.mockClear();
     window.localStorage.clear();
     document.documentElement.removeAttribute("style");
     document.documentElement.removeAttribute("data-theme");
