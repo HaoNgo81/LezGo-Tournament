@@ -31,6 +31,15 @@ describe("sharing", () => {
 
     expectAlignmentPattern(qrCode.modules, 30, 30);
   });
+
+  it("encodes final result QR payload as the public result URL only", () => {
+    const resultUrl = "https://lez-go-tournament.vercel.app/result/ABCDEFGHJKLM2345";
+    const qrCode = createQrCodeMatrix(resultUrl);
+
+    expect(qrCode.payload).toBe(resultUrl);
+    expect(qrCode.payload).toContain("/result/ABCDEFGHJKLM2345");
+    expect(qrCode.payload).not.toMatch(/token|secret|pin|share|SUPABASE/i);
+  });
 });
 
 function expectAlignmentPattern(modules: boolean[][], centerX: number, centerY: number): void {

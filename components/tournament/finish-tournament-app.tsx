@@ -17,6 +17,7 @@ import {
   saveCompletedTournament,
 } from "@/lib/tournament-setup";
 import { StandingsTable } from "@/components/tournament/standings-table";
+import { ResultSharePanel } from "@/components/tournament/result-share-panel";
 import { useAppTranslation } from "@/lib/preferences/client";
 import type { TranslationKey } from "@/lib/i18n/translations";
 import { useHasHydrated } from "@/hooks/use-has-hydrated";
@@ -92,6 +93,8 @@ export function FinishTournamentApp() {
           </button>
         </div>
       </section>
+
+      <ResultSharePanel state={state} />
 
       {poolSummary ? <PoolPlayFinishSummary summary={poolSummary} /> : (
         <section className="grid gap-3">

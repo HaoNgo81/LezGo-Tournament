@@ -189,6 +189,22 @@ export type TranslationKey =
   | "remoteOrganizerSyncRequired"
   | "remoteRevokeAccess"
   | "remoteViewOnAnotherDevice"
+  | "resultFinalResult"
+  | "resultCompletedReadOnly"
+  | "resultGroup"
+  | "resultPairPlayers"
+  | "resultPublicLink"
+  | "resultQrAlt"
+  | "resultQrHelp"
+  | "resultReadOnlyHelp"
+  | "resultShareButton"
+  | "resultShareError"
+  | "resultShareHelp"
+  | "resultShareReady"
+  | "resultShareSyncRequired"
+  | "resultShareTitle"
+  | "resultShowQr"
+  | "resultSortedBy"
   | "save"
   | "seeFinalStandings"
   | "secondaryButtonColor"
@@ -418,6 +434,22 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteOrganizerSyncRequired: "Gem/synkroniser turneringen fra hovedenheden, før adgang kan oprettes.",
     remoteRevokeAccess: "Luk scoreadgang",
     remoteViewOnAnotherDevice: "Vis på anden enhed",
+    resultFinalResult: "Slutresultat",
+    resultCompletedReadOnly: "Turneringen er afsluttet · Skrivebeskyttet",
+    resultGroup: "Gruppe",
+    resultPairPlayers: "Par / spillere",
+    resultPublicLink: "Offentligt resultatlink",
+    resultQrAlt: "QR-kode til offentligt slutresultat",
+    resultQrHelp: "Scan QR-koden med en anden enhed for at åbne slutresultatet.",
+    resultReadOnlyHelp: "Resultatsiden er offentlig og skrivebeskyttet. Den kan ikke redigere score eller turnering.",
+    resultShareButton: "Del resultat",
+    resultShareError: "Resultatet kunne ikke deles. Prøv igen.",
+    resultShareHelp: "Opret et offentligt skrivebeskyttet link og QR-kode til den endelige stilling.",
+    resultShareReady: "Resultatlink klar.",
+    resultShareSyncRequired: "Synkronisering kræves, før resultatet kan deles på andre enheder.",
+    resultShareTitle: "Del resultat",
+    resultShowQr: "Vis QR",
+    resultSortedBy: "Sorteret efter",
     save: "Gem",
     seeFinalStandings: "Se slutstilling",
     secondaryButtonColor: "Sekundær knapfarve",
@@ -646,6 +678,22 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteOrganizerSyncRequired: "Save/sync the tournament from the main device before creating access.",
     remoteRevokeAccess: "Close score access",
     remoteViewOnAnotherDevice: "View on another device",
+    resultFinalResult: "Final result",
+    resultCompletedReadOnly: "Tournament completed · Read only",
+    resultGroup: "Group",
+    resultPairPlayers: "Pair / players",
+    resultPublicLink: "Public result link",
+    resultQrAlt: "QR code for public final result",
+    resultQrHelp: "Scan the QR code with another device to open the final result.",
+    resultReadOnlyHelp: "The result page is public and read only. It cannot edit scores or the tournament.",
+    resultShareButton: "Share result",
+    resultShareError: "The result could not be shared. Try again.",
+    resultShareHelp: "Create a public read-only link and QR code for the final standings.",
+    resultShareReady: "Result link ready.",
+    resultShareSyncRequired: "Synchronization is required before the result can be shared on other devices.",
+    resultShareTitle: "Share result",
+    resultShowQr: "Show QR",
+    resultSortedBy: "Sorted by",
     save: "Save",
     seeFinalStandings: "See final standings",
     secondaryButtonColor: "Secondary button color",
