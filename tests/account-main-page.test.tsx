@@ -19,24 +19,53 @@ describe("STEP 25I-C1-B main page account UI", () => {
     document.documentElement.lang = "da";
   });
 
-  it("shows a compact logged-out account control on the main page without removing existing cards", async () => {
+  it("shows compact logged-out account actions on the main page without removing existing cards", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: false }), { status: 401 })));
 
     render(<HomePage />);
 
-    expect(await screen.findByTestId("main-account-control")).toHaveTextContent("Log ind");
+    const loginButton = await screen.findByTestId("main-account-control");
+    const createButton = screen.getByTestId("main-account-create-control");
+    expect(loginButton).toHaveTextContent("Log ind");
+    expect(createButton).toHaveTextContent("Opret bruger");
+    expect(loginButton).toHaveClass("min-h-10");
+    expect(createButton).toHaveClass("min-h-10");
     expect(screen.getByRole("link", { name: /Ny turnering/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Turneringsskabeloner/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /^Turneringer/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Åbn turnering fra anden enhed/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /^Indstillinger/i })).toHaveAttribute("href", "/settings");
 
-    fireEvent.click(screen.getByTestId("main-account-control"));
+    fireEvent.click(loginButton);
 
     const dialog = await screen.findByTestId("main-account-dialog");
     expect(within(dialog).getByRole("heading", { name: "Konto" })).toBeInTheDocument();
     expect(within(dialog).getByLabelText("Email eller brugernavn")).toBeInTheDocument();
     expect(within(dialog).getByLabelText("6-tegns kode")).toHaveAttribute("type", "password");
+  });
+
+  it("opens the create-user state directly from the header create action", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: false }), { status: 401 })));
+
+    render(<HomePage />);
+    fireEvent.click(await screen.findByTestId("main-account-create-control"));
+
+    const dialog = await screen.findByTestId("main-account-dialog");
+    expect(within(dialog).getByRole("heading", { name: "Konto" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Opret bruger" })).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Navn")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Brugernavn")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Har du allerede en bruger? Log ind" })).toBeInTheDocument();
+  });
+
+  it("renders logged-out account actions in English", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: false }), { status: 401 })));
+    window.localStorage.setItem("lezgo.tournamentSettings.v1", JSON.stringify({ language: "en" }));
+
+    render(<HomePage />);
+
+    expect(await screen.findByTestId("main-account-control")).toHaveTextContent("Log in");
+    expect(screen.getByTestId("main-account-create-control")).toHaveTextContent("Create account");
   });
 
   it("logs in with email and code through the C1-A credential endpoint", async () => {
@@ -79,6 +108,7 @@ describe("STEP 25I-C1-B main page account UI", () => {
 
     await waitFor(() => expect(screen.getByTestId("main-account-control")).toHaveTextContent("Hao"));
     expect(screen.getByTestId("main-account-control")).not.toHaveTextContent("hao@example.com");
+    expect(screen.queryByTestId("main-account-create-control")).not.toBeInTheDocument();
   });
 
   it("logs in with username and code through the same C1-A credential endpoint", async () => {
@@ -156,17 +186,16 @@ describe("STEP 25I-C1-B main page account UI", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<HomePage />);
-    fireEvent.click(await screen.findByTestId("main-account-control"));
+    fireEvent.click(await screen.findByTestId("main-account-create-control"));
     const dialog = await screen.findByTestId("main-account-dialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Opret konto" }));
     fireEvent.change(within(dialog).getByLabelText("Navn"), { target: { value: "Hao Ngo" } });
     fireEvent.change(within(dialog).getByLabelText("Brugernavn"), { target: { value: "hao" } });
     fireEvent.change(within(dialog).getByLabelText("E-mail"), { target: { value: "hao@example.com" } });
     fireEvent.change(within(dialog).getByLabelText("6-tegns kode"), { target: { value: "ab12cd" } });
     fireEvent.change(within(dialog).getByLabelText("Gentag kode"), { target: { value: "ab12cd" } });
-    fireEvent.submit(within(dialog).getByRole("button", { name: "Opret konto" }).closest("form") as HTMLFormElement);
+    fireEvent.submit(within(dialog).getByRole("button", { name: "Opret bruger" }).closest("form") as HTMLFormElement);
 
-    await screen.findByText("Kontoen er oprettet. Log ind med email eller brugernavn og din kode.");
+    await screen.findByText("Brugeren er oprettet. Log ind med email eller brugernavn og din kode.");
     expect(fetchMock).toHaveBeenCalledWith("/api/auth/credentials/register", expect.any(Object));
   });
 
@@ -240,7 +269,7 @@ describe("STEP 25I-C1-B main page account UI", () => {
 
     render(<HomePage />);
 
-    expect(await screen.findByTestId("main-account-control")).toHaveTextContent("Owner");
+    await waitFor(() => expect(screen.getByTestId("main-account-control")).toHaveTextContent("Owner"));
     expect(screen.getByTestId("main-account-control")).not.toHaveTextContent("owner@example.com");
     fireEvent.click(screen.getByTestId("main-account-control"));
 
@@ -250,5 +279,6 @@ describe("STEP 25I-C1-B main page account UI", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Log ud" }));
 
     await waitFor(() => expect(screen.getByTestId("main-account-control")).toHaveTextContent("Log ind"));
+    expect(screen.getByTestId("main-account-create-control")).toHaveTextContent("Opret bruger");
   });
 });

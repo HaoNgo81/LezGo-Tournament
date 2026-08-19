@@ -50,14 +50,15 @@ type CloudTournamentOpenResponse =
 
 interface AccountPanelProps {
   framed?: boolean;
+  initialView?: AccountView;
   onAccountChange?: (account: Account | null) => void;
 }
 
-export function AccountPanel({ framed = true, onAccountChange }: AccountPanelProps) {
+export function AccountPanel({ framed = true, initialView = "login", onAccountChange }: AccountPanelProps) {
   const router = useRouter();
   const { t } = useAppTranslation();
   const [account, setAccount] = useState<Account | null>(null);
-  const [view, setView] = useState<AccountView>("login");
+  const [view, setView] = useState<AccountView>(initialView);
   const [identifier, setIdentifier] = useState("");
   const [loginCode, setLoginCode] = useState("");
   const [displayName, setDisplayName] = useState("");
