@@ -1,4 +1,6 @@
 import { createOrganizerToken, createStandardTournamentRepository, createTeamVsTeamTournamentRepository } from "@/lib/database";
+import { readOptionalAccountFromAccessToken } from "@/lib/auth";
+import { readAuthAccessCookie } from "@/lib/auth/cookies";
 import type { LiveTournamentState } from "@/lib/live-scoring";
 import type { TeamVsTeamTournamentState } from "@/lib/tournament-setup";
 
@@ -30,11 +32,14 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
+    const account = await readOptionalAccountFromAccessToken(await readAuthAccessCookie());
+
     if (body.kind === "standard" && isLiveTournamentState(body.state)) {
       const result = await createStandardTournamentRepository().save(body.state, {
         legacyLocalId: body.legacyLocalId,
         tournamentId: body.tournamentId,
         expectedUpdatedAt: body.expectedUpdatedAt,
+        ownerUserId: account?.userId,
       });
       return Response.json({
         ok: true,
@@ -50,6 +55,7 @@ export async function POST(request: Request): Promise<Response> {
         legacyLocalId: body.legacyLocalId,
         tournamentId: body.tournamentId,
         expectedUpdatedAt: body.expectedUpdatedAt,
+        ownerUserId: account?.userId,
       });
       return Response.json({
         ok: true,

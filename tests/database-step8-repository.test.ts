@@ -64,6 +64,23 @@ describe("STEP 8 standard Supabase repository", () => {
 
     await expect(repository.read(saved.tournamentId)).resolves.toEqual(poolPlayState);
   });
+
+  it("uses the owner-scoped RPC when an authenticated owner is supplied", async () => {
+    const state = createSavedAmericanoState();
+    const client = createMemoryClient();
+    const repository = createStandardTournamentRepository(client);
+
+    await repository.save(state, {
+      legacyLocalId: "STEP_25I_TEST_OWNER",
+      createId: createDeterministicUuidFactory(),
+      ownerUserId: "00000000-0000-4000-8000-000000000777",
+    });
+
+    expect(client.calls.rpcNames).toEqual(["lezgo_save_owned_tournament_snapshot_v1"]);
+    expect(client.calls.lastRpcBody).toMatchObject({
+      p_actor_user_id: "00000000-0000-4000-8000-000000000777",
+    });
+  });
 });
 
 function createSavedAmericanoState() {
@@ -102,12 +119,14 @@ function createMemoryClient(options: { failAfterTournamentInsert?: boolean } = {
     match_sides: [],
     match_side_players: [],
   };
-  const calls = { rpc: 0 };
+  const calls: { rpc: number; rpcNames: string[]; lastRpcBody?: Record<string, unknown> } = { rpc: 0, rpcNames: [] };
   const client: SupabaseRestClient & { calls: typeof calls; snapshot: () => typeof state } = {
     calls,
     snapshot: () => state,
-    async rpc<T>(_functionName: string, body: Record<string, unknown>): Promise<T> {
+    async rpc<T>(functionName: string, body: Record<string, unknown>): Promise<T> {
       calls.rpc += 1;
+      calls.rpcNames.push(functionName);
+      calls.lastRpcBody = body;
       const operations = body.p_operations as DatabaseWriteOperation[];
       const staged = cloneState(state);
 

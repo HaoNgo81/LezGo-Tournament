@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { Section } from "@/components/ui/section";
+import { AccountPanel } from "@/components/auth/account-panel";
 import { normalizeLanguage, translate, type AppLanguage } from "@/lib/i18n/translations";
 import { notifyPreferencesChanged } from "@/lib/preferences/client";
 import { applyTheme, createDefaultTheme, getThemeForPreset, type AppTheme, type ThemePreset } from "@/lib/theme/theme";
@@ -99,9 +100,14 @@ export function SettingsApp() {
   }
 
   return (
-    <form className="grid gap-5" onSubmit={handleSubmit}>
-      <Section title={t("standardsForNewTournaments")}>
-        <div className="app-card grid gap-3 p-4 sm:p-5">
+    <div className="grid gap-5">
+      <Section title={t("account")}>
+        <AccountPanel />
+      </Section>
+
+      <form className="grid gap-5" onSubmit={handleSubmit}>
+        <Section title={t("standardsForNewTournaments")}>
+          <div className="app-card grid gap-3 p-4 sm:p-5">
           <label className="grid gap-2 text-lg font-bold">
             {t("scoring")}
             <select className="field-control" value={settings.scoringMode} onChange={(event) => setSettings({ ...settings, scoringMode: event.target.value as ScoringMode })}>
@@ -129,9 +135,9 @@ export function SettingsApp() {
             </label>
           </div>
         </div>
-      </Section>
+        </Section>
 
-      <Section title={t("language")}>
+        <Section title={t("language")}>
         <div className="app-card grid gap-3 p-4 sm:p-5">
           <label className="grid gap-2 text-lg font-bold">
             {t("language")}
@@ -141,9 +147,9 @@ export function SettingsApp() {
             </select>
           </label>
         </div>
-      </Section>
+        </Section>
 
-      <Section title={t("theme")}>
+        <Section title={t("theme")}>
         <div className="app-card grid gap-4 p-4 sm:p-5">
           <label className="grid gap-2 text-lg font-bold">
             {t("themePreset")}
@@ -164,9 +170,9 @@ export function SettingsApp() {
             {t("resetTheme")}
           </button>
         </div>
-      </Section>
+        </Section>
 
-      <Section title={t("alarmSound")}>
+        <Section title={t("alarmSound")}>
         <div className="app-card grid gap-3 p-4 sm:grid-cols-[1fr_auto] sm:items-end sm:p-5">
           <label className="grid gap-2 text-lg font-bold">
             {t("alarmSound")}
@@ -178,14 +184,15 @@ export function SettingsApp() {
             {t("testSound")}
           </button>
         </div>
-      </Section>
+        </Section>
 
-      {message ? <p className="rounded-md bg-green-50 p-3 font-bold text-[var(--primary-strong)]">{message}</p> : null}
+        {message ? <p className="rounded-md bg-green-50 p-3 font-bold text-[var(--primary-strong)]">{message}</p> : null}
 
-      <button className="btn-primary min-h-14 text-lg" type="submit">
-        {t("saveSettings")}
-      </button>
-    </form>
+        <button className="btn-primary min-h-14 text-lg" type="submit">
+          {t("saveSettings")}
+        </button>
+      </form>
+    </div>
   );
 }
 

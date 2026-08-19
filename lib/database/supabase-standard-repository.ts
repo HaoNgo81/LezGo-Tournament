@@ -19,6 +19,7 @@ export interface SaveStandardTournamentOptions {
   createId?: () => string;
   tournamentId?: string;
   expectedUpdatedAt?: string;
+  ownerUserId?: string;
 }
 
 export interface SaveStandardTournamentResult {
@@ -45,7 +46,9 @@ export function createStandardTournamentRepository(client: SupabaseRestClient = 
       assertStandardWritePlanSupported(writePlan);
 
       try {
-        const tournamentId = await client.rpc<string>("lezgo_save_tournament_snapshot_v2", { p_operations: writePlan.operations, p_expected_updated_at: options.expectedUpdatedAt ?? null });
+        const tournamentId = options.ownerUserId
+          ? await client.rpc<string>("lezgo_save_owned_tournament_snapshot_v1", { p_operations: writePlan.operations, p_expected_updated_at: options.expectedUpdatedAt ?? null, p_actor_user_id: options.ownerUserId })
+          : await client.rpc<string>("lezgo_save_tournament_snapshot_v2", { p_operations: writePlan.operations, p_expected_updated_at: options.expectedUpdatedAt ?? null });
         return { tournamentId, updatedAt: await readTournamentUpdatedAt(client, tournamentId), writePlan, saveMode: options.tournamentId ? "replace" : "insert" };
       } catch (error) {
         throw toPersistenceError("Could not save tournament snapshot to Supabase.", error);

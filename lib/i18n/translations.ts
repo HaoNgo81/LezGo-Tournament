@@ -3,6 +3,26 @@ export type AppLanguage = "da" | "en";
 export type TranslationKey =
   | "activeTournament"
   | "active"
+  | "account"
+  | "accountContinue"
+  | "accountCreateOrLogin"
+  | "accountEmail"
+  | "accountLoggedIn"
+  | "accountLoggedOut"
+  | "accountName"
+  | "accountOtpCouldNotSend"
+  | "accountOtpCouldNotVerify"
+  | "accountOtpHelp"
+  | "accountOtpSent"
+  | "accountNoOwnTournaments"
+  | "accountOwnTournaments"
+  | "accountSignedIn"
+  | "accountVerificationCode"
+  | "accountVerify"
+  | "admin"
+  | "adminAccessDenied"
+  | "adminDescription"
+  | "adminTitle"
   | "alarmSound"
   | "allCourts"
   | "appBrand"
@@ -87,6 +107,7 @@ export type TranslationKey =
   | "loadingTournament"
   | "loadingTournaments"
   | "loadingShare"
+  | "logout"
   | "resumeTimer"
   | "savedInRound"
   | "savedShort"
@@ -248,6 +269,26 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
   da: {
     activeTournament: "Aktiv turnering",
     active: "Aktive",
+    account: "Konto",
+    accountContinue: "Fortsæt",
+    accountCreateOrLogin: "Opret konto / Log ind",
+    accountEmail: "E-mail",
+    accountLoggedIn: "Du er logget ind.",
+    accountLoggedOut: "Du er logget ud.",
+    accountName: "Navn",
+    accountOtpCouldNotSend: "Login-koden kunne ikke sendes.",
+    accountOtpCouldNotVerify: "Login-koden kunne ikke bekræftes.",
+    accountOtpHelp: "Indtast navn og e-mail. Vi sender en Supabase-verifikationskode til e-mailen.",
+    accountOtpSent: "Tjek din e-mail og indtast verifikationskoden.",
+    accountNoOwnTournaments: "Ingen private Supabase-turneringer endnu.",
+    accountOwnTournaments: "Mine turneringer",
+    accountSignedIn: "Logget ind",
+    accountVerificationCode: "Verifikationskode",
+    accountVerify: "Bekræft",
+    admin: "Admin",
+    adminAccessDenied: "Admin-adgang blev afvist.",
+    adminDescription: "Beskyttet område for systemadministration.",
+    adminTitle: "Admin",
     alarmSound: "Alarmlyd",
     allCourts: "Alle baner",
     appBrand: "LEZGO PADEL",
@@ -332,6 +373,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     loadingTournament: "Indlæser turnering...",
     loadingTournaments: "Indlæser turneringer...",
     loadingShare: "Indlæser deling...",
+    logout: "Log ud",
     resumeTimer: "Fortsæt ur",
     savedInRound: "Gemt i runden",
     savedShort: "Gemt",
@@ -492,6 +534,26 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
   en: {
     activeTournament: "Active tournament",
     active: "Active",
+    account: "Account",
+    accountContinue: "Continue",
+    accountCreateOrLogin: "Create account / Log in",
+    accountEmail: "Email",
+    accountLoggedIn: "You are logged in.",
+    accountLoggedOut: "You are logged out.",
+    accountName: "Name",
+    accountOtpCouldNotSend: "The login code could not be sent.",
+    accountOtpCouldNotVerify: "The login code could not be verified.",
+    accountOtpHelp: "Enter name and email. We send a Supabase verification code to the email address.",
+    accountOtpSent: "Check your email and enter the verification code.",
+    accountNoOwnTournaments: "No private Supabase tournaments yet.",
+    accountOwnTournaments: "My tournaments",
+    accountSignedIn: "Signed in",
+    accountVerificationCode: "Verification code",
+    accountVerify: "Verify",
+    admin: "Admin",
+    adminAccessDenied: "Admin access was denied.",
+    adminDescription: "Protected area for system administration.",
+    adminTitle: "Admin",
     alarmSound: "Alarm sound",
     allCourts: "All courts",
     appBrand: "LEZGO PADEL",
@@ -576,6 +638,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     loadingTournament: "Loading tournament...",
     loadingTournaments: "Loading tournaments...",
     loadingShare: "Loading sharing...",
+    logout: "Log out",
     resumeTimer: "Resume timer",
     savedInRound: "Saved this round",
     savedShort: "Saved",
