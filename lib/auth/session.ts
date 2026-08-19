@@ -7,6 +7,7 @@ export interface AuthenticatedAccount {
   userId: string;
   email: string;
   displayName: string;
+  username?: string;
   role: AccountRole;
 }
 
@@ -38,6 +39,8 @@ interface SupabaseAuthUserResponse {
 interface ProfileRow {
   user_id: string;
   display_name: string | null;
+  username?: string | null;
+  email?: string | null;
   role: AccountRole;
 }
 
@@ -152,30 +155,50 @@ export async function assertAdminAccount(accessToken: string | undefined, client
   return account;
 }
 
-export async function upsertAndReadProfile(input: { userId: string; email: string; displayName: string }, client: SupabaseRestClient = createSupabaseRestClient()): Promise<AuthenticatedAccount> {
+export async function upsertAndReadProfile(input: { userId: string; email: string; displayName: string; username?: string }, client: SupabaseRestClient = createSupabaseRestClient()): Promise<AuthenticatedAccount> {
   validateUuid(input.userId, "userId");
   const displayName = sanitizeDisplayName(input.displayName);
-  const query = `user_id=eq.${encodeURIComponent(input.userId)}&select=user_id,display_name,role`;
+  const email = normalizeEmail(input.email);
+  const username = input.username ? normalizeOptionalUsername(input.username) : undefined;
+  const query = `user_id=eq.${encodeURIComponent(input.userId)}&select=user_id,display_name,role,username,email`;
   const [existingProfile] = await client.select<ProfileRow>("profiles", query);
 
   if (existingProfile) {
+    const patch: Record<string, unknown> = {};
+
     if (existingProfile.display_name !== displayName && displayName) {
+      patch.display_name = displayName;
+    }
+
+    if (username && existingProfile.username !== username) {
+      patch.username = username;
+      patch.username_normalized = username;
+    }
+
+    if (existingProfile.email !== email) {
+      patch.email = email;
+      patch.email_normalized = email;
+    }
+
+    if (Object.keys(patch).length > 0) {
       const [updated] = await client.update<ProfileRow>("profiles", `user_id=eq.${encodeURIComponent(input.userId)}`, {
-        display_name: displayName,
+        ...patch,
       });
 
       return {
         userId: input.userId,
-        email: input.email,
+        email,
         displayName: updated?.display_name ?? displayName,
+        username: updated?.username ?? username ?? existingProfile.username ?? undefined,
         role: updated?.role ?? existingProfile.role,
       };
     }
 
     return {
       userId: input.userId,
-      email: input.email,
+      email,
       displayName: existingProfile.display_name || displayName,
+      username: existingProfile.username ?? undefined,
       role: existingProfile.role,
     };
   }
@@ -184,6 +207,10 @@ export async function upsertAndReadProfile(input: { userId: string; email: strin
     await client.insert<ProfileRow>("profiles", {
       user_id: input.userId,
       display_name: displayName,
+      username,
+      username_normalized: username,
+      email,
+      email_normalized: email,
       role: "user",
     });
   } catch (error) {
@@ -200,8 +227,9 @@ export async function upsertAndReadProfile(input: { userId: string; email: strin
 
   return {
     userId: input.userId,
-    email: input.email,
+    email,
     displayName: profile.display_name || displayName,
+    username: profile.username ?? undefined,
     role: profile.role,
   };
 }
@@ -241,7 +269,7 @@ async function readSupabaseAuthUser(accessToken: string): Promise<{ id: string; 
 }
 
 async function readProfileForAuthUser(authUser: { id: string; email: string; displayName?: string }, client: SupabaseRestClient): Promise<AuthenticatedAccount> {
-  const [profile] = await client.select<ProfileRow>("profiles", `user_id=eq.${encodeURIComponent(authUser.id)}&select=user_id,display_name,role`);
+  const [profile] = await client.select<ProfileRow>("profiles", `user_id=eq.${encodeURIComponent(authUser.id)}&select=user_id,display_name,role,username,email`);
 
   if (!profile) {
     return upsertAndReadProfile({
@@ -255,6 +283,7 @@ async function readProfileForAuthUser(authUser: { id: string; email: string; dis
     userId: authUser.id,
     email: authUser.email,
     displayName: profile.display_name || authUser.displayName || authUser.email.split("@")[0],
+    username: profile.username ?? undefined,
     role: profile.role,
   };
 }
@@ -277,6 +306,16 @@ function sanitizeDisplayName(value: string): string {
   }
 
   return displayName;
+}
+
+function normalizeOptionalUsername(value: string): string {
+  const username = value.trim().toLocaleLowerCase("en");
+
+  if (!/^[a-z0-9_]{3,30}$/.test(username)) {
+    throw new AuthError("Username is invalid.", 400);
+  }
+
+  return username;
 }
 
 async function parseJson(response: Response): Promise<unknown> {

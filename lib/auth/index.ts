@@ -14,4 +14,13 @@ export {
   type AuthenticatedAccount,
   type SupabaseAuthSession,
 } from "./session";
+export {
+  createCredentialAccount,
+  loginWithCredential,
+  normalizeCredentialEmail,
+  normalizeLoginCode,
+  normalizeUsername,
+  requestLoginCodeRecovery,
+  updateLoginCodeWithSession,
+} from "./credentials";
 export { createAuthCookieHeaders, createLogoutCookieHeaders, readAuthAccessCookie } from "./cookies";
