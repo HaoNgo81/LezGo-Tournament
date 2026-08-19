@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Section } from "@/components/ui/section";
 import { normalizeLanguage, translate, type AppLanguage } from "@/lib/i18n/translations";
 import { notifyPreferencesChanged } from "@/lib/preferences/client";
-import { applyTheme, getThemeForPreset, type AppTheme, type ThemePreset } from "@/lib/theme/theme";
+import { applyTheme, createDefaultTheme, getThemeForPreset, type AppTheme, type ThemePreset } from "@/lib/theme/theme";
 import { alarmSoundOptions, createDefaultTournamentSettings, loadTournamentSettings, playTournamentAlarmSound, saveTournamentSettings, type AlarmSoundId, type TournamentSettings } from "@/lib/tournament-settings";
 import type { StandingsRankingMode } from "@/lib/tournament-engine";
 import type { ScoringMode } from "@/lib/tournament-setup";
@@ -95,7 +95,7 @@ export function SettingsApp() {
   }
 
   function resetTheme() {
-    updateTheme(getThemeForPreset("lezgo"));
+    updateTheme(createDefaultTheme());
   }
 
   return (

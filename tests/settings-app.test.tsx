@@ -70,12 +70,26 @@ describe("SettingsApp", () => {
     await waitFor(() => expect(loadTournamentSettings().theme.preset).toBe("hybridLezgo"));
   });
 
-  it("resets the theme to LezGo colors", async () => {
+  it("resets the theme to the Hybrid LEZGO default colors", async () => {
     render(<SettingsApp />);
 
     fireEvent.change(await screen.findByLabelText("Primær knapfarve"), { target: { value: "#123456" } });
     fireEvent.click(screen.getByRole("button", { name: "Nulstil tema" }));
 
-    expect(document.documentElement.style.getPropertyValue("--primary")).toBe("#18a058");
+    expect(document.documentElement.dataset.theme).toBe("hybridLezgo");
+    expect(document.documentElement.style.getPropertyValue("--primary")).toBe("#d8aa20");
+  });
+
+  it("preserves active tournament data when changing the theme", async () => {
+    window.localStorage.setItem("lezgo.activeTournament.v1", JSON.stringify({ tournamentName: "STATE SAFE", activeRoundNumber: 2 }));
+
+    render(<SettingsApp />);
+
+    const themeSelect = await screen.findByRole("combobox", { name: "Tema" });
+    fireEvent.change(themeSelect, { target: { value: "light" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gem indstillinger" }));
+
+    await waitFor(() => expect(loadTournamentSettings().theme.preset).toBe("light"));
+    expect(window.localStorage.getItem("lezgo.activeTournament.v1")).toBe(JSON.stringify({ tournamentName: "STATE SAFE", activeRoundNumber: 2 }));
   });
 });

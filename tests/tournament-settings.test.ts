@@ -59,8 +59,49 @@ describe("tournament settings", () => {
 
     expect(loadTournamentSettings()).toMatchObject({
       language: "da",
-      theme: expect.objectContaining({ preset: "lezgo", primary: "#18a058" }),
+      theme: expect.objectContaining({ preset: "hybridLezgo", primary: "#d7a91e" }),
     });
+  });
+
+  it("preserves a valid saved non-default theme preference", () => {
+    window.localStorage.setItem("lezgo.tournamentSettings.v1", JSON.stringify({
+      scoringMode: "Fri scoring",
+      courts: 2,
+      rounds: 2,
+      rankingMode: "matchPointsFirst",
+      timeLimitMinutes: 15,
+      alarmSound: "standard",
+      language: "da",
+      theme: {
+        preset: "light",
+        primary: "#0f7d43",
+        secondary: "#eef4f0",
+        background: "#fbfdfb",
+        surface: "#ffffff",
+        foreground: "#102017",
+        accent: "#d6a447",
+      },
+    }));
+
+    expect(loadTournamentSettings().theme).toMatchObject({ preset: "light", primary: "#0f7d43" });
+  });
+
+  it("falls back to Hybrid LEZGO for invalid stored theme presets", () => {
+    window.localStorage.setItem("lezgo.tournamentSettings.v1", JSON.stringify({
+      scoringMode: "Fri scoring",
+      courts: 2,
+      rounds: 2,
+      rankingMode: "matchPointsFirst",
+      timeLimitMinutes: 15,
+      alarmSound: "standard",
+      language: "da",
+      theme: {
+        preset: "removedTheme",
+        primary: "#000000",
+      },
+    }));
+
+    expect(loadTournamentSettings().theme).toMatchObject({ preset: "hybridLezgo", primary: "#d7a91e" });
   });
 
   it("rejects invalid numeric settings", () => {

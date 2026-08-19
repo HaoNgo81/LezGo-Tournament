@@ -103,7 +103,7 @@ export interface ThemeCssVariables {
 }
 
 export function createDefaultTheme(): AppTheme {
-  return { ...themePresets.lezgo };
+  return { ...themePresets.hybridLezgo };
 }
 
 export function normalizeTheme(input: Partial<AppTheme> | undefined): AppTheme {
@@ -112,6 +112,11 @@ export function normalizeTheme(input: Partial<AppTheme> | undefined): AppTheme {
   }
 
   const preset = normalizeThemePreset(input.preset);
+
+  if (input.preset !== "custom" && !preset) {
+    return createDefaultTheme();
+  }
+
   const base = preset ? themePresets[preset] : createDefaultTheme();
 
   return {

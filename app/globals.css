@@ -1,31 +1,33 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f4f8f5;
-  --foreground: #112018;
-  --muted: #52665a;
-  --surface: #ffffff;
-  --primary: #18a058;
-  --primary-strong: #0f7d43;
-  --primary-soft: #e7f7ee;
-  --primary-text: #ffffff;
-  --secondary: #ffffff;
-  --secondary-text: #112018;
-  --accent: #0f7d43;
-  --line: #d7e4db;
-  --control-bg: #ffffff;
-  --control-text: #112018;
-  --control-border: #d7e4db;
-  --control-hover-bg: #f4fbf7;
-  --selected-bg: #e7f7ee;
-  --selected-text: #112018;
-  --selected-border: #18a058;
-  --focus-ring: rgba(24, 160, 88, 0.28);
+  --background: #f7f1e5;
+  --foreground: #191d1b;
+  --muted: #5e625b;
+  --surface: #fff9ef;
+  --card: #fbf7ef;
+  --primary: #d8aa20;
+  --primary-strong: #a87a08;
+  --primary-soft: #f2e3b5;
+  --primary-text: #161a18;
+  --secondary: #fbf7ef;
+  --secondary-text: #191d1b;
+  --accent: #c99712;
+  --line: rgba(153, 119, 39, 0.20);
+  --border: rgba(153, 119, 39, 0.20);
+  --control-bg: #fff9ef;
+  --control-text: #191d1b;
+  --control-border: rgba(205, 155, 20, 0.55);
+  --control-hover-bg: #f4ead3;
+  --selected-bg: #1b211f;
+  --selected-text: #fff4de;
+  --selected-border: #d8aa20;
+  --focus-ring: rgba(216, 170, 32, 0.30);
   --warning: #f7d046;
   --danger: #dc2626;
-  --danger-bg: #fff1f1;
+  --danger-bg: #fff2ed;
   --danger-soft: #fee2e2;
-  --shadow-soft: 0 14px 40px rgba(17, 32, 24, 0.08);
+  --shadow-soft: 0 8px 24px rgba(47, 39, 23, 0.10);
 }
 
 * {
@@ -45,7 +47,8 @@ body {
   overflow-wrap: break-word;
 }
 
-html[data-theme="hybridLezgo"] body {
+html[data-theme="hybridLezgo"] body,
+html:not([data-theme]) body {
   background:
     linear-gradient(rgba(247, 241, 229, 0.76), rgba(247, 241, 229, 0.84)),
     url("/themes/hybrid-lezgo/padel-court-background.svg") center / cover fixed,

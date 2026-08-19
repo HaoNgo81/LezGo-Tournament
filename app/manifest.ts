@@ -11,8 +11,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Hurtig turneringsapp til padel",
     start_url: `${basePath}/`,
     display: "standalone",
-    background_color: "#f7faf7",
-    theme_color: "#18a058",
+    background_color: "#f7f1e5",
+    theme_color: "#d8aa20",
     orientation: "any",
     icons: [
       {

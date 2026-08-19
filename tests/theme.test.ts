@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { createThemeCssVariables, getContrastRatio, normalizeTheme, themePresets } from "../lib/theme/theme";
+import { createDefaultTheme, createThemeCssVariables, getContrastRatio, normalizeTheme, themePresets } from "../lib/theme/theme";
 import { translations } from "../lib/i18n/translations";
 
 const requiredControlTokens = [
@@ -38,12 +38,18 @@ describe("theme presets", () => {
     });
   });
 
+  it("uses Hybrid LEZGO as the default theme fallback", () => {
+    expect(createDefaultTheme()).toEqual(themePresets.hybridLezgo);
+    expect(normalizeTheme(undefined)).toMatchObject({ preset: "hybridLezgo" });
+    expect(normalizeTheme({ preset: "missing" as never })).toMatchObject({ preset: "hybridLezgo" });
+  });
+
   it("scopes the Hybrid LEZGO background image to the Hybrid LEZGO theme only", () => {
     const globalCss = readFileSync(resolve(process.cwd(), "app/globals.css"), "utf8");
     const backgroundPath = resolve(process.cwd(), "public/themes/hybrid-lezgo/padel-court-background.svg");
 
     expect(existsSync(backgroundPath)).toBe(true);
-    expect(globalCss).toMatch(/html\[data-theme="hybridLezgo"\] body \{/);
+    expect(globalCss).toMatch(/html\[data-theme="hybridLezgo"\] body,\s*html:not\(\[data-theme\]\) body \{/);
     expect(globalCss).toContain('url("/themes/hybrid-lezgo/padel-court-background.svg")');
     expect(globalCss).toMatch(/linear-gradient\(rgba\(247, 241, 229, 0\.76\), rgba\(247, 241, 229, 0\.84\)\)/);
   });
