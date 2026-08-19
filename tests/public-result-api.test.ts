@@ -72,7 +72,7 @@ describe("STEP 25G public result API", () => {
       rows: [],
     });
 
-    const response = await publishPublicResult(new Request("https://lez-go-tournament.vercel.app/api/supabase/result-snapshots/publish", {
+    const response = await publishPublicResult(new Request("https://lezgotournament.vercel.app/api/supabase/result-snapshots/publish", {
       method: "POST",
       body: JSON.stringify({
         kind: "standard",
@@ -85,7 +85,7 @@ describe("STEP 25G public result API", () => {
     const body = await response.json() as { ok: boolean; resultUrl?: string };
 
     expect(response.status).toBe(200);
-    expect(body.resultUrl).toBe("https://lez-go-tournament.vercel.app/result/ABCDEFGHJKLM2345");
+    expect(body.resultUrl).toBe("https://lezgotournament.vercel.app/result/ABCDEFGHJKLM2345");
     expect(body.resultUrl).not.toMatch(/token|secret|pin|share/i);
     expect(repositoryMocks.publishStandard).toHaveBeenCalledWith({
       tournamentId: "00000000-0000-4000-8000-000000000261",
@@ -118,8 +118,9 @@ describe("STEP 25G public result API", () => {
     const body = await response.json() as { ok: boolean; resultUrl?: string };
 
     expect(response.status).toBe(200);
-    expect(body.resultUrl).toBe("https://lez-go-tournament.vercel.app/result/ABCDEFGHJKLM2345");
+    expect(body.resultUrl).toBe("https://lezgotournament.vercel.app/result/ABCDEFGHJKLM2345");
     expect(body.resultUrl).not.toContain("app.lezgopadel.dk");
+    expect(body.resultUrl).not.toContain("lez-go-tournament.vercel.app");
   });
 
   it("rejects result publishing without organizer authorization", async () => {

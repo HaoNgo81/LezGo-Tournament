@@ -6,6 +6,7 @@ export type { PublicResultKind, PublicResultRow, PublicResultSnapshot } from "./
 export {
   CURRENT_PUBLIC_RESULT_ORIGIN,
   createResultUrl,
+  normalizeOptionalPublicResultOrigin,
   normalizePublicResultUrl,
   validateResultId,
 } from "./result-url";

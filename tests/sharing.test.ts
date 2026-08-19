@@ -33,7 +33,7 @@ describe("sharing", () => {
   });
 
   it("encodes final result QR payload as the public result URL only", () => {
-    const resultUrl = "https://lez-go-tournament.vercel.app/result/ABCDEFGHJKLM2345";
+    const resultUrl = "https://lezgotournament.vercel.app/result/ABCDEFGHJKLM2345";
     const qrCode = createQrCodeMatrix(resultUrl);
 
     expect(qrCode.payload).toBe(resultUrl);

@@ -1,4 +1,9 @@
-export const CURRENT_PUBLIC_RESULT_ORIGIN = "https://lez-go-tournament.vercel.app";
+export const CURRENT_PUBLIC_RESULT_ORIGIN = "https://lezgotournament.vercel.app";
+
+const stalePublicResultHostnames = new Set([
+  "app.lezgopadel.dk",
+  "lez-go-tournament.vercel.app",
+]);
 
 const resultIdPattern = /^[A-HJ-NP-Z2-9]{12,24}$/;
 
@@ -9,7 +14,7 @@ export function createResultUrl(origin: string, resultId: string): string {
 
 export function normalizePublicResultUrl(inputUrl: string, resultId: string, preferredOrigin?: string): string {
   validateResultId(resultId);
-  const origin = normalizeOptionalOrigin(preferredOrigin) ?? CURRENT_PUBLIC_RESULT_ORIGIN;
+  const origin = normalizeOptionalPublicResultOrigin(preferredOrigin) ?? CURRENT_PUBLIC_RESULT_ORIGIN;
 
   try {
     const url = new URL(inputUrl);
@@ -29,6 +34,16 @@ export function validateResultId(resultId: string): void {
   if (!resultIdPattern.test(resultId)) {
     throw new Error("Result ID is invalid.");
   }
+}
+
+export function normalizeOptionalPublicResultOrigin(origin: string | undefined): string | null {
+  const normalizedOrigin = normalizeOptionalOrigin(origin);
+
+  if (!normalizedOrigin) {
+    return null;
+  }
+
+  return stalePublicResultHostnames.has(new URL(normalizedOrigin).hostname) ? null : normalizedOrigin;
 }
 
 function normalizeOrigin(origin: string): string {

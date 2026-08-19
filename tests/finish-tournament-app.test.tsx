@@ -35,6 +35,16 @@ describe("FinishTournamentApp pool play", () => {
       resultUrl: "https://app.lezgopadel.dk/result/ABCDEFGHJKLM2345",
     }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const share = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    Object.defineProperty(navigator, "share", {
+      configurable: true,
+      value: share,
+    });
 
     const finishedState = finishTournament(createMockLiveTournamentState(), "2026-08-19T18:30:00.000Z");
     window.localStorage.setItem("lezgo.activeTournament.v1", JSON.stringify(finishedState));
@@ -57,6 +67,14 @@ describe("FinishTournamentApp pool play", () => {
     expect(await screen.findByText("http://localhost:3000/result/ABCDEFGHJKLM2345")).toBeInTheDocument();
     expect(screen.queryByText("https://app.lezgopadel.dk/result/ABCDEFGHJKLM2345")).not.toBeInTheDocument();
     expect(screen.getByRole("img", { name: "QR-kode til offentligt slutresultat" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Kopier link" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("http://localhost:3000/result/ABCDEFGHJKLM2345"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Del resultat" }));
+    await waitFor(() => expect(share).toHaveBeenCalledWith(expect.objectContaining({
+      url: "http://localhost:3000/result/ABCDEFGHJKLM2345",
+    })));
     expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toMatchObject({
       kind: "standard",
       legacyLocalId: "mock americano-americano",

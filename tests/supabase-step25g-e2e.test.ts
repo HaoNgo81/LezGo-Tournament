@@ -49,7 +49,7 @@ describeE2E("STEP 25G public final result sharing", () => {
     const saved = await standardRepository.save(finishedState, { legacyLocalId: "STEP_25G_TEST_FINAL_RESULT" });
     createdTournamentIds.push(saved.tournamentId);
 
-    const response = await publishPublicResult(new Request("https://lez-go-tournament.vercel.app/api/supabase/result-snapshots/publish", {
+    const response = await publishPublicResult(new Request("https://lezgotournament.vercel.app/api/supabase/result-snapshots/publish", {
       method: "POST",
       body: JSON.stringify({
         kind: "standard",
@@ -70,11 +70,11 @@ describeE2E("STEP 25G public final result sharing", () => {
     }
 
     createdResultIds.push(body.resultId);
-    expect(body.resultUrl).toBe(`https://lez-go-tournament.vercel.app/result/${body.resultId}`);
+    expect(body.resultUrl).toBe(`https://lezgotournament.vercel.app/result/${body.resultId}`);
     expect(body.resultUrl).not.toMatch(/token|secret|pin|share/i);
 
     const readResponse = await readPublicResult(
-      new Request(`https://lez-go-tournament.vercel.app/api/result/${body.resultId}`),
+      new Request(`https://lezgotournament.vercel.app/api/result/${body.resultId}`),
       { params: Promise.resolve({ resultId: body.resultId }) },
     );
     const readBody = await readResponse.json() as { ok: boolean; snapshot?: { tournamentName?: string; rows?: Array<{ rank: number; name: string; scorePoints?: number }> } };

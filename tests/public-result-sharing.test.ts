@@ -58,23 +58,31 @@ describe("STEP 25G public result snapshots", () => {
   });
 
   it("creates a stable public result URL without secret tokens", () => {
-    const url = createResultUrl("https://lez-go-tournament.vercel.app", resultId);
+    const url = createResultUrl("https://lezgotournament.vercel.app", resultId);
 
-    expect(url).toBe(`https://lez-go-tournament.vercel.app/result/${resultId}`);
+    expect(url).toBe(`https://lezgotournament.vercel.app/result/${resultId}`);
     expect(url).not.toMatch(/token|secret|password|pin|share/i);
   });
 
   it("normalizes stale custom-domain result URLs to the current working production origin while preserving the result ID", () => {
     const url = normalizePublicResultUrl(`https://app.lezgopadel.dk/result/${resultId}`, resultId);
 
-    expect(url).toBe(`https://lez-go-tournament.vercel.app/result/${resultId}`);
+    expect(url).toBe(`https://lezgotournament.vercel.app/result/${resultId}`);
     expect(url).not.toContain("app.lezgopadel.dk");
+    expect(url).not.toContain("lez-go-tournament.vercel.app");
     expect(url).not.toMatch(/token|secret|password|pin|share/i);
   });
 
   it("uses the browser origin for QR/copy/share URLs when it is available", () => {
-    const url = normalizePublicResultUrl(`https://app.lezgopadel.dk/result/${resultId}`, resultId, "https://lez-go-tournament.vercel.app");
+    const url = normalizePublicResultUrl(`https://app.lezgopadel.dk/result/${resultId}`, resultId, "https://lezgotournament.vercel.app");
 
-    expect(url).toBe(`https://lez-go-tournament.vercel.app/result/${resultId}`);
+    expect(url).toBe(`https://lezgotournament.vercel.app/result/${resultId}`);
+  });
+
+  it("does not use the old hyphenated production origin for new QR/copy/share URLs", () => {
+    const url = normalizePublicResultUrl(`https://lez-go-tournament.vercel.app/result/${resultId}`, resultId, "https://lez-go-tournament.vercel.app");
+
+    expect(url).toBe(`https://lezgotournament.vercel.app/result/${resultId}`);
+    expect(url).not.toContain("lez-go-tournament.vercel.app");
   });
 });
