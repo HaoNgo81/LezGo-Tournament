@@ -132,6 +132,42 @@ export async function verifyEmailOtp(input: { email: string; token: string; disp
   };
 }
 
+export async function refreshAuthenticatedSession(refreshToken: string | undefined, client?: SupabaseRestClient): Promise<{ session: SupabaseAuthSession; account: AuthenticatedAccount }> {
+  if (!refreshToken) {
+    throw new AuthError();
+  }
+
+  const config = getSupabaseAuthConfig();
+  const response = await fetch(`${config.url}/auth/v1/token?grant_type=refresh_token`, {
+    method: "POST",
+    headers: getAuthHeaders(config.anonKey),
+    body: JSON.stringify({
+      refresh_token: refreshToken,
+    }),
+  });
+  const body = await parseJson(response);
+
+  if (!response.ok || !isVerifyResponse(body)) {
+    throw new AuthError("Authentication was denied.", response.status || 401);
+  }
+
+  if (!isAuthUserEmailVerified(body.user)) {
+    throw new AuthError("Email is not verified.", 403);
+  }
+
+  await assertAuthUserIsActive(body.user.id);
+  const account = await readProfileForAuthUser(body.user, client ?? createSupabaseRestClient());
+
+  return {
+    session: {
+      accessToken: body.access_token,
+      refreshToken: body.refresh_token,
+      expiresIn: body.expires_in,
+    },
+    account,
+  };
+}
+
 export async function readAccountFromAccessToken(accessToken: string | undefined, client?: SupabaseRestClient): Promise<AuthenticatedAccount> {
   if (!accessToken) {
     throw new AuthError();

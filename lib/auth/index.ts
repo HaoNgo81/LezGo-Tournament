@@ -7,6 +7,7 @@ export {
   hashUserIdForLog,
   readAccountFromAccessToken,
   readOptionalAccountFromAccessToken,
+  refreshAuthenticatedSession,
   requestEmailOtp,
   upsertAndReadProfile,
   verifyEmailOtp,
@@ -25,4 +26,12 @@ export {
   updateLoginCodeWithSession,
   verifyCredentialEmailToken,
 } from "./credentials";
-export { createAuthCookieHeaders, createLogoutCookieHeaders, readAuthAccessCookie } from "./cookies";
+export {
+  assertFreshAdminAccountFromCookies,
+  authRememberCookieName,
+  createAuthCookieHeaders,
+  createLogoutCookieHeaders,
+  readAuthAccessCookie,
+  readAuthRefreshCookie,
+  readAuthRememberCookie,
+} from "./cookies";

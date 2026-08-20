@@ -8,6 +8,7 @@ const unverifiedEmailMessage = "Email is not verified.";
 interface LoginBody {
   identifier?: string;
   code?: string;
+  remember?: boolean;
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -29,8 +30,13 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({
       ok: true,
       account: result.account,
+      remembered: Boolean(body.remember && result.account.role === "user"),
+      rememberDenied: Boolean(body.remember && result.account.role === "admin"),
     }, {
-      headers: createAuthCookieHeaders(result.session),
+      headers: createAuthCookieHeaders(result.session, {
+        remember: body.remember === true,
+        accountRole: result.account.role,
+      }),
     });
   } catch (error) {
     const status = error instanceof AuthError ? error.status : 401;

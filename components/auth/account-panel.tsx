@@ -62,6 +62,7 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
   const [view, setView] = useState<AccountView>(initialView);
   const [identifier, setIdentifier] = useState("");
   const [loginCode, setLoginCode] = useState("");
+  const [rememberLogin, setRememberLogin] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -144,9 +145,9 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
       const response = await fetch("/api/auth/credentials/login", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ identifier, code: loginCode }),
+        body: JSON.stringify({ identifier, code: loginCode, remember: rememberLogin }),
       });
-      const body = await response.json() as { ok?: boolean; account?: Account; error?: string };
+      const body = await response.json() as { ok?: boolean; account?: Account; rememberDenied?: boolean; error?: string };
 
       if (!response.ok || !body.ok || !body.account) {
         throw new Error(localizeAuthError(body.error, t("accountLoginError"), {
@@ -156,7 +157,7 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
 
       setSignedInAccount(body.account);
       setLoginCode("");
-      setMessage(t("accountLoggedIn"));
+      setMessage(body.rememberDenied ? t("accountLoginAdminNotRemembered") : t("accountLoggedIn"));
       void loadOwnTournaments();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t("accountLoginError"));
@@ -304,6 +305,7 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
       setSignedInAccount(null);
       setTournaments([]);
       setLoginCode("");
+      setRememberLogin(false);
       setMessage(t("accountLoggedOut"));
     } finally {
       setIsLoading(false);
@@ -426,6 +428,15 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
           </label>
           <CodeField label={t("accountCode")} value={loginCode} onChange={setLoginCode} showCode={showCode} />
           <ShowCodeButton showCode={showCode} onToggle={() => setShowCode((value) => !value)} />
+          <label className="flex items-center gap-2 rounded-md border border-[var(--line)] bg-white/70 px-3 py-2 text-sm font-black text-[var(--foreground)]">
+            <input
+              checked={rememberLogin}
+              className="h-4 w-4 accent-[var(--primary)]"
+              onChange={(event) => setRememberLogin(event.target.checked)}
+              type="checkbox"
+            />
+            {t("accountRememberLogin")}
+          </label>
           <button className="btn-primary min-h-12" type="submit" disabled={isLoading}>
             {t("accountLogin")}
           </button>

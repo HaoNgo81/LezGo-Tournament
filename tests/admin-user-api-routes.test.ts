@@ -3,8 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ManagedAccountUser } from "../lib/admin/users";
 
 const authMocks = vi.hoisted(() => ({
-  assertAdminAccount: vi.fn(),
-  readAuthAccessCookie: vi.fn(),
+  assertFreshAdminAccountFromCookies: vi.fn(),
 }));
 
 const adminUserMocks = vi.hoisted(() => ({
@@ -15,8 +14,7 @@ vi.mock("@/lib/auth", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../lib/auth")>();
   return {
     ...actual,
-    assertAdminAccount: authMocks.assertAdminAccount,
-    readAuthAccessCookie: authMocks.readAuthAccessCookie,
+    assertFreshAdminAccountFromCookies: authMocks.assertFreshAdminAccountFromCookies,
   };
 });
 
@@ -26,16 +24,14 @@ vi.mock("@/lib/admin/users", () => ({
 
 describe("STEP 25I-C1-C7 admin user API boundary", () => {
   beforeEach(() => {
-    authMocks.assertAdminAccount.mockReset();
-    authMocks.readAuthAccessCookie.mockReset();
+    authMocks.assertFreshAdminAccountFromCookies.mockReset();
     adminUserMocks.listManagedAccountUsers.mockReset();
   });
 
   it("allows admins to list safe users", async () => {
     const { GET } = await import("../app/api/admin/users/route");
     const admin = createAccount("admin");
-    authMocks.readAuthAccessCookie.mockResolvedValue("access-token");
-    authMocks.assertAdminAccount.mockResolvedValue(admin);
+    authMocks.assertFreshAdminAccountFromCookies.mockResolvedValue(admin);
     adminUserMocks.listManagedAccountUsers.mockResolvedValue([managedUser]);
 
     const response = await GET();
@@ -56,8 +52,7 @@ describe("STEP 25I-C1-C7 admin user API boundary", () => {
       new AuthError("Authentication was denied.", 401),
       new AuthError("Email is not verified.", 403),
     ]) {
-      authMocks.readAuthAccessCookie.mockResolvedValue("access-token");
-      authMocks.assertAdminAccount.mockRejectedValueOnce(error);
+      authMocks.assertFreshAdminAccountFromCookies.mockRejectedValueOnce(error);
 
       const response = await GET();
 

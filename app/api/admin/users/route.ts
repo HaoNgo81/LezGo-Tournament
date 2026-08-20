@@ -1,11 +1,11 @@
 import { listManagedAccountUsers } from "@/lib/admin/users";
-import { AuthError, assertAdminAccount, readAuthAccessCookie } from "@/lib/auth";
+import { AuthError, assertFreshAdminAccountFromCookies } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(): Promise<Response> {
   try {
-    const admin = await assertAdminAccount(await readAuthAccessCookie());
+    const admin = await assertFreshAdminAccountFromCookies();
     const users = await listManagedAccountUsers(admin);
 
     return Response.json({ ok: true, users }, {

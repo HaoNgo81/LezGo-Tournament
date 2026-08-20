@@ -1,5 +1,5 @@
 import { updateManagedAccountStatus, type ManagedAccountStatus } from "@/lib/admin/users";
-import { AuthError, assertAdminAccount, readAuthAccessCookie } from "@/lib/auth";
+import { AuthError, assertFreshAdminAccountFromCookies } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +18,7 @@ export async function POST(request: Request, context: { params: Promise<{ userId
 
   try {
     const { userId } = await context.params;
-    const admin = await assertAdminAccount(await readAuthAccessCookie());
+    const admin = await assertFreshAdminAccountFromCookies();
     const user = await updateManagedAccountStatus({
       actor: admin,
       targetUserId: userId,

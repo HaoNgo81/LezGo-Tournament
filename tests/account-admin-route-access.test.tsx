@@ -3,8 +3,7 @@ import AdminPage from "../app/admin/page";
 import SettingsPage from "../app/settings/page";
 
 const authMocks = vi.hoisted(() => ({
-  assertAdminAccount: vi.fn(),
-  readAuthAccessCookie: vi.fn(),
+  assertFreshAdminAccountFromCookies: vi.fn(),
 }));
 
 const navigationMocks = vi.hoisted(() => ({
@@ -18,8 +17,7 @@ const adminUserMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/auth", () => ({
-  assertAdminAccount: authMocks.assertAdminAccount,
-  readAuthAccessCookie: authMocks.readAuthAccessCookie,
+  assertFreshAdminAccountFromCookies: authMocks.assertFreshAdminAccountFromCookies,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -32,71 +30,64 @@ vi.mock("@/lib/admin/users", () => ({
 
 describe("STEP 25I-C1-C6 admin route access", () => {
   beforeEach(() => {
-    authMocks.assertAdminAccount.mockReset();
-    authMocks.readAuthAccessCookie.mockReset();
+    authMocks.assertFreshAdminAccountFromCookies.mockReset();
     adminUserMocks.listManagedAccountUsers.mockReset();
     navigationMocks.redirect.mockClear();
   });
 
   it("allows admin accounts to open /settings", async () => {
-    authMocks.readAuthAccessCookie.mockResolvedValue("access-token");
-    authMocks.assertAdminAccount.mockResolvedValue(createAccount("admin"));
+    authMocks.assertFreshAdminAccountFromCookies.mockResolvedValue(createAccount("admin"));
 
     await expect(SettingsPage()).resolves.toBeTruthy();
 
-    expect(authMocks.assertAdminAccount).toHaveBeenCalledWith("access-token");
+    expect(authMocks.assertFreshAdminAccountFromCookies).toHaveBeenCalled();
     expect(navigationMocks.redirect).not.toHaveBeenCalled();
   });
 
   it("blocks normal users from /settings", async () => {
-    authMocks.readAuthAccessCookie.mockResolvedValue("access-token");
-    authMocks.assertAdminAccount.mockRejectedValue(new Error("Admin access was denied."));
+    authMocks.assertFreshAdminAccountFromCookies.mockRejectedValue(new Error("Admin access was denied."));
 
     await expect(SettingsPage()).rejects.toThrow("redirect:/");
 
-    expect(authMocks.assertAdminAccount).toHaveBeenCalledWith("access-token");
+    expect(authMocks.assertFreshAdminAccountFromCookies).toHaveBeenCalled();
     expect(navigationMocks.redirect).toHaveBeenCalledWith("/");
   });
 
   it("blocks anonymous visitors from /settings", async () => {
-    authMocks.readAuthAccessCookie.mockResolvedValue(undefined);
-    authMocks.assertAdminAccount.mockRejectedValue(new Error("Authentication was denied."));
+    authMocks.assertFreshAdminAccountFromCookies.mockRejectedValue(new Error("Authentication was denied."));
 
     await expect(SettingsPage()).rejects.toThrow("redirect:/");
 
-    expect(authMocks.assertAdminAccount).toHaveBeenCalledWith(undefined);
+    expect(authMocks.assertFreshAdminAccountFromCookies).toHaveBeenCalled();
     expect(navigationMocks.redirect).toHaveBeenCalledWith("/");
   });
 
   it("allows admin accounts to open /admin", async () => {
-    authMocks.readAuthAccessCookie.mockResolvedValue("access-token");
-    authMocks.assertAdminAccount.mockResolvedValue(createAccount("admin"));
+    authMocks.assertFreshAdminAccountFromCookies.mockResolvedValue(createAccount("admin"));
     adminUserMocks.listManagedAccountUsers.mockResolvedValue([]);
 
     await expect(AdminPage()).resolves.toBeTruthy();
 
-    expect(authMocks.assertAdminAccount).toHaveBeenCalledWith("access-token");
+    expect(authMocks.assertFreshAdminAccountFromCookies).toHaveBeenCalled();
     expect(adminUserMocks.listManagedAccountUsers).toHaveBeenCalledWith(createAccount("admin"));
     expect(navigationMocks.redirect).not.toHaveBeenCalled();
   });
 
   it("blocks normal users from /admin", async () => {
-    authMocks.readAuthAccessCookie.mockResolvedValue("access-token");
-    authMocks.assertAdminAccount.mockRejectedValue(new Error("Admin access was denied."));
+    authMocks.assertFreshAdminAccountFromCookies.mockRejectedValue(new Error("Admin access was denied."));
 
     await expect(AdminPage()).rejects.toThrow("redirect:/");
 
-    expect(authMocks.assertAdminAccount).toHaveBeenCalledWith("access-token");
+    expect(authMocks.assertFreshAdminAccountFromCookies).toHaveBeenCalled();
     expect(navigationMocks.redirect).toHaveBeenCalledWith("/");
   });
 
   it("blocks anonymous visitors from /admin", async () => {
-    authMocks.readAuthAccessCookie.mockResolvedValue(undefined);
-    authMocks.assertAdminAccount.mockRejectedValue(new Error("Authentication was denied."));
+    authMocks.assertFreshAdminAccountFromCookies.mockRejectedValue(new Error("Authentication was denied."));
 
     await expect(AdminPage()).rejects.toThrow("redirect:/");
 
-    expect(authMocks.assertAdminAccount).toHaveBeenCalledWith(undefined);
+    expect(authMocks.assertFreshAdminAccountFromCookies).toHaveBeenCalled();
     expect(navigationMocks.redirect).toHaveBeenCalledWith("/");
   });
 });

@@ -1,13 +1,13 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { SettingsApp } from "@/components/settings/settings-app";
-import { assertAdminAccount, readAuthAccessCookie } from "@/lib/auth";
+import { assertFreshAdminAccountFromCookies } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   try {
-    await assertAdminAccount(await readAuthAccessCookie());
+    await assertFreshAdminAccountFromCookies();
   } catch {
     redirect("/");
   }

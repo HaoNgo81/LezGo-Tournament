@@ -33,6 +33,7 @@ describe("STEP 25I-C1-B main page account UI", () => {
     vi.restoreAllMocks();
     navigationMocks.push.mockReset();
     window.localStorage.clear();
+    window.sessionStorage.clear();
     document.documentElement.lang = "da";
     window.history.pushState(null, "", "/");
   });
@@ -210,7 +211,7 @@ describe("STEP 25I-C1-B main page account UI", () => {
       }
 
       if (url === "/api/auth/credentials/login") {
-        expect(JSON.parse(String(init?.body))).toEqual({ identifier: "hao@example.com", code: "abc123" });
+        expect(JSON.parse(String(init?.body))).toEqual({ identifier: "hao@example.com", code: "abc123", remember: false });
         return new Response(JSON.stringify({
           ok: true,
           account: {
@@ -254,7 +255,7 @@ describe("STEP 25I-C1-B main page account UI", () => {
       }
 
       if (url === "/api/auth/credentials/login") {
-        expect(JSON.parse(String(init?.body))).toEqual({ identifier: "hao", code: "a1b2c3" });
+        expect(JSON.parse(String(init?.body))).toEqual({ identifier: "hao", code: "a1b2c3", remember: false });
         return new Response(JSON.stringify({
           ok: true,
           account: {
@@ -284,6 +285,53 @@ describe("STEP 25I-C1-B main page account UI", () => {
     fireEvent.submit(within(dialog).getByRole("button", { name: "Log ind" }).closest("form") as HTMLFormElement);
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/auth/credentials/login", expect.any(Object)));
+  });
+
+  it("lets normal users request remembered login without storing the raw code in browser storage", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === "/api/auth/me") {
+        return new Response(JSON.stringify({ ok: false }), { status: 401 });
+      }
+
+      if (url === "/api/auth/credentials/login") {
+        expect(JSON.parse(String(init?.body))).toEqual({ identifier: "hao", code: "a1b2c3", remember: true });
+        return new Response(JSON.stringify({
+          ok: true,
+          remembered: true,
+          account: {
+            userId: "00000000-0000-4000-8000-00000000c1b2",
+            email: "hao@example.com",
+            displayName: "Hao",
+            username: "hao",
+            role: "user",
+          },
+        }), { status: 200 });
+      }
+
+      if (url === "/api/account/tournaments") {
+        return new Response(JSON.stringify({ ok: true, tournaments: [] }), { status: 200 });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<HomePage />);
+    fireEvent.click(await screen.findByTestId("main-account-control"));
+
+    const dialog = await screen.findByTestId("main-account-dialog");
+    fireEvent.change(within(dialog).getByLabelText("Email eller brugernavn"), { target: { value: "hao" } });
+    fireEvent.change(within(dialog).getByLabelText("6-tegns kode"), { target: { value: "a1b2c3" } });
+    fireEvent.click(within(dialog).getByLabelText("Husk kode på denne enhed"));
+    fireEvent.submit(within(dialog).getByRole("button", { name: "Log ind" }).closest("form") as HTMLFormElement);
+
+    await waitFor(() => expect(screen.getByTestId("main-account-control")).toHaveTextContent("Hao"));
+    expect(window.localStorage.getItem("a1b2c3")).toBeNull();
+    expect(window.sessionStorage.getItem("a1b2c3")).toBeNull();
+    expect(JSON.stringify(window.localStorage)).not.toContain("a1b2c3");
+    expect(JSON.stringify(window.sessionStorage)).not.toContain("a1b2c3");
   });
 
   it("shows a clear message when an unverified account tries to log in", async () => {

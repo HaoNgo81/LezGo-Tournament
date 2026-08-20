@@ -26,8 +26,10 @@ export type TranslationKey =
   | "accountHideCode"
   | "accountIdentifier"
   | "accountLogin"
+  | "accountLoginAdminNotRemembered"
   | "accountLoginError"
   | "accountNewCode"
+  | "accountRememberLogin"
   | "accountLoggedIn"
   | "accountLoggedOut"
   | "accountName"
@@ -327,6 +329,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountHideCode: "Skjul kode",
     accountIdentifier: "Email eller brugernavn",
     accountLogin: "Log ind",
+    accountLoginAdminNotRemembered: "Administrator-login huskes ikke af sikkerhedsmæssige årsager.",
     accountLoginError: "Email/brugernavn eller kode er forkert.",
     accountNewCode: "Ny 6-tegns kode",
     accountLoggedIn: "Du er logget ind.",
@@ -340,6 +343,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountOpenTournament: "Åbn turnering",
     accountOwnTournaments: "Mine turneringer",
     accountRepeatCode: "Gentag kode",
+    accountRememberLogin: "Husk kode på denne enhed",
     accountResendVerification: "Send mail igen",
     accountSaveNewCode: "Gem ny kode",
     accountSendInstructions: "Send vejledning",
@@ -627,6 +631,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountHideCode: "Hide code",
     accountIdentifier: "Email or username",
     accountLogin: "Log in",
+    accountLoginAdminNotRemembered: "Administrator login is not remembered for security reasons.",
     accountLoginError: "Email/username or code is incorrect.",
     accountNewCode: "New 6-character code",
     accountLoggedIn: "You are logged in.",
@@ -640,6 +645,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountOpenTournament: "Open tournament",
     accountOwnTournaments: "My tournaments",
     accountRepeatCode: "Repeat code",
+    accountRememberLogin: "Remember on this device",
     accountResendVerification: "Send email again",
     accountSaveNewCode: "Save new code",
     accountSendInstructions: "Send instructions",

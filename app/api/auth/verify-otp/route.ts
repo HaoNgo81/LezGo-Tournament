@@ -28,7 +28,7 @@ export async function POST(request: Request): Promise<Response> {
       ok: true,
       account: result.account,
     }, {
-      headers: createAuthCookieHeaders(result.session),
+      headers: createAuthCookieHeaders(result.session, { accountRole: result.account.role }),
     });
   } catch (error) {
     const status = error instanceof AuthError ? error.status : 500;
