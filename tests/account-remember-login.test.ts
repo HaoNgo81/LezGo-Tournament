@@ -231,6 +231,7 @@ describe("STEP 25I-C1-C7-FIX1 remember login policy", () => {
     const { GET } = await import("../app/api/auth/me/route");
     cookieMocks.values.set("lezgo_auth_access", "access-token");
     cookieMocks.values.set("lezgo_auth_remember", "1");
+    cookieMocks.values.set("lezgo_auth_refresh", "refresh-token");
     authRouteMocks.readAccountFromAccessToken.mockResolvedValue(createAccount("admin"));
 
     const response = await GET();
@@ -241,6 +242,22 @@ describe("STEP 25I-C1-C7-FIX1 remember login policy", () => {
     expect(setCookies).toContain("lezgo_auth_access=; Path=/; Max-Age=0");
     expect(setCookies).toContain("lezgo_auth_refresh=; Path=/; Max-Age=0");
     expect(setCookies).toContain("lezgo_auth_remember=; Path=/; Max-Age=0");
+  });
+
+  it("keeps a fresh ADMIN session when only a stale remember marker remains", async () => {
+    const { GET } = await import("../app/api/auth/me/route");
+    cookieMocks.values.set("lezgo_auth_access", "fresh-admin-access-token");
+    cookieMocks.values.set("lezgo_auth_remember", "1");
+    authRouteMocks.readAccountFromAccessToken.mockResolvedValue(createAccount("admin"));
+
+    const response = await GET();
+    const body = await response.json() as { ok: boolean; account?: { role: string } };
+
+    expect(response.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.account?.role).toBe("admin");
+    expect(authRouteMocks.refreshAuthenticatedSession).not.toHaveBeenCalled();
+    expect(response.headers.getSetCookie()).toEqual([]);
   });
 });
 

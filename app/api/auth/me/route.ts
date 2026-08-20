@@ -4,13 +4,13 @@ import {
   createLogoutCookieHeaders,
   readAuthAccessCookie,
   readAuthRefreshCookie,
-  readAuthRememberCookie,
+  readAuthRememberedSessionCookie,
 } from "@/lib/auth/cookies";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(): Promise<Response> {
-  const isRemembered = await readAuthRememberCookie();
+  const isRemembered = await readAuthRememberedSessionCookie();
 
   try {
     const account = await readAccountFromAccessToken(await readAuthAccessCookie());

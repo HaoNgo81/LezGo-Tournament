@@ -22,11 +22,16 @@ export async function readAuthRememberCookie(): Promise<boolean> {
   return (await cookies()).get(authRememberCookieName)?.value === "1";
 }
 
+export async function readAuthRememberedSessionCookie(): Promise<boolean> {
+  const cookieStore = await cookies();
+  return hasRememberedSession(cookieStore);
+}
+
 export async function assertFreshAdminAccountFromCookies(): ReturnType<typeof assertAdminAccount> {
   const cookieStore = await cookies();
   const account = await assertAdminAccount(cookieStore.get(authAccessCookieName)?.value);
 
-  if (cookieStore.get(authRememberCookieName)?.value === "1") {
+  if (hasRememberedSession(cookieStore)) {
     throw new AuthError("Admin access requires a fresh login.", 403);
   }
 
@@ -98,6 +103,11 @@ function appendExpiredAuthCookie(headers: Headers, name: string, secure: boolean
     path: "/",
     maxAge: 0,
   }));
+}
+
+function hasRememberedSession(cookieStore: Awaited<ReturnType<typeof cookies>>): boolean {
+  return cookieStore.get(authRememberCookieName)?.value === "1"
+    && Boolean(cookieStore.get(authRefreshCookieName)?.value);
 }
 
 function serializeCookie(name: string, value: string, options: { httpOnly: boolean; sameSite: "lax"; secure: boolean; path: string; maxAge?: number }): string {
