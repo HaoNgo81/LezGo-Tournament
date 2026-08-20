@@ -12,6 +12,8 @@ import { resetAuthRateLimitForTests } from "../lib/auth/rate-limit";
 describe("STEP 25I-C1-A credential foundation", () => {
   const originalSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const originalAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const originalServerUrl = process.env.SUPABASE_URL;
+  const originalServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   afterEach(() => {
     vi.restoreAllMocks();
@@ -27,6 +29,18 @@ describe("STEP 25I-C1-A credential foundation", () => {
       delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     } else {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = originalAnonKey;
+    }
+
+    if (originalServerUrl === undefined) {
+      delete process.env.SUPABASE_URL;
+    } else {
+      process.env.SUPABASE_URL = originalServerUrl;
+    }
+
+    if (originalServiceRoleKey === undefined) {
+      delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    } else {
+      process.env.SUPABASE_SERVICE_ROLE_KEY = originalServiceRoleKey;
     }
   });
 
@@ -75,11 +89,14 @@ describe("STEP 25I-C1-A credential foundation", () => {
       role: "user",
     });
     expect(client.insertedProfile?.role).toBe("user");
-    const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string) as { email: string; password: string; data: { username: string; role?: string } };
+    expect(fetchMock.mock.calls[0][0]).toBe("https://auth.example.supabase.co/auth/v1/admin/users");
+    const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string) as { email: string; password: string; email_confirm: boolean; data: { username: string; role?: string } };
     expect(body.email).toBe("user@example.com");
     expect(body.password).toBe("ABC123");
+    expect(body.email_confirm).toBe(true);
     expect(body.data.username).toBe("hao");
     expect(body.data).not.toHaveProperty("role");
+    expect(result.verificationRequired).toBe(false);
   });
 
   it("enforces username uniqueness case-insensitively before account creation", async () => {
@@ -104,6 +121,67 @@ describe("STEP 25I-C1-A credential foundation", () => {
       client,
     })).rejects.toMatchObject({ status: 409 });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps a successfully created username reserved for duplicate real accounts", async () => {
+    configureAuthEnv();
+    const client = createCredentialProfileClient();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
+      id: "00000000-0000-4000-8000-000000000903",
+      email: "user@example.com",
+      user_metadata: {
+        display_name: "User One",
+        username: "hao",
+      },
+    }), { status: 200 }));
+
+    await createCredentialAccount({
+      displayName: "User One",
+      username: "Hao",
+      email: "user@example.com",
+      code: "abc123",
+      repeatCode: "abc123",
+      rateLimitKey: "first-device",
+      client,
+    });
+
+    await expect(createCredentialAccount({
+      displayName: "User Two",
+      username: "HAO",
+      email: "user-two@example.com",
+      code: "def456",
+      repeatCode: "def456",
+      rateLimitKey: "second-device",
+      client,
+    })).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("cleans up an admin-created auth user if profile persistence fails", async () => {
+    configureAuthEnv();
+    const client = createCredentialProfileClient({ failInsert: true });
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: "00000000-0000-4000-8000-000000000904",
+        email: "partial@example.com",
+        user_metadata: {
+          display_name: "Partial User",
+          username: "partial",
+        },
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response("{}", { status: 200 }));
+
+    await expect(createCredentialAccount({
+      displayName: "Partial User",
+      username: "Partial",
+      email: "partial@example.com",
+      code: "abc123",
+      repeatCode: "abc123",
+      client,
+    })).rejects.toThrow("Profile insert failed");
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1][0]).toBe("https://auth.example.supabase.co/auth/v1/admin/users/00000000-0000-4000-8000-000000000904");
+    expect(fetchMock.mock.calls[1][1]?.method).toBe("DELETE");
   });
 
   it("authenticates email+code and username+same code as the same Supabase user", async () => {
@@ -196,6 +274,8 @@ describe("STEP 25I-C1-A credential foundation", () => {
 function configureAuthEnv() {
   process.env.NEXT_PUBLIC_SUPABASE_URL = "https://auth.example.supabase.co";
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
+  process.env.SUPABASE_URL = "https://auth.example.supabase.co";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
 }
 
 interface TestProfile {
@@ -206,7 +286,7 @@ interface TestProfile {
   email?: string | null;
 }
 
-function createCredentialProfileClient(options: { usernameProfiles?: TestProfile[] } = {}) {
+function createCredentialProfileClient(options: { usernameProfiles?: TestProfile[]; failInsert?: boolean } = {}) {
   const profiles = new Map<string, TestProfile>();
   const usernameProfiles = options.usernameProfiles ?? [];
   const client = {
@@ -221,13 +301,20 @@ function createCredentialProfileClient(options: { usernameProfiles?: TestProfile
 
       if (query.includes("username_normalized=eq.")) {
         const username = decodeURIComponent(query.match(/username_normalized=eq\.([^&]+)/)?.[1] ?? "");
-        return usernameProfiles.filter((profile) => profile.username === username) as T[];
+        return [
+          ...usernameProfiles.filter((profile) => profile.username === username),
+          ...Array.from(profiles.values()).filter((profile) => profile.username === username),
+        ] as T[];
       }
 
       const userId = decodeURIComponent(query.match(/user_id=eq\.([^&]+)/)?.[1] ?? "");
       return profiles.has(userId) ? [profiles.get(userId)] as T[] : [];
     },
     async insert<T>(_table: string, rows: Record<string, unknown>): Promise<T[]> {
+      if (options.failInsert) {
+        throw new Error("Profile insert failed");
+      }
+
       client.insertedProfile = rows;
       const profile = {
         user_id: String(rows.user_id),

@@ -1,4 +1,5 @@
 import { createSupabaseRestClient, type SupabaseRestClient } from "@/lib/supabase/rest-client";
+import { assertSupabaseServerConfig } from "@/lib/supabase/server";
 import { assertAuthRateLimit } from "./rate-limit";
 import {
   AuthError,
@@ -34,6 +35,12 @@ interface SupabaseAuthUser {
     name?: unknown;
     username?: unknown;
   };
+}
+
+interface SupabaseAdminAuthConfig {
+  url: string;
+  anonKey: string;
+  serviceRoleKey: string;
 }
 
 export function normalizeUsername(value: string): string {
@@ -93,23 +100,30 @@ export async function createCredentialAccount(input: {
     throw new AuthError("Username is not available.", 409);
   }
 
-  const authResult = await signUpWithPassword({ email, password: code, displayName, username });
+  const authResult = await createConfirmedAuthUserWithPassword({ email, password: code, displayName, username });
   const authUser = authResult.user;
 
   if (!authUser?.id || !authUser.email) {
     throw new AuthError("Account could not be created.", 502);
   }
 
-  const account = await upsertAndReadProfile({
-    userId: authUser.id,
-    email: authUser.email,
-    displayName,
-    username,
-  }, client);
+  let account: AuthenticatedAccount;
+
+  try {
+    account = await upsertAndReadProfile({
+      userId: authUser.id,
+      email: authUser.email,
+      displayName,
+      username,
+    }, client);
+  } catch (error) {
+    await deleteAuthUserBestEffort(authUser.id);
+    throw error;
+  }
 
   return {
     account,
-    verificationRequired: !authResult.session,
+    verificationRequired: false,
   };
 }
 
@@ -223,14 +237,15 @@ async function readProfileByUsername(username: string, client: SupabaseRestClien
   return profile ?? null;
 }
 
-async function signUpWithPassword(input: { email: string; password: string; displayName: string; username: string }): Promise<{ user: { id: string; email: string; user_metadata?: SupabaseAuthUser["user_metadata"] }; session: SupabaseAuthSession | null }> {
-  const config = getSupabaseAuthConfig();
-  const response = await fetch(`${config.url}/auth/v1/signup`, {
+async function createConfirmedAuthUserWithPassword(input: { email: string; password: string; displayName: string; username: string }): Promise<{ user: { id: string; email: string; user_metadata?: SupabaseAuthUser["user_metadata"] } }> {
+  const config = getSupabaseAdminAuthConfig();
+  const response = await fetch(`${config.url}/auth/v1/admin/users`, {
     method: "POST",
-    headers: getAuthHeaders(config.anonKey),
+    headers: getAdminAuthHeaders(config),
     body: JSON.stringify({
       email: input.email,
       password: input.password,
+      email_confirm: true,
       data: {
         display_name: input.displayName,
         username: input.username,
@@ -238,19 +253,31 @@ async function signUpWithPassword(input: { email: string; password: string; disp
     }),
   });
   const body = await parseJson(response);
+  const user = getAuthUserFromAdminBody(body);
 
-  if (!response.ok || !isAuthUser((body as { user?: unknown })?.user)) {
+  if (!response.ok || !user) {
     throw new AuthError("Account could not be created.", response.status || 400);
   }
 
   return {
     user: {
-      id: String(((body as { user: SupabaseAuthUser }).user).id),
-      email: String(((body as { user: SupabaseAuthUser }).user).email),
-      user_metadata: ((body as { user: SupabaseAuthUser }).user).user_metadata,
+      id: String(user.id),
+      email: String(user.email),
+      user_metadata: user.user_metadata,
     },
-    session: isPasswordSession(body) ? toSession(body) : null,
   };
+}
+
+async function deleteAuthUserBestEffort(userId: string): Promise<void> {
+  try {
+    const config = getSupabaseAdminAuthConfig();
+    await fetch(`${config.url}/auth/v1/admin/users/${encodeURIComponent(userId)}`, {
+      method: "DELETE",
+      headers: getAdminAuthHeaders(config),
+    });
+  } catch {
+    // Keep the original registration failure. The user-facing error remains generic.
+  }
 }
 
 async function passwordGrant(email: string, password: string): Promise<{ session: SupabaseAuthSession; user: { id: string; email: string; user_metadata?: SupabaseAuthUser["user_metadata"] } }> {
@@ -295,6 +322,25 @@ function getAuthHeaders(anonKey: string): HeadersInit {
   };
 }
 
+function getSupabaseAdminAuthConfig(): SupabaseAdminAuthConfig {
+  const authConfig = getSupabaseAuthConfig();
+  const serverConfig = assertSupabaseServerConfig();
+
+  return {
+    url: authConfig.url,
+    anonKey: authConfig.anonKey,
+    serviceRoleKey: serverConfig.serviceRoleKey,
+  };
+}
+
+function getAdminAuthHeaders(config: SupabaseAdminAuthConfig): HeadersInit {
+  return {
+    apikey: config.anonKey,
+    authorization: `Bearer ${config.serviceRoleKey}`,
+    "content-type": "application/json",
+  };
+}
+
 async function parseJson(response: Response): Promise<unknown> {
   try {
     return await response.json();
@@ -319,6 +365,15 @@ function isAuthUser(value: unknown): value is SupabaseAuthUser & { id: string; e
     typeof (value as SupabaseAuthUser).id === "string" &&
     typeof (value as SupabaseAuthUser).email === "string",
   );
+}
+
+function getAuthUserFromAdminBody(value: unknown): SupabaseAuthUser & { id: string; email: string } | null {
+  if (isAuthUser(value)) {
+    return value;
+  }
+
+  const nested = (value as { user?: unknown } | null)?.user;
+  return isAuthUser(nested) ? nested : null;
 }
 
 function getMetadataName(user: { user_metadata?: SupabaseAuthUser["user_metadata"] }): string | undefined {
