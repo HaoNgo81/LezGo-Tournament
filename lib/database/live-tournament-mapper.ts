@@ -86,6 +86,7 @@ export function mapLiveTournamentToPersistencePayload(
       active_matchup_legacy_id: null,
       finished_at: state.finishedAt ?? null,
       legacy_local_id: options.legacyLocalId ?? null,
+      privacy: "private",
       metadata: {
         ...(state.poolPlay ? { runtimeState: state } : {}),
       },

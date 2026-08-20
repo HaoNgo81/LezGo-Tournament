@@ -74,6 +74,7 @@ export function mapTeamVsTeamTournamentToPersistencePayload(
       active_matchup_legacy_id: state.activeMatchupId ?? null,
       finished_at: state.finishedAt ?? null,
       legacy_local_id: options.legacyLocalId ?? null,
+      privacy: "private",
       metadata: {
         knockoutGroups: state.knockoutGroups,
         knockoutPlacements: state.knockoutPlacements,

@@ -142,7 +142,8 @@ describe("LiveScoringApp score sheet", () => {
 
     const syncPanel = screen.getByTestId("live-sync-status-panel");
     expect(within(syncPanel).getByText("Synkronisering fejlede")).toBeInTheDocument();
-    expect(within(syncPanel).getByText(/Supabase unavailable/)).not.toHaveClass("hidden");
+    expect(within(syncPanel).getByText("Synkronisering kunne ikke gennemføres. Dine lokale data er bevaret.")).not.toHaveClass("hidden");
+    expect(within(syncPanel).queryByText(/Supabase unavailable/)).not.toBeInTheDocument();
     expect(within(syncPanel).getByRole("button", { name: "Prøv igen" })).toBeInTheDocument();
   });
 
@@ -355,6 +356,7 @@ describe("LiveScoringApp score sheet", () => {
       lastShadowSaveVersion: "2026-08-20T12:00:00.000Z",
       status: "synced",
       supabaseTournamentId: "00000000-0000-4000-8000-0000000008c8",
+      organizerToken: "STALE_CREATOR_ORGANIZER_TOKEN",
       matchScoreVersions: { [localState.rounds[0].matches[0].id]: 1 },
     });
 
@@ -364,6 +366,7 @@ describe("LiveScoringApp score sheet", () => {
     expect(screen.getByText("Du kan stadig se turneringen, men du kan ikke længere ændre den.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Indtast score" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Aktivér deling" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Prøv igen" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Afslut turnering" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Næste" })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Stilling" })).toBeInTheDocument();

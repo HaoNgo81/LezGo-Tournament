@@ -36,6 +36,7 @@ describe("database persistence mappers", () => {
       configured_rounds: 5,
       active_round_number: 1,
       legacy_local_id: "fredag-americano",
+      privacy: "private",
     });
     expect(payload.players).toHaveLength(16);
     expect(payload.rounds).toHaveLength(5);
@@ -65,6 +66,7 @@ describe("database persistence mappers", () => {
     const payload = mapLiveTournamentToPersistencePayload(state);
 
     expect(payload.tournament.format).toBe("fixed-partner-mexicano");
+    expect(payload.tournament.privacy).toBe("private");
     expect(payload.fixedPairs).toHaveLength(8);
     expect(payload.fixedPairs[0]).toMatchObject({
       player1Ref: "player:p1",
@@ -99,6 +101,7 @@ describe("database persistence mappers", () => {
       format: "mixed-americano",
       scoring_mode: "Spil på tid",
       time_limit_minutes: 15,
+      privacy: "private",
     });
     expect(payload.players.filter((player) => player.gender === "female")).toHaveLength(8);
     expect(payload.players.filter((player) => player.gender === "male")).toHaveLength(8);
@@ -157,6 +160,7 @@ describe("database persistence mappers", () => {
       team_draw_mode: "manual",
       active_matchup_legacy_id: "knockout-1-kamp-1",
       legacy_local_id: "klubkamp",
+      privacy: "private",
     });
     expect(payload.teams).toHaveLength(2);
     expect(payload.players).toHaveLength(8);

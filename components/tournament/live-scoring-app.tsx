@@ -1354,7 +1354,7 @@ function isNewerOrganizerRemoteVersion(currentUpdatedAt: string | undefined, nex
   return nextTime > currentTime;
 }
 
-async function readOrganizerRemoteState(metadata: { supabaseTournamentId?: string; organizerToken?: string }, localId: string): Promise<{ response: Response; body: OrganizerRemoteReadResponse }> {
+async function readOrganizerRemoteState(metadata: { supabaseTournamentId?: string; organizerToken?: string; legacyLocalId?: string }, localId: string): Promise<{ response: Response; body: OrganizerRemoteReadResponse }> {
   if (metadata.supabaseTournamentId) {
     const response = await fetch(`/api/account/tournaments/${encodeURIComponent(metadata.supabaseTournamentId)}`, {
       cache: "no-store",
@@ -1379,7 +1379,7 @@ async function readOrganizerRemoteState(metadata: { supabaseTournamentId?: strin
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       kind: "standard",
-      legacyLocalId: localId,
+      legacyLocalId: metadata.legacyLocalId ?? localId,
       organizerToken: metadata.organizerToken,
       tournamentId: metadata.supabaseTournamentId,
     }),

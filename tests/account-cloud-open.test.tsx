@@ -93,4 +93,80 @@ describe("STEP 25I-B1 owner cloud tournament open UI", () => {
     });
     expect(createStandardShadowSaveLocalId(loadActiveTournament()!)).toBe("cloud restored-americano");
   });
+
+  it("stores transferred cloud authority under the active live key and clears stale organizer access", async () => {
+    const staleLocalState = { ...createMockLiveTournamentState(), tournamentName: "ADMIN TAKEOVER TEST" };
+    const serverState = { ...createMockLiveTournamentState(), tournamentName: "ADMIN TAKEOVER TEST" };
+    const activeLocalId = createStandardShadowSaveLocalId(serverState);
+    saveActiveTournament(staleLocalState);
+    window.localStorage.setItem("lezgo.shadowSaveMetadata.v1", JSON.stringify({
+      [activeLocalId]: {
+        localId: activeLocalId,
+        kind: "standard",
+        status: "synced",
+        supabaseTournamentId: "00000000-0000-4000-8000-0000000008c8",
+        organizerToken: "STALE_CREATOR_ORGANIZER_TOKEN",
+        canManage: true,
+      },
+    }));
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === "/api/auth/me") {
+        return new Response(JSON.stringify({
+          ok: true,
+          account: {
+            userId: "00000000-0000-4000-8000-00000000aaa1",
+            email: "creator@example.com",
+            displayName: "LEZGO Takeover Test",
+            username: "lezgotakeovertest",
+            role: "user",
+          },
+        }), { status: 200 });
+      }
+
+      if (url === "/api/account/tournaments") {
+        return new Response(JSON.stringify({
+          ok: true,
+          tournaments: [{
+            id: "00000000-0000-4000-8000-0000000008c8",
+            name: "ADMIN TAKEOVER TEST",
+            format: "americano",
+            status: "active",
+          }],
+        }), { status: 200 });
+      }
+
+      if (url === "/api/account/tournaments/00000000-0000-4000-8000-0000000008c8") {
+        return new Response(JSON.stringify({
+          ok: true,
+          kind: "standard",
+          state: serverState,
+          tournamentId: "00000000-0000-4000-8000-0000000008c8",
+          updatedAt: "2026-08-20T12:00:00.000Z",
+          legacyLocalId: "mexicano-mexicano",
+          canManage: false,
+          matchScoreVersions: { [serverState.rounds[0].matches[0].id]: 1 },
+        }), { status: 200 });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AccountPanel />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Åbn turnering" }));
+
+    await waitFor(() => expect(navigationMocks.push).toHaveBeenCalledWith("/live"));
+    expect(loadActiveTournament()?.tournamentName).toBe("ADMIN TAKEOVER TEST");
+    expect(loadShadowSaveMetadata(activeLocalId)).toMatchObject({
+      kind: "standard",
+      status: "synced",
+      supabaseTournamentId: "00000000-0000-4000-8000-0000000008c8",
+      legacyLocalId: "mexicano-mexicano",
+      canManage: false,
+    });
+    expect(loadShadowSaveMetadata(activeLocalId)?.organizerToken).toBeUndefined();
+  });
 });

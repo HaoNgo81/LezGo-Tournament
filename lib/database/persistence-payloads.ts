@@ -9,6 +9,7 @@ import type {
 
 export type TournamentDatabaseFormat = TournamentFormat | "team-vs-team";
 export type PersistedTournamentStatus = "setup" | "active" | "finished";
+export type PersistedTournamentPrivacy = "private" | "public_result";
 export type PersistedRoundStatus = "scheduled" | "active" | "completed";
 export type PersistedMatchStatus = "ready" | "running" | "completed";
 export type PersistedMatchScope = "standard" | "pool_initial" | "pool_placement" | "pool_cross" | "pool_final" | "pool_tiebreak";
@@ -40,6 +41,7 @@ export interface TournamentRowPayload {
   active_matchup_legacy_id: string | null;
   finished_at: string | null;
   legacy_local_id: string | null;
+  privacy: PersistedTournamentPrivacy;
   metadata: JsonRecord;
 }
 

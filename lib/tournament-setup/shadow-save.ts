@@ -6,6 +6,7 @@ export type ShadowSaveStatus = "local-only" | "syncing" | "synced" | "error" | "
 
 export interface ShadowSaveMetadata {
   localId: string;
+  legacyLocalId?: string;
   kind: ShadowSaveKind;
   status: ShadowSaveStatus;
   supabaseTournamentId?: string;
@@ -122,11 +123,12 @@ export function markRemoteShadowSaveApplied(localId: string, kind: ShadowSaveKin
   return nextMetadata;
 }
 
-export function markCloudTournamentRestored(input: { localId: string; kind: ShadowSaveKind; tournamentId: string; updatedAt?: string; organizerToken?: string; canManage?: boolean; matchScoreVersions?: Record<string, number> }, restoredAt = new Date().toISOString()): ShadowSaveMetadata {
+export function markCloudTournamentRestored(input: { localId: string; legacyLocalId?: string; kind: ShadowSaveKind; tournamentId: string; updatedAt?: string; organizerToken?: string; canManage?: boolean; matchScoreVersions?: Record<string, number> }, restoredAt = new Date().toISOString()): ShadowSaveMetadata {
   const metadata = loadShadowSaveMetadata(input.localId);
   const nextMetadata: ShadowSaveMetadata = {
     ...metadata,
     localId: input.localId,
+    legacyLocalId: input.legacyLocalId ?? metadata?.legacyLocalId,
     kind: input.kind,
     status: "synced",
     supabaseTournamentId: input.tournamentId,
@@ -181,7 +183,7 @@ async function performShadowSave({ kind, localId, state }: { kind: ShadowSaveKin
   const metadata = loadShadowSaveMetadata(localId);
   const payload: ShadowSavePayload = {
     kind,
-    legacyLocalId: localId,
+    legacyLocalId: metadata?.legacyLocalId ?? localId,
     tournamentId: metadata?.supabaseTournamentId,
     expectedUpdatedAt: metadata?.lastShadowSaveVersion,
     state,

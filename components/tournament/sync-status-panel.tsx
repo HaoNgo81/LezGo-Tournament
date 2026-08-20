@@ -363,7 +363,7 @@ function getStatusDetail(metadata: ShadowSaveMetadata | null, localId: string): 
   }
 
   if (metadata.status === "error") {
-    return `${metadata.lastError ?? "Supabase kunne ikke nås."} · Lokal gem er bevaret.`;
+    return "Synkronisering kunne ikke gennemføres. Dine lokale data er bevaret.";
   }
 
   if (metadata.status === "syncing") {
@@ -371,7 +371,7 @@ function getStatusDetail(metadata: ShadowSaveMetadata | null, localId: string): 
   }
 
   if (metadata.status === "conflict") {
-    return metadata.lastError ?? "Supabase har en nyere version.";
+    return "Synkronisering kunne ikke gennemføres, fordi der findes en nyere version.";
   }
 
   return `Lokal ID: ${localId}`;

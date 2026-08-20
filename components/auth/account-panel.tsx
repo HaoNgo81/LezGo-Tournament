@@ -327,9 +327,11 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
       }
 
       if (body.kind === "standard") {
+        const localId = createStandardShadowSaveLocalId(body.state);
         saveActiveTournamentFromRemoteSync(body.state);
         markCloudTournamentRestored({
-          localId: body.legacyLocalId ?? createStandardShadowSaveLocalId(body.state),
+          localId,
+          legacyLocalId: body.legacyLocalId,
           kind: "standard",
           tournamentId: body.tournamentId,
           updatedAt: body.updatedAt,
@@ -341,9 +343,11 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
         return;
       }
 
+      const localId = createTeamVsTeamShadowSaveLocalId(body.state);
       saveActiveTeamVsTeamTournamentFromRemoteSync(body.state);
       markCloudTournamentRestored({
-        localId: body.legacyLocalId ?? createTeamVsTeamShadowSaveLocalId(body.state),
+        localId,
+        legacyLocalId: body.legacyLocalId,
         kind: "team-vs-team",
         tournamentId: body.tournamentId,
         updatedAt: body.updatedAt,
