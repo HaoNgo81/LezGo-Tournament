@@ -18,6 +18,7 @@ describe("STEP 25I-B1 owner cloud tournament open UI", () => {
     vi.restoreAllMocks();
     navigationMocks.push.mockReset();
     window.localStorage.clear();
+    window.sessionStorage.clear();
   });
 
   it("lists an owned cloud tournament and restores server state over stale local cache before opening /live", async () => {
@@ -168,5 +169,13 @@ describe("STEP 25I-B1 owner cloud tournament open UI", () => {
       canManage: false,
     });
     expect(loadShadowSaveMetadata(activeLocalId)?.organizerToken).toBeUndefined();
+    expect(JSON.parse(window.sessionStorage.getItem("lezgo.activeCloudTournamentAuthority.v1") ?? "{}")).toMatchObject({
+      source: "server",
+      kind: "standard",
+      localId: activeLocalId,
+      tournamentId: "00000000-0000-4000-8000-0000000008c8",
+      canRead: true,
+      canManage: false,
+    });
   });
 });

@@ -70,7 +70,7 @@ export async function POST(request: Request): Promise<Response> {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Shadow-save failed.";
     const status = message.toLocaleLowerCase("en").includes("conflict") ? 409 : 500;
-    return Response.json({ ok: false, error: message }, { status });
+    return Response.json({ ok: false, error: status === 409 ? "Tournament snapshot conflict." : "Shadow-save failed." }, { status });
   }
 }
 

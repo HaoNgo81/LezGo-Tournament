@@ -4,7 +4,7 @@ import { AppShell } from "../components/layout/app-shell";
 import { LiveScoringApp } from "../components/tournament/live-scoring-app";
 import { SyncStatusPanel } from "../components/tournament/sync-status-panel";
 import { advanceLivePoolPlayState, createMockLiveTournamentState, saveMatchResult, saveNextPoolPhaseResult } from "../lib/live-scoring";
-import { createPoolTournamentFromSetup, createStandardShadowSaveLocalId, createTournamentFromSetup, loadActiveTournament, saveActiveTournament, saveActiveTournamentFromRemoteSync, type TournamentSetupFormat } from "../lib/tournament-setup";
+import { createPoolTournamentFromSetup, createStandardShadowSaveLocalId, createTournamentFromSetup, loadActiveTournament, markActiveCloudTournamentAuthority, saveActiveTournament, saveActiveTournamentFromRemoteSync, type TournamentSetupFormat } from "../lib/tournament-setup";
 
 const sixteenPlayerText = Array.from({ length: 16 }, (_, index) => `Spiller ${index + 1}`).join("\n");
 const originalShadowSaveFlag = process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE;
@@ -20,6 +20,7 @@ describe("LiveScoringApp score sheet", () => {
     vi.restoreAllMocks();
     cleanup();
     window.localStorage.clear();
+    window.sessionStorage.clear();
   });
 
   it("opens new score fields empty and required", () => {
@@ -349,8 +350,19 @@ describe("LiveScoringApp score sheet", () => {
     const localState = createMockLiveTournamentState();
     const localId = createStandardShadowSaveLocalId(localState);
     saveActiveTournamentFromRemoteSync(localState);
-    saveShadowMetadata(localId, {
+    markActiveCloudTournamentAuthority({
+      source: "server",
+      kind: "standard",
+      localId,
+      tournamentId: "00000000-0000-4000-8000-0000000008c8",
+      canRead: true,
       canManage: false,
+      createdByUserId: "00000000-0000-4000-8000-00000000aaa1",
+      controllerUserId: "00000000-0000-4000-8000-00000000bbb2",
+      ownerUserId: "00000000-0000-4000-8000-00000000aaa1",
+    });
+    saveShadowMetadata(localId, {
+      canManage: true,
       kind: "standard",
       lastLocalSaveAt: "2026-08-20T12:00:00.000Z",
       lastShadowSaveVersion: "2026-08-20T12:00:00.000Z",
@@ -371,6 +383,18 @@ describe("LiveScoringApp score sheet", () => {
     expect(screen.queryByRole("button", { name: "Næste" })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Stilling" })).toBeInTheDocument();
     expect(screen.getAllByTestId("live-court-card")).toHaveLength(localState.rounds[0].matches.length);
+  });
+
+  it("keeps a local tournament fully manageable without cloud authority", async () => {
+    const localState = createMockLiveTournamentState();
+    saveActiveTournament(localState);
+
+    render(<LiveScoringApp />);
+
+    expect(await screen.findByText("Mock Americano")).toBeInTheDocument();
+    expect(screen.queryByTestId("controller-read-only-notice")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Indtast score" })).toHaveLength(localState.rounds[0].matches.length);
+    expect(screen.getByRole("button", { name: "Aktivér deling" })).toBeInTheDocument();
   });
 
   it("starts organizer polling after sharing is activated on an already mounted local tournament", async () => {

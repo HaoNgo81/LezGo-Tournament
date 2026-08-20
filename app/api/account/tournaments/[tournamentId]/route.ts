@@ -64,7 +64,11 @@ export async function GET(_request: Request, context: RouteContext): Promise<Res
       updatedAt: tournament.updated_at,
       legacyLocalId,
       matchScoreVersions,
+      canRead: true,
       canManage,
+      createdByUserId: tournament.created_by_user_id,
+      controllerUserId: tournament.controller_user_id,
+      ownerUserId: tournament.owner_user_id,
       organizerToken: canManage && legacyLocalId ? createOrganizerToken({ tournamentId: tournament.id, kind, legacyLocalId }) : undefined,
     }, {
       headers: {

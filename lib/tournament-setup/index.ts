@@ -9,6 +9,7 @@ export { createCrossMatchStage } from "./pool-play-cross-matches";
 export { createCrossMatchFinalStage } from "./pool-play-finals";
 export { advanceTeamVsTeamFourTeamBracket, advanceTeamVsTeamKnockout, calculateTeamVsTeamPlacements, calculateTeamVsTeamStandings, canAdvanceTeamVsTeamKnockout, finishTeamVsTeamTournament, getTeamVsTeamMatchWinnerTeamId, saveTeamVsTeamTieBreak } from "./team-vs-team-flow";
 export { clearShadowSaveMetadata, createStandardShadowSaveLocalId, createTeamVsTeamShadowSaveLocalId, isShadowSaveEnabled, loadAllShadowSaveMetadata, loadShadowSaveMetadata, markCloudTournamentRestored, markRemoteShadowSaveApplied, retryStandardTournamentShadowSave, retryTeamVsTeamShadowSave, shadowSaveMetadataChangedEvent } from "./shadow-save";
+export { loadActiveCloudTournamentAuthority, markActiveCloudTournamentAuthority } from "./cloud-authority";
 export { analyzeLocalStorageMigrationReadiness, formatMigrationDryRunSummary } from "./migration-readiness";
 export {
   deleteCompletedTeamVsTeamTournament,
@@ -32,6 +33,7 @@ export {
 } from "./storage";
 export type { CompletedTeamVsTeamTournament, CompletedTournament } from "./storage";
 export type { ShadowSaveKind, ShadowSaveMetadata, ShadowSaveStatus } from "./shadow-save";
+export type { CloudTournamentAuthority } from "./cloud-authority";
 export type { MigrationDryRunReport, MigrationReadinessClassification, MigrationReadinessEntry } from "./migration-readiness";
 export type { PoolTournamentSetupInput, TournamentSetupFormat, TournamentSetupInput } from "./setup";
 export type { FixedScoreRule, FixedScoreSettings, ScoringMode } from "./scoring";

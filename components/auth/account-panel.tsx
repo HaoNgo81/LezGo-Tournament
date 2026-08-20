@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAppTranslation } from "@/lib/preferences/client";
-import { createStandardShadowSaveLocalId, createTeamVsTeamShadowSaveLocalId, markCloudTournamentRestored, saveActiveTeamVsTeamTournamentFromRemoteSync, saveActiveTournamentFromRemoteSync, type TeamVsTeamTournamentState } from "@/lib/tournament-setup";
+import { createStandardShadowSaveLocalId, createTeamVsTeamShadowSaveLocalId, markActiveCloudTournamentAuthority, markCloudTournamentRestored, saveActiveTeamVsTeamTournamentFromRemoteSync, saveActiveTournamentFromRemoteSync, type TeamVsTeamTournamentState } from "@/lib/tournament-setup";
 import type { LiveTournamentState } from "@/lib/live-scoring";
 
 export interface Account {
@@ -33,6 +33,10 @@ type CloudTournamentOpenResponse =
       legacyLocalId?: string;
       organizerToken?: string;
       canManage?: boolean;
+      canRead?: boolean;
+      createdByUserId?: string | null;
+      controllerUserId?: string | null;
+      ownerUserId?: string | null;
       matchScoreVersions?: Record<string, number>;
     }
   | {
@@ -44,6 +48,10 @@ type CloudTournamentOpenResponse =
       legacyLocalId?: string;
       organizerToken?: string;
       canManage?: boolean;
+      canRead?: boolean;
+      createdByUserId?: string | null;
+      controllerUserId?: string | null;
+      ownerUserId?: string | null;
     }
   | {
       ok?: false;
@@ -339,6 +347,17 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
           canManage: body.canManage,
           matchScoreVersions: body.matchScoreVersions,
         });
+        markActiveCloudTournamentAuthority({
+          source: "server",
+          kind: "standard",
+          localId,
+          tournamentId: body.tournamentId,
+          canRead: body.canRead ?? true,
+          canManage: body.canManage === true,
+          createdByUserId: body.createdByUserId,
+          controllerUserId: body.controllerUserId,
+          ownerUserId: body.ownerUserId,
+        });
         router.push("/live");
         return;
       }
@@ -353,6 +372,17 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
         updatedAt: body.updatedAt,
         organizerToken: body.organizerToken,
         canManage: body.canManage,
+      });
+      markActiveCloudTournamentAuthority({
+        source: "server",
+        kind: "team-vs-team",
+        localId,
+        tournamentId: body.tournamentId,
+        canRead: body.canRead ?? true,
+        canManage: body.canManage === true,
+        createdByUserId: body.createdByUserId,
+        controllerUserId: body.controllerUserId,
+        ownerUserId: body.ownerUserId,
       });
       router.push("/team-vs-team");
     } catch (error) {

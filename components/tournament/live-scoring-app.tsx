@@ -36,7 +36,7 @@ import { SyncStatusPanel } from "@/components/tournament/sync-status-panel";
 import { UnifiedCourtCard } from "@/components/tournament/unified-court-card";
 import { useAppTranslation } from "@/lib/preferences/client";
 import type { TranslationKey } from "@/lib/i18n/translations";
-import { calculateInitialPoolStandings, createStandardShadowSaveLocalId, loadActiveTournament, loadShadowSaveMetadata, markRemoteShadowSaveApplied, saveActiveTournament, saveActiveTournamentFromRemoteSync, saveCompletedTournament, type CrossMatchFinalEncounter, type CrossMatchFinalStage, type PoolMatchResult, type PoolParticipant } from "@/lib/tournament-setup";
+import { calculateInitialPoolStandings, createStandardShadowSaveLocalId, loadActiveCloudTournamentAuthority, loadActiveTournament, loadShadowSaveMetadata, markRemoteShadowSaveApplied, saveActiveTournament, saveActiveTournamentFromRemoteSync, saveCompletedTournament, type CloudTournamentAuthority, type CrossMatchFinalEncounter, type CrossMatchFinalStage, type PoolMatchResult, type PoolParticipant } from "@/lib/tournament-setup";
 import { calculateFixedTotalScore } from "@/lib/tournament-setup/scoring";
 import { loadTournamentSettings, playTournamentAlarmSound } from "@/lib/tournament-settings";
 import type { MatchResult, StandingsRankingMode, TournamentPlayer } from "@/lib/tournament-engine";
@@ -62,6 +62,7 @@ interface OrganizerRemoteReadResponse {
 export function LiveScoringApp() {
   const { t } = useAppTranslation();
   const [state, setState] = useState<LiveTournamentState>(() => createMockLiveTournamentState());
+  const [cloudAuthority, setCloudAuthority] = useState<CloudTournamentAuthority | null>(null);
   const stateRef = useRef(state);
   const hasHydrated = useHasHydrated();
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
@@ -83,8 +84,8 @@ export function LiveScoringApp() {
   const nextRoundIsAvailable = !isPoolPlay && canGoToNextRound(state);
   const rankingModeIsLocked = state.format === "mexicano" || state.format === "fixed-partner-mexicano";
   const currentLocalId = createStandardShadowSaveLocalId(state);
-  const currentMetadata = hasHydrated ? loadShadowSaveMetadata(currentLocalId) : null;
-  const isControllerReadOnly = Boolean(currentMetadata?.supabaseTournamentId && currentMetadata.canManage === false);
+  const activeCloudAuthority = cloudAuthority?.kind === "standard" && cloudAuthority.localId === currentLocalId ? cloudAuthority : null;
+  const isControllerReadOnly = Boolean(activeCloudAuthority && activeCloudAuthority.canManage === false);
 
   useEffect(() => {
     stateRef.current = state;
@@ -97,8 +98,10 @@ export function LiveScoringApp() {
 
     const timeoutId = window.setTimeout(() => {
       const loadedState = loadActiveTournament() ?? createMockLiveTournamentState();
+      const loadedLocalId = createStandardShadowSaveLocalId(loadedState);
       stateRef.current = loadedState;
       setState(loadedState);
+      setCloudAuthority(loadActiveCloudTournamentAuthority("standard", loadedLocalId));
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
