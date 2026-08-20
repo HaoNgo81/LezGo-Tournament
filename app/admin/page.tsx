@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
-import { AdminUserManagement } from "@/components/admin/admin-user-management";
+import { AdminDashboard } from "@/components/admin/admin-dashboard";
 import { AppShell } from "@/components/layout/app-shell";
+import { listManagedTournaments } from "@/lib/admin/tournaments";
 import { listManagedAccountUsers } from "@/lib/admin/users";
 import { assertFreshAdminAccountFromCookies } from "@/lib/auth";
 
@@ -15,11 +16,14 @@ export default async function AdminPage() {
     redirect("/");
   }
 
-  const users = await listManagedAccountUsers(admin);
+  const [users, tournaments] = await Promise.all([
+    listManagedAccountUsers(admin),
+    listManagedTournaments(admin),
+  ]);
 
   return (
     <AppShell title="Admin" subtitle="Beskyttet område for systemadministration." primaryAction={null}>
-      <AdminUserManagement users={users} currentUserId={admin.userId} />
+      <AdminDashboard users={users} tournaments={tournaments} currentUserId={admin.userId} />
     </AppShell>
   );
 }

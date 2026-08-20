@@ -16,6 +16,10 @@ const adminUserMocks = vi.hoisted(() => ({
   listManagedAccountUsers: vi.fn(),
 }));
 
+const adminTournamentMocks = vi.hoisted(() => ({
+  listManagedTournaments: vi.fn(),
+}));
+
 vi.mock("@/lib/auth", () => ({
   assertFreshAdminAccountFromCookies: authMocks.assertFreshAdminAccountFromCookies,
 }));
@@ -28,10 +32,15 @@ vi.mock("@/lib/admin/users", () => ({
   listManagedAccountUsers: adminUserMocks.listManagedAccountUsers,
 }));
 
+vi.mock("@/lib/admin/tournaments", () => ({
+  listManagedTournaments: adminTournamentMocks.listManagedTournaments,
+}));
+
 describe("STEP 25I-C1-C6 admin route access", () => {
   beforeEach(() => {
     authMocks.assertFreshAdminAccountFromCookies.mockReset();
     adminUserMocks.listManagedAccountUsers.mockReset();
+    adminTournamentMocks.listManagedTournaments.mockReset();
     navigationMocks.redirect.mockClear();
   });
 
@@ -65,11 +74,13 @@ describe("STEP 25I-C1-C6 admin route access", () => {
   it("allows admin accounts to open /admin", async () => {
     authMocks.assertFreshAdminAccountFromCookies.mockResolvedValue(createAccount("admin"));
     adminUserMocks.listManagedAccountUsers.mockResolvedValue([]);
+    adminTournamentMocks.listManagedTournaments.mockResolvedValue([]);
 
     await expect(AdminPage()).resolves.toBeTruthy();
 
     expect(authMocks.assertFreshAdminAccountFromCookies).toHaveBeenCalled();
     expect(adminUserMocks.listManagedAccountUsers).toHaveBeenCalledWith(createAccount("admin"));
+    expect(adminTournamentMocks.listManagedTournaments).toHaveBeenCalledWith(createAccount("admin"));
     expect(navigationMocks.redirect).not.toHaveBeenCalled();
   });
 
