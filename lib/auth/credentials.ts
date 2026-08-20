@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { createSupabaseRestClient, type SupabaseRestClient } from "@/lib/supabase/rest-client";
 import { assertSupabaseServerConfig } from "@/lib/supabase/server";
 import { assertAuthRateLimit } from "./rate-limit";
@@ -39,7 +40,6 @@ interface SupabaseAuthUser {
 
 interface SupabaseAdminAuthConfig {
   url: string;
-  anonKey: string;
   serviceRoleKey: string;
 }
 
@@ -100,7 +100,18 @@ export async function createCredentialAccount(input: {
     throw new AuthError("Username is not available.", 409);
   }
 
-  const authResult = await createConfirmedAuthUserWithPassword({ email, password: code, displayName, username });
+  const existingEmail = await readProfileByEmail(email, client);
+
+  if (existingEmail) {
+    throw new AuthError("Email is already used.", 409);
+  }
+
+  const authResult = await createConfirmedAuthUserWithPassword({
+    email,
+    password: toSupabaseCredentialPassword(email, code),
+    displayName,
+    username,
+  });
   const authUser = authResult.user;
 
   if (!authUser?.id || !authUser.email) {
@@ -144,7 +155,7 @@ export async function loginWithCredential(input: {
     const email = identifier.includes("@")
       ? normalizeCredentialEmail(identifier)
       : await resolveUsernameToEmail(identifier, client);
-    const authResult = await passwordGrant(email, normalizedCode);
+    const authResult = await passwordGrantWithCredential(email, normalizedCode);
     const account = await upsertAndReadProfile({
       userId: authResult.user.id,
       email: authResult.user.email,
@@ -201,6 +212,7 @@ export async function updateLoginCodeWithSession(input: { accessToken: string | 
   }
 
   const config = getSupabaseAuthConfig();
+  const authUser = await readAuthUserForCredentialUpdate(input.accessToken, config.anonKey);
   const response = await fetch(`${config.url}/auth/v1/user`, {
     method: "PUT",
     headers: {
@@ -209,7 +221,7 @@ export async function updateLoginCodeWithSession(input: { accessToken: string | 
       "content-type": "application/json",
     },
     body: JSON.stringify({
-      password: code,
+      password: toSupabaseCredentialPassword(authUser.email, code),
     }),
   });
 
@@ -237,6 +249,14 @@ async function readProfileByUsername(username: string, client: SupabaseRestClien
   return profile ?? null;
 }
 
+async function readProfileByEmail(email: string, client: SupabaseRestClient): Promise<CredentialProfileRow | null> {
+  const [profile] = await client.select<CredentialProfileRow>(
+    "profiles",
+    `email_normalized=eq.${encodeURIComponent(email)}&select=user_id,display_name,role,username,email&limit=1`,
+  );
+  return profile ?? null;
+}
+
 async function createConfirmedAuthUserWithPassword(input: { email: string; password: string; displayName: string; username: string }): Promise<{ user: { id: string; email: string; user_metadata?: SupabaseAuthUser["user_metadata"] } }> {
   const config = getSupabaseAdminAuthConfig();
   const response = await fetch(`${config.url}/auth/v1/admin/users`, {
@@ -256,6 +276,12 @@ async function createConfirmedAuthUserWithPassword(input: { email: string; passw
   const user = getAuthUserFromAdminBody(body);
 
   if (!response.ok || !user) {
+    logCredentialAuthFailure("admin_create_user", response.status || 400, body);
+
+    if (isDuplicateEmailAuthError(body)) {
+      throw new AuthError("Email is already used.", 409);
+    }
+
     throw new AuthError("Account could not be created.", response.status || 400);
   }
 
@@ -277,6 +303,20 @@ async function deleteAuthUserBestEffort(userId: string): Promise<void> {
     });
   } catch {
     // Keep the original registration failure. The user-facing error remains generic.
+  }
+}
+
+async function passwordGrantWithCredential(email: string, code: string): Promise<{ session: SupabaseAuthSession; user: { id: string; email: string; user_metadata?: SupabaseAuthUser["user_metadata"] } }> {
+  try {
+    return await passwordGrant(email, toSupabaseCredentialPassword(email, code));
+  } catch (error) {
+    if (error instanceof AuthError && error.status === 429) {
+      throw error;
+    }
+
+    // Compatibility for any account created before STEP 25I-C1-C3 stored the
+    // raw 6-character LEZGO code as the Supabase password.
+    return passwordGrant(email, code);
   }
 }
 
@@ -306,6 +346,31 @@ async function passwordGrant(email: string, password: string): Promise<{ session
   };
 }
 
+async function readAuthUserForCredentialUpdate(accessToken: string | undefined, anonKey: string): Promise<{ id: string; email: string }> {
+  if (!accessToken) {
+    throw new AuthError();
+  }
+
+  const config = getSupabaseAuthConfig();
+  const response = await fetch(`${config.url}/auth/v1/user`, {
+    method: "GET",
+    headers: {
+      apikey: anonKey,
+      authorization: `Bearer ${accessToken}`,
+    },
+  });
+  const body = await parseJson(response);
+
+  if (!response.ok || !isAuthUser(body)) {
+    throw new AuthError("Authentication was denied.", response.status || 401);
+  }
+
+  return {
+    id: String(body.id),
+    email: String(body.email),
+  };
+}
+
 function toSession(body: SupabasePasswordAuthResponse): SupabaseAuthSession {
   return {
     accessToken: String(body.access_token),
@@ -328,17 +393,82 @@ function getSupabaseAdminAuthConfig(): SupabaseAdminAuthConfig {
 
   return {
     url: authConfig.url,
-    anonKey: authConfig.anonKey,
     serviceRoleKey: serverConfig.serviceRoleKey,
   };
 }
 
 function getAdminAuthHeaders(config: SupabaseAdminAuthConfig): HeadersInit {
   return {
-    apikey: config.anonKey,
+    apikey: config.serviceRoleKey,
     authorization: `Bearer ${config.serviceRoleKey}`,
     "content-type": "application/json",
   };
+}
+
+function toSupabaseCredentialPassword(email: string, code: string): string {
+  const normalizedEmail = normalizeCredentialEmail(email);
+  const normalizedCode = normalizeLoginCode(code);
+  const secret = getCredentialPasswordSecret();
+  const digest = createHmac("sha256", secret)
+    .update("lezgo-account-code-v1", "utf8")
+    .update("\0", "utf8")
+    .update(normalizedEmail, "utf8")
+    .update("\0", "utf8")
+    .update(normalizedCode, "utf8")
+    .digest("base64url");
+
+  return `LezGo1!${digest}`;
+}
+
+function getCredentialPasswordSecret(): string {
+  const accountSecret = process.env.LEZGO_ACCOUNT_CREDENTIAL_SECRET?.trim();
+
+  if (accountSecret) {
+    return accountSecret;
+  }
+
+  const remoteSessionSecret = process.env.LEZGO_REMOTE_SESSION_SECRET?.trim();
+
+  if (remoteSessionSecret) {
+    return remoteSessionSecret;
+  }
+
+  return assertSupabaseServerConfig().serviceRoleKey;
+}
+
+function logCredentialAuthFailure(operation: string, status: number, body: unknown): void {
+  console.warn("[auth.credentials] Supabase Auth operation failed", {
+    operation,
+    status,
+    category: getAuthFailureCategory(body),
+  });
+}
+
+function getAuthFailureCategory(body: unknown): string {
+  if (!body || typeof body !== "object") {
+    return "unknown";
+  }
+
+  const code = (body as { code?: unknown; error_code?: unknown }).code ?? (body as { code?: unknown; error_code?: unknown }).error_code;
+  if (typeof code === "string" && code.trim()) {
+    return code.trim().slice(0, 80);
+  }
+
+  const message = (body as { message?: unknown; error_description?: unknown }).message ?? (body as { message?: unknown; error_description?: unknown }).error_description;
+  if (typeof message === "string" && message.trim()) {
+    return message.trim().replace(/[^\w\s.-]/g, "").slice(0, 80);
+  }
+
+  return "unknown";
+}
+
+function isDuplicateEmailAuthError(body: unknown): boolean {
+  const category = getAuthFailureCategory(body).toLocaleLowerCase("en");
+  return category.includes("email") && (
+    category.includes("already") ||
+    category.includes("registered") ||
+    category.includes("exists")
+  );
 }
 
 async function parseJson(response: Response): Promise<unknown> {

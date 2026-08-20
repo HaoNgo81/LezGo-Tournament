@@ -6,6 +6,7 @@ import {
   normalizeLoginCode,
   normalizeUsername,
   requestLoginCodeRecovery,
+  updateLoginCodeWithSession,
 } from "../lib/auth";
 import { resetAuthRateLimitForTests } from "../lib/auth/rate-limit";
 
@@ -14,6 +15,7 @@ describe("STEP 25I-C1-A credential foundation", () => {
   const originalAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const originalServerUrl = process.env.SUPABASE_URL;
   const originalServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const originalAccountCredentialSecret = process.env.LEZGO_ACCOUNT_CREDENTIAL_SECRET;
 
   afterEach(() => {
     vi.restoreAllMocks();
@@ -41,6 +43,12 @@ describe("STEP 25I-C1-A credential foundation", () => {
       delete process.env.SUPABASE_SERVICE_ROLE_KEY;
     } else {
       process.env.SUPABASE_SERVICE_ROLE_KEY = originalServiceRoleKey;
+    }
+
+    if (originalAccountCredentialSecret === undefined) {
+      delete process.env.LEZGO_ACCOUNT_CREDENTIAL_SECRET;
+    } else {
+      process.env.LEZGO_ACCOUNT_CREDENTIAL_SECRET = originalAccountCredentialSecret;
     }
   });
 
@@ -90,12 +98,16 @@ describe("STEP 25I-C1-A credential foundation", () => {
     });
     expect(client.insertedProfile?.role).toBe("user");
     expect(fetchMock.mock.calls[0][0]).toBe("https://auth.example.supabase.co/auth/v1/admin/users");
+    const adminHeaders = fetchMock.mock.calls[0][1]?.headers as Record<string, string>;
     const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string) as { email: string; password: string; email_confirm: boolean; data: { username: string; role?: string } };
     expect(body.email).toBe("user@example.com");
-    expect(body.password).toBe("ABC123");
+    expect(body.password).not.toBe("ABC123");
+    expect(body.password).toMatch(/^LezGo1![A-Za-z0-9_-]{30,}$/);
     expect(body.email_confirm).toBe(true);
     expect(body.data.username).toBe("hao");
     expect(body.data).not.toHaveProperty("role");
+    expect(adminHeaders.apikey).toBe("service-role-key");
+    expect(adminHeaders.authorization).toBe("Bearer service-role-key");
     expect(result.verificationRequired).toBe(false);
   });
 
@@ -120,6 +132,33 @@ describe("STEP 25I-C1-A credential foundation", () => {
       repeatCode: "abc123",
       client,
     })).rejects.toMatchObject({ status: 409 });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects duplicate email before attempting admin user creation", async () => {
+    configureAuthEnv();
+    const client = createCredentialProfileClient({
+      emailProfiles: [{
+        user_id: "00000000-0000-4000-8000-000000000922",
+        display_name: "Existing",
+        role: "user",
+        username: "existing",
+        email: "user@example.com",
+      }],
+    });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
+
+    await expect(createCredentialAccount({
+      displayName: "User One",
+      username: "fresh",
+      email: "USER@Example.com",
+      code: "abc123",
+      repeatCode: "abc123",
+      client,
+    })).rejects.toMatchObject({
+      status: 409,
+      message: "Email is already used.",
+    });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -215,10 +254,46 @@ describe("STEP 25I-C1-A credential foundation", () => {
     expect(byUsername.account.userId).toBe(byEmail.account.userId);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const requestBodies = fetchMock.mock.calls.map((call) => JSON.parse(call[1]?.body as string) as { email: string; password: string });
-    expect(requestBodies).toEqual([
-      { email: "user@example.com", password: "ABC123" },
-      { email: "user@example.com", password: "ABC123" },
-    ]);
+    expect(requestBodies[0].email).toBe("user@example.com");
+    expect(requestBodies[1].email).toBe("user@example.com");
+    expect(requestBodies[0].password).toMatch(/^LezGo1![A-Za-z0-9_-]{30,}$/);
+    expect(requestBodies[1].password).toBe(requestBodies[0].password);
+    expect(requestBodies[0].password).not.toBe("ABC123");
+  });
+
+  it("falls back to legacy raw-code Supabase passwords for already-created accounts", async () => {
+    configureAuthEnv();
+    const client = createCredentialProfileClient({
+      usernameProfiles: [{
+        user_id: "00000000-0000-4000-8000-000000000923",
+        display_name: "Legacy User",
+        role: "user",
+        username: "legacy",
+        email: "legacy@example.com",
+      }],
+    });
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response("{}", { status: 401 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        access_token: "access-token",
+        refresh_token: "refresh-token",
+        expires_in: 3600,
+        user: {
+          id: "00000000-0000-4000-8000-000000000923",
+          email: "legacy@example.com",
+          user_metadata: {
+            display_name: "Legacy User",
+          },
+        },
+      }), { status: 200 }));
+
+    const result = await loginWithCredential({ identifier: "legacy", code: "abc123", client });
+    const requestBodies = fetchMock.mock.calls.map((call) => JSON.parse(call[1]?.body as string) as { email: string; password: string });
+
+    expect(result.account.userId).toBe("00000000-0000-4000-8000-000000000923");
+    expect(requestBodies[0].password).toMatch(/^LezGo1![A-Za-z0-9_-]{30,}$/);
+    expect(requestBodies[0].password).not.toBe("ABC123");
+    expect(requestBodies[1]).toEqual({ email: "legacy@example.com", password: "ABC123" });
   });
 
   it("does not expose username to email mapping when username login fails", async () => {
@@ -249,6 +324,34 @@ describe("STEP 25I-C1-A credential foundation", () => {
     expect(requestBody).not.toHaveProperty("password");
   });
 
+  it("updates Supabase with a server-derived password when resetting the 6-character code", async () => {
+    configureAuthEnv();
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: "00000000-0000-4000-8000-000000000924",
+        email: "reset@example.com",
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: "00000000-0000-4000-8000-000000000924",
+        email: "reset@example.com",
+      }), { status: 200 }));
+
+    await updateLoginCodeWithSession({
+      accessToken: "access-token",
+      code: "ab12cd",
+      repeatCode: "AB12CD",
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toBe("https://auth.example.supabase.co/auth/v1/user");
+    expect(fetchMock.mock.calls[0][1]?.method).toBe("GET");
+    expect(fetchMock.mock.calls[1][0]).toBe("https://auth.example.supabase.co/auth/v1/user");
+    expect(fetchMock.mock.calls[1][1]?.method).toBe("PUT");
+    const body = JSON.parse(fetchMock.mock.calls[1][1]?.body as string) as { password: string };
+    expect(body.password).toMatch(/^LezGo1![A-Za-z0-9_-]{30,}$/);
+    expect(body.password).not.toBe("AB12CD");
+  });
+
   it("rate limits repeated credential login attempts without permanent lock state", async () => {
     configureAuthEnv();
     const client = createCredentialProfileClient();
@@ -276,6 +379,7 @@ function configureAuthEnv() {
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
   process.env.SUPABASE_URL = "https://auth.example.supabase.co";
   process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
+  process.env.LEZGO_ACCOUNT_CREDENTIAL_SECRET = "account-credential-secret";
 }
 
 interface TestProfile {
@@ -286,9 +390,10 @@ interface TestProfile {
   email?: string | null;
 }
 
-function createCredentialProfileClient(options: { usernameProfiles?: TestProfile[]; failInsert?: boolean } = {}) {
+function createCredentialProfileClient(options: { usernameProfiles?: TestProfile[]; emailProfiles?: TestProfile[]; failInsert?: boolean } = {}) {
   const profiles = new Map<string, TestProfile>();
   const usernameProfiles = options.usernameProfiles ?? [];
+  const emailProfiles = options.emailProfiles ?? [];
   const client = {
     insertedProfile: null as null | Record<string, unknown>,
     async rpc<T>(): Promise<T> {
@@ -304,6 +409,14 @@ function createCredentialProfileClient(options: { usernameProfiles?: TestProfile
         return [
           ...usernameProfiles.filter((profile) => profile.username === username),
           ...Array.from(profiles.values()).filter((profile) => profile.username === username),
+        ] as T[];
+      }
+
+      if (query.includes("email_normalized=eq.")) {
+        const email = decodeURIComponent(query.match(/email_normalized=eq\.([^&]+)/)?.[1] ?? "");
+        return [
+          ...emailProfiles.filter((profile) => profile.email === email),
+          ...Array.from(profiles.values()).filter((profile) => profile.email === email),
         ] as T[];
       }
 
