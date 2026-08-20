@@ -82,14 +82,14 @@ export async function takeoverManagedTournament(input: {
     throw new AuthError("Tournament was not found.", 404);
   }
 
-  const [updated] = await client.update<TournamentRow>("tournaments", `id=eq.${encodeURIComponent(input.tournamentId)}`, {
-    controller_user_id: input.actor.userId,
-    updated_by_user_id: input.actor.userId,
+  const updated = await client.rpc<TournamentRow>("lezgo_admin_takeover_tournament_v1", {
+    p_tournament_id: input.tournamentId,
+    p_admin_user_id: input.actor.userId,
   });
-  const next = updated ?? { ...existing, controller_user_id: input.actor.userId };
-  const profilesById = await readProfilesById(collectUserIds([next]), client);
 
-  return toManagedTournament(next, input.actor.userId, profilesById);
+  const profilesById = await readProfilesById(collectUserIds([updated]), client);
+
+  return toManagedTournament(updated, input.actor.userId, profilesById);
 }
 
 function assertAdminActor(actor: AuthenticatedAccount): void {

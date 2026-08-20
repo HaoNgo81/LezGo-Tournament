@@ -110,6 +110,21 @@ describe("STEP 25I-C1-C8B admin tournament API boundary", () => {
     expect(body.error).toBe("Admin access requires a fresh login.");
     expect(adminTournamentMocks.takeoverManagedTournament).not.toHaveBeenCalled();
   });
+
+  it("hides raw database takeover errors from the user", async () => {
+    const { POST } = await import("../app/api/admin/tournaments/[tournamentId]/takeover/route");
+    authMocks.assertFreshAdminAccountFromCookies.mockResolvedValue(createAccount("admin"));
+    adminTournamentMocks.takeoverManagedTournament.mockRejectedValue(new Error("permission denied for table tournaments"));
+
+    const response = await POST(new Request("http://localhost/api/admin/tournaments/00000000-0000-4000-8000-000000000101/takeover", { method: "POST" }), {
+      params: Promise.resolve({ tournamentId: "00000000-0000-4000-8000-000000000101" }),
+    });
+    const body = await response.json() as { ok: boolean; error: string };
+
+    expect(response.status).toBe(500);
+    expect(body.error).toBe("Overtagelse mislykkedes. Prøv igen.");
+    expect(JSON.stringify(body)).not.toMatch(/permission denied|table tournaments|sql|postgres/i);
+  });
 });
 
 function createAccount(role: "admin" | "user") {

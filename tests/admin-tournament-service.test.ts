@@ -36,13 +36,23 @@ describe("STEP 25I-C1-C8B admin tournament service", () => {
 
     const tournament = await takeoverManagedTournament({ actor: admin, tournamentId }, { client });
 
-    expect(client.update).toHaveBeenCalledWith("tournaments", `id=eq.${encodeURIComponent(tournamentId)}`, {
-      controller_user_id: admin.userId,
-      updated_by_user_id: admin.userId,
+    expect(client.rpc).toHaveBeenCalledWith("lezgo_admin_takeover_tournament_v1", {
+      p_tournament_id: tournamentId,
+      p_admin_user_id: admin.userId,
     });
+    expect(client.update).not.toHaveBeenCalled();
     expect(tournament.creator).toMatchObject({ displayName: "Creator One", username: "creator" });
     expect(tournament.controller).toMatchObject({ displayName: "Admin One", username: "admin" });
     expect(tournament.isControlledByCurrentAdmin).toBe(true);
+  });
+
+  it("does not partially mutate local state when the takeover RPC fails", async () => {
+    const client = createClient({ failTakeover: true });
+
+    await expect(takeoverManagedTournament({ actor: admin, tournamentId }, { client })).rejects.toThrow("permission denied for table tournaments");
+
+    expect(client.update).not.toHaveBeenCalled();
+    expect(client.snapshot().find((row) => row.id === tournamentId)?.controller_user_id).toBe(otherId);
   });
 
   it("blocks normal users before tournament data is changed", async () => {
@@ -52,11 +62,12 @@ describe("STEP 25I-C1-C8B admin tournament service", () => {
       actor: { ...admin, role: "user" },
       tournamentId,
     }, { client })).rejects.toMatchObject({ status: 403 });
+    expect(client.rpc).not.toHaveBeenCalled();
     expect(client.update).not.toHaveBeenCalled();
   });
 });
 
-function createClient(): SupabaseRestClient {
+function createClient(options: { failTakeover?: boolean } = {}): SupabaseRestClient & { snapshot: () => ReturnType<typeof createTournamentRow>[] } {
   const tournaments = [
     createTournamentRow(tournamentId, "Creator Cup", creatorId, otherId),
     createTournamentRow("00000000-0000-4000-8000-000000000102", "Legacy Cup", null, null),
@@ -84,14 +95,31 @@ function createClient(): SupabaseRestClient {
     ...tournaments[0],
     controller_user_id: admin.userId,
   }]) as SupabaseRestClient["update"];
+  const rpc: SupabaseRestClient["rpc"] = vi.fn(async (functionName: string) => {
+    if (functionName !== "lezgo_admin_takeover_tournament_v1") {
+      throw new Error(`Unexpected RPC ${functionName}`);
+    }
+    if (options.failTakeover) {
+      throw new Error("permission denied for table tournaments");
+    }
+    const row = tournaments.find((candidate) => candidate.id === tournamentId);
+    if (!row) {
+      throw new Error("Tournament was not found.");
+    }
+    row.controller_user_id = admin.userId;
+    return row;
+  }) as SupabaseRestClient["rpc"];
 
-  return {
-    rpc: vi.fn(),
+  const client = {
+    rpc,
     insert: vi.fn(),
     delete: vi.fn(),
     select,
     update,
-  } satisfies SupabaseRestClient;
+    snapshot: () => tournaments,
+  };
+
+  return client;
 }
 
 function createTournamentRow(id: string, name: string, createdBy: string | null, controller: string | null) {

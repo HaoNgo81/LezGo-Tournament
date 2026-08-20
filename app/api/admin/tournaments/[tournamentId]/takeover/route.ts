@@ -23,7 +23,9 @@ export async function POST(_request: Request, context: RouteContext): Promise<Re
     });
   } catch (error) {
     const status = error instanceof AuthError ? error.status : 500;
-    const message = error instanceof Error ? error.message : "Admin takeover failed.";
+    const message = error instanceof AuthError
+      ? error.message
+      : "Overtagelse mislykkedes. Prøv igen.";
     return Response.json({ ok: false, error: message }, { status });
   }
 }
