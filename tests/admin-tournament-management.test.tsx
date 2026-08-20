@@ -73,7 +73,33 @@ describe("STEP 25I-C1-C8B admin tournament management UI", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(screen.getAllByText("Admin One").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Du styrer").length).toBeGreaterThan(0);
-    expect(fetchMock).toHaveBeenCalledWith(`/api/admin/tournaments/${tournaments[0].id}/takeover`, { method: "POST" });
+    expect(fetchMock).toHaveBeenCalledWith(`/api/admin/tournaments/${tournaments[0].id}/takeover`, {
+      method: "POST",
+      credentials: "same-origin",
+    });
+  });
+
+  it("shows a safe re-login message when takeover auth is denied and keeps the row unchanged", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      ok: false,
+      error: "Authentication was denied.",
+    }), { status: 401 }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<AdminDashboard users={users} tournaments={tournaments} currentUserId={adminUserId} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Turneringer" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Overtag styring" })[0]);
+
+    const dialog = screen.getByRole("dialog", { name: "Overtag styring af turnering?" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Overtag styring" }));
+
+    expect(await screen.findByText("Godkendelse mislykkedes. Log ind igen og prøv igen.")).toBeInTheDocument();
+    expect(screen.getAllByText("Controller Two").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Du styrer nu denne turnering.")).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(`/api/admin/tournaments/${tournaments[0].id}/takeover`, {
+      method: "POST",
+      credentials: "same-origin",
+    });
   });
 });
 

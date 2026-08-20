@@ -58,11 +58,12 @@ export function AdminTournamentManagement({ tournaments: initialTournaments }: A
     try {
       const response = await fetch(`/api/admin/tournaments/${encodeURIComponent(tournament.id)}/takeover`, {
         method: "POST",
+        credentials: "same-origin",
       });
       const body = await response.json() as TakeoverResponse;
 
       if (!response.ok || !body.ok || !body.tournament) {
-        throw new Error(body.error || "Turneringen kunne ikke overtages.");
+        throw new Error(toTakeoverErrorMessage(body.error));
       }
 
       replaceTournament(body.tournament);
@@ -193,6 +194,14 @@ export function AdminTournamentManagement({ tournaments: initialTournaments }: A
       ) : null}
     </section>
   );
+}
+
+function toTakeoverErrorMessage(error: string | undefined): string {
+  if (error === "Authentication was denied." || error === "Admin access requires a fresh login.") {
+    return "Godkendelse mislykkedes. Log ind igen og prøv igen.";
+  }
+
+  return error || "Turneringen kunne ikke overtages.";
 }
 
 function TournamentTableRows(props: {

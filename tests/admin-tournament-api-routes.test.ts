@@ -95,6 +95,21 @@ describe("STEP 25I-C1-C8B admin tournament API boundary", () => {
     expect(response.status).toBe(403);
     expect(adminTournamentMocks.takeoverManagedTournament).not.toHaveBeenCalled();
   });
+
+  it("requires a fresh admin session for takeover and does not mutate on stale auth", async () => {
+    const { AuthError } = await import("../lib/auth");
+    const { POST } = await import("../app/api/admin/tournaments/[tournamentId]/takeover/route");
+    authMocks.assertFreshAdminAccountFromCookies.mockRejectedValue(new AuthError("Admin access requires a fresh login.", 403));
+
+    const response = await POST(new Request("http://localhost/api/admin/tournaments/00000000-0000-4000-8000-000000000101/takeover", { method: "POST" }), {
+      params: Promise.resolve({ tournamentId: "00000000-0000-4000-8000-000000000101" }),
+    });
+    const body = await response.json() as { ok: boolean; error: string };
+
+    expect(response.status).toBe(403);
+    expect(body.error).toBe("Admin access requires a fresh login.");
+    expect(adminTournamentMocks.takeoverManagedTournament).not.toHaveBeenCalled();
+  });
 });
 
 function createAccount(role: "admin" | "user") {
