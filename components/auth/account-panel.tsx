@@ -32,6 +32,7 @@ type CloudTournamentOpenResponse =
       updatedAt?: string;
       legacyLocalId?: string;
       organizerToken?: string;
+      canManage?: boolean;
       matchScoreVersions?: Record<string, number>;
     }
   | {
@@ -42,6 +43,7 @@ type CloudTournamentOpenResponse =
       updatedAt?: string;
       legacyLocalId?: string;
       organizerToken?: string;
+      canManage?: boolean;
     }
   | {
       ok?: false;
@@ -332,6 +334,7 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
           tournamentId: body.tournamentId,
           updatedAt: body.updatedAt,
           organizerToken: body.organizerToken,
+          canManage: body.canManage,
           matchScoreVersions: body.matchScoreVersions,
         });
         router.push("/live");
@@ -345,6 +348,7 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
         tournamentId: body.tournamentId,
         updatedAt: body.updatedAt,
         organizerToken: body.organizerToken,
+        canManage: body.canManage,
       });
       router.push("/team-vs-team");
     } catch (error) {

@@ -143,6 +143,18 @@ describe("STEP 25I-B2 owner match score API", () => {
     }), restClientMocks);
   });
 
+  it("blocks an admin score write until explicit controller takeover has happened", async () => {
+    authMocks.readAccountFromAccessToken.mockResolvedValue(createAccount(otherUserId, "admin"));
+    restClientMocks.select.mockResolvedValueOnce([createTournamentRow(ownerUserId, ownerUserId)]);
+
+    const response = await saveOwnedScore(createScoreRequest("r1-c1", 21, 10, 1), createRouteContext(tournamentId));
+    const body = await response.json() as { error?: string };
+
+    expect(response.status).toBe(403);
+    expect(body.error).toBe("Du har ikke længere adgang til at ændre denne turnering.");
+    expect(databaseMocks.saveOwnedMatchScore).not.toHaveBeenCalled();
+  });
+
   it("blocks anonymous score writes before reading private rows", async () => {
     authMocks.readAccountFromAccessToken.mockRejectedValue(new AuthError());
 
@@ -171,12 +183,12 @@ function createTournamentRow(owner_user_id: string, controller_user_id: string |
   };
 }
 
-function createAccount(userId: string) {
+function createAccount(userId: string, role: "admin" | "user" = "user") {
   return {
     userId,
     email: `${userId.slice(-2)}@example.com`,
     displayName: "Account",
-    role: "user",
+    role,
   };
 }
 

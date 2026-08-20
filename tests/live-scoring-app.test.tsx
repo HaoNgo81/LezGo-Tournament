@@ -344,6 +344,32 @@ describe("LiveScoringApp score sheet", () => {
     expect(fetchMock).not.toHaveBeenCalledWith("/api/supabase/shadow-save", expect.anything());
   }, 10000);
 
+  it("opens a controller-transferred cloud tournament as read-only for the former creator", async () => {
+    const localState = createMockLiveTournamentState();
+    const localId = createStandardShadowSaveLocalId(localState);
+    saveActiveTournamentFromRemoteSync(localState);
+    saveShadowMetadata(localId, {
+      canManage: false,
+      kind: "standard",
+      lastLocalSaveAt: "2026-08-20T12:00:00.000Z",
+      lastShadowSaveVersion: "2026-08-20T12:00:00.000Z",
+      status: "synced",
+      supabaseTournamentId: "00000000-0000-4000-8000-0000000008c8",
+      matchScoreVersions: { [localState.rounds[0].matches[0].id]: 1 },
+    });
+
+    render(<LiveScoringApp />);
+
+    expect(await screen.findByText("Turneringen styres nu af en anden bruger.")).toBeInTheDocument();
+    expect(screen.getByText("Du kan stadig se turneringen, men du kan ikke længere ændre den.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Indtast score" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Aktivér deling" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Afslut turnering" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Næste" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Stilling" })).toBeInTheDocument();
+    expect(screen.getAllByTestId("live-court-card")).toHaveLength(localState.rounds[0].matches.length);
+  });
+
   it("starts organizer polling after sharing is activated on an already mounted local tournament", async () => {
     delete process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE;
     const localState = createTournamentFromSetup({

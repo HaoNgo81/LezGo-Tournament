@@ -82,6 +82,9 @@ export function LiveScoringApp() {
   const selectedPoolMatch = [...poolMatchViews, ...nextPoolMatchViews, ...finalPoolMatchViews, ...placementTiebreakMatchViews].find((match) => match.id === selectedMatchId) ?? null;
   const nextRoundIsAvailable = !isPoolPlay && canGoToNextRound(state);
   const rankingModeIsLocked = state.format === "mexicano" || state.format === "fixed-partner-mexicano";
+  const currentLocalId = createStandardShadowSaveLocalId(state);
+  const currentMetadata = hasHydrated ? loadShadowSaveMetadata(currentLocalId) : null;
+  const isControllerReadOnly = Boolean(currentMetadata?.supabaseTournamentId && currentMetadata.canManage === false);
 
   useEffect(() => {
     stateRef.current = state;
@@ -102,7 +105,7 @@ export function LiveScoringApp() {
   }, [hasHydrated]);
 
   useEffect(() => {
-    if (state.roundTimer?.status !== "countdown" && state.roundTimer?.status !== "running") {
+    if (isControllerReadOnly || (state.roundTimer?.status !== "countdown" && state.roundTimer?.status !== "running")) {
       return;
     }
 
@@ -115,7 +118,7 @@ export function LiveScoringApp() {
     }, 1000);
 
     return () => window.clearInterval(intervalId);
-  }, [state.roundTimer?.status]);
+  }, [isControllerReadOnly, state.roundTimer?.status]);
 
   useEffect(() => {
     if (!hasHydrated || state.status !== "active") {
@@ -205,6 +208,11 @@ export function LiveScoringApp() {
   }, [state.roundTimer, state.scoringMode]);
 
   function commitState(updater: (currentState: LiveTournamentState) => LiveTournamentState) {
+    if (isControllerReadOnly) {
+      setToast(t("remoteControlledByOtherUser"));
+      return;
+    }
+
     const nextState = updater(stateRef.current);
     saveActiveTournament(nextState);
     if (nextState.status === "finished") {
@@ -388,6 +396,7 @@ export function LiveScoringApp() {
         nextPoolProgress={nextPoolProgress}
         finalPoolProgress={finalPoolProgress}
         selectedMatch={selectedPoolMatch}
+        isControllerReadOnly={isControllerReadOnly}
         toast={toast}
         onAdvance={handleAdvancePoolPlay}
         onCloseScoreSheet={() => setSelectedMatchId(null)}
@@ -406,23 +415,23 @@ export function LiveScoringApp() {
             <h2 className="mt-0.5 text-xl font-black leading-tight sm:mt-1 sm:text-2xl">{state.tournamentName}</h2>
             <p className="mt-0.5 text-xs font-bold text-[var(--muted)] sm:mt-1 sm:text-sm">{state.players.length} {t("players").toLowerCase()} · {state.configuredRounds ?? state.rounds.length} {t("rounds").toLowerCase()}</p>
           </div>
-          <details className="relative sm:hidden" data-testid="live-mobile-more-menu">
+          {!isControllerReadOnly ? <details className="relative sm:hidden" data-testid="live-mobile-more-menu">
             <summary className="flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-center rounded-md border border-[var(--line)] bg-white px-3 text-xl font-black text-[var(--primary-strong)]" aria-label={t("moreActions")} title={t("moreActions")}>
               ⋯
             </summary>
             <div className="absolute right-0 z-10 mt-2 w-52 rounded-md border border-[var(--line)] bg-white p-2 shadow-2xl">
               <Link className="btn-outline-primary min-h-11 w-full text-sm" href="/finish">{t("finishTournament")}</Link>
             </div>
-          </details>
+          </details> : null}
         </div>
         <div className="mt-2 sm:mt-3">
-          <SyncStatusPanel kind="standard" localId={createStandardShadowSaveLocalId(state)} state={state} />
+          {isControllerReadOnly ? <ControllerReadOnlyNotice /> : <SyncStatusPanel kind="standard" localId={currentLocalId} state={state} />}
         </div>
-        <div className="mt-4 hidden sm:block">
+        {!isControllerReadOnly ? <div className="mt-4 hidden sm:block">
           <div className="action-grid">
             <Link className="btn-outline-primary" href="/finish">{t("finishTournament")}</Link>
           </div>
-        </div>
+        </div> : null}
       </div>
 
       <div className="grid gap-2 sm:gap-3 sm:grid-cols-[repeat(4,minmax(0,1fr))_minmax(220px,1.2fr)]">
@@ -433,7 +442,7 @@ export function LiveScoringApp() {
         </div>
         <div className="grid gap-2 text-sm font-bold text-[var(--muted)]">
           <span>{t("rankingSort")}</span>
-          {rankingModeIsLocked ? (
+          {rankingModeIsLocked || isControllerReadOnly ? (
             <p className="field-control flex items-center text-base font-black">{t(rankingModeLabels[state.rankingMode])}</p>
           ) : (
             <select className="field-control text-base font-black" value={state.rankingMode} onChange={(event) => handleRankingModeChange(event.target.value as StandingsRankingMode)}>
@@ -445,7 +454,7 @@ export function LiveScoringApp() {
         </div>
       </div>
 
-      {state.scoringMode === "Spil på tid" ? <RoundTimerPanel state={state} onReset={handleResetTimer} onStart={handleStartTimer} onStop={handleStopTimer} /> : null}
+      {state.scoringMode === "Spil på tid" && !isControllerReadOnly ? <RoundTimerPanel state={state} onReset={handleResetTimer} onStart={handleStartTimer} onStop={handleStopTimer} /> : null}
       <section className="app-card grid gap-1.5 p-2.5 sm:gap-3 sm:p-5" data-testid="live-round-navigation-card">
         <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-3">
           <div>
@@ -454,7 +463,7 @@ export function LiveScoringApp() {
               {roundProgress?.isComplete ? t("roundComplete") : t("roundIncomplete")}
             </p>
           </div>
-          <RoundNavigationButtons canGoPrevious={state.activeRoundNumber > 1} canGoNext={nextRoundIsAvailable} onNext={handleNextRound} onPrevious={handlePreviousRound} />
+          {!isControllerReadOnly ? <RoundNavigationButtons canGoPrevious={state.activeRoundNumber > 1} canGoNext={nextRoundIsAvailable} onNext={handleNextRound} onPrevious={handlePreviousRound} /> : null}
         </div>
         <div className="h-1.5 overflow-hidden rounded-full bg-gray-100 sm:h-3">
           <div className="h-full bg-[var(--primary)] transition-all" style={{ width: `${((roundProgress?.completedMatches ?? 0) / (roundProgress?.totalMatches ?? 1)) * 100}%` }} />
@@ -468,7 +477,7 @@ export function LiveScoringApp() {
           <h2 className="text-xl font-black">{t("matches")}</h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2" data-testid="live-match-card-grid">
             {liveMatches.map((liveMatch) => (
-              <LiveMatchCard key={liveMatch.match.id} liveMatch={liveMatch} players={state.players} onSelect={() => setSelectedMatchId(liveMatch.match.id)} />
+              <LiveMatchCard key={liveMatch.match.id} liveMatch={liveMatch} players={state.players} isReadOnly={isControllerReadOnly} onSelect={() => setSelectedMatchId(liveMatch.match.id)} />
             ))}
           </div>
         </section>
@@ -476,13 +485,24 @@ export function LiveScoringApp() {
         <section className="flex flex-col gap-2" data-testid="live-standings-section">
           <h2 className="text-xl font-black uppercase">{t("remoteTopStandings")}</h2>
           <StandingsTable standings={standings} variant="compactLive" />
-          <RoundNavigationButtons canGoPrevious={state.activeRoundNumber > 1} canGoNext={nextRoundIsAvailable} onNext={handleNextRound} onPrevious={handlePreviousRound} testId="live-bottom-round-navigation" />
+          {!isControllerReadOnly ? <RoundNavigationButtons canGoPrevious={state.activeRoundNumber > 1} canGoNext={nextRoundIsAvailable} onNext={handleNextRound} onPrevious={handlePreviousRound} testId="live-bottom-round-navigation" /> : null}
         </section>
       </div>
 
-      {selectedMatch ? (
+      {selectedMatch && !isControllerReadOnly ? (
         <ScoreSheet liveMatch={selectedMatch} players={state.players} state={state} onClose={() => setSelectedMatchId(null)} onSave={handleSave} />
       ) : null}
+    </div>
+  );
+}
+
+function ControllerReadOnlyNotice() {
+  const { t } = useAppTranslation();
+
+  return (
+    <div className="rounded-md border border-yellow-300 bg-yellow-50 p-3 text-sm font-bold text-yellow-900" data-testid="controller-read-only-notice">
+      <p className="font-black">{t("remoteControlledByOtherUser")}</p>
+      <p className="mt-1">{t("remoteControlledByOtherUserHelp")}</p>
     </div>
   );
 }
@@ -536,6 +556,7 @@ function PoolPlayLiveView({
   nextPoolProgress,
   finalPoolProgress,
   selectedMatch,
+  isControllerReadOnly,
   toast,
   onAdvance,
   onCloseScoreSheet,
@@ -551,6 +572,7 @@ function PoolPlayLiveView({
   nextPoolProgress: ReturnType<typeof getNextPoolPhaseProgress>;
   finalPoolProgress: ReturnType<typeof getPoolFinalProgress>;
   selectedMatch: PoolMatchView | null;
+  isControllerReadOnly: boolean;
   toast: string;
   onAdvance: () => void;
   onCloseScoreSheet: () => void;
@@ -569,11 +591,11 @@ function PoolPlayLiveView({
           Puljespil · {state.poolPlay.initialStage.participants.length} deltagere · {state.poolPlay.initialStage.pools.length} puljer
         </p>
         <div className="mt-3">
-          <SyncStatusPanel kind="standard" localId={createStandardShadowSaveLocalId(state)} state={state} />
+          {isControllerReadOnly ? <ControllerReadOnlyNotice /> : <SyncStatusPanel kind="standard" localId={createStandardShadowSaveLocalId(state)} state={state} />}
         </div>
-        <div className="mt-4 action-grid">
+        {!isControllerReadOnly ? <div className="mt-4 action-grid">
           <Link className="btn-outline-primary" href="/finish">Afslut turnering</Link>
-        </div>
+        </div> : null}
       </div>
 
       <div className="grid gap-3 sm:grid-cols-4">
@@ -588,6 +610,7 @@ function PoolPlayLiveView({
         poolProgress={poolProgress}
         nextPoolProgress={nextPoolProgress}
         finalPoolProgress={finalPoolProgress}
+        isReadOnly={isControllerReadOnly}
         onAdvance={onAdvance}
       />
 
@@ -635,7 +658,7 @@ function PoolPlayLiveView({
                 <h3 id={`${group.poolId}-next-heading`} className="border-b border-[var(--line)] pb-2 text-lg font-black">{group.poolName}</h3>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {group.matches.map((match) => (
-                    <PoolMatchCard key={match.id} match={match} onSelect={() => onSelectMatch(match.id)} />
+                    <PoolMatchCard key={match.id} match={match} isReadOnly={isControllerReadOnly} onSelect={() => onSelectMatch(match.id)} />
                   ))}
                 </div>
               </section>
@@ -660,7 +683,7 @@ function PoolPlayLiveView({
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {placementTiebreakMatchViews.map((match) => (
-              <PoolMatchCard key={match.id} match={match} onSelect={() => onSelectMatch(match.id)} />
+              <PoolMatchCard key={match.id} match={match} isReadOnly={isControllerReadOnly} onSelect={() => onSelectMatch(match.id)} />
             ))}
           </div>
         </section>
@@ -674,7 +697,7 @@ function PoolPlayLiveView({
               <h3 id={`${pool.id}-heading`} className="border-b border-[var(--line)] pb-2 text-lg font-black">{pool.name}</h3>
               <div className="grid gap-3 sm:grid-cols-2">
                 {poolMatchViews.filter((match) => match.poolId === pool.id).map((match) => (
-                  <PoolMatchCard key={match.id} match={match} onSelect={() => onSelectMatch(match.id)} />
+                  <PoolMatchCard key={match.id} match={match} isReadOnly={isControllerReadOnly} onSelect={() => onSelectMatch(match.id)} />
                 ))}
               </div>
             </section>
@@ -694,7 +717,7 @@ function PoolPlayLiveView({
         </div>
       </section>
 
-      {selectedMatch ? (
+      {selectedMatch && !isControllerReadOnly ? (
         <PoolScoreSheet match={selectedMatch} onClose={onCloseScoreSheet} onSave={onSaveResult} />
       ) : null}
     </div>
@@ -706,12 +729,14 @@ function PoolPhaseActionPanel({
   poolProgress,
   nextPoolProgress,
   finalPoolProgress,
+  isReadOnly,
   onAdvance,
 }: {
   poolPlay: NonNullable<LiveTournamentState["poolPlay"]>;
   poolProgress: NonNullable<ReturnType<typeof getInitialPoolProgress>>;
   nextPoolProgress: ReturnType<typeof getNextPoolPhaseProgress>;
   finalPoolProgress: ReturnType<typeof getPoolFinalProgress>;
+  isReadOnly: boolean;
   onAdvance: () => void;
 }) {
   if (poolPlay.phase === "crossMatches") {
@@ -730,7 +755,7 @@ function PoolPhaseActionPanel({
                   : "Alle krydskampe skal gemmes før finalerne kan oprettes."}
             </p>
           </div>
-          {poolPlay.crossMatchStage?.participantType !== "player" ? (
+          {poolPlay.crossMatchStage?.participantType !== "player" && !isReadOnly ? (
             <button className="btn-primary disabled:bg-gray-300" type="button" disabled={!canCreateFinals} onClick={onAdvance}>Opret finaler</button>
           ) : null}
         </div>
@@ -769,7 +794,7 @@ function PoolPhaseActionPanel({
             {poolProgress.isComplete ? "Alle indledende puljekampe er gemt." : "Alle puljekampe skal gemmes før næste fase."}
           </p>
         </div>
-        {poolPlay.phase === "initial" ? (
+        {poolPlay.phase === "initial" && !isReadOnly ? (
           <button className="btn-primary disabled:bg-gray-300" type="button" disabled={!poolProgress.isComplete} onClick={onAdvance}>Opret næste fase</button>
         ) : null}
       </div>
@@ -819,7 +844,7 @@ function CrossMatchFinalStagePanel({
   );
 }
 
-function PoolMatchCard({ match, onSelect }: { match: PoolMatchView; onSelect: () => void }) {
+function PoolMatchCard({ isReadOnly, match, onSelect }: { isReadOnly?: boolean; match: PoolMatchView; onSelect: () => void }) {
   const { t } = useAppTranslation();
   const isCompleted = match.teamAPoints !== undefined && match.teamBPoints !== undefined;
 
@@ -832,7 +857,7 @@ function PoolMatchCard({ match, onSelect }: { match: PoolMatchView; onSelect: ()
         </span>
       </div>
       {match.matchesPerTeam ? <p className="mt-2 text-sm font-black text-[var(--primary-strong)]">{match.matchesPerTeam} delkampe</p> : null}
-      <button className="mt-4 grid w-full gap-2 text-left text-lg font-bold" type="button" onClick={onSelect}>
+      <button className="mt-4 grid w-full gap-2 text-left text-lg font-bold disabled:cursor-default" type="button" disabled={isReadOnly} onClick={onSelect}>
         <p className="leading-7">
           <span>{match.teamAName}</span>{" "}
           <span className="text-[var(--muted)]">vs</span>{" "}
@@ -840,7 +865,7 @@ function PoolMatchCard({ match, onSelect }: { match: PoolMatchView; onSelect: ()
         </p>
         <span className="mt-2 text-2xl font-black">{isCompleted ? formatPoolResultScore(match) : "-"}</span>
       </button>
-      <button className="mt-4 min-h-12 w-full rounded-md bg-[var(--primary)] px-3 font-black text-[var(--primary-text)]" type="button" onClick={onSelect}>{isCompleted ? t("editScore") : t("enterScore")}</button>
+      {!isReadOnly ? <button className="mt-4 min-h-12 w-full rounded-md bg-[var(--primary)] px-3 font-black text-[var(--primary-text)]" type="button" onClick={onSelect}>{isCompleted ? t("editScore") : t("enterScore")}</button> : null}
     </article>
   );
 }
@@ -1138,7 +1163,7 @@ function formatPoolPhase(phase: NonNullable<LiveTournamentState["poolPlay"]>["ph
   }
 }
 
-function LiveMatchCard({ liveMatch, players, onSelect }: { liveMatch: LiveMatchView; players: TournamentPlayer[]; onSelect: () => void }) {
+function LiveMatchCard({ isReadOnly, liveMatch, players, onSelect }: { isReadOnly?: boolean; liveMatch: LiveMatchView; players: TournamentPlayer[]; onSelect: () => void }) {
   const { t } = useAppTranslation();
   const match = liveMatch.match;
   const leftPlayers = formatTeamPlayers(match.teamA.playerIds, players);
@@ -1146,13 +1171,13 @@ function LiveMatchCard({ liveMatch, players, onSelect }: { liveMatch: LiveMatchV
 
   return (
     <UnifiedCourtCard
-      actionLabel={liveMatch.result ? t("editScore") : t("enterScore")}
+      actionLabel={isReadOnly ? undefined : liveMatch.result ? t("editScore") : t("enterScore")}
       className="text-left transition hover:border-[var(--primary)] focus-within:ring-4 focus-within:ring-green-100"
       court={`${t("court")} ${match.courtNumber}`}
       density="standard"
       leftPlayers={leftPlayers}
       leftScore={liveMatch.result?.teamAPoints}
-      onAction={onSelect}
+      onAction={isReadOnly ? undefined : onSelect}
       rightPlayers={rightPlayers}
       rightScore={liveMatch.result?.teamBPoints}
       status={liveMatch.status === "Afsluttet" ? t("completed") : liveMatch.status === "Klar" ? t("ready") : liveMatch.status}

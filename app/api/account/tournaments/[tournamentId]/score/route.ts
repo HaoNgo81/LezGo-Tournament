@@ -1,6 +1,7 @@
 import { AuthError, readAccountFromAccessToken } from "@/lib/auth";
 import { readAuthAccessCookie } from "@/lib/auth/cookies";
 import { OwnerMatchScoreConflictError, readOwnedMatchScoreVersions, saveOwnedMatchScore, createStandardTournamentRepository } from "@/lib/database";
+import { canManageAccountTournament } from "@/lib/account/tournament-authority";
 import { createSupabaseRestClient, SupabaseRestClientError } from "@/lib/supabase/rest-client";
 
 export const dynamic = "force-dynamic";
@@ -66,8 +67,8 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
       return Response.json({ ok: false, error: "Tournament was not found." }, { status: 404 });
     }
 
-    if (!canWriteTournament(tournament, account.userId) && account.role !== "admin") {
-      return Response.json({ ok: false, error: "Tournament access was denied." }, { status: 403 });
+    if (!canManageAccountTournament(tournament, account.userId)) {
+      return Response.json({ ok: false, error: "Du har ikke længere adgang til at ændre denne turnering." }, { status: 403 });
     }
 
     if (isTeamVsTeamTournament(tournament)) {
@@ -135,10 +136,6 @@ async function readOwnedTournament(client: ReturnType<typeof createSupabaseRestC
     `id=eq.${encodeURIComponent(tournamentId)}&select=id,owner_user_id,controller_user_id,team_competition_mode,updated_at`,
   );
   return tournament ?? null;
-}
-
-function canWriteTournament(tournament: OwnedTournamentRow, userId: string): boolean {
-  return (tournament.controller_user_id ?? tournament.owner_user_id) === userId;
 }
 
 function isTeamVsTeamTournament(tournament: OwnedTournamentRow): boolean {

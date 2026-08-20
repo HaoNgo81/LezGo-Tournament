@@ -1,6 +1,7 @@
 import { createOrganizerToken, createStandardTournamentRepository, createTeamVsTeamTournamentRepository, readOwnedMatchScoreVersions } from "@/lib/database";
 import { AuthError, readAccountFromAccessToken } from "@/lib/auth";
 import { readAuthAccessCookie } from "@/lib/auth/cookies";
+import { canManageAccountTournament, canReadAccountTournament } from "@/lib/account/tournament-authority";
 import { createSupabaseRestClient, SupabaseRestClientError } from "@/lib/supabase/rest-client";
 
 export const dynamic = "force-dynamic";
@@ -41,10 +42,11 @@ export async function GET(_request: Request, context: RouteContext): Promise<Res
       return Response.json({ ok: false, error: "Tournament was not found." }, { status: 404 });
     }
 
-    if (!canReadTournament(tournament, account.userId) && account.role !== "admin") {
+    if (!canReadAccountTournament(tournament, account.userId) && account.role !== "admin") {
       return Response.json({ ok: false, error: "Tournament access was denied." }, { status: 403 });
     }
 
+    const canManage = canManageAccountTournament(tournament, account.userId);
     const kind = isTeamVsTeamTournament(tournament) ? "team-vs-team" : "standard";
     const state = kind === "team-vs-team"
       ? await createTeamVsTeamTournamentRepository(client).read(tournament.id)
@@ -62,7 +64,8 @@ export async function GET(_request: Request, context: RouteContext): Promise<Res
       updatedAt: tournament.updated_at,
       legacyLocalId,
       matchScoreVersions,
-      organizerToken: legacyLocalId ? createOrganizerToken({ tournamentId: tournament.id, kind, legacyLocalId }) : undefined,
+      canManage,
+      organizerToken: canManage && legacyLocalId ? createOrganizerToken({ tournamentId: tournament.id, kind, legacyLocalId }) : undefined,
     }, {
       headers: {
         "Cache-Control": "no-store, max-age=0",
@@ -84,12 +87,6 @@ export async function GET(_request: Request, context: RouteContext): Promise<Res
 
 function isTeamVsTeamTournament(tournament: OwnedTournamentRow): boolean {
   return tournament.team_competition_mode === "knockout" || tournament.team_competition_mode === "pool";
-}
-
-function canReadTournament(tournament: OwnedTournamentRow, userId: string): boolean {
-  return tournament.created_by_user_id === userId
-    || tournament.controller_user_id === userId
-    || (!tournament.controller_user_id && tournament.owner_user_id === userId);
 }
 
 function isUuid(value: string): boolean {

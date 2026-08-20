@@ -10,6 +10,7 @@ export interface ShadowSaveMetadata {
   status: ShadowSaveStatus;
   supabaseTournamentId?: string;
   organizerToken?: string;
+  canManage?: boolean;
   matchScoreVersions?: Record<string, number>;
   lastLocalSaveAt?: string;
   lastSuccessfulShadowSaveAt?: string;
@@ -121,7 +122,7 @@ export function markRemoteShadowSaveApplied(localId: string, kind: ShadowSaveKin
   return nextMetadata;
 }
 
-export function markCloudTournamentRestored(input: { localId: string; kind: ShadowSaveKind; tournamentId: string; updatedAt?: string; organizerToken?: string; matchScoreVersions?: Record<string, number> }, restoredAt = new Date().toISOString()): ShadowSaveMetadata {
+export function markCloudTournamentRestored(input: { localId: string; kind: ShadowSaveKind; tournamentId: string; updatedAt?: string; organizerToken?: string; canManage?: boolean; matchScoreVersions?: Record<string, number> }, restoredAt = new Date().toISOString()): ShadowSaveMetadata {
   const metadata = loadShadowSaveMetadata(input.localId);
   const nextMetadata: ShadowSaveMetadata = {
     ...metadata,
@@ -129,7 +130,8 @@ export function markCloudTournamentRestored(input: { localId: string; kind: Shad
     kind: input.kind,
     status: "synced",
     supabaseTournamentId: input.tournamentId,
-    organizerToken: input.organizerToken ?? metadata?.organizerToken,
+    organizerToken: input.canManage === false ? undefined : input.organizerToken ?? metadata?.organizerToken,
+    canManage: input.canManage ?? metadata?.canManage ?? true,
     matchScoreVersions: input.matchScoreVersions ?? metadata?.matchScoreVersions,
     lastLocalSaveAt: restoredAt,
     lastSuccessfulShadowSaveAt: restoredAt,
