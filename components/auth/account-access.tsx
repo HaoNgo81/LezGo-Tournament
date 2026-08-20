@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { AccountPanel, type Account } from "./account-panel";
 import { notifyPreferencesChanged, useAppTranslation } from "@/lib/preferences/client";
 import { loadTournamentSettings, saveTournamentSettings } from "@/lib/tournament-settings";
@@ -37,6 +38,19 @@ export function AccountAccess() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isOpen]);
+
   const label = account ? account.displayName || account.username || t("account") : t("accountLogin");
   const openDialog = (view: AccountDialogView) => {
     setDialogView(view);
@@ -48,6 +62,23 @@ export function AccountAccess() {
     saveTournamentSettings({ ...settings, language: nextLanguage });
     notifyPreferencesChanged();
   };
+  const dialog = isOpen ? (
+    <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-black/30 px-4 py-5 sm:px-6 sm:py-6" role="dialog" aria-modal="true" aria-labelledby="account-dialog-title" data-testid="main-account-dialog">
+      <div className="grid min-h-full items-start justify-items-center sm:items-center">
+        <div className="grid max-h-[calc(100dvh-2.5rem)] w-full max-w-xl grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-md border border-[var(--line)] bg-[var(--surface)] shadow-2xl sm:max-h-[calc(100dvh-3rem)]" data-testid="main-account-dialog-panel">
+          <div className="flex shrink-0 items-center justify-between gap-3 px-4 pt-4 pb-3 sm:px-5 sm:pt-5">
+            <h2 id="account-dialog-title" className="text-xl font-black">{t("account")}</h2>
+            <button className="btn-secondary min-h-10 px-3 py-2 text-sm" type="button" onClick={() => setIsOpen(false)}>
+              {t("close")}
+            </button>
+          </div>
+          <div className="min-h-0 overflow-y-auto px-4 pb-4 sm:px-5 sm:pb-5" data-testid="main-account-dialog-scroll">
+            <AccountPanel framed={false} initialView={dialogView} onAccountChange={setAccount} />
+          </div>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   return (
     <>
@@ -103,23 +134,7 @@ export function AccountAccess() {
         </>
       )}
       </div>
-      {isOpen ? (
-        <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-black/30 px-4 py-5 sm:px-6 sm:py-6" role="dialog" aria-modal="true" aria-labelledby="account-dialog-title" data-testid="main-account-dialog">
-          <div className="grid min-h-full items-start justify-items-center sm:items-center">
-            <div className="grid max-h-[calc(100dvh-2.5rem)] w-full max-w-xl grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-md border border-[var(--line)] bg-[var(--surface)] shadow-2xl sm:max-h-[calc(100dvh-3rem)]" data-testid="main-account-dialog-panel">
-              <div className="flex shrink-0 items-center justify-between gap-3 px-4 pt-4 pb-3 sm:px-5 sm:pt-5">
-                <h2 id="account-dialog-title" className="text-xl font-black">{t("account")}</h2>
-                <button className="btn-secondary min-h-10 px-3 py-2 text-sm" type="button" onClick={() => setIsOpen(false)}>
-                  {t("close")}
-                </button>
-              </div>
-              <div className="min-h-0 overflow-y-auto px-4 pb-4 sm:px-5 sm:pb-5" data-testid="main-account-dialog-scroll">
-                <AccountPanel framed={false} initialView={dialogView} onAccountChange={setAccount} />
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      {dialog ? createPortal(dialog, document.body) : null}
     </>
   );
 }

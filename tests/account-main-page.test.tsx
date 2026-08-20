@@ -68,6 +68,8 @@ describe("STEP 25I-C1-B main page account UI", () => {
     fireEvent.click(loginButton);
 
     const dialog = await screen.findByTestId("main-account-dialog");
+    expect(topBar).not.toContainElement(dialog);
+    expect(document.body).toContainElement(dialog);
     expect(within(dialog).getByRole("heading", { name: "Konto" })).toBeInTheDocument();
     expect(within(dialog).getByLabelText("Email eller brugernavn")).toBeInTheDocument();
     expect(within(dialog).getByLabelText("6-tegns kode")).toHaveAttribute("type", "password");
@@ -94,6 +96,8 @@ describe("STEP 25I-C1-B main page account UI", () => {
     fireEvent.click(await screen.findByTestId("main-account-create-control"));
 
     const dialog = await screen.findByTestId("main-account-dialog");
+    expect(screen.getByTestId("main-account-top-bar")).not.toContainElement(dialog);
+    expect(document.body).toHaveStyle({ overflow: "hidden" });
     expectUsableAccountModalShell(dialog);
     expect(within(dialog).getByRole("heading", { name: "Konto" })).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Opret bruger" })).toBeInTheDocument();
@@ -121,6 +125,20 @@ describe("STEP 25I-C1-B main page account UI", () => {
     expect(scrollArea).toContainElement(within(dialog).getByLabelText("6-tegns kode"));
     expect(scrollArea).toContainElement(within(dialog).getByLabelText("Gentag kode"));
     expect(scrollArea).toContainElement(within(dialog).getByRole("button", { name: "Har du allerede en bruger? Log ind" }));
+  });
+
+  it("restores page scrolling after the account modal closes", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: false }), { status: 401 })));
+
+    render(<HomePage />);
+    fireEvent.click(await screen.findByTestId("main-account-create-control"));
+
+    const dialog = await screen.findByTestId("main-account-dialog");
+    expect(document.body).toHaveStyle({ overflow: "hidden" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Luk" }));
+
+    await waitFor(() => expect(screen.queryByTestId("main-account-dialog")).not.toBeInTheDocument());
+    expect(document.body).not.toHaveStyle({ overflow: "hidden" });
   });
 
   it("uses the same non-collapsing modal shell for forgot-code recovery", async () => {
