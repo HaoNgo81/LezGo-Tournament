@@ -54,6 +54,8 @@ describe("STEP 25I-C1-B main page account UI", () => {
     expect(within(dialog).getByRole("heading", { name: "Konto" })).toBeInTheDocument();
     expect(within(dialog).getByLabelText("Email eller brugernavn")).toBeInTheDocument();
     expect(within(dialog).getByLabelText("6-tegns kode")).toHaveAttribute("type", "password");
+    expect(dialog).toHaveClass("overflow-y-auto");
+    expect(screen.getByTestId("main-account-dialog-panel")).toHaveClass("max-h-[calc(100svh-2.5rem)]", "overflow-y-auto");
   });
 
   it("changes language from the premium top bar through the existing preferences system", async () => {
@@ -76,6 +78,8 @@ describe("STEP 25I-C1-B main page account UI", () => {
     fireEvent.click(await screen.findByTestId("main-account-create-control"));
 
     const dialog = await screen.findByTestId("main-account-dialog");
+    expect(dialog).toHaveClass("overflow-y-auto", "overscroll-contain", "py-5");
+    expect(screen.getByTestId("main-account-dialog-panel")).toHaveClass("max-h-[calc(100svh-2.5rem)]", "sm:max-h-[calc(100svh-3rem)]", "overflow-y-auto");
     expect(within(dialog).getByRole("heading", { name: "Konto" })).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Opret bruger" })).toBeInTheDocument();
     expect(within(dialog).getByLabelText("Navn")).toBeInTheDocument();
@@ -249,6 +253,7 @@ describe("STEP 25I-C1-B main page account UI", () => {
     const dialog = await screen.findByTestId("main-account-dialog");
     fireEvent.click(within(dialog).getByRole("button", { name: "Glemt kode?" }));
     expect(within(dialog).getByText("Indtast den email, der er tilknyttet din konto.")).toBeInTheDocument();
+    expect(screen.getByTestId("main-account-dialog-panel")).toHaveClass("overflow-y-auto");
     fireEvent.change(within(dialog).getByLabelText("E-mail"), { target: { value: "ukendt@example.com" } });
     fireEvent.submit(within(dialog).getByRole("button", { name: "Send vejledning" }).closest("form") as HTMLFormElement);
 

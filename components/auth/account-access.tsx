@@ -104,15 +104,17 @@ export function AccountAccess() {
       )}
       </div>
       {isOpen ? (
-        <div className="fixed inset-0 z-50 grid place-items-end bg-black/30 p-0 sm:place-items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="account-dialog-title" data-testid="main-account-dialog">
-          <div className="max-h-[92svh] w-full max-w-xl overflow-y-auto rounded-t-md border border-[var(--line)] bg-[var(--surface)] p-4 shadow-2xl sm:rounded-md sm:p-5">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <h2 id="account-dialog-title" className="text-xl font-black">{t("account")}</h2>
-              <button className="btn-secondary min-h-10 px-3 py-2 text-sm" type="button" onClick={() => setIsOpen(false)}>
-                {t("close")}
-              </button>
+        <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-black/30 px-4 py-5 sm:px-6 sm:py-6" role="dialog" aria-modal="true" aria-labelledby="account-dialog-title" data-testid="main-account-dialog">
+          <div className="flex min-h-full items-start justify-center sm:items-center">
+            <div className="max-h-[calc(100svh-2.5rem)] w-full max-w-xl overflow-y-auto rounded-md border border-[var(--line)] bg-[var(--surface)] p-4 shadow-2xl sm:max-h-[calc(100svh-3rem)] sm:p-5" data-testid="main-account-dialog-panel">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h2 id="account-dialog-title" className="text-xl font-black">{t("account")}</h2>
+                <button className="btn-secondary min-h-10 px-3 py-2 text-sm" type="button" onClick={() => setIsOpen(false)}>
+                  {t("close")}
+                </button>
+              </div>
+              <AccountPanel framed={false} initialView={dialogView} onAccountChange={setAccount} />
             </div>
-            <AccountPanel framed={false} initialView={dialogView} onAccountChange={setAccount} />
           </div>
         </div>
       ) : null}
