@@ -20,7 +20,7 @@ function runServiceWorkerScript(hostname: string) {
     URL,
     caches: {
       delete: cacheDelete,
-      keys: vi.fn().mockResolvedValue(["lezgo-padel-v1", "lezgo-padel-v2", "lezgo-padel-v3"]),
+        keys: vi.fn().mockResolvedValue(["lezgo-padel-v1", "lezgo-padel-v2", "lezgo-padel-v3", "lezgo-padel-v4"]),
       match: vi.fn().mockResolvedValue(new Response("cached")),
       open: cacheOpen,
     },
@@ -61,6 +61,7 @@ describe("service worker script", () => {
     expect(serviceWorker.cacheDelete).toHaveBeenCalledWith("lezgo-padel-v1");
     expect(serviceWorker.cacheDelete).toHaveBeenCalledWith("lezgo-padel-v2");
     expect(serviceWorker.cacheDelete).toHaveBeenCalledWith("lezgo-padel-v3");
+    expect(serviceWorker.cacheDelete).toHaveBeenCalledWith("lezgo-padel-v4");
     expect(serviceWorker.claim).toHaveBeenCalled();
     expect(serviceWorker.unregister).toHaveBeenCalled();
     expect(serviceWorker.cacheOpen).not.toHaveBeenCalled();
@@ -76,12 +77,13 @@ describe("service worker script", () => {
     await Promise.all(installPromises);
     await Promise.all(activatePromises);
 
-    expect(serviceWorker.cacheOpen).toHaveBeenCalledWith("lezgo-padel-v3");
-    expect(serviceWorker.cacheAddAll).toHaveBeenCalledWith(["/", "/new-tournament", "/tournaments", "/templates", "/settings"]);
+    expect(serviceWorker.cacheOpen).toHaveBeenCalledWith("lezgo-padel-v4");
+    expect(serviceWorker.cacheAddAll).toHaveBeenCalledWith(["/", "/new-tournament", "/tournaments", "/templates"]);
     expect(serviceWorker.skipWaiting).toHaveBeenCalled();
     expect(serviceWorker.cacheDelete).toHaveBeenCalledWith("lezgo-padel-v1");
     expect(serviceWorker.cacheDelete).toHaveBeenCalledWith("lezgo-padel-v2");
-    expect(serviceWorker.cacheDelete).not.toHaveBeenCalledWith("lezgo-padel-v3");
+    expect(serviceWorker.cacheDelete).toHaveBeenCalledWith("lezgo-padel-v3");
+    expect(serviceWorker.cacheDelete).not.toHaveBeenCalledWith("lezgo-padel-v4");
     expect(serviceWorker.claim).toHaveBeenCalled();
     expect(serviceWorker.unregister).not.toHaveBeenCalled();
   });

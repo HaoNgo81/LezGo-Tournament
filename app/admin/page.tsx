@@ -10,7 +10,7 @@ export default async function AdminPage() {
   try {
     admin = await assertAdminAccount(await readAuthAccessCookie());
   } catch {
-    redirect("/settings");
+    redirect("/");
   }
 
   return (

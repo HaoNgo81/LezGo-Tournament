@@ -1,6 +1,6 @@
-const CACHE_NAME = "lezgo-padel-v3";
+const CACHE_NAME = "lezgo-padel-v4";
 const SCOPE_PATH = new URL(self.registration.scope).pathname.replace(/\/$/, "");
-const APP_SHELL_ROUTES = ["/", "/new-tournament", "/tournaments", "/templates", "/settings"];
+const APP_SHELL_ROUTES = ["/", "/new-tournament", "/tournaments", "/templates"];
 const APP_SHELL = APP_SHELL_ROUTES.map((route) => `${SCOPE_PATH}${route}`);
 const LOCAL_HOST_PATTERNS = [
   /^localhost$/,

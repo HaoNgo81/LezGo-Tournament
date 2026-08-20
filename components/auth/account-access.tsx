@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AccountPanel, type Account, type AccountView } from "./account-panel";
 import { notifyPreferencesChanged, useAppTranslation } from "@/lib/preferences/client";
@@ -9,7 +9,11 @@ import type { AppLanguage } from "@/lib/i18n/translations";
 
 type AccountDialogView = Extract<AccountView, "login" | "create">;
 
-export function AccountAccess() {
+interface AccountAccessProps {
+  onAccountChange?: (account: Account | null) => void;
+}
+
+export function AccountAccess({ onAccountChange }: AccountAccessProps) {
   const { language, t } = useAppTranslation();
   const [account, setAccount] = useState<Account | null>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -27,6 +31,7 @@ export function AccountAccess() {
 
         if (!isDisposed && response.ok && body.ok && body.account) {
           setAccount(body.account);
+          onAccountChange?.(body.account);
         }
       } catch {
         // Signed-out users keep the compact login entry point.
@@ -38,7 +43,7 @@ export function AccountAccess() {
     return () => {
       isDisposed = true;
     };
-  }, []);
+  }, [onAccountChange]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -75,6 +80,10 @@ export function AccountAccess() {
   }, [isOpen]);
 
   const label = account ? account.displayName || account.username || t("account") : t("accountLogin");
+  const handlePanelAccountChange = useCallback((nextAccount: Account | null) => {
+    setAccount(nextAccount);
+    onAccountChange?.(nextAccount);
+  }, [onAccountChange]);
   const openDialog = (view: AccountDialogView) => {
     setDialogView(view);
     setDialogMessage("");
@@ -97,7 +106,7 @@ export function AccountAccess() {
             </button>
           </div>
           <div className="min-h-0 overflow-y-auto px-4 pb-4 sm:px-5 sm:pb-5" data-testid="main-account-dialog-scroll">
-            <AccountPanel framed={false} initialView={dialogView} initialMessage={dialogMessage} onAccountChange={setAccount} />
+            <AccountPanel framed={false} initialView={dialogView} initialMessage={dialogMessage} onAccountChange={handlePanelAccountChange} />
           </div>
         </div>
       </div>

@@ -64,7 +64,7 @@ describe("STEP 25I-C1-B main page account UI", () => {
     expect(screen.getByRole("link", { name: /Turneringsskabeloner/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /^Turneringer/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Åbn turnering fra anden enhed/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /^Indstillinger/i })).toHaveAttribute("href", "/settings");
+    expect(screen.queryByRole("link", { name: /^Indstillinger/i })).not.toBeInTheDocument();
 
     fireEvent.click(loginButton);
 
@@ -163,6 +163,42 @@ describe("STEP 25I-C1-B main page account UI", () => {
 
     expect(await screen.findByTestId("main-account-control")).toHaveTextContent("Log in");
     expect(screen.getByTestId("main-account-create-control")).toHaveTextContent("Create account");
+    expect(screen.queryByRole("link", { name: /^Settings/i })).not.toBeInTheDocument();
+  });
+
+  it("shows the global settings card and admin indicator only for admin accounts", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === "/api/auth/me") {
+        return new Response(JSON.stringify({
+          ok: true,
+          account: {
+            userId: "00000000-0000-4000-8000-00000000ad01",
+            email: "admin@example.com",
+            displayName: "Admin User",
+            username: "admin",
+            role: "admin",
+          },
+        }), { status: 200 });
+      }
+
+      if (url === "/api/account/tournaments") {
+        return new Response(JSON.stringify({ ok: true, tournaments: [] }), { status: 200 });
+      }
+
+      return new Response(JSON.stringify({ ok: false }), { status: 404 });
+    }));
+
+    render(<HomePage />);
+
+    await waitFor(() => expect(screen.getByTestId("main-account-control")).toHaveTextContent("Admin User"));
+    expect(screen.getByRole("link", { name: /^Indstillinger/i })).toHaveAttribute("href", "/settings");
+
+    fireEvent.click(screen.getByTestId("main-account-control"));
+    const dialog = await screen.findByTestId("main-account-dialog");
+    expect(within(dialog).getByText("ADMIN")).toBeInTheDocument();
+    expect(within(dialog).getByRole("link", { name: "Admin" })).toHaveAttribute("href", "/admin");
   });
 
   it("logs in with email and code through the C1-A credential endpoint", async () => {
@@ -206,6 +242,7 @@ describe("STEP 25I-C1-B main page account UI", () => {
     await waitFor(() => expect(screen.getByTestId("main-account-control")).toHaveTextContent("Hao"));
     expect(screen.getByTestId("main-account-control")).not.toHaveTextContent("hao@example.com");
     expect(screen.queryByTestId("main-account-create-control")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /^Indstillinger/i })).not.toBeInTheDocument();
   });
 
   it("logs in with username and code through the same C1-A credential endpoint", async () => {
@@ -498,6 +535,7 @@ describe("STEP 25I-C1-B main page account UI", () => {
 
     await waitFor(() => expect(screen.getByTestId("main-account-control")).toHaveTextContent("Owner"));
     expect(screen.getByTestId("main-account-control")).not.toHaveTextContent("owner@example.com");
+    expect(screen.queryByRole("link", { name: /^Indstillinger/i })).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("main-account-control"));
 
     const dialog = await screen.findByTestId("main-account-dialog");
