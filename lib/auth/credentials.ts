@@ -170,6 +170,7 @@ export async function createCredentialAccount(input: {
       email: authUser.email,
       displayName,
       username,
+      updateExistingDisplayName: true,
     }, client);
   } catch (error) {
     await deleteAuthUserBestEffort(authUser.id);

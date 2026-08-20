@@ -118,6 +118,7 @@ export async function verifyEmailOtp(input: { email: string; token: string; disp
     userId: user.id,
     email: user.email,
     displayName,
+    updateExistingDisplayName: Boolean(input.displayName),
   });
 
   return {
@@ -157,7 +158,7 @@ export async function assertAdminAccount(accessToken: string | undefined, client
   return account;
 }
 
-export async function upsertAndReadProfile(input: { userId: string; email: string; displayName: string; username?: string }, client: SupabaseRestClient = createSupabaseRestClient()): Promise<AuthenticatedAccount> {
+export async function upsertAndReadProfile(input: { userId: string; email: string; displayName: string; username?: string; updateExistingDisplayName?: boolean }, client: SupabaseRestClient = createSupabaseRestClient()): Promise<AuthenticatedAccount> {
   validateUuid(input.userId, "userId");
   const displayName = sanitizeDisplayName(input.displayName);
   const email = normalizeEmail(input.email);
@@ -168,7 +169,7 @@ export async function upsertAndReadProfile(input: { userId: string; email: strin
   if (existingProfile) {
     const patch: Record<string, unknown> = {};
 
-    if (existingProfile.display_name !== displayName && displayName) {
+    if ((!existingProfile.display_name || input.updateExistingDisplayName) && existingProfile.display_name !== displayName && displayName) {
       patch.display_name = displayName;
     }
 

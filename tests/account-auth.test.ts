@@ -52,7 +52,7 @@ describe("STEP 25I account auth foundation", () => {
     expect(client.insertedRole).toBe("user");
   });
 
-  it("does not demote an existing admin profile during login/profile refresh", async () => {
+  it("does not demote or rename an existing admin profile during login/profile refresh", async () => {
     const client = createProfileMemoryClient("admin");
 
     const account = await upsertAndReadProfile({
@@ -62,8 +62,37 @@ describe("STEP 25I account auth foundation", () => {
     }, client);
 
     expect(account.role).toBe("admin");
+    expect(account.displayName).toBe("Profile Name");
     expect(client.insertedRole).toBe("");
-    expect(client.updatedDisplayName).toBe("Updated Admin Name");
+    expect(client.updatedDisplayName).toBe("");
+  });
+
+  it("updates an existing profile name only when the flow explicitly allows it", async () => {
+    const client = createProfileMemoryClient("user");
+
+    const account = await upsertAndReadProfile({
+      userId: "00000000-0000-4000-8000-000000000902",
+      email: "user@example.com",
+      displayName: "Test Person",
+      updateExistingDisplayName: true,
+    }, client);
+
+    expect(account.displayName).toBe("Test Person");
+    expect(client.updatedDisplayName).toBe("Test Person");
+  });
+
+  it("keeps a stored profile name over an email-derived fallback", async () => {
+    const client = createProfileMemoryClient("user");
+
+    const account = await upsertAndReadProfile({
+      userId: "00000000-0000-4000-8000-000000000902",
+      email: "example@example.com",
+      displayName: "example",
+    }, client);
+
+    expect(account.displayName).toBe("Profile Name");
+    expect(account.displayName).not.toBe("example");
+    expect(client.updatedDisplayName).toBe("");
   });
 
   it("denies admin authorization for a normal user and allows trusted admin role", async () => {
@@ -123,8 +152,10 @@ function createProfileMemoryClient(role: "admin" | "user", options: { existingPr
       return [profile] as T[];
     },
     async update<T>(_table: string, _query: string, patch: Record<string, unknown>): Promise<T[]> {
-      client.updatedDisplayName = String(patch.display_name);
-      profile.display_name = client.updatedDisplayName;
+      if (typeof patch.display_name === "string") {
+        client.updatedDisplayName = patch.display_name;
+        profile.display_name = client.updatedDisplayName;
+      }
       return [profile] as T[];
     },
     async delete(): Promise<void> {

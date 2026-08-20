@@ -365,6 +365,39 @@ describe("STEP 25I-C1-A credential foundation", () => {
     expect(requestBodies[0].password).not.toBe("ABC123");
   });
 
+  it("preserves the stored profile name during credential login instead of deriving it from the email local-part", async () => {
+    configureAuthEnv();
+    const client = createCredentialProfileClient({
+      usernameProfiles: [{
+        user_id: "00000000-0000-4000-8000-000000000902",
+        display_name: "Hao Trinh Ngo",
+        role: "user",
+        username: "haongo",
+        email: "haongo81@live.dk",
+      }],
+    });
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({
+      access_token: "access-token",
+      refresh_token: "refresh-token",
+      expires_in: 3600,
+      user: {
+        id: "00000000-0000-4000-8000-000000000902",
+        email: "haongo81@live.dk",
+        email_confirmed_at: "2026-08-20T10:00:00.000Z",
+        confirmed_at: "2026-08-20T10:00:00.000Z",
+        user_metadata: {},
+      },
+    }), { status: 200 }));
+
+    const result = await loginWithCredential({ identifier: "HaoNgo81@live.dk", code: "AbC123", client });
+
+    expect(result.account.displayName).toBe("Hao Trinh Ngo");
+    expect(result.account.displayName).not.toBe("haongo81");
+    expect(result.account.username).toBe("haongo");
+    expect(result.account.email).toBe("haongo81@live.dk");
+    expect(client.updatedPatches).toEqual([]);
+  });
+
   it("blocks email and username login before Supabase email verification", async () => {
     configureAuthEnv();
     const client = createCredentialProfileClient({
@@ -689,8 +722,14 @@ function createCredentialProfileClient(options: { usernameProfiles?: TestProfile
   const profiles = new Map<string, TestProfile>();
   const usernameProfiles = options.usernameProfiles ?? [];
   const emailProfiles = options.emailProfiles ?? [];
+
+  for (const profile of [...usernameProfiles, ...emailProfiles]) {
+    profiles.set(profile.user_id, profile);
+  }
+
   const client = {
     insertedProfile: null as null | Record<string, unknown>,
+    updatedPatches: [] as Array<Record<string, unknown>>,
     async rpc<T>(): Promise<T> {
       throw new Error("rpc is not used.");
     },
@@ -735,6 +774,7 @@ function createCredentialProfileClient(options: { usernameProfiles?: TestProfile
       return [profile] as T[];
     },
     async update<T>(_table: string, query: string, patch: Record<string, unknown>): Promise<T[]> {
+      client.updatedPatches.push(patch);
       const userId = decodeURIComponent(query.match(/user_id=eq\.([^&]+)/)?.[1] ?? "");
       const existing = profiles.get(userId) ?? {
         user_id: userId,

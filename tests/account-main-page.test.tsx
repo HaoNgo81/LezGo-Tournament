@@ -421,6 +421,42 @@ describe("STEP 25I-C1-B main page account UI", () => {
     expect(window.location.search).not.toContain("accountVerified");
   });
 
+  it("renders stored profile name username and email without using the email local-part as the account name", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === "/api/auth/me") {
+        return new Response(JSON.stringify({
+          ok: true,
+          account: {
+            userId: "00000000-0000-4000-8000-000000000902",
+            email: "example@example.com",
+            displayName: "Test Person",
+            username: "TestUser",
+            role: "user",
+          },
+        }), { status: 200 });
+      }
+
+      if (url === "/api/account/tournaments") {
+        return new Response(JSON.stringify({ ok: true, tournaments: [] }), { status: 200 });
+      }
+
+      return new Response(JSON.stringify({ ok: false }), { status: 404 });
+    }));
+
+    render(<HomePage />);
+
+    await waitFor(() => expect(screen.getByTestId("main-account-control")).toHaveTextContent("Test Person"));
+    fireEvent.click(screen.getByTestId("main-account-control"));
+
+    const dialog = await screen.findByTestId("main-account-dialog");
+    expect(within(dialog).getByText("Test Person")).toBeInTheDocument();
+    expect(within(dialog).getByText("@TestUser")).toBeInTheDocument();
+    expect(within(dialog).getByText("example@example.com")).toBeInTheDocument();
+    expect(within(dialog).queryByText("example")).not.toBeInTheDocument();
+  });
+
   it("shows display name or username, own tournament list and logout for signed-in users", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
