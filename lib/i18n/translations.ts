@@ -5,6 +5,7 @@ export type TranslationKey =
   | "active"
   | "account"
   | "accountAlreadyHaveLogin"
+  | "accountBackToLogin"
   | "accountCode"
   | "accountCodeCouldNotReset"
   | "accountCodeMismatch"
@@ -16,6 +17,9 @@ export type TranslationKey =
   | "accountCreated"
   | "accountCreateError"
   | "accountEmail"
+  | "accountEmailNotVerified"
+  | "accountEmailVerificationFailed"
+  | "accountEmailVerifiedMessage"
   | "accountForgotCode"
   | "accountForgotCodeHelp"
   | "accountGenericRecovery"
@@ -35,14 +39,20 @@ export type TranslationKey =
   | "accountOpenTournament"
   | "accountOwnTournaments"
   | "accountRepeatCode"
+  | "accountResendVerification"
   | "accountSaveNewCode"
   | "accountSendInstructions"
   | "accountShowCode"
   | "accountSignedIn"
   | "accountTournamentOpenError"
   | "accountUsername"
+  | "accountVerificationEmailResent"
+  | "accountVerificationEmailSent"
+  | "accountVerificationResendError"
   | "accountVerificationCode"
   | "accountVerify"
+  | "accountVerifyEmailBody"
+  | "accountVerifyEmailTitle"
   | "admin"
   | "adminAccessDenied"
   | "adminDescription"
@@ -296,6 +306,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     active: "Aktive",
     account: "Konto",
     accountAlreadyHaveLogin: "Har du allerede en bruger? Log ind",
+    accountBackToLogin: "Tilbage til log ind",
     accountCode: "6-tegns kode",
     accountCodeCouldNotReset: "Koden kunne ikke gemmes.",
     accountCodeMismatch: "Koderne er ikke ens.",
@@ -307,6 +318,9 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountCreated: "Brugeren er oprettet. Log ind med email eller brugernavn og din kode.",
     accountCreateError: "Brugeren kunne ikke oprettes.",
     accountEmail: "E-mail",
+    accountEmailNotVerified: "Din e-mail er ikke bekræftet endnu. Tjek din indbakke.",
+    accountEmailVerificationFailed: "E-mailen kunne ikke bekræftes. Prøv linket igen, eller send en ny mail.",
+    accountEmailVerifiedMessage: "E-mail bekræftet. Din konto er nu aktiveret. Du kan logge ind.",
     accountForgotCode: "Glemt kode",
     accountForgotCodeHelp: "Indtast den email, der er tilknyttet din konto.",
     accountGenericRecovery: "Hvis emailen er tilknyttet en konto, har vi sendt en mail med instruktioner.",
@@ -326,14 +340,20 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountOpenTournament: "Åbn turnering",
     accountOwnTournaments: "Mine turneringer",
     accountRepeatCode: "Gentag kode",
+    accountResendVerification: "Send mail igen",
     accountSaveNewCode: "Gem ny kode",
     accountSendInstructions: "Send vejledning",
     accountShowCode: "Vis kode",
     accountSignedIn: "Logget ind",
     accountTournamentOpenError: "Turneringen kunne ikke åbnes fra Supabase.",
     accountUsername: "Brugernavn",
+    accountVerificationEmailResent: "Hvis e-mailen kan bekræftes, har vi sendt en ny mail.",
+    accountVerificationEmailSent: "Vi har sendt et bekræftelseslink til din e-mail.",
+    accountVerificationResendError: "Bekræftelsesmailen kunne ikke sendes lige nu.",
     accountVerificationCode: "Verifikationskode",
     accountVerify: "Bekræft",
+    accountVerifyEmailBody: "Vi har sendt et bekræftelseslink til din e-mail. Åbn mailen og tryk på linket for at aktivere din konto.",
+    accountVerifyEmailTitle: "Bekræft din e-mail",
     admin: "Admin",
     adminAccessDenied: "Admin-adgang blev afvist.",
     adminDescription: "Beskyttet område for systemadministration.",
@@ -586,6 +606,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     active: "Active",
     account: "Account",
     accountAlreadyHaveLogin: "Already have an account? Log in",
+    accountBackToLogin: "Back to log in",
     accountCode: "6-character code",
     accountCodeCouldNotReset: "The code could not be saved.",
     accountCodeMismatch: "The codes do not match.",
@@ -597,6 +618,9 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountCreated: "The account has been created. Log in with email or username and your code.",
     accountCreateError: "The account could not be created.",
     accountEmail: "Email",
+    accountEmailNotVerified: "Your email is not verified yet. Check your inbox.",
+    accountEmailVerificationFailed: "The email could not be verified. Try the link again or send a new email.",
+    accountEmailVerifiedMessage: "Email verified. Your account is now active. You can log in.",
     accountForgotCode: "Forgot code",
     accountForgotCodeHelp: "Enter the email linked to your account.",
     accountGenericRecovery: "If the email is linked to an account, we have sent recovery instructions.",
@@ -616,14 +640,20 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountOpenTournament: "Open tournament",
     accountOwnTournaments: "My tournaments",
     accountRepeatCode: "Repeat code",
+    accountResendVerification: "Send email again",
     accountSaveNewCode: "Save new code",
     accountSendInstructions: "Send instructions",
     accountShowCode: "Show code",
     accountSignedIn: "Signed in",
     accountTournamentOpenError: "The tournament could not be opened from Supabase.",
     accountUsername: "Username",
+    accountVerificationEmailResent: "If the email can be verified, we have sent a new email.",
+    accountVerificationEmailSent: "We have sent a verification link to your email.",
+    accountVerificationResendError: "The verification email could not be sent right now.",
     accountVerificationCode: "Verification code",
     accountVerify: "Verify",
+    accountVerifyEmailBody: "We have sent a verification link to your email. Open the email and press the link to activate your account.",
+    accountVerifyEmailTitle: "Verify your email",
     admin: "Admin",
     adminAccessDenied: "Admin access was denied.",
     adminDescription: "Protected area for system administration.",

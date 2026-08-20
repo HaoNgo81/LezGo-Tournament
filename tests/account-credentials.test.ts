@@ -5,9 +5,12 @@ import {
   loginWithCredential,
   normalizeLoginCode,
   normalizeUsername,
+  resendCredentialVerification,
   requestLoginCodeRecovery,
   updateLoginCodeWithSession,
+  verifyCredentialEmailToken,
 } from "../lib/auth";
+import { getCredentialEmailRedirectTo } from "../lib/auth/credential-redirect";
 import { resetAuthRateLimitForTests } from "../lib/auth/rate-limit";
 
 describe("STEP 25I-C1-A credential foundation", () => {
@@ -16,9 +19,11 @@ describe("STEP 25I-C1-A credential foundation", () => {
   const originalServerUrl = process.env.SUPABASE_URL;
   const originalServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const originalAccountCredentialSecret = process.env.LEZGO_ACCOUNT_CREDENTIAL_SECRET;
+  const originalVercelEnv = process.env.VERCEL_ENV;
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.useRealTimers();
     resetAuthRateLimitForTests();
 
     if (originalSupabaseUrl === undefined) {
@@ -50,6 +55,12 @@ describe("STEP 25I-C1-A credential foundation", () => {
     } else {
       process.env.LEZGO_ACCOUNT_CREDENTIAL_SECRET = originalAccountCredentialSecret;
     }
+
+    if (originalVercelEnv === undefined) {
+      delete process.env.VERCEL_ENV;
+    } else {
+      process.env.VERCEL_ENV = originalVercelEnv;
+    }
   });
 
   it("validates username and login code normalization without accepting invalid code shapes", () => {
@@ -66,13 +77,23 @@ describe("STEP 25I-C1-A credential foundation", () => {
     expect(() => normalizeLoginCode("abc!12")).toThrow();
   });
 
-  it("creates a USER account with username metadata and no raw role choice", async () => {
+  it("uses the locked production origin for credential email verification redirects", () => {
+    process.env.VERCEL_ENV = "production";
+
+    expect(getCredentialEmailRedirectTo("https://app.lezgopadel.dk/register")).toBe("https://lezgotournament.vercel.app/?accountVerified=verified");
+    expect(getCredentialEmailRedirectTo("https://lez-go-tournament.vercel.app/register", "error")).toBe("https://lezgotournament.vercel.app/?accountVerified=error");
+  });
+
+  it("creates a pending USER account with Supabase email verification and no raw role choice", async () => {
     configureAuthEnv();
     const client = createCredentialProfileClient();
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
       user: {
         id: "00000000-0000-4000-8000-000000000901",
         email: "user@example.com",
+        email_confirmed_at: null,
+        confirmed_at: null,
+        created_at: "2026-08-20T10:00:00.000Z",
         user_metadata: {
           display_name: "User One",
           username: "hao",
@@ -86,6 +107,7 @@ describe("STEP 25I-C1-A credential foundation", () => {
       email: "User@Example.com",
       code: "abc123",
       repeatCode: "ABC123",
+      emailRedirectTo: "https://lezgotournament.vercel.app/?accountVerified=verified",
       client,
     });
 
@@ -97,18 +119,21 @@ describe("STEP 25I-C1-A credential foundation", () => {
       role: "user",
     });
     expect(client.insertedProfile?.role).toBe("user");
-    expect(fetchMock.mock.calls[0][0]).toBe("https://auth.example.supabase.co/auth/v1/admin/users");
-    const adminHeaders = fetchMock.mock.calls[0][1]?.headers as Record<string, string>;
-    const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string) as { email: string; password: string; email_confirm: boolean; data: { username: string; role?: string } };
+    expect(fetchMock.mock.calls[0][0]).toBe("https://auth.example.supabase.co/auth/v1/signup");
+    const authHeaders = fetchMock.mock.calls[0][1]?.headers as Record<string, string>;
+    const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string) as { email: string; password: string; email_confirm?: boolean; email_redirect_to: string; data: { username: string; role?: string } };
     expect(body.email).toBe("user@example.com");
     expect(body.password).not.toBe("ABC123");
+    expect(JSON.stringify(body)).not.toContain("abc123");
     expect(body.password).toMatch(/^LezGo1![A-Za-z0-9_-]{30,}$/);
-    expect(body.email_confirm).toBe(true);
+    expect(body).not.toHaveProperty("email_confirm");
     expect(body.data.username).toBe("hao");
     expect(body.data).not.toHaveProperty("role");
-    expect(adminHeaders.apikey).toBe("service-role-key");
-    expect(adminHeaders.authorization).toBe("Bearer service-role-key");
-    expect(result.verificationRequired).toBe(false);
+    expect(body.email_redirect_to).toBe("https://lezgotournament.vercel.app/?accountVerified=verified");
+    expect(body.email_redirect_to).not.toContain("ABC123");
+    expect(authHeaders.apikey).toBe("anon-key");
+    expect(authHeaders.authorization).toBe("Bearer anon-key");
+    expect(result.verificationRequired).toBe(true);
   });
 
   it("enforces username uniqueness case-insensitively before account creation", async () => {
@@ -132,7 +157,9 @@ describe("STEP 25I-C1-A credential foundation", () => {
       repeatCode: "abc123",
       client,
     })).rejects.toMatchObject({ status: 409 });
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe("https://auth.example.supabase.co/auth/v1/admin/users/00000000-0000-4000-8000-000000000902");
+    expect(fetchMock.mock.calls.some((call) => String(call[0]).endsWith("/auth/v1/signup"))).toBe(false);
   });
 
   it("rejects duplicate email before attempting admin user creation", async () => {
@@ -159,7 +186,9 @@ describe("STEP 25I-C1-A credential foundation", () => {
       status: 409,
       message: "Email is already used.",
     });
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe("https://auth.example.supabase.co/auth/v1/admin/users/00000000-0000-4000-8000-000000000922");
+    expect(fetchMock.mock.calls.some((call) => String(call[0]).endsWith("/auth/v1/signup"))).toBe(false);
   });
 
   it("keeps a successfully created username reserved for duplicate real accounts", async () => {
@@ -195,13 +224,59 @@ describe("STEP 25I-C1-A credential foundation", () => {
     })).rejects.toMatchObject({ status: 409 });
   });
 
-  it("cleans up an admin-created auth user if profile persistence fails", async () => {
+  it("releases stale unverified username reservations when there are no user data references", async () => {
+    configureAuthEnv();
+    vi.useFakeTimers({ now: new Date("2026-08-20T12:00:00.000Z") });
+    const client = createCredentialProfileClient({
+      usernameProfiles: [{
+        user_id: "00000000-0000-4000-8000-000000000931",
+        display_name: "Old Pending",
+        role: "user",
+        username: "staleuser",
+        email: "old-pending@example.com",
+      }],
+    });
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: "00000000-0000-4000-8000-000000000931",
+        email: "old-pending@example.com",
+        email_confirmed_at: null,
+        confirmed_at: null,
+        created_at: "2026-08-18T10:00:00.000Z",
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response("{}", { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: "00000000-0000-4000-8000-000000000932",
+        email: "new-owner@example.com",
+        email_confirmed_at: null,
+        confirmed_at: null,
+        created_at: "2026-08-20T12:00:00.000Z",
+      }), { status: 200 }));
+
+    const result = await createCredentialAccount({
+      displayName: "New Owner",
+      username: "StaleUser",
+      email: "new-owner@example.com",
+      code: "abc123",
+      repeatCode: "abc123",
+      client,
+    });
+
+    expect(result.account.userId).toBe("00000000-0000-4000-8000-000000000932");
+    expect(fetchMock.mock.calls[1][0]).toBe("https://auth.example.supabase.co/auth/v1/admin/users/00000000-0000-4000-8000-000000000931");
+    expect(fetchMock.mock.calls[1][1]?.method).toBe("DELETE");
+  });
+
+  it("cleans up a signup-created auth user if profile persistence fails", async () => {
     configureAuthEnv();
     const client = createCredentialProfileClient({ failInsert: true });
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify({
         id: "00000000-0000-4000-8000-000000000904",
         email: "partial@example.com",
+        email_confirmed_at: null,
+        confirmed_at: null,
+        created_at: "2026-08-20T10:00:00.000Z",
         user_metadata: {
           display_name: "Partial User",
           username: "partial",
@@ -223,6 +298,33 @@ describe("STEP 25I-C1-A credential foundation", () => {
     expect(fetchMock.mock.calls[1][1]?.method).toBe("DELETE");
   });
 
+  it("blocks account creation if Supabase email confirmation is disabled", async () => {
+    configureAuthEnv();
+    const client = createCredentialProfileClient();
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: "00000000-0000-4000-8000-000000000930",
+        email: "autoverified@example.com",
+        email_confirmed_at: "2026-08-20T10:00:00.000Z",
+        confirmed_at: "2026-08-20T10:00:00.000Z",
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response("{}", { status: 200 }));
+
+    await expect(createCredentialAccount({
+      displayName: "Auto Verified",
+      username: "autoverified",
+      email: "autoverified@example.com",
+      code: "abc123",
+      repeatCode: "abc123",
+      client,
+    })).rejects.toMatchObject({
+      status: 503,
+      message: "Email verification is not configured.",
+    });
+    expect(fetchMock.mock.calls[1][0]).toBe("https://auth.example.supabase.co/auth/v1/admin/users/00000000-0000-4000-8000-000000000930");
+    expect(fetchMock.mock.calls[1][1]?.method).toBe("DELETE");
+  });
+
   it("authenticates email+code and username+same code as the same Supabase user", async () => {
     configureAuthEnv();
     const client = createCredentialProfileClient({
@@ -241,6 +343,8 @@ describe("STEP 25I-C1-A credential foundation", () => {
       user: {
         id: "00000000-0000-4000-8000-000000000901",
         email: "user@example.com",
+        email_confirmed_at: "2026-08-20T10:00:00.000Z",
+        confirmed_at: "2026-08-20T10:00:00.000Z",
         user_metadata: {
           display_name: "User One",
         },
@@ -259,6 +363,128 @@ describe("STEP 25I-C1-A credential foundation", () => {
     expect(requestBodies[0].password).toMatch(/^LezGo1![A-Za-z0-9_-]{30,}$/);
     expect(requestBodies[1].password).toBe(requestBodies[0].password);
     expect(requestBodies[0].password).not.toBe("ABC123");
+  });
+
+  it("blocks email and username login before Supabase email verification", async () => {
+    configureAuthEnv();
+    const client = createCredentialProfileClient({
+      usernameProfiles: [{
+        user_id: "00000000-0000-4000-8000-000000000925",
+        display_name: "Pending User",
+        role: "user",
+        username: "pending",
+        email: "pending@example.com",
+      }],
+    });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({
+      error: "email_not_confirmed",
+      error_description: "Email not confirmed",
+    }), { status: 400 }));
+
+    await expect(loginWithCredential({ identifier: "pending@example.com", code: "abc123", client })).rejects.toMatchObject({
+      status: 403,
+      message: "Email is not verified.",
+    });
+    await expect(loginWithCredential({ identifier: "pending", code: "abc123", client })).rejects.toMatchObject({
+      status: 403,
+      message: "Email is not verified.",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("verifies a Supabase email confirmation token hash without exposing the LEZGO code", async () => {
+    configureAuthEnv();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ user: { id: "00000000-0000-4000-8000-000000000926" } }), { status: 200 }));
+
+    await verifyCredentialEmailToken({
+      tokenHash: "hashed-email-token",
+      type: "email",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith("https://auth.example.supabase.co/auth/v1/verify", expect.any(Object));
+    const requestBody = JSON.parse(fetchMock.mock.calls[0][1]?.body as string) as { token_hash: string; type: string; code?: string };
+    expect(requestBody).toEqual({
+      token_hash: "hashed-email-token",
+      type: "email",
+    });
+    expect(JSON.stringify(requestBody)).not.toContain("ABC123");
+  });
+
+  it("resends verification with a generic response for pending accounts", async () => {
+    configureAuthEnv();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+
+      if (url.includes("/rest/v1/profiles?")) {
+        return new Response(JSON.stringify([{
+          user_id: "00000000-0000-4000-8000-000000000927",
+          display_name: "Pending User",
+          role: "user",
+          username: "pending",
+          email: "pending@example.com",
+        }]), { status: 200 });
+      }
+
+      if (url.endsWith("/auth/v1/admin/users/00000000-0000-4000-8000-000000000927")) {
+        return new Response(JSON.stringify({
+          id: "00000000-0000-4000-8000-000000000927",
+          email: "pending@example.com",
+          email_confirmed_at: null,
+          confirmed_at: null,
+          created_at: "2026-08-20T10:00:00.000Z",
+        }), { status: 200 });
+      }
+
+      if (url.endsWith("/auth/v1/resend")) {
+        return new Response(JSON.stringify({ message: "ok" }), { status: 200 });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    const result = await resendCredentialVerification({
+      email: "Pending@Example.com",
+      redirectTo: "https://lezgotournament.vercel.app/?accountVerified=verified",
+      rateLimitKey: "device-a",
+    });
+
+    expect(result.message).toBe("If the email can be verified, we have sent a new verification email.");
+    const resendCall = fetchMock.mock.calls.find((call) => String(call[0]).endsWith("/auth/v1/resend"));
+    expect(resendCall).toBeTruthy();
+    const resendBody = JSON.parse(resendCall?.[1]?.body as string) as { email: string; type: string; email_redirect_to: string; code?: string };
+    expect(resendBody).toEqual({
+      type: "signup",
+      email: "pending@example.com",
+      email_redirect_to: "https://lezgotournament.vercel.app/?accountVerified=verified",
+    });
+    expect(JSON.stringify(resendBody)).not.toContain("ABC123");
+  });
+
+  it("rate limits repeated verification resend attempts", async () => {
+    configureAuthEnv();
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+
+      if (url.includes("/rest/v1/profiles?")) {
+        return new Response(JSON.stringify([]), { status: 200 });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    for (let index = 0; index < 3; index += 1) {
+      await expect(resendCredentialVerification({
+        email: "pending@example.com",
+        rateLimitKey: "device-b",
+      })).resolves.toMatchObject({
+        message: "If the email can be verified, we have sent a new verification email.",
+      });
+    }
+
+    await expect(resendCredentialVerification({
+      email: "pending@example.com",
+      rateLimitKey: "device-b",
+    })).rejects.toMatchObject({ status: 429 });
   });
 
   it("falls back to legacy raw-code Supabase passwords for already-created accounts", async () => {
@@ -281,6 +507,8 @@ describe("STEP 25I-C1-A credential foundation", () => {
         user: {
           id: "00000000-0000-4000-8000-000000000923",
           email: "legacy@example.com",
+          email_confirmed_at: "2026-08-20T10:00:00.000Z",
+          confirmed_at: "2026-08-20T10:00:00.000Z",
           user_metadata: {
             display_name: "Legacy User",
           },
@@ -309,9 +537,36 @@ describe("STEP 25I-C1-A credential foundation", () => {
 
   it("uses Supabase recovery email with generic privacy-preserving response", async () => {
     configureAuthEnv();
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
-      msg: "ok",
-    }), { status: 200 }));
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+
+      if (url.includes("/rest/v1/profiles?")) {
+        return new Response(JSON.stringify([{
+          user_id: "00000000-0000-4000-8000-000000000928",
+          display_name: "User One",
+          role: "user",
+          username: "userone",
+          email: "user@example.com",
+        }]), { status: 200 });
+      }
+
+      if (url.endsWith("/auth/v1/admin/users/00000000-0000-4000-8000-000000000928")) {
+        return new Response(JSON.stringify({
+          id: "00000000-0000-4000-8000-000000000928",
+          email: "user@example.com",
+          email_confirmed_at: "2026-08-20T10:00:00.000Z",
+          confirmed_at: "2026-08-20T10:00:00.000Z",
+        }), { status: 200 });
+      }
+
+      if (url.endsWith("/auth/v1/recover")) {
+        return new Response(JSON.stringify({
+          msg: "ok",
+        }), { status: 200 });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
 
     const result = await requestLoginCodeRecovery({
       email: "User@Example.com",
@@ -319,9 +574,47 @@ describe("STEP 25I-C1-A credential foundation", () => {
     });
 
     expect(result.message).toBe("If the email is linked to an account, we have sent recovery instructions.");
-    const requestBody = JSON.parse(fetchMock.mock.calls[0][1]?.body as string) as { email: string; password?: string; options: { redirect_to: string } };
+    const recoverCall = fetchMock.mock.calls.find((call) => String(call[0]).endsWith("/auth/v1/recover"));
+    expect(recoverCall).toBeTruthy();
+    const requestBody = JSON.parse(recoverCall?.[1]?.body as string) as { email: string; password?: string; options: { redirect_to: string } };
     expect(requestBody.email).toBe("user@example.com");
     expect(requestBody).not.toHaveProperty("password");
+  });
+
+  it("does not send recovery instructions for an unverified credential account", async () => {
+    configureAuthEnv();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+
+      if (url.includes("/rest/v1/profiles?")) {
+        return new Response(JSON.stringify([{
+          user_id: "00000000-0000-4000-8000-000000000929",
+          display_name: "Pending User",
+          role: "user",
+          username: "pending",
+          email: "pending@example.com",
+        }]), { status: 200 });
+      }
+
+      if (url.endsWith("/auth/v1/admin/users/00000000-0000-4000-8000-000000000929")) {
+        return new Response(JSON.stringify({
+          id: "00000000-0000-4000-8000-000000000929",
+          email: "pending@example.com",
+          email_confirmed_at: null,
+          confirmed_at: null,
+        }), { status: 200 });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    const result = await requestLoginCodeRecovery({
+      email: "Pending@Example.com",
+      redirectTo: "https://lezgotournament.vercel.app/settings",
+    });
+
+    expect(result.message).toBe("If the email is linked to an account, we have sent recovery instructions.");
+    expect(fetchMock.mock.calls.some((call) => String(call[0]).endsWith("/auth/v1/recover"))).toBe(false);
   });
 
   it("updates Supabase with a server-derived password when resetting the 6-character code", async () => {
@@ -330,6 +623,8 @@ describe("STEP 25I-C1-A credential foundation", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({
         id: "00000000-0000-4000-8000-000000000924",
         email: "reset@example.com",
+        email_confirmed_at: "2026-08-20T10:00:00.000Z",
+        confirmed_at: "2026-08-20T10:00:00.000Z",
       }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
         id: "00000000-0000-4000-8000-000000000924",

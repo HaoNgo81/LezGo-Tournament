@@ -30,6 +30,8 @@ export class AuthError extends Error {
 interface SupabaseAuthUserResponse {
   id?: string;
   email?: string;
+  confirmed_at?: unknown;
+  email_confirmed_at?: unknown;
   user_metadata?: {
     display_name?: unknown;
     name?: unknown;
@@ -261,6 +263,10 @@ async function readSupabaseAuthUser(accessToken: string): Promise<{ id: string; 
     throw new AuthError("Authentication was denied.", response.status || 401);
   }
 
+  if (!isAuthUserEmailVerified(body)) {
+    throw new AuthError("Email is not verified.", 403);
+  }
+
   return {
     id: body.id,
     email: body.email,
@@ -343,6 +349,19 @@ function isAuthUser(value: unknown): value is { id: string; email: string; user_
     typeof (value as SupabaseAuthUserResponse).id === "string" &&
     typeof (value as SupabaseAuthUserResponse).email === "string",
   );
+}
+
+function isAuthUserEmailVerified(user: SupabaseAuthUserResponse): boolean {
+  return Boolean(parseAuthDate(user.email_confirmed_at) || parseAuthDate(user.confirmed_at));
+}
+
+function parseAuthDate(value: unknown): Date | null {
+  if (typeof value !== "string" || !value.trim()) {
+    return null;
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function getMetadataName(user: { user_metadata?: SupabaseAuthUserResponse["user_metadata"] }): string | undefined {

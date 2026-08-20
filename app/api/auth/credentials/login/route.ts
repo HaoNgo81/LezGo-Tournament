@@ -3,6 +3,7 @@ import { AuthError, createAuthCookieHeaders, loginWithCredential } from "@/lib/a
 export const dynamic = "force-dynamic";
 
 const genericLoginMessage = "Email/username or code is incorrect.";
+const unverifiedEmailMessage = "Email is not verified.";
 
 interface LoginBody {
   identifier?: string;
@@ -33,7 +34,12 @@ export async function POST(request: Request): Promise<Response> {
     });
   } catch (error) {
     const status = error instanceof AuthError ? error.status : 401;
-    const message = status === 429 ? "Too many attempts. Try again later." : genericLoginMessage;
+    const rawMessage = error instanceof Error ? error.message : "";
+    const message = status === 429
+      ? "Too many attempts. Try again later."
+      : rawMessage === unverifiedEmailMessage
+        ? unverifiedEmailMessage
+        : genericLoginMessage;
     return Response.json({ ok: false, error: message }, { status });
   }
 }

@@ -1,19 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { AccountPanel, type Account } from "./account-panel";
+import { AccountPanel, type Account, type AccountView } from "./account-panel";
 import { notifyPreferencesChanged, useAppTranslation } from "@/lib/preferences/client";
 import { loadTournamentSettings, saveTournamentSettings } from "@/lib/tournament-settings";
 import type { AppLanguage } from "@/lib/i18n/translations";
 
-type AccountDialogView = "login" | "create";
+type AccountDialogView = Extract<AccountView, "login" | "create">;
 
 export function AccountAccess() {
   const { language, t } = useAppTranslation();
   const [account, setAccount] = useState<Account | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [dialogView, setDialogView] = useState<AccountDialogView>("login");
+  const [dialogMessage, setDialogMessage] = useState("");
+  const handledVerificationRedirectRef = useRef(false);
 
   useEffect(() => {
     let isDisposed = false;
@@ -39,6 +41,27 @@ export function AccountAccess() {
   }, []);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const verificationState = params.get("accountVerified");
+
+    if (!verificationState || handledVerificationRedirectRef.current) {
+      return;
+    }
+
+    handledVerificationRedirectRef.current = true;
+    const message = verificationState === "verified" ? t("accountEmailVerifiedMessage") : t("accountEmailVerificationFailed");
+
+    setDialogView("login");
+    setDialogMessage(message);
+    setIsOpen(true);
+
+    params.delete("accountVerified");
+    const nextSearch = params.toString();
+    const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}${window.location.hash}`;
+    window.history.replaceState(null, "", nextUrl);
+  }, [t]);
+
+  useEffect(() => {
     if (!isOpen) {
       return;
     }
@@ -54,6 +77,7 @@ export function AccountAccess() {
   const label = account ? account.displayName || account.username || t("account") : t("accountLogin");
   const openDialog = (view: AccountDialogView) => {
     setDialogView(view);
+    setDialogMessage("");
     setIsOpen(true);
   };
   const handleLanguageToggle = () => {
@@ -73,7 +97,7 @@ export function AccountAccess() {
             </button>
           </div>
           <div className="min-h-0 overflow-y-auto px-4 pb-4 sm:px-5 sm:pb-5" data-testid="main-account-dialog-scroll">
-            <AccountPanel framed={false} initialView={dialogView} onAccountChange={setAccount} />
+            <AccountPanel framed={false} initialView={dialogView} initialMessage={dialogMessage} onAccountChange={setAccount} />
           </div>
         </div>
       </div>

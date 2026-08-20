@@ -34,6 +34,7 @@ describe("STEP 25I-C1-B main page account UI", () => {
     navigationMocks.push.mockReset();
     window.localStorage.clear();
     document.documentElement.lang = "da";
+    window.history.pushState(null, "", "/");
   });
 
   it("shows compact logged-out account actions on the main page without removing existing cards", async () => {
@@ -248,6 +249,35 @@ describe("STEP 25I-C1-B main page account UI", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/auth/credentials/login", expect.any(Object)));
   });
 
+  it("shows a clear message when an unverified account tries to log in", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === "/api/auth/me") {
+        return new Response(JSON.stringify({ ok: false }), { status: 401 });
+      }
+
+      if (url === "/api/auth/credentials/login") {
+        return new Response(JSON.stringify({
+          ok: false,
+          error: "Email is not verified.",
+        }), { status: 403 });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<HomePage />);
+    fireEvent.click(await screen.findByTestId("main-account-control"));
+    const dialog = await screen.findByTestId("main-account-dialog");
+    fireEvent.change(within(dialog).getByLabelText("Email eller brugernavn"), { target: { value: "hao@example.com" } });
+    fireEvent.change(within(dialog).getByLabelText("6-tegns kode"), { target: { value: "a1b2c3" } });
+    fireEvent.submit(within(dialog).getByRole("button", { name: "Log ind" }).closest("form") as HTMLFormElement);
+
+    await screen.findByText("Din e-mail er ikke bekræftet endnu. Tjek din indbakke.");
+  });
+
   it("creates a USER account through the C1-A register endpoint with name username email and repeated code", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -273,7 +303,7 @@ describe("STEP 25I-C1-B main page account UI", () => {
             username: "hao",
             role: "user",
           },
-          verificationRequired: false,
+          verificationRequired: true,
         }), { status: 200 });
       }
 
@@ -291,7 +321,10 @@ describe("STEP 25I-C1-B main page account UI", () => {
     fireEvent.change(within(dialog).getByLabelText("Gentag kode"), { target: { value: "ab12cd" } });
     fireEvent.submit(within(dialog).getByRole("button", { name: "Opret bruger" }).closest("form") as HTMLFormElement);
 
-    await screen.findByText("Brugeren er oprettet. Log ind med email eller brugernavn og din kode.");
+    await screen.findByText("Bekræft din e-mail");
+    expect(within(dialog).getByTestId("account-verification-pending")).toHaveTextContent("Vi har sendt et bekræftelseslink til din e-mail.");
+    expect(within(dialog).getByRole("button", { name: "Send mail igen" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Tilbage til log ind" })).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith("/api/auth/credentials/register", expect.any(Object));
   });
 
@@ -325,6 +358,67 @@ describe("STEP 25I-C1-B main page account UI", () => {
     fireEvent.submit(within(dialog).getByRole("button", { name: "Send vejledning" }).closest("form") as HTMLFormElement);
 
     await screen.findByText("Hvis emailen er tilknyttet en konto, har vi sendt en mail med instruktioner.");
+  });
+
+  it("resends account verification from the pending create-account state", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === "/api/auth/me") {
+        return new Response(JSON.stringify({ ok: false }), { status: 401 });
+      }
+
+      if (url === "/api/auth/credentials/register") {
+        return new Response(JSON.stringify({
+          ok: true,
+          account: {
+            userId: "00000000-0000-4000-8000-00000000c1c1",
+            email: "hao@example.com",
+            displayName: "Hao Ngo",
+            username: "hao",
+            role: "user",
+          },
+          verificationRequired: true,
+        }), { status: 200 });
+      }
+
+      if (url === "/api/auth/credentials/resend-verification") {
+        expect(JSON.parse(String(init?.body))).toEqual({ email: "hao@example.com" });
+        return new Response(JSON.stringify({
+          ok: true,
+          message: "If the email can be verified, we have sent a new verification email.",
+        }), { status: 200 });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<HomePage />);
+    fireEvent.click(await screen.findByTestId("main-account-create-control"));
+    const dialog = await screen.findByTestId("main-account-dialog");
+    fireEvent.change(within(dialog).getByLabelText("Navn"), { target: { value: "Hao Ngo" } });
+    fireEvent.change(within(dialog).getByLabelText("Brugernavn"), { target: { value: "hao" } });
+    fireEvent.change(within(dialog).getByLabelText("E-mail"), { target: { value: "hao@example.com" } });
+    fireEvent.change(within(dialog).getByLabelText("6-tegns kode"), { target: { value: "ab12cd" } });
+    fireEvent.change(within(dialog).getByLabelText("Gentag kode"), { target: { value: "ab12cd" } });
+    fireEvent.submit(within(dialog).getByRole("button", { name: "Opret bruger" }).closest("form") as HTMLFormElement);
+
+    fireEvent.click(await within(dialog).findByRole("button", { name: "Send mail igen" }));
+
+    await screen.findByText("Hvis e-mailen kan bekræftes, har vi sendt en ny mail.");
+  });
+
+  it("opens login with a verified-email message after the verification callback redirects home", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: false }), { status: 401 })));
+    window.history.pushState(null, "", "/?accountVerified=verified");
+
+    render(<HomePage />);
+
+    const dialog = await screen.findByTestId("main-account-dialog");
+    expect(within(dialog).getByText("E-mail bekræftet. Din konto er nu aktiveret. Du kan logge ind.")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Email eller brugernavn")).toBeInTheDocument();
+    expect(window.location.search).not.toContain("accountVerified");
   });
 
   it("shows display name or username, own tournament list and logout for signed-in users", async () => {

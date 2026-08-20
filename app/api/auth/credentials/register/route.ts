@@ -1,4 +1,5 @@
 import { AuthError, createCredentialAccount } from "@/lib/auth";
+import { getCredentialEmailRedirectTo } from "@/lib/auth/credential-redirect";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,7 @@ export async function POST(request: Request): Promise<Response> {
       email: body.email ?? "",
       code: body.code ?? "",
       repeatCode: body.repeatCode ?? "",
+      emailRedirectTo: getCredentialEmailRedirectTo(request.url),
       rateLimitKey: getRateLimitKey(request, body.email ?? body.username ?? "unknown"),
     });
 

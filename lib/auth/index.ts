@@ -20,7 +20,9 @@ export {
   normalizeCredentialEmail,
   normalizeLoginCode,
   normalizeUsername,
+  resendCredentialVerification,
   requestLoginCodeRecovery,
   updateLoginCodeWithSession,
+  verifyCredentialEmailToken,
 } from "./credentials";
 export { createAuthCookieHeaders, createLogoutCookieHeaders, readAuthAccessCookie } from "./cookies";

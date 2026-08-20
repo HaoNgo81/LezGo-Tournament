@@ -22,7 +22,7 @@ interface AccountTournament {
   status: string;
 }
 
-type AccountView = "login" | "create" | "forgot" | "reset";
+export type AccountView = "login" | "create" | "forgot" | "reset" | "verify";
 type CloudTournamentOpenResponse =
   | {
       ok: true;
@@ -51,10 +51,11 @@ type CloudTournamentOpenResponse =
 interface AccountPanelProps {
   framed?: boolean;
   initialView?: AccountView;
+  initialMessage?: string;
   onAccountChange?: (account: Account | null) => void;
 }
 
-export function AccountPanel({ framed = true, initialView = "login", onAccountChange }: AccountPanelProps) {
+export function AccountPanel({ framed = true, initialView = "login", initialMessage = "", onAccountChange }: AccountPanelProps) {
   const router = useRouter();
   const { t } = useAppTranslation();
   const [account, setAccount] = useState<Account | null>(null);
@@ -66,11 +67,12 @@ export function AccountPanel({ framed = true, initialView = "login", onAccountCh
   const [email, setEmail] = useState("");
   const [createCode, setCreateCode] = useState("");
   const [repeatCode, setRepeatCode] = useState("");
+  const [pendingVerificationEmail, setPendingVerificationEmail] = useState("");
   const [recoveryEmail, setRecoveryEmail] = useState("");
   const [newCode, setNewCode] = useState("");
   const [repeatNewCode, setRepeatNewCode] = useState("");
   const [showCode, setShowCode] = useState(false);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(initialMessage);
   const [isLoading, setIsLoading] = useState(false);
   const [openingTournamentId, setOpeningTournamentId] = useState<string | null>(null);
   const [tournaments, setTournaments] = useState<AccountTournament[]>([]);
@@ -87,6 +89,14 @@ export function AccountPanel({ framed = true, initialView = "login", onAccountCh
       setTournaments([]);
     }
   }, []);
+
+  useEffect(() => {
+    setView(initialView);
+  }, [initialView]);
+
+  useEffect(() => {
+    setMessage(initialMessage);
+  }, [initialMessage]);
 
   const setSignedInAccount = useCallback(function setSignedInAccount(nextAccount: Account | null) {
     setAccount(nextAccount);
@@ -139,7 +149,9 @@ export function AccountPanel({ framed = true, initialView = "login", onAccountCh
       const body = await response.json() as { ok?: boolean; account?: Account; error?: string };
 
       if (!response.ok || !body.ok || !body.account) {
-        throw new Error(localizeAuthError(body.error, t("accountLoginError")));
+        throw new Error(localizeAuthError(body.error, t("accountLoginError"), {
+          unverifiedEmail: t("accountEmailNotVerified"),
+        }));
       }
 
       setSignedInAccount(body.account);
@@ -168,7 +180,7 @@ export function AccountPanel({ framed = true, initialView = "login", onAccountCh
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ displayName, username, email, code: createCode, repeatCode }),
       });
-      const body = await response.json() as { ok?: boolean; account?: Account; error?: string };
+      const body = await response.json() as { ok?: boolean; account?: Account; verificationRequired?: boolean; error?: string };
 
       if (!response.ok || !body.ok) {
         throw new Error(localizeAuthError(body.error, t("accountCreateError")));
@@ -178,6 +190,14 @@ export function AccountPanel({ framed = true, initialView = "login", onAccountCh
       setLoginCode("");
       setCreateCode("");
       setRepeatCode("");
+      setPendingVerificationEmail(email);
+
+      if (body.verificationRequired) {
+        setView("verify");
+        setMessage(t("accountVerificationEmailSent"));
+        return;
+      }
+
       setView("login");
       setMessage(t("accountCreated"));
     } catch (error) {
@@ -207,6 +227,37 @@ export function AccountPanel({ framed = true, initialView = "login", onAccountCh
       setMessage(t("accountGenericRecovery"));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t("accountGenericRecovery"));
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function handleResendVerification() {
+    const targetEmail = pendingVerificationEmail || email;
+
+    if (!targetEmail) {
+      setMessage(t("accountVerificationResendError"));
+      return;
+    }
+
+    setIsLoading(true);
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/auth/credentials/resend-verification", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: targetEmail }),
+      });
+      const body = await response.json() as { ok?: boolean; error?: string };
+
+      if (!response.ok || !body.ok) {
+        throw new Error(localizeAuthError(body.error, t("accountVerificationResendError")));
+      }
+
+      setMessage(t("accountVerificationEmailResent"));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : t("accountVerificationResendError"));
     } finally {
       setIsLoading(false);
     }
@@ -416,6 +467,25 @@ export function AccountPanel({ framed = true, initialView = "login", onAccountCh
           </button>
         </form>
       ) : null}
+      {view === "verify" ? (
+        <div className="grid gap-3 rounded-md border border-[var(--primary)] bg-[var(--primary-soft)]/45 p-3" data-testid="account-verification-pending">
+          <div>
+            <p className="text-lg font-black">{t("accountVerifyEmailTitle")}</p>
+            <p className="mt-1 font-bold text-[var(--muted)]">{t("accountVerifyEmailBody")}</p>
+          </div>
+          {pendingVerificationEmail ? (
+            <p className="break-words text-sm font-black text-[var(--primary-strong)]">{pendingVerificationEmail}</p>
+          ) : null}
+          <div className="action-grid">
+            <button className="btn-secondary min-h-12" type="button" disabled={isLoading} onClick={() => void handleResendVerification()}>
+              {t("accountResendVerification")}
+            </button>
+            <button className="btn-secondary min-h-12" type="button" disabled={isLoading} onClick={() => { setView("login"); setMessage(""); }}>
+              {t("accountBackToLogin")}
+            </button>
+          </div>
+        </div>
+      ) : null}
       {view === "forgot" ? (
         <form className="grid gap-3" onSubmit={handleForgotCode}>
           <div>
@@ -464,9 +534,13 @@ function CodeField({ label, value, onChange, showCode }: { label: string; value:
   );
 }
 
-function localizeAuthError(message: string | undefined, fallback: string): string {
+function localizeAuthError(message: string | undefined, fallback: string, options: { unverifiedEmail?: string } = {}): string {
   if (!message) {
     return fallback;
+  }
+
+  if (message === "Email is not verified.") {
+    return options.unverifiedEmail ?? fallback;
   }
 
   if (

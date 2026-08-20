@@ -12,6 +12,8 @@ import {
 
 const genericLoginMessage = "Email/username or code is incorrect.";
 const genericRecoveryMessage = "If the email is linked to an account, we have sent recovery instructions.";
+const unverifiedEmailMessage = "Email is not verified.";
+const stalePendingAccountMs = 24 * 60 * 60 * 1000;
 
 interface CredentialProfileRow {
   user_id: string;
@@ -31,6 +33,9 @@ interface SupabasePasswordAuthResponse {
 interface SupabaseAuthUser {
   id?: unknown;
   email?: unknown;
+  created_at?: unknown;
+  confirmed_at?: unknown;
+  email_confirmed_at?: unknown;
   user_metadata?: {
     display_name?: unknown;
     name?: unknown;
@@ -79,6 +84,7 @@ export async function createCredentialAccount(input: {
   email: string;
   code: string;
   repeatCode: string;
+  emailRedirectTo?: string;
   rateLimitKey?: string;
   client?: SupabaseRestClient;
 }): Promise<{ account: AuthenticatedAccount; verificationRequired: boolean }> {
@@ -97,25 +103,63 @@ export async function createCredentialAccount(input: {
   const existingUsername = await readProfileByUsername(username, client);
 
   if (existingUsername) {
-    throw new AuthError("Username is not available.", 409);
+    const pendingResult = await handlePendingCredentialProfile({
+      profile: existingUsername,
+      requestedEmail: email,
+      redirectTo: input.emailRedirectTo,
+      client,
+    });
+
+    if (pendingResult.account) {
+      return {
+        account: pendingResult.account,
+        verificationRequired: true,
+      };
+    }
+
+    if (!pendingResult.cleanedUp) {
+      throw new AuthError("Username is not available.", 409);
+    }
   }
 
   const existingEmail = await readProfileByEmail(email, client);
 
   if (existingEmail) {
-    throw new AuthError("Email is already used.", 409);
+    const pendingResult = await handlePendingCredentialProfile({
+      profile: existingEmail,
+      requestedEmail: email,
+      redirectTo: input.emailRedirectTo,
+      client,
+    });
+
+    if (pendingResult.account) {
+      return {
+        account: pendingResult.account,
+        verificationRequired: true,
+      };
+    }
+
+    if (!pendingResult.cleanedUp) {
+      throw new AuthError("Email is already used.", 409);
+    }
   }
 
-  const authResult = await createConfirmedAuthUserWithPassword({
+  const authResult = await createUnconfirmedAuthUserWithPassword({
     email,
     password: toSupabaseCredentialPassword(email, code),
     displayName,
     username,
+    redirectTo: input.emailRedirectTo,
   });
   const authUser = authResult.user;
 
   if (!authUser?.id || !authUser.email) {
     throw new AuthError("Account could not be created.", 502);
+  }
+
+  if (isAuthUserEmailVerified(authUser)) {
+    await deleteAuthUserBestEffort(authUser.id);
+    throw new AuthError("Email verification is not configured.", 503);
   }
 
   let account: AuthenticatedAccount;
@@ -134,7 +178,7 @@ export async function createCredentialAccount(input: {
 
   return {
     account,
-    verificationRequired: false,
+    verificationRequired: true,
   };
 }
 
@@ -171,6 +215,10 @@ export async function loginWithCredential(input: {
       throw error;
     }
 
+    if (error instanceof AuthError && error.message === unverifiedEmailMessage) {
+      throw error;
+    }
+
     throw new AuthError(genericLoginMessage, 401);
   }
 }
@@ -178,6 +226,16 @@ export async function loginWithCredential(input: {
 export async function requestLoginCodeRecovery(input: { email: string; redirectTo?: string; rateLimitKey?: string }): Promise<{ message: string }> {
   const email = normalizeCredentialEmail(input.email);
   assertAuthRateLimit("credential-recovery", `${input.rateLimitKey ?? "unknown"}:${email}`, { limit: 5, windowMs: 60 * 60 * 1000 });
+
+  const client = createSupabaseRestClient();
+  const profile = await readProfileByEmail(email, client);
+  const authUser = profile ? await readAdminAuthUser(profile.user_id) : null;
+
+  if (!authUser || !isAuthUserEmailVerified(authUser)) {
+    return {
+      message: genericRecoveryMessage,
+    };
+  }
 
   const config = getSupabaseAuthConfig();
   const response = await fetch(`${config.url}/auth/v1/recover`, {
@@ -257,26 +315,107 @@ async function readProfileByEmail(email: string, client: SupabaseRestClient): Pr
   return profile ?? null;
 }
 
-async function createConfirmedAuthUserWithPassword(input: { email: string; password: string; displayName: string; username: string }): Promise<{ user: { id: string; email: string; user_metadata?: SupabaseAuthUser["user_metadata"] } }> {
-  const config = getSupabaseAdminAuthConfig();
-  const response = await fetch(`${config.url}/auth/v1/admin/users`, {
+async function handlePendingCredentialProfile(input: {
+  profile: CredentialProfileRow;
+  requestedEmail: string;
+  redirectTo?: string;
+  client: SupabaseRestClient;
+}): Promise<{ account?: AuthenticatedAccount; cleanedUp: boolean }> {
+  const authUser = await readAdminAuthUser(input.profile.user_id);
+
+  if (!authUser) {
+    return { cleanedUp: false };
+  }
+
+  if (isAuthUserEmailVerified(authUser)) {
+    return { cleanedUp: false };
+  }
+
+  if (await canReleaseStalePendingCredentialProfile(authUser, input.client)) {
+    await deleteAuthUser(authUser.id);
+    return { cleanedUp: true };
+  }
+
+  if (input.profile.email === input.requestedEmail) {
+    await sendSignupVerificationEmail({
+      email: input.requestedEmail,
+      redirectTo: input.redirectTo,
+    });
+
+    return {
+      account: profileToAccount(input.profile, input.requestedEmail),
+      cleanedUp: false,
+    };
+  }
+
+  return { cleanedUp: false };
+}
+
+export async function resendCredentialVerification(input: { email: string; redirectTo?: string; rateLimitKey?: string }): Promise<{ message: string }> {
+  const email = normalizeCredentialEmail(input.email);
+  assertAuthRateLimit("credential-verification-resend", `${input.rateLimitKey ?? "unknown"}:${email}`, { limit: 3, windowMs: 60 * 60 * 1000 });
+
+  const client = createSupabaseRestClient();
+  const profile = await readProfileByEmail(email, client);
+  const authUser = profile ? await readAdminAuthUser(profile.user_id) : null;
+
+  if (authUser && !isAuthUserEmailVerified(authUser)) {
+    await sendSignupVerificationEmail({
+      email,
+      redirectTo: input.redirectTo,
+    });
+  }
+
+  return {
+    message: "If the email can be verified, we have sent a new verification email.",
+  };
+}
+
+export async function verifyCredentialEmailToken(input: { tokenHash: string; type: string }): Promise<void> {
+  const tokenHash = input.tokenHash.trim();
+  const type = input.type.trim();
+
+  if (!tokenHash || !/^(email|signup)$/.test(type)) {
+    throw new AuthError("Verification link is invalid.", 400);
+  }
+
+  const config = getSupabaseAuthConfig();
+  const response = await fetch(`${config.url}/auth/v1/verify`, {
     method: "POST",
-    headers: getAdminAuthHeaders(config),
+    headers: getAuthHeaders(config.anonKey),
+    body: JSON.stringify({
+      token_hash: tokenHash,
+      type,
+    }),
+  });
+  const body = await parseJson(response);
+
+  if (!response.ok) {
+    logCredentialAuthFailure("verify_signup_email", response.status || 400, body);
+    throw new AuthError("Email verification failed.", response.status || 401);
+  }
+}
+
+async function createUnconfirmedAuthUserWithPassword(input: { email: string; password: string; displayName: string; username: string; redirectTo?: string }): Promise<{ user: SupabaseAuthUser & { id: string; email: string } }> {
+  const config = getSupabaseAuthConfig();
+  const response = await fetch(`${config.url}/auth/v1/signup`, {
+    method: "POST",
+    headers: getAuthHeaders(config.anonKey),
     body: JSON.stringify({
       email: input.email,
       password: input.password,
-      email_confirm: true,
       data: {
         display_name: input.displayName,
         username: input.username,
       },
+      email_redirect_to: input.redirectTo,
     }),
   });
   const body = await parseJson(response);
-  const user = getAuthUserFromAdminBody(body);
+  const user = getAuthUserFromBody(body);
 
   if (!response.ok || !user) {
-    logCredentialAuthFailure("admin_create_user", response.status || 400, body);
+    logCredentialAuthFailure("signup_user", response.status || 400, body);
 
     if (isDuplicateEmailAuthError(body)) {
       throw new AuthError("Email is already used.", 409);
@@ -289,6 +428,9 @@ async function createConfirmedAuthUserWithPassword(input: { email: string; passw
     user: {
       id: String(user.id),
       email: String(user.email),
+      created_at: user.created_at,
+      confirmed_at: user.confirmed_at,
+      email_confirmed_at: user.email_confirmed_at,
       user_metadata: user.user_metadata,
     },
   };
@@ -296,21 +438,88 @@ async function createConfirmedAuthUserWithPassword(input: { email: string; passw
 
 async function deleteAuthUserBestEffort(userId: string): Promise<void> {
   try {
-    const config = getSupabaseAdminAuthConfig();
-    await fetch(`${config.url}/auth/v1/admin/users/${encodeURIComponent(userId)}`, {
-      method: "DELETE",
-      headers: getAdminAuthHeaders(config),
-    });
+    await deleteAuthUser(userId);
   } catch {
     // Keep the original registration failure. The user-facing error remains generic.
   }
+}
+
+async function deleteAuthUser(userId: string): Promise<void> {
+  const config = getSupabaseAdminAuthConfig();
+  const response = await fetch(`${config.url}/auth/v1/admin/users/${encodeURIComponent(userId)}`, {
+    method: "DELETE",
+    headers: getAdminAuthHeaders(config),
+  });
+
+  if (!response.ok) {
+    throw new AuthError("Pending account could not be released.", response.status || 500);
+  }
+}
+
+async function readAdminAuthUser(userId: string): Promise<(SupabaseAuthUser & { id: string; email: string }) | null> {
+  const config = getSupabaseAdminAuthConfig();
+  const response = await fetch(`${config.url}/auth/v1/admin/users/${encodeURIComponent(userId)}`, {
+    method: "GET",
+    headers: getAdminAuthHeaders(config),
+  });
+  const body = await parseJson(response);
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new AuthError("Account verification state could not be read.", response.status || 500);
+  }
+
+  return getAuthUserFromBody(body);
+}
+
+async function sendSignupVerificationEmail(input: { email: string; redirectTo?: string }): Promise<void> {
+  const config = getSupabaseAuthConfig();
+  const response = await fetch(`${config.url}/auth/v1/resend`, {
+    method: "POST",
+    headers: getAuthHeaders(config.anonKey),
+    body: JSON.stringify({
+      type: "signup",
+      email: input.email,
+      email_redirect_to: input.redirectTo,
+    }),
+  });
+  const body = await parseJson(response);
+
+  if (!response.ok && response.status >= 500) {
+    logCredentialAuthFailure("resend_signup_email", response.status || 500, body);
+    throw new AuthError("Verification email could not be sent.", response.status || 500);
+  }
+}
+
+async function canReleaseStalePendingCredentialProfile(authUser: SupabaseAuthUser & { id: string; email: string }, client: SupabaseRestClient): Promise<boolean> {
+  const createdAt = parseAuthDate(authUser.created_at);
+
+  if (!createdAt || Date.now() - createdAt.getTime() < stalePendingAccountMs) {
+    return false;
+  }
+
+  return !(await hasUserDataReferences(authUser.id, client));
+}
+
+async function hasUserDataReferences(userId: string, client: SupabaseRestClient): Promise<boolean> {
+  const encodedUserId = encodeURIComponent(userId);
+  const checks = await Promise.all([
+    client.select<{ id: string }>("tournaments", `owner_user_id=eq.${encodedUserId}&select=id&limit=1`),
+    client.select<{ id: string }>("tournaments", `updated_by_user_id=eq.${encodedUserId}&select=id&limit=1`),
+    client.select<{ id: string }>("matches", `updated_by_user_id=eq.${encodedUserId}&select=id&limit=1`),
+  ]);
+
+  return checks.some((rows) => rows.length > 0);
 }
 
 async function passwordGrantWithCredential(email: string, code: string): Promise<{ session: SupabaseAuthSession; user: { id: string; email: string; user_metadata?: SupabaseAuthUser["user_metadata"] } }> {
   try {
     return await passwordGrant(email, toSupabaseCredentialPassword(email, code));
   } catch (error) {
-    if (error instanceof AuthError && error.status === 429) {
+    if (error instanceof AuthError && (error.status === 429 || error.message === unverifiedEmailMessage)) {
       throw error;
     }
 
@@ -333,7 +542,15 @@ async function passwordGrant(email: string, password: string): Promise<{ session
   const body = await parseJson(response);
 
   if (!response.ok || !isPasswordSession(body)) {
+    if (isUnverifiedAuthError(body)) {
+      throw new AuthError(unverifiedEmailMessage, 403);
+    }
+
     throw new AuthError(genericLoginMessage, 401);
+  }
+
+  if (!isAuthUserEmailVerified(body.user as SupabaseAuthUser)) {
+    throw new AuthError(unverifiedEmailMessage, 403);
   }
 
   return {
@@ -363,6 +580,10 @@ async function readAuthUserForCredentialUpdate(accessToken: string | undefined, 
 
   if (!response.ok || !isAuthUser(body)) {
     throw new AuthError("Authentication was denied.", response.status || 401);
+  }
+
+  if (!isAuthUserEmailVerified(body)) {
+    throw new AuthError(unverifiedEmailMessage, 403);
   }
 
   return {
@@ -497,13 +718,46 @@ function isAuthUser(value: unknown): value is SupabaseAuthUser & { id: string; e
   );
 }
 
-function getAuthUserFromAdminBody(value: unknown): SupabaseAuthUser & { id: string; email: string } | null {
+function getAuthUserFromBody(value: unknown): SupabaseAuthUser & { id: string; email: string } | null {
   if (isAuthUser(value)) {
     return value;
   }
 
   const nested = (value as { user?: unknown } | null)?.user;
   return isAuthUser(nested) ? nested : null;
+}
+
+function isAuthUserEmailVerified(user: SupabaseAuthUser): boolean {
+  return Boolean(parseAuthDate(user.email_confirmed_at) || parseAuthDate(user.confirmed_at));
+}
+
+function parseAuthDate(value: unknown): Date | null {
+  if (typeof value !== "string" || !value.trim()) {
+    return null;
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function isUnverifiedAuthError(body: unknown): boolean {
+  const category = getAuthFailureCategory(body).toLocaleLowerCase("en");
+  return (
+    category.includes("email not confirmed") ||
+    category.includes("email_not_confirmed") ||
+    category.includes("not confirmed") ||
+    category.includes("not verified")
+  );
+}
+
+function profileToAccount(profile: CredentialProfileRow, fallbackEmail: string): AuthenticatedAccount {
+  return {
+    userId: profile.user_id,
+    email: profile.email ?? fallbackEmail,
+    displayName: profile.display_name ?? profile.username ?? fallbackEmail.split("@")[0],
+    username: profile.username ?? undefined,
+    role: profile.role,
+  };
 }
 
 function getMetadataName(user: { user_metadata?: SupabaseAuthUser["user_metadata"] }): string | undefined {

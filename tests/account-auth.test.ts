@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { assertAdminAccount, requestEmailOtp, upsertAndReadProfile } from "../lib/auth";
+import { assertAdminAccount, readAccountFromAccessToken, requestEmailOtp, upsertAndReadProfile } from "../lib/auth";
 
 describe("STEP 25I account auth foundation", () => {
   const originalSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -72,10 +72,28 @@ describe("STEP 25I account auth foundation", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({
       id: "00000000-0000-4000-8000-000000000902",
       email: "admin-check@example.com",
+      email_confirmed_at: "2026-08-20T10:00:00.000Z",
+      confirmed_at: "2026-08-20T10:00:00.000Z",
     }), { status: 200 }));
 
     await expect(assertAdminAccount("access-token", createProfileMemoryClient("user"))).rejects.toMatchObject({ status: 403 });
     await expect(assertAdminAccount("access-token", createProfileMemoryClient("admin"))).resolves.toMatchObject({ role: "admin" });
+  });
+
+  it("denies account sessions until Supabase email is verified", async () => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://auth.example.supabase.co";
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({
+      id: "00000000-0000-4000-8000-000000000902",
+      email: "pending@example.com",
+      email_confirmed_at: null,
+      confirmed_at: null,
+    }), { status: 200 }));
+
+    await expect(readAccountFromAccessToken("access-token", createProfileMemoryClient("user"))).rejects.toMatchObject({
+      status: 403,
+      message: "Email is not verified.",
+    });
   });
 });
 
