@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
 import { createSupabaseRestClient, type SupabaseRestClient } from "@/lib/supabase/rest-client";
 import { assertSupabaseServerConfig } from "@/lib/supabase/server";
+import { deleteSupabaseAdminAuthUser, isSupabaseAdminAuthUserDeactivated, readSupabaseAdminAuthUser, type SupabaseAdminAuthUser } from "./auth-admin";
 import { assertAuthRateLimit } from "./rate-limit";
 import {
   AuthError,
@@ -41,11 +42,6 @@ interface SupabaseAuthUser {
     name?: unknown;
     username?: unknown;
   };
-}
-
-interface SupabaseAdminAuthConfig {
-  url: string;
-  serviceRoleKey: string;
 }
 
 export function normalizeUsername(value: string): string {
@@ -201,6 +197,7 @@ export async function loginWithCredential(input: {
       ? normalizeCredentialEmail(identifier)
       : await resolveUsernameToEmail(identifier, client);
     const authResult = await passwordGrantWithCredential(email, normalizedCode);
+    await assertCredentialAuthUserIsActive(authResult.user.id);
     const account = await upsertAndReadProfile({
       userId: authResult.user.id,
       email: authResult.user.email,
@@ -230,7 +227,7 @@ export async function requestLoginCodeRecovery(input: { email: string; redirectT
 
   const client = createSupabaseRestClient();
   const profile = await readProfileByEmail(email, client);
-  const authUser = profile ? await readAdminAuthUser(profile.user_id) : null;
+  const authUser = profile ? await readSupabaseAdminAuthUser(profile.user_id) : null;
 
   if (!authUser || !isAuthUserEmailVerified(authUser)) {
     return {
@@ -322,7 +319,7 @@ async function handlePendingCredentialProfile(input: {
   redirectTo?: string;
   client: SupabaseRestClient;
 }): Promise<{ account?: AuthenticatedAccount; cleanedUp: boolean }> {
-  const authUser = await readAdminAuthUser(input.profile.user_id);
+  const authUser = await readSupabaseAdminAuthUser(input.profile.user_id);
 
   if (!authUser) {
     return { cleanedUp: false };
@@ -358,7 +355,7 @@ export async function resendCredentialVerification(input: { email: string; redir
 
   const client = createSupabaseRestClient();
   const profile = await readProfileByEmail(email, client);
-  const authUser = profile ? await readAdminAuthUser(profile.user_id) : null;
+  const authUser = profile ? await readSupabaseAdminAuthUser(profile.user_id) : null;
 
   if (authUser && !isAuthUserEmailVerified(authUser)) {
     await sendSignupVerificationEmail({
@@ -446,34 +443,11 @@ async function deleteAuthUserBestEffort(userId: string): Promise<void> {
 }
 
 async function deleteAuthUser(userId: string): Promise<void> {
-  const config = getSupabaseAdminAuthConfig();
-  const response = await fetch(`${config.url}/auth/v1/admin/users/${encodeURIComponent(userId)}`, {
-    method: "DELETE",
-    headers: getAdminAuthHeaders(config),
-  });
-
-  if (!response.ok) {
-    throw new AuthError("Pending account could not be released.", response.status || 500);
+  try {
+    await deleteSupabaseAdminAuthUser(userId);
+  } catch {
+    throw new AuthError("Pending account could not be released.", 500);
   }
-}
-
-async function readAdminAuthUser(userId: string): Promise<(SupabaseAuthUser & { id: string; email: string }) | null> {
-  const config = getSupabaseAdminAuthConfig();
-  const response = await fetch(`${config.url}/auth/v1/admin/users/${encodeURIComponent(userId)}`, {
-    method: "GET",
-    headers: getAdminAuthHeaders(config),
-  });
-  const body = await parseJson(response);
-
-  if (response.status === 404) {
-    return null;
-  }
-
-  if (!response.ok) {
-    throw new AuthError("Account verification state could not be read.", response.status || 500);
-  }
-
-  return getAuthUserFromBody(body);
 }
 
 async function sendSignupVerificationEmail(input: { email: string; redirectTo?: string }): Promise<void> {
@@ -587,6 +561,8 @@ async function readAuthUserForCredentialUpdate(accessToken: string | undefined, 
     throw new AuthError(unverifiedEmailMessage, 403);
   }
 
+  await assertCredentialAuthUserIsActive(String(body.id));
+
   return {
     id: String(body.id),
     email: String(body.email),
@@ -605,24 +581,6 @@ function getAuthHeaders(anonKey: string): HeadersInit {
   return {
     apikey: anonKey,
     authorization: `Bearer ${anonKey}`,
-    "content-type": "application/json",
-  };
-}
-
-function getSupabaseAdminAuthConfig(): SupabaseAdminAuthConfig {
-  const authConfig = getSupabaseAuthConfig();
-  const serverConfig = assertSupabaseServerConfig();
-
-  return {
-    url: authConfig.url,
-    serviceRoleKey: serverConfig.serviceRoleKey,
-  };
-}
-
-function getAdminAuthHeaders(config: SupabaseAdminAuthConfig): HeadersInit {
-  return {
-    apikey: config.serviceRoleKey,
-    authorization: `Bearer ${config.serviceRoleKey}`,
     "content-type": "application/json",
   };
 }
@@ -656,6 +614,14 @@ function getCredentialPasswordSecret(): string {
   }
 
   return assertSupabaseServerConfig().serviceRoleKey;
+}
+
+async function assertCredentialAuthUserIsActive(userId: string): Promise<void> {
+  const authUser = await readSupabaseAdminAuthUser(userId);
+
+  if (!authUser || isSupabaseAdminAuthUserDeactivated(authUser)) {
+    throw new AuthError(genericLoginMessage, 401);
+  }
 }
 
 function logCredentialAuthFailure(operation: string, status: number, body: unknown): void {
@@ -728,7 +694,7 @@ function getAuthUserFromBody(value: unknown): SupabaseAuthUser & { id: string; e
   return isAuthUser(nested) ? nested : null;
 }
 
-function isAuthUserEmailVerified(user: SupabaseAuthUser): boolean {
+function isAuthUserEmailVerified(user: SupabaseAuthUser | SupabaseAdminAuthUser): boolean {
   return Boolean(parseAuthDate(user.email_confirmed_at) || parseAuthDate(user.confirmed_at));
 }
 

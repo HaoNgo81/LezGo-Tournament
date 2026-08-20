@@ -13,6 +13,10 @@ const navigationMocks = vi.hoisted(() => ({
   }),
 }));
 
+const adminUserMocks = vi.hoisted(() => ({
+  listManagedAccountUsers: vi.fn(),
+}));
+
 vi.mock("@/lib/auth", () => ({
   assertAdminAccount: authMocks.assertAdminAccount,
   readAuthAccessCookie: authMocks.readAuthAccessCookie,
@@ -22,10 +26,15 @@ vi.mock("next/navigation", () => ({
   redirect: navigationMocks.redirect,
 }));
 
+vi.mock("@/lib/admin/users", () => ({
+  listManagedAccountUsers: adminUserMocks.listManagedAccountUsers,
+}));
+
 describe("STEP 25I-C1-C6 admin route access", () => {
   beforeEach(() => {
     authMocks.assertAdminAccount.mockReset();
     authMocks.readAuthAccessCookie.mockReset();
+    adminUserMocks.listManagedAccountUsers.mockReset();
     navigationMocks.redirect.mockClear();
   });
 
@@ -62,10 +71,12 @@ describe("STEP 25I-C1-C6 admin route access", () => {
   it("allows admin accounts to open /admin", async () => {
     authMocks.readAuthAccessCookie.mockResolvedValue("access-token");
     authMocks.assertAdminAccount.mockResolvedValue(createAccount("admin"));
+    adminUserMocks.listManagedAccountUsers.mockResolvedValue([]);
 
     await expect(AdminPage()).resolves.toBeTruthy();
 
     expect(authMocks.assertAdminAccount).toHaveBeenCalledWith("access-token");
+    expect(adminUserMocks.listManagedAccountUsers).toHaveBeenCalledWith(createAccount("admin"));
     expect(navigationMocks.redirect).not.toHaveBeenCalled();
   });
 

@@ -356,8 +356,9 @@ describe("STEP 25I-C1-A credential foundation", () => {
 
     expect(byEmail.account.userId).toBe("00000000-0000-4000-8000-000000000901");
     expect(byUsername.account.userId).toBe(byEmail.account.userId);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    const requestBodies = fetchMock.mock.calls.map((call) => JSON.parse(call[1]?.body as string) as { email: string; password: string });
+    const passwordGrantCalls = fetchMock.mock.calls.filter((call) => String(call[0]).includes("/auth/v1/token?grant_type=password"));
+    expect(passwordGrantCalls).toHaveLength(2);
+    const requestBodies = passwordGrantCalls.map((call) => JSON.parse(call[1]?.body as string) as { email: string; password: string });
     expect(requestBodies[0].email).toBe("user@example.com");
     expect(requestBodies[1].email).toBe("user@example.com");
     expect(requestBodies[0].password).toMatch(/^LezGo1![A-Za-z0-9_-]{30,}$/);
@@ -546,10 +547,17 @@ describe("STEP 25I-C1-A credential foundation", () => {
             display_name: "Legacy User",
           },
         },
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: "00000000-0000-4000-8000-000000000923",
+        email: "legacy@example.com",
+        email_confirmed_at: "2026-08-20T10:00:00.000Z",
+        confirmed_at: "2026-08-20T10:00:00.000Z",
       }), { status: 200 }));
 
     const result = await loginWithCredential({ identifier: "legacy", code: "abc123", client });
-    const requestBodies = fetchMock.mock.calls.map((call) => JSON.parse(call[1]?.body as string) as { email: string; password: string });
+    const passwordGrantCalls = fetchMock.mock.calls.filter((call) => String(call[0]).includes("/auth/v1/token?grant_type=password"));
+    const requestBodies = passwordGrantCalls.map((call) => JSON.parse(call[1]?.body as string) as { email: string; password: string });
 
     expect(result.account.userId).toBe("00000000-0000-4000-8000-000000000923");
     expect(requestBodies[0].password).toMatch(/^LezGo1![A-Za-z0-9_-]{30,}$/);
@@ -662,6 +670,12 @@ describe("STEP 25I-C1-A credential foundation", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({
         id: "00000000-0000-4000-8000-000000000924",
         email: "reset@example.com",
+        email_confirmed_at: "2026-08-20T10:00:00.000Z",
+        confirmed_at: "2026-08-20T10:00:00.000Z",
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: "00000000-0000-4000-8000-000000000924",
+        email: "reset@example.com",
       }), { status: 200 }));
 
     await updateLoginCodeWithSession({
@@ -670,12 +684,14 @@ describe("STEP 25I-C1-A credential foundation", () => {
       repeatCode: "AB12CD",
     });
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(fetchMock.mock.calls[0][0]).toBe("https://auth.example.supabase.co/auth/v1/user");
     expect(fetchMock.mock.calls[0][1]?.method).toBe("GET");
-    expect(fetchMock.mock.calls[1][0]).toBe("https://auth.example.supabase.co/auth/v1/user");
-    expect(fetchMock.mock.calls[1][1]?.method).toBe("PUT");
-    const body = JSON.parse(fetchMock.mock.calls[1][1]?.body as string) as { password: string };
+    expect(fetchMock.mock.calls[1][0]).toBe("https://auth.example.supabase.co/auth/v1/admin/users/00000000-0000-4000-8000-000000000924");
+    expect(fetchMock.mock.calls[1][1]?.method).toBe("GET");
+    expect(fetchMock.mock.calls[2][0]).toBe("https://auth.example.supabase.co/auth/v1/user");
+    expect(fetchMock.mock.calls[2][1]?.method).toBe("PUT");
+    const body = JSON.parse(fetchMock.mock.calls[2][1]?.body as string) as { password: string };
     expect(body.password).toMatch(/^LezGo1![A-Za-z0-9_-]{30,}$/);
     expect(body.password).not.toBe("AB12CD");
   });

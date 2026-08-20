@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { createSupabaseRestClient, SupabaseRestClientError, type SupabaseRestClient } from "@/lib/supabase/rest-client";
+import { isSupabaseAdminAuthUserDeactivated, readSupabaseAdminAuthUser, SupabaseAuthAdminError } from "./auth-admin";
 
 export type AccountRole = "admin" | "user";
 
@@ -137,6 +138,7 @@ export async function readAccountFromAccessToken(accessToken: string | undefined
   }
 
   const authUser = await readSupabaseAuthUser(accessToken);
+  await assertAuthUserIsActive(authUser.id);
   return readProfileForAuthUser(authUser, client ?? createSupabaseRestClient());
 }
 
@@ -273,6 +275,30 @@ async function readSupabaseAuthUser(accessToken: string): Promise<{ id: string; 
     email: body.email,
     displayName: getMetadataName(body),
   };
+}
+
+async function assertAuthUserIsActive(userId: string): Promise<void> {
+  try {
+    const authUser = await readSupabaseAdminAuthUser(userId);
+
+    if (!authUser) {
+      throw new AuthError("Authentication was denied.", 401);
+    }
+
+    if (isSupabaseAdminAuthUserDeactivated(authUser)) {
+      throw new AuthError("Account is deactivated.", 403);
+    }
+  } catch (error) {
+    if (error instanceof AuthError) {
+      throw error;
+    }
+
+    if (error instanceof SupabaseAuthAdminError) {
+      throw new AuthError("Authentication was denied.", error.status >= 500 ? 503 : 401);
+    }
+
+    throw error;
+  }
 }
 
 async function readProfileForAuthUser(authUser: { id: string; email: string; displayName?: string }, client: SupabaseRestClient): Promise<AuthenticatedAccount> {

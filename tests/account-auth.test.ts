@@ -4,7 +4,9 @@ import { assertAdminAccount, readAccountFromAccessToken, requestEmailOtp, upsert
 
 describe("STEP 25I account auth foundation", () => {
   const originalSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const originalServerSupabaseUrl = process.env.SUPABASE_URL;
   const originalAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const originalServiceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   afterEach(() => {
     vi.restoreAllMocks();
@@ -20,10 +22,23 @@ describe("STEP 25I account auth foundation", () => {
     } else {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = originalAnonKey;
     }
+
+    if (originalServerSupabaseUrl === undefined) {
+      delete process.env.SUPABASE_URL;
+    } else {
+      process.env.SUPABASE_URL = originalServerSupabaseUrl;
+    }
+
+    if (originalServiceRole === undefined) {
+      delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    } else {
+      process.env.SUPABASE_SERVICE_ROLE_KEY = originalServiceRole;
+    }
   });
 
   it("requests Supabase OTP without accepting a client-supplied role", async () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://auth.example.supabase.co";
+    process.env.SUPABASE_URL = "https://auth.example.supabase.co";
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
 
@@ -97,13 +112,24 @@ describe("STEP 25I account auth foundation", () => {
 
   it("denies admin authorization for a normal user and allows trusted admin role", async () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://auth.example.supabase.co";
+    process.env.SUPABASE_URL = "https://auth.example.supabase.co";
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
-    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({
-      id: "00000000-0000-4000-8000-000000000902",
-      email: "admin-check@example.com",
-      email_confirmed_at: "2026-08-20T10:00:00.000Z",
-      confirmed_at: "2026-08-20T10:00:00.000Z",
-    }), { status: 200 }));
+    process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      const body = {
+        id: "00000000-0000-4000-8000-000000000902",
+        email: "admin-check@example.com",
+        email_confirmed_at: "2026-08-20T10:00:00.000Z",
+        confirmed_at: "2026-08-20T10:00:00.000Z",
+      };
+
+      if (url.endsWith("/auth/v1/user") || url.endsWith("/auth/v1/admin/users/00000000-0000-4000-8000-000000000902")) {
+        return new Response(JSON.stringify(body), { status: 200 });
+      }
+
+      throw new Error(`Unexpected fetch ${url}`);
+    });
 
     await expect(assertAdminAccount("access-token", createProfileMemoryClient("user"))).rejects.toMatchObject({ status: 403 });
     await expect(assertAdminAccount("access-token", createProfileMemoryClient("admin"))).resolves.toMatchObject({ role: "admin" });
