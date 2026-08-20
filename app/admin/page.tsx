@@ -22,7 +22,7 @@ export default async function AdminPage() {
   ]);
 
   return (
-    <AppShell title="Admin" subtitle="Beskyttet område for systemadministration." primaryAction={null}>
+    <AppShell title="Admin" subtitle="Beskyttet område for systemadministration." contentWidth="wide" primaryAction={null}>
       <AdminDashboard users={users} tournaments={tournaments} currentUserId={admin.userId} />
     </AppShell>
   );

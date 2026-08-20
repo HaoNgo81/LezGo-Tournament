@@ -50,6 +50,7 @@ interface AdminTournamentServiceOptions {
   client?: SupabaseRestClient;
 }
 
+const legacyTournamentUser = "Ældre turnering";
 const unknownUser = "Ukendt bruger";
 
 export async function listManagedTournaments(actor: AuthenticatedAccount, options: AdminTournamentServiceOptions = {}): Promise<ManagedTournament[]> {
@@ -138,7 +139,7 @@ function toManagedTournament(row: TournamentRow, adminUserId: string, profilesBy
 
 function toPerson(userId: string | undefined, profilesById: Map<string, ProfileRow>): ManagedTournamentPerson {
   if (!userId) {
-    return { displayName: unknownUser };
+    return { displayName: legacyTournamentUser };
   }
 
   const profile = profilesById.get(userId);

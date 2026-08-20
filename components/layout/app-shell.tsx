@@ -12,18 +12,20 @@ interface AppShellProps {
   children: ReactNode;
   backHref?: string;
   compactMobile?: boolean;
+  contentWidth?: "standard" | "wide";
   headerAction?: ReactNode;
   primaryAction?: ReactNode;
 }
 
-export function AppShell({ title, subtitle, children, backHref = "/", compactMobile = false, headerAction, primaryAction }: AppShellProps) {
+export function AppShell({ title, subtitle, children, backHref = "/", compactMobile = false, contentWidth = "standard", headerAction, primaryAction }: AppShellProps) {
   const { t } = useAppTranslation();
   const translatedTitle = translateKnownShellText(title, t);
   const translatedSubtitle = subtitle ? translateKnownShellText(subtitle, t) : undefined;
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+  const widthClassName = contentWidth === "wide" ? "max-w-[min(1180px,calc(100vw-48px))]" : compactMobile ? "max-w-4xl xl:max-w-6xl" : "max-w-4xl";
 
   return (
-    <main className={`safe-screen mx-auto flex w-full flex-col ${compactMobile ? "max-w-4xl gap-3 sm:gap-6 xl:max-w-6xl" : "max-w-4xl gap-6"}`}>
+    <main className={`safe-screen mx-auto flex w-full flex-col ${widthClassName} ${compactMobile ? "gap-3 sm:gap-6" : "gap-6"}`}>
       <header className={`flex flex-col ${compactMobile ? "gap-2 sm:gap-4" : "gap-4"}`}>
         {headerAction ? (
           <div className="rounded-md border-b border-[var(--line)] bg-[var(--surface)] px-2 py-1.5 backdrop-blur sm:px-3" data-testid="main-account-top-bar">

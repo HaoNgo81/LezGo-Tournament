@@ -25,6 +25,8 @@ describe("STEP 25I-C1-C8B admin tournament management UI", () => {
     expect(screen.getAllByText("@creator").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Controller Two").length).toBeGreaterThan(0);
     expect(screen.getByText("Ingen turneringer kan slettes her.")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Overtag styring" })[0]).toHaveClass("whitespace-nowrap");
+    expect(screen.getAllByRole("button", { name: "Åbn" })[0]).toHaveClass("whitespace-nowrap");
 
     fireEvent.change(screen.getByLabelText("Søg"), { target: { value: "fast makker" } });
     expect(screen.getAllByText("Partner Cup").length).toBeGreaterThan(0);

@@ -127,13 +127,13 @@ export function AdminTournamentManagement({ tournaments: initialTournaments }: A
             <table className="w-full table-fixed text-left text-sm">
               <thead className="bg-[var(--primary-soft)]/60 text-xs uppercase text-[var(--primary-strong)]">
                 <tr>
-                  <TableHeader className="w-[20%]">Turnering</TableHeader>
-                  <TableHeader className="w-[13%]">Format</TableHeader>
-                  <TableHeader className="w-[9%]">Status</TableHeader>
-                  <TableHeader className="w-[16%]">Oprettet af</TableHeader>
-                  <TableHeader className="w-[16%]">Styres af</TableHeader>
-                  <TableHeader className="w-[12%]">Opdateret</TableHeader>
-                  <TableHeader className="w-[14%]">Handlinger</TableHeader>
+                  <TableHeader className="w-[21%]">Turnering</TableHeader>
+                  <TableHeader className="w-[16%]">Format</TableHeader>
+                  <TableHeader className="w-[8%]">Status</TableHeader>
+                  <TableHeader className="w-[14%]">Oprettet af</TableHeader>
+                  <TableHeader className="w-[14%]">Styres af</TableHeader>
+                  <TableHeader className="w-[9%]">Opdateret</TableHeader>
+                  <TableHeader className="w-[18%]">Handlinger</TableHeader>
                 </tr>
               </thead>
               <tbody>
@@ -258,16 +258,16 @@ function TournamentActions(props: {
   onTakeover: () => void;
 }) {
   return (
-    <div className="grid gap-2">
-      <button className="btn-secondary min-h-10 px-3 py-2 text-sm" type="button" onClick={props.onOpen}>
+    <div className="flex flex-wrap items-center gap-2">
+      <button className="btn-secondary min-h-10 whitespace-nowrap px-3 py-2 text-sm" type="button" onClick={props.onOpen}>
         Åbn
       </button>
       {props.tournament.isControlledByCurrentAdmin ? (
-        <span className="inline-flex min-h-10 items-center justify-center rounded-md border border-[var(--primary)] bg-[var(--primary-soft)] px-3 py-2 text-center text-sm font-black text-[var(--primary-strong)]">
+        <span className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-md border border-[var(--primary)] bg-[var(--primary-soft)] px-3 py-2 text-center text-sm font-black text-[var(--primary-strong)]">
           Du styrer
         </span>
       ) : (
-        <button className="btn-secondary min-h-10 px-3 py-2 text-sm" type="button" disabled={props.busy} onClick={props.onTakeover}>
+        <button className="btn-secondary min-h-10 whitespace-nowrap px-3 py-2 text-sm" type="button" disabled={props.busy} onClick={props.onTakeover}>
           Overtag styring
         </button>
       )}
@@ -306,7 +306,7 @@ function FilterSelect(props: {
 }
 
 function TableHeader({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <th className={`px-3 py-2 font-black ${className}`}>{children}</th>;
+  return <th className={`whitespace-nowrap px-3 py-2 font-black ${className}`}>{children}</th>;
 }
 
 function TableCell({ children }: { children: React.ReactNode }) {

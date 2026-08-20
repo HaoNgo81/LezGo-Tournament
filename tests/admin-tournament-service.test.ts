@@ -20,14 +20,15 @@ describe("STEP 25I-C1-C8B admin tournament service", () => {
 
     const tournaments = await listManagedTournaments(admin, { client });
 
-    expect(tournaments).toHaveLength(2);
+    expect(tournaments).toHaveLength(3);
     expect(tournaments[0]).toMatchObject({
       name: "Creator Cup",
       creator: { displayName: "Creator One", username: "creator" },
       controller: { displayName: "Controller Two", username: "controller" },
       isControlledByCurrentAdmin: false,
     });
-    expect(tournaments[1].creator.displayName).toBe("Ukendt bruger");
+    expect(tournaments[1].creator.displayName).toBe("Ældre turnering");
+    expect(tournaments[2].creator.displayName).toBe("Ukendt bruger");
   });
 
   it("updates only controller semantics during takeover and preserves creator", async () => {
@@ -59,6 +60,7 @@ function createClient(): SupabaseRestClient {
   const tournaments = [
     createTournamentRow(tournamentId, "Creator Cup", creatorId, otherId),
     createTournamentRow("00000000-0000-4000-8000-000000000102", "Legacy Cup", null, null),
+    createTournamentRow("00000000-0000-4000-8000-000000000103", "Missing Profile Cup", "00000000-0000-4000-8000-000000000999", null),
   ];
   const profiles = [
     { user_id: creatorId, display_name: "Creator One", username: "creator", email: "creator@example.com" },
