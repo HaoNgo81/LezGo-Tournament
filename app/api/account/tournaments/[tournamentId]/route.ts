@@ -16,6 +16,8 @@ interface OwnedTournamentRow {
   format: string;
   legacy_local_id: string | null;
   owner_user_id: string | null;
+  created_by_user_id: string | null;
+  controller_user_id: string | null;
   team_competition_mode: string | null;
   updated_at?: string;
 }
@@ -32,14 +34,14 @@ export async function GET(_request: Request, context: RouteContext): Promise<Res
     const client = createSupabaseRestClient();
     const [tournament] = await client.select<OwnedTournamentRow>(
       "tournaments",
-      `id=eq.${encodeURIComponent(tournamentId)}&select=id,format,legacy_local_id,owner_user_id,team_competition_mode,updated_at`,
+      `id=eq.${encodeURIComponent(tournamentId)}&select=id,format,legacy_local_id,owner_user_id,created_by_user_id,controller_user_id,team_competition_mode,updated_at`,
     );
 
     if (!tournament) {
       return Response.json({ ok: false, error: "Tournament was not found." }, { status: 404 });
     }
 
-    if (tournament.owner_user_id !== account.userId && account.role !== "admin") {
+    if (!canReadTournament(tournament, account.userId) && account.role !== "admin") {
       return Response.json({ ok: false, error: "Tournament access was denied." }, { status: 403 });
     }
 
@@ -82,6 +84,12 @@ export async function GET(_request: Request, context: RouteContext): Promise<Res
 
 function isTeamVsTeamTournament(tournament: OwnedTournamentRow): boolean {
   return tournament.team_competition_mode === "knockout" || tournament.team_competition_mode === "pool";
+}
+
+function canReadTournament(tournament: OwnedTournamentRow, userId: string): boolean {
+  return tournament.created_by_user_id === userId
+    || tournament.controller_user_id === userId
+    || (!tournament.controller_user_id && tournament.owner_user_id === userId);
 }
 
 function isUuid(value: string): boolean {

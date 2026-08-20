@@ -14,6 +14,7 @@ interface RouteContext {
 interface OwnedTournamentRow {
   id: string;
   owner_user_id: string | null;
+  controller_user_id: string | null;
   team_competition_mode: string | null;
   updated_at?: string;
 }
@@ -65,7 +66,7 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
       return Response.json({ ok: false, error: "Tournament was not found." }, { status: 404 });
     }
 
-    if (tournament.owner_user_id !== account.userId && account.role !== "admin") {
+    if (!canWriteTournament(tournament, account.userId) && account.role !== "admin") {
       return Response.json({ ok: false, error: "Tournament access was denied." }, { status: 403 });
     }
 
@@ -131,9 +132,13 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
 async function readOwnedTournament(client: ReturnType<typeof createSupabaseRestClient>, tournamentId: string): Promise<OwnedTournamentRow | null> {
   const [tournament] = await client.select<OwnedTournamentRow>(
     "tournaments",
-    `id=eq.${encodeURIComponent(tournamentId)}&select=id,owner_user_id,team_competition_mode,updated_at`,
+    `id=eq.${encodeURIComponent(tournamentId)}&select=id,owner_user_id,controller_user_id,team_competition_mode,updated_at`,
   );
   return tournament ?? null;
+}
+
+function canWriteTournament(tournament: OwnedTournamentRow, userId: string): boolean {
+  return (tournament.controller_user_id ?? tournament.owner_user_id) === userId;
 }
 
 function isTeamVsTeamTournament(tournament: OwnedTournamentRow): boolean {

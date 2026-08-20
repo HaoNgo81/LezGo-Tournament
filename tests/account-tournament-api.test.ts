@@ -74,6 +74,8 @@ describe("STEP 25I-B1 owner cloud tournament open API", () => {
       format: "americano",
       legacy_local_id: "cloud restored-americano",
       owner_user_id: "00000000-0000-4000-8000-0000000000a1",
+      created_by_user_id: "00000000-0000-4000-8000-0000000000a1",
+      controller_user_id: "00000000-0000-4000-8000-0000000000a1",
       team_competition_mode: null,
       updated_at: "2026-08-19T10:00:00.000Z",
     }]);
@@ -97,6 +99,27 @@ describe("STEP 25I-B1 owner cloud tournament open API", () => {
     expect(databaseMocks.readStandard).toHaveBeenCalledWith("00000000-0000-4000-8000-000000000101");
   });
 
+  it("allows the original creator to inspect a tournament after controller transfer", async () => {
+    const state = createCloudState("Creator readable", 1);
+    authMocks.readAccountFromAccessToken.mockResolvedValue(createAccount("00000000-0000-4000-8000-0000000000a1"));
+    restClientMocks.select.mockResolvedValue([{
+      id: "00000000-0000-4000-8000-000000000104",
+      format: "americano",
+      legacy_local_id: "creator-readable-americano",
+      owner_user_id: "00000000-0000-4000-8000-0000000000a1",
+      created_by_user_id: "00000000-0000-4000-8000-0000000000a1",
+      controller_user_id: "00000000-0000-4000-8000-0000000000b2",
+      team_competition_mode: null,
+      updated_at: "2026-08-19T10:00:00.000Z",
+    }]);
+    databaseMocks.readStandard.mockResolvedValue(state);
+
+    const response = await openOwnedTournament(new Request("http://localhost/api/account/tournaments/00000000-0000-4000-8000-000000000104"), createRouteContext("00000000-0000-4000-8000-000000000104"));
+
+    expect(response.status).toBe(200);
+    expect(databaseMocks.readStandard).toHaveBeenCalledWith("00000000-0000-4000-8000-000000000104");
+  });
+
   it("blocks another normal user from opening a private owned tournament", async () => {
     authMocks.readAccountFromAccessToken.mockResolvedValue(createAccount("00000000-0000-4000-8000-0000000000b2"));
     restClientMocks.select.mockResolvedValue([{
@@ -104,6 +127,8 @@ describe("STEP 25I-B1 owner cloud tournament open API", () => {
       format: "americano",
       legacy_local_id: "private-americano",
       owner_user_id: "00000000-0000-4000-8000-0000000000a1",
+      created_by_user_id: "00000000-0000-4000-8000-0000000000a1",
+      controller_user_id: "00000000-0000-4000-8000-0000000000a1",
       team_competition_mode: null,
       updated_at: "2026-08-19T10:00:00.000Z",
     }]);

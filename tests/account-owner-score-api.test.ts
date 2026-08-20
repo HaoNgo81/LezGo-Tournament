@@ -123,6 +123,26 @@ describe("STEP 25I-B2 owner match score API", () => {
     expect(databaseMocks.saveOwnedMatchScore).not.toHaveBeenCalled();
   });
 
+  it("blocks the original owner after a controller transfer and allows the current controller", async () => {
+    authMocks.readAccountFromAccessToken.mockResolvedValueOnce(createAccount(ownerUserId));
+    restClientMocks.select.mockResolvedValueOnce([createTournamentRow(ownerUserId, otherUserId)]);
+
+    const staleOwnerResponse = await saveOwnedScore(createScoreRequest("r1-c1", 21, 10, 1), createRouteContext(tournamentId));
+
+    expect(staleOwnerResponse.status).toBe(403);
+    expect(databaseMocks.saveOwnedMatchScore).not.toHaveBeenCalled();
+
+    authMocks.readAccountFromAccessToken.mockResolvedValueOnce(createAccount(otherUserId));
+    restClientMocks.select.mockResolvedValueOnce([createTournamentRow(ownerUserId, otherUserId)]);
+
+    const controllerResponse = await saveOwnedScore(createScoreRequest("r1-c1", 21, 10, 1), createRouteContext(tournamentId));
+
+    expect(controllerResponse.status).toBe(200);
+    expect(databaseMocks.saveOwnedMatchScore).toHaveBeenCalledWith(expect.objectContaining({
+      actorUserId: otherUserId,
+    }), restClientMocks);
+  });
+
   it("blocks anonymous score writes before reading private rows", async () => {
     authMocks.readAccountFromAccessToken.mockRejectedValue(new AuthError());
 
@@ -141,10 +161,11 @@ function createScoreRequest(matchId: string, teamAPoints: number, teamBPoints: n
   });
 }
 
-function createTournamentRow(owner_user_id: string) {
+function createTournamentRow(owner_user_id: string, controller_user_id: string | null = owner_user_id) {
   return {
     id: tournamentId,
     owner_user_id,
+    controller_user_id,
     team_competition_mode: null,
     updated_at: "2026-08-19T12:00:00.000Z",
   };
