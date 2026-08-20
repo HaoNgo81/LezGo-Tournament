@@ -10,6 +10,23 @@ vi.mock("next/navigation", () => ({
   useRouter: () => navigationMocks,
 }));
 
+function expectUsableAccountModalShell(dialog: HTMLElement) {
+  const panel = screen.getByTestId("main-account-dialog-panel");
+  const scrollArea = screen.getByTestId("main-account-dialog-scroll");
+
+  expect(dialog).toHaveClass("fixed", "inset-0", "overflow-y-auto", "overscroll-contain", "py-5");
+  expect(panel).toHaveClass(
+    "grid",
+    "max-h-[calc(100dvh-2.5rem)]",
+    "sm:max-h-[calc(100dvh-3rem)]",
+    "overflow-hidden",
+  );
+  expect(panel.className).toContain("grid-rows-[auto_minmax(0,1fr)]");
+  expect(panel).not.toHaveClass("overflow-y-auto");
+  expect(scrollArea).toHaveClass("min-h-0", "overflow-y-auto", "px-4", "pb-4");
+  expect(panel).toContainElement(scrollArea);
+}
+
 describe("STEP 25I-C1-B main page account UI", () => {
   afterEach(() => {
     cleanup();
@@ -54,8 +71,7 @@ describe("STEP 25I-C1-B main page account UI", () => {
     expect(within(dialog).getByRole("heading", { name: "Konto" })).toBeInTheDocument();
     expect(within(dialog).getByLabelText("Email eller brugernavn")).toBeInTheDocument();
     expect(within(dialog).getByLabelText("6-tegns kode")).toHaveAttribute("type", "password");
-    expect(dialog).toHaveClass("overflow-y-auto");
-    expect(screen.getByTestId("main-account-dialog-panel")).toHaveClass("max-h-[calc(100svh-2.5rem)]", "overflow-y-auto");
+    expectUsableAccountModalShell(dialog);
   });
 
   it("changes language from the premium top bar through the existing preferences system", async () => {
@@ -78,13 +94,46 @@ describe("STEP 25I-C1-B main page account UI", () => {
     fireEvent.click(await screen.findByTestId("main-account-create-control"));
 
     const dialog = await screen.findByTestId("main-account-dialog");
-    expect(dialog).toHaveClass("overflow-y-auto", "overscroll-contain", "py-5");
-    expect(screen.getByTestId("main-account-dialog-panel")).toHaveClass("max-h-[calc(100svh-2.5rem)]", "sm:max-h-[calc(100svh-3rem)]", "overflow-y-auto");
+    expectUsableAccountModalShell(dialog);
     expect(within(dialog).getByRole("heading", { name: "Konto" })).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Opret bruger" })).toBeInTheDocument();
     expect(within(dialog).getByLabelText("Navn")).toBeInTheDocument();
     expect(within(dialog).getByLabelText("Brugernavn")).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Har du allerede en bruger? Log ind" })).toBeInTheDocument();
+  });
+
+  it("keeps the create-user modal in a normal shell with reachable top content and bottom action", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: false }), { status: 401 })));
+
+    render(<HomePage />);
+    fireEvent.click(await screen.findByTestId("main-account-create-control"));
+
+    const dialog = await screen.findByTestId("main-account-dialog");
+    const panel = screen.getByTestId("main-account-dialog-panel");
+    const scrollArea = screen.getByTestId("main-account-dialog-scroll");
+
+    expectUsableAccountModalShell(dialog);
+    expect(panel).not.toHaveClass("max-h-[92svh]");
+    expect(scrollArea).toContainElement(within(dialog).getByRole("button", { name: "Opret bruger" }));
+    expect(scrollArea).toContainElement(within(dialog).getByLabelText("Navn"));
+    expect(scrollArea).toContainElement(within(dialog).getByLabelText("Brugernavn"));
+    expect(scrollArea).toContainElement(within(dialog).getByLabelText("E-mail"));
+    expect(scrollArea).toContainElement(within(dialog).getByLabelText("6-tegns kode"));
+    expect(scrollArea).toContainElement(within(dialog).getByLabelText("Gentag kode"));
+    expect(scrollArea).toContainElement(within(dialog).getByRole("button", { name: "Har du allerede en bruger? Log ind" }));
+  });
+
+  it("uses the same non-collapsing modal shell for forgot-code recovery", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: false }), { status: 401 })));
+
+    render(<HomePage />);
+    fireEvent.click(await screen.findByTestId("main-account-control"));
+    const dialog = await screen.findByTestId("main-account-dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Glemt kode?" }));
+
+    expectUsableAccountModalShell(dialog);
+    expect(within(dialog).getByText("Indtast den email, der er tilknyttet din konto.")).toBeInTheDocument();
+    expect(screen.getByTestId("main-account-dialog-scroll")).toContainElement(within(dialog).getByRole("button", { name: "Send vejledning" }));
   });
 
   it("renders logged-out account actions in English", async () => {
@@ -253,7 +302,7 @@ describe("STEP 25I-C1-B main page account UI", () => {
     const dialog = await screen.findByTestId("main-account-dialog");
     fireEvent.click(within(dialog).getByRole("button", { name: "Glemt kode?" }));
     expect(within(dialog).getByText("Indtast den email, der er tilknyttet din konto.")).toBeInTheDocument();
-    expect(screen.getByTestId("main-account-dialog-panel")).toHaveClass("overflow-y-auto");
+    expectUsableAccountModalShell(dialog);
     fireEvent.change(within(dialog).getByLabelText("E-mail"), { target: { value: "ukendt@example.com" } });
     fireEvent.submit(within(dialog).getByRole("button", { name: "Send vejledning" }).closest("form") as HTMLFormElement);
 
