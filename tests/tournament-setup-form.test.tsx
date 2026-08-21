@@ -416,6 +416,57 @@ describe("tournament setup form", () => {
     }
   });
 
+  it("retries the initial ownership shadow-save when stale local metadata is terminal", async () => {
+    const originalFlag = process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE;
+    process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE = "1";
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      ok: true,
+      saveMode: "insert",
+      tournamentId: "00000000-0000-4000-8000-00000000025b",
+      organizerToken: "STEP_25K_FIX2_ORGANIZER_TOKEN",
+      updatedAt: "2026-08-21T13:00:00.000Z",
+    }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    window.localStorage.setItem("lezgo.shadowSaveMetadata.v1", JSON.stringify({
+      "lezgotakeovertest turnering-americano": {
+        localId: "lezgotakeovertest turnering-americano",
+        kind: "standard",
+        status: "conflict",
+        lastError: "Tournament snapshot conflict.",
+      },
+    }));
+
+    render(<TournamentSetupForm />);
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Navn" }), { target: { value: "lezgotakeovertest turnering" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Spillere, Et navn pr. linje" }), {
+      target: { value: "Hao\nMartin\nRonnie\nSimon" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Start turnering" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/supabase/shadow-save", expect.objectContaining({
+      method: "POST",
+    })));
+
+    const payload = JSON.parse(fetchMock.mock.calls[0][1]?.body as string) as { legacyLocalId?: string; state?: { tournamentName?: string } };
+    expect(payload.legacyLocalId).toBe("lezgotakeovertest turnering-americano");
+    expect(payload.state?.tournamentName).toBe("lezgotakeovertest turnering");
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/live"));
+
+    const metadata = JSON.parse(window.localStorage.getItem("lezgo.shadowSaveMetadata.v1") ?? "{}") as Record<string, { status?: string; supabaseTournamentId?: string }>;
+    expect(metadata["lezgotakeovertest turnering-americano"]).toMatchObject({
+      status: "synced",
+      supabaseTournamentId: "00000000-0000-4000-8000-00000000025b",
+    });
+
+    if (originalFlag === undefined) {
+      delete process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE;
+    } else {
+      process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE = originalFlag;
+    }
+  });
+
   it("starts Mixed Americano player fields empty", () => {
     render(<TournamentSetupForm />);
 

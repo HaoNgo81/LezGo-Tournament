@@ -13,6 +13,8 @@ import {
   createTeamVsTeamTournamentFromSetup,
   createTeamVsTeamShadowSaveLocalId,
   createTournamentFromSetup,
+  ensureStandardTournamentShadowSaveCompleted,
+  ensureTeamVsTeamTournamentShadowSaveCompleted,
   saveActiveTeamVsTeamTournament,
   saveActiveTournament,
   type FixedScoreRule,
@@ -22,7 +24,6 @@ import {
   type PoolUnmatchedResolution,
   type ScoringMode,
   type TournamentSetupFormat,
-  waitForShadowSaveCompletion,
 } from "@/lib/tournament-setup";
 import type { StandingsRankingMode } from "@/lib/tournament-engine";
 import {
@@ -180,7 +181,7 @@ export function TournamentSetupForm() {
         });
 
         saveActiveTeamVsTeamTournament(tournament);
-        await waitForShadowSaveCompletion(createTeamVsTeamShadowSaveLocalId(tournament));
+        await ensureTeamVsTeamTournamentShadowSaveCompleted(createTeamVsTeamShadowSaveLocalId(tournament), tournament);
         router.push("/team-vs-team");
         return;
       }
@@ -203,7 +204,7 @@ export function TournamentSetupForm() {
         });
 
         saveActiveTournament(tournament);
-        await waitForShadowSaveCompletion(createStandardShadowSaveLocalId(tournament));
+        await ensureStandardTournamentShadowSaveCompleted(createStandardShadowSaveLocalId(tournament), tournament);
         router.push("/live");
         return;
       }
@@ -225,7 +226,7 @@ export function TournamentSetupForm() {
       });
 
       saveActiveTournament(tournament);
-      await waitForShadowSaveCompletion(createStandardShadowSaveLocalId(tournament));
+      await ensureStandardTournamentShadowSaveCompleted(createStandardShadowSaveLocalId(tournament), tournament);
       router.push("/live");
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Turneringen kunne ikke oprettes.");

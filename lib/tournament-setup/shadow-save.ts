@@ -135,6 +135,14 @@ export function waitForShadowSaveCompletion(localId: string, timeoutMs = shadowS
   });
 }
 
+export async function ensureStandardTournamentShadowSaveCompleted(localId: string, state: LiveTournamentState): Promise<ShadowSaveMetadata | null> {
+  return await ensureShadowSaveCompleted(localId, "standard", state);
+}
+
+export async function ensureTeamVsTeamTournamentShadowSaveCompleted(localId: string, state: TeamVsTeamTournamentState): Promise<ShadowSaveMetadata | null> {
+  return await ensureShadowSaveCompleted(localId, "team-vs-team", state);
+}
+
 export function clearShadowSaveMetadata(): void {
   if (typeof window === "undefined") {
     return;
@@ -216,6 +224,36 @@ function retryShadowSave(localId: string, kind: ShadowSaveKind, state: unknown):
     lastError: undefined,
   });
   queueShadowSave({ kind, localId, state });
+}
+
+async function ensureShadowSaveCompleted(localId: string, kind: ShadowSaveKind, state: unknown): Promise<ShadowSaveMetadata | null> {
+  if (typeof window === "undefined" || !isShadowSaveEnabled()) {
+    return loadShadowSaveMetadata(localId);
+  }
+
+  if (inFlightLocalIds.has(localId)) {
+    return await waitForShadowSaveCompletion(localId);
+  }
+
+  const metadata = loadShadowSaveMetadata(localId);
+  saveShadowSaveMetadata({
+    ...metadata,
+    localId,
+    kind,
+    status: "syncing",
+    lastLocalSaveAt: new Date().toISOString(),
+    lastError: undefined,
+  });
+
+  inFlightLocalIds.add(localId);
+
+  try {
+    await performShadowSave({ kind, localId, state });
+  } finally {
+    inFlightLocalIds.delete(localId);
+  }
+
+  return loadShadowSaveMetadata(localId);
 }
 
 async function performShadowSave({ kind, localId, state }: { kind: ShadowSaveKind; localId: string; state: unknown }): Promise<void> {
