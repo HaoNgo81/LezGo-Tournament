@@ -2,6 +2,7 @@ import type { LiveTournamentState } from "../live-scoring";
 import { createSupabaseRestClient, SupabaseRestClientError, type SupabaseRestClient } from "../supabase/rest-client";
 import { mapLiveTournamentToPersistencePayload } from "./live-tournament-mapper";
 import { mapPersistenceRowsToLiveTournamentState, type StandardTournamentReadModel } from "./live-tournament-readback";
+import { normalizePersistedTournamentPrivacy, type PersistedTournamentPrivacy } from "./persistence-payloads";
 import { createStandardTournamentWritePlan, type DatabaseWriteOperation, type PersistenceWritePlan } from "./persistence-write-plan";
 
 export class TournamentPersistenceError extends Error {
@@ -41,7 +42,8 @@ export function createStandardTournamentRepository(client: SupabaseRestClient = 
       validateStandardTournamentState(state);
       validateLegacyLocalId(options.legacyLocalId);
 
-      const payload = mapLiveTournamentToPersistencePayload(state, { legacyLocalId: options.legacyLocalId });
+      const existingPrivacy = options.tournamentId ? await readTournamentPrivacy(client, options.tournamentId) : undefined;
+      const payload = mapLiveTournamentToPersistencePayload(state, { legacyLocalId: options.legacyLocalId, privacy: existingPrivacy });
       const writePlan = createStandardTournamentWritePlan(payload, { createId: options.createId, tournamentId: options.tournamentId });
       assertStandardWritePlanSupported(writePlan);
 
@@ -107,6 +109,11 @@ export function assertStandardWritePlanSupported(writePlan: PersistenceWritePlan
 async function readTournamentUpdatedAt(client: SupabaseRestClient, tournamentId: string): Promise<string | undefined> {
   const [row] = await client.select<{ updated_at?: string }>("tournaments", `id=eq.${encodeURIComponent(tournamentId)}&select=updated_at`);
   return row?.updated_at;
+}
+
+async function readTournamentPrivacy(client: SupabaseRestClient, tournamentId: string): Promise<PersistedTournamentPrivacy | undefined> {
+  const [row] = await client.select<{ privacy?: unknown }>("tournaments", `id=eq.${encodeURIComponent(tournamentId)}&select=privacy`);
+  return row ? normalizePersistedTournamentPrivacy(row.privacy) : undefined;
 }
 
 async function readStandardTournamentRows(client: SupabaseRestClient, tournamentId: string): Promise<StandardTournamentReadModel> {

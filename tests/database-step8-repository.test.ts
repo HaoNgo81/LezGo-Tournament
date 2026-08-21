@@ -81,6 +81,31 @@ describe("STEP 8 standard Supabase repository", () => {
       p_actor_user_id: "00000000-0000-4000-8000-000000000777",
     });
   });
+
+  it("preserves existing explicit privacy when replacing a snapshot", async () => {
+    const state = createSavedAmericanoState();
+    const client = createMemoryClient();
+    const repository = createStandardTournamentRepository(client);
+    const tournamentId = "00000000-0000-4000-8000-000000000999";
+    client.snapshot().tournaments.push({
+      id: tournamentId,
+      privacy: "public_result",
+      updated_at: "2026-08-21T10:00:00.000Z",
+    });
+
+    await repository.save(state, {
+      legacyLocalId: "STEP_25I_C8D_PRIVACY",
+      createId: createDeterministicUuidFactory(),
+      tournamentId,
+      expectedUpdatedAt: "2026-08-21T10:00:00.000Z",
+    });
+
+    const operations = client.calls.lastRpcBody?.p_operations as DatabaseWriteOperation[];
+    expect(getOperationRows({ operations, idMap: {}, transactional: true }, "tournaments")[0]).toMatchObject({
+      id: tournamentId,
+      privacy: "public_result",
+    });
+  });
 });
 
 function createSavedAmericanoState() {

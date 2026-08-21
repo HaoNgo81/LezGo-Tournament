@@ -5,6 +5,7 @@ import type {
   TeamVsTeamPersistencePayload,
   TournamentPoolRowPayload,
 } from "./persistence-payloads";
+import { normalizePersistedTournamentPrivacy } from "./persistence-payloads";
 
 export type DatabaseRow = Record<string, unknown>;
 export type DatabaseOperationKind = "insert" | "update";
@@ -53,11 +54,11 @@ export function createStandardTournamentWritePlan(
       kind: "insert",
       table: "tournaments",
       rows: [
-        {
+        normalizeTournamentRow({
           id: tournamentId,
           ...withoutClientFields(payload.tournament, ["clientRef", "active_matchup_legacy_id"]),
           active_matchup_id: null,
-        },
+        }),
       ],
     },
     {
@@ -169,11 +170,11 @@ export function createTeamVsTeamTournamentWritePlan(
       kind: "insert",
       table: "tournaments",
       rows: [
-        {
+        normalizeTournamentRow({
           id: tournamentId,
           ...withoutClientFields(payload.tournament, ["clientRef", "active_matchup_legacy_id"]),
           active_matchup_id: null,
-        },
+        }),
       ],
     },
     {
@@ -378,4 +379,11 @@ function withoutClientFields<T extends object, K extends keyof T>(row: T, keys: 
   }
 
   return copy;
+}
+
+function normalizeTournamentRow(row: DatabaseRow): DatabaseRow {
+  return {
+    ...row,
+    privacy: normalizePersistedTournamentPrivacy(row.privacy),
+  };
 }

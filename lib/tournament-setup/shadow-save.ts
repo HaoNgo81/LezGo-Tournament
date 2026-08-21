@@ -39,6 +39,8 @@ const metadataStorageKey = "lezgo.shadowSaveMetadata.v1";
 export const shadowSaveMetadataChangedEvent = "lezgo:shadow-save-metadata-changed";
 const shadowSaveTimeoutMs = 10000;
 const inFlightLocalIds = new Set<string>();
+const genericShadowSaveErrorMessage = "Synchronization failed. Local tournament is preserved.";
+const genericShadowSaveConflictMessage = "Tournament snapshot conflict.";
 
 export function createStandardShadowSaveLocalId(state: LiveTournamentState): string {
   return `${state.tournamentName.trim().toLocaleLowerCase("da")}-${state.format}`;
@@ -206,13 +208,13 @@ async function performShadowSave({ kind, localId, state }: { kind: ShadowSaveKin
         localId,
         kind,
         status: "conflict",
-        lastError: body.error ?? "Supabase shadow-save conflict.",
+        lastError: genericShadowSaveConflictMessage,
       });
       return;
     }
 
     if (!response.ok || !body.ok || !body.tournamentId) {
-      throw new Error(body.error ?? `Supabase shadow-save failed with status ${response.status}.`);
+      throw new Error(genericShadowSaveErrorMessage);
     }
 
     const savedAt = new Date().toISOString();
@@ -278,14 +280,16 @@ async function parseShadowSaveResponse(response: Response): Promise<ShadowSaveRe
   try {
     return await response.json() as ShadowSaveResponse;
   } catch {
-    return { ok: false, error: "Invalid shadow-save response." };
+    return { ok: false, error: genericShadowSaveErrorMessage };
   }
 }
 
 function getShadowSaveErrorMessage(error: unknown): string {
   if (error instanceof DOMException && error.name === "AbortError") {
-    return "Supabase shadow-save timed out.";
+    return genericShadowSaveErrorMessage;
   }
 
-  return error instanceof Error ? error.message : "Supabase shadow-save failed.";
+  return error instanceof Error && error.message === genericShadowSaveErrorMessage
+    ? error.message
+    : genericShadowSaveErrorMessage;
 }

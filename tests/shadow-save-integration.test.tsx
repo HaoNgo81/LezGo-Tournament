@@ -119,7 +119,10 @@ describe("STEP 10 shadow-save integration", () => {
 
   it("keeps local tournament intact when shadow-save fails", async () => {
     process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE = "1";
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: false, error: "offline" }), { status: 500 })));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      ok: false,
+      error: "null value in column 'privacy' of relation 'tournaments' violates not-null constraint",
+    }), { status: 500 })));
     const state = createMockLiveTournamentState();
 
     saveActiveTournament(state);
@@ -128,8 +131,9 @@ describe("STEP 10 shadow-save integration", () => {
     expect(loadActiveTournament()).toEqual(state);
     expect(loadShadowSaveMetadata("mock americano-americano")).toMatchObject({
       status: "error",
-      lastError: "offline",
+      lastError: "Synchronization failed. Local tournament is preserved.",
     });
+    expect(loadShadowSaveMetadata("mock americano-americano")?.lastError).not.toMatch(/Supabase|relation|constraint|null value/i);
   });
 
   it("retries a failed shadow-save with the existing mapping", async () => {

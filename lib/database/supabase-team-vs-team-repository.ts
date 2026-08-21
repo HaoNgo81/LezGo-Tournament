@@ -1,5 +1,6 @@
 import type { TeamVsTeamTournamentState } from "../tournament-setup";
 import { createSupabaseRestClient, SupabaseRestClientError, type SupabaseRestClient } from "../supabase/rest-client";
+import { normalizePersistedTournamentPrivacy, type PersistedTournamentPrivacy } from "./persistence-payloads";
 import { createTeamVsTeamTournamentWritePlan, type PersistenceWritePlan } from "./persistence-write-plan";
 import { mapTeamVsTeamTournamentToPersistencePayload } from "./team-vs-team-mapper";
 import { mapPersistenceRowsToTeamVsTeamTournamentState, type TeamVsTeamReadModel } from "./team-vs-team-readback";
@@ -32,7 +33,8 @@ export function createTeamVsTeamTournamentRepository(client: SupabaseRestClient 
       validateTeamVsTeamState(state);
       validateLegacyLocalId(options.legacyLocalId);
 
-      const payload = mapTeamVsTeamTournamentToPersistencePayload(state, { legacyLocalId: options.legacyLocalId });
+      const existingPrivacy = options.tournamentId ? await readTournamentPrivacy(client, options.tournamentId) : undefined;
+      const payload = mapTeamVsTeamTournamentToPersistencePayload(state, { legacyLocalId: options.legacyLocalId, privacy: existingPrivacy });
       const writePlan = createTeamVsTeamTournamentWritePlan(payload, { createId: options.createId, tournamentId: options.tournamentId });
 
       try {
@@ -72,6 +74,11 @@ export function createTeamVsTeamTournamentRepository(client: SupabaseRestClient 
 async function readTournamentUpdatedAt(client: SupabaseRestClient, tournamentId: string): Promise<string | undefined> {
   const [row] = await client.select<{ updated_at?: string }>("tournaments", `id=eq.${encodeURIComponent(tournamentId)}&select=updated_at`);
   return row?.updated_at;
+}
+
+async function readTournamentPrivacy(client: SupabaseRestClient, tournamentId: string): Promise<PersistedTournamentPrivacy | undefined> {
+  const [row] = await client.select<{ privacy?: unknown }>("tournaments", `id=eq.${encodeURIComponent(tournamentId)}&select=privacy`);
+  return row ? normalizePersistedTournamentPrivacy(row.privacy) : undefined;
 }
 
 async function readTeamVsTeamRows(client: SupabaseRestClient, tournamentId: string): Promise<TeamVsTeamReadModel> {

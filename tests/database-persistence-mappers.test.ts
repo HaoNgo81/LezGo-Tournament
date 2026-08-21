@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { saveMatchResult } from "../lib/live-scoring";
-import { mapLiveTournamentToPersistencePayload, mapTeamVsTeamTournamentToPersistencePayload } from "../lib/database";
+import { createStandardTournamentWritePlan, getOperationRows, mapLiveTournamentToPersistencePayload, mapTeamVsTeamTournamentToPersistencePayload } from "../lib/database";
 import { createTeamVsTeamTournamentFromSetup, createTournamentFromSetup, type TeamVsTeamTournamentState } from "../lib/tournament-setup";
 
 describe("database persistence mappers", () => {
@@ -78,6 +78,52 @@ describe("database persistence mappers", () => {
       player2Ref: "player:p16",
       display_order: 8,
     });
+  });
+
+  it("normalizes legacy tournament rows with missing privacy to the existing safe default", () => {
+    const state = createTournamentFromSetup({
+      name: "Legacy privacy",
+      format: "Americano",
+      playerText: Array.from({ length: 4 }, (_, index) => `Spiller ${index + 1}`).join("\n"),
+      femalePlayerText: "",
+      malePlayerText: "",
+      courts: 1,
+      rounds: 1,
+      scoringMode: "Fri scoring",
+      firstRoundOrder: "manual",
+      rankingMode: "matchPointsFirst",
+    });
+    const payload = mapLiveTournamentToPersistencePayload(state);
+    const legacyTournament = { ...payload.tournament } as Partial<typeof payload.tournament>;
+    delete legacyTournament.privacy;
+    const legacyPayload = { ...payload, tournament: legacyTournament };
+
+    const writePlan = createStandardTournamentWritePlan(legacyPayload as ReturnType<typeof mapLiveTournamentToPersistencePayload>, {
+      createId: createDeterministicUuidFactory(),
+    });
+
+    expect(getOperationRows(writePlan, "tournaments")[0]).toMatchObject({
+      privacy: "private",
+    });
+  });
+
+  it("preserves an explicit public result privacy value in the persistence payload", () => {
+    const state = createTournamentFromSetup({
+      name: "Public result privacy",
+      format: "Americano",
+      playerText: Array.from({ length: 4 }, (_, index) => `Spiller ${index + 1}`).join("\n"),
+      femalePlayerText: "",
+      malePlayerText: "",
+      courts: 1,
+      rounds: 1,
+      scoringMode: "Fri scoring",
+      firstRoundOrder: "manual",
+      rankingMode: "matchPointsFirst",
+    });
+
+    const payload = mapLiveTournamentToPersistencePayload(state, { privacy: "public_result" });
+
+    expect(payload.tournament.privacy).toBe("public_result");
   });
 
   it("keeps Mixed Americano gender and match-side structure in the payload", () => {
@@ -182,4 +228,9 @@ function createTeam(idPrefix: string, name: string) {
     captainPlayerId: `${idPrefix}1`,
     players: Array.from({ length: 4 }, (_, index) => ({ id: `${idPrefix}${index + 1}`, name: `${name} spiller ${index + 1}` })),
   };
+}
+
+function createDeterministicUuidFactory(): () => string {
+  let nextId = 1;
+  return () => `00000000-0000-4000-8000-${String(nextId++).padStart(12, "0")}`;
 }

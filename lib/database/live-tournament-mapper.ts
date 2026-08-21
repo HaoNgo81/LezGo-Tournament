@@ -9,6 +9,7 @@ import type {
   MatchSideRowPayload,
   PersistedMatchStatus,
   PersistedRoundStatus,
+  PersistedTournamentPrivacy,
   PoolParticipantRowPayload,
   RoundRowPayload,
   StandardTournamentPersistencePayload,
@@ -18,6 +19,7 @@ import type {
 
 export interface StandardTournamentMapperOptions {
   legacyLocalId?: string;
+  privacy?: PersistedTournamentPrivacy;
 }
 
 export function mapLiveTournamentToPersistencePayload(
@@ -86,7 +88,7 @@ export function mapLiveTournamentToPersistencePayload(
       active_matchup_legacy_id: null,
       finished_at: state.finishedAt ?? null,
       legacy_local_id: options.legacyLocalId ?? null,
-      privacy: "private",
+      privacy: options.privacy ?? "private",
       metadata: {
         ...(state.poolPlay ? { runtimeState: state } : {}),
       },

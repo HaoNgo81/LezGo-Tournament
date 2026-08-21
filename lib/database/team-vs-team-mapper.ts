@@ -1,6 +1,7 @@
 import type { TeamVsTeamMatchState, TeamVsTeamTournamentState } from "../tournament-setup";
 import type {
   PersistedMatchStatus,
+  PersistedTournamentPrivacy,
   TeamVsTeamLineupRowPayload,
   TeamVsTeamMatchupRowPayload,
   TeamVsTeamPersistencePayload,
@@ -12,6 +13,7 @@ import type {
 
 export interface TeamVsTeamMapperOptions {
   legacyLocalId?: string;
+  privacy?: PersistedTournamentPrivacy;
 }
 
 export function mapTeamVsTeamTournamentToPersistencePayload(
@@ -74,7 +76,7 @@ export function mapTeamVsTeamTournamentToPersistencePayload(
       active_matchup_legacy_id: state.activeMatchupId ?? null,
       finished_at: state.finishedAt ?? null,
       legacy_local_id: options.legacyLocalId ?? null,
-      privacy: "private",
+      privacy: options.privacy ?? "private",
       metadata: {
         knockoutGroups: state.knockoutGroups,
         knockoutPlacements: state.knockoutPlacements,

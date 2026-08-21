@@ -10,6 +10,12 @@ import type {
 export type TournamentDatabaseFormat = TournamentFormat | "team-vs-team";
 export type PersistedTournamentStatus = "setup" | "active" | "finished";
 export type PersistedTournamentPrivacy = "private" | "public_result";
+export const defaultPersistedTournamentPrivacy: PersistedTournamentPrivacy = "private";
+
+export function normalizePersistedTournamentPrivacy(value: unknown): PersistedTournamentPrivacy {
+  return value === "public_result" ? "public_result" : defaultPersistedTournamentPrivacy;
+}
+
 export type PersistedRoundStatus = "scheduled" | "active" | "completed";
 export type PersistedMatchStatus = "ready" | "running" | "completed";
 export type PersistedMatchScope = "standard" | "pool_initial" | "pool_placement" | "pool_cross" | "pool_final" | "pool_tiebreak";
