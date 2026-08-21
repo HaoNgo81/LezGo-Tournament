@@ -47,6 +47,13 @@ export type TranslationKey =
   | "accountShowCode"
   | "accountSignedIn"
   | "accountTournamentOpenError"
+  | "accountTournamentCompleted"
+  | "accountTournamentController"
+  | "accountTournamentReadOnly"
+  | "accountTournamentStatusActive"
+  | "accountTournamentStatusFinished"
+  | "accountTournamentStatusSetup"
+  | "accountTournamentUpdated"
   | "accountUsername"
   | "accountVerificationEmailResent"
   | "accountVerificationEmailSent"
@@ -351,7 +358,14 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountSendInstructions: "Send vejledning",
     accountShowCode: "Vis kode",
     accountSignedIn: "Logget ind",
-    accountTournamentOpenError: "Turneringen kunne ikke åbnes fra Supabase.",
+    accountTournamentOpenError: "Turneringen kunne ikke åbnes.",
+    accountTournamentCompleted: "Afsluttet",
+    accountTournamentController: "Du styrer",
+    accountTournamentReadOnly: "Kun visning",
+    accountTournamentStatusActive: "Aktiv",
+    accountTournamentStatusFinished: "Afsluttet",
+    accountTournamentStatusSetup: "Kladde",
+    accountTournamentUpdated: "Sidst opdateret:",
     accountUsername: "Brugernavn",
     accountVerificationEmailResent: "Hvis e-mailen kan bekræftes, har vi sendt en ny mail.",
     accountVerificationEmailSent: "Vi har sendt et bekræftelseslink til din e-mail.",
@@ -655,7 +669,14 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountSendInstructions: "Send instructions",
     accountShowCode: "Show code",
     accountSignedIn: "Signed in",
-    accountTournamentOpenError: "The tournament could not be opened from Supabase.",
+    accountTournamentOpenError: "The tournament could not be opened.",
+    accountTournamentCompleted: "Completed",
+    accountTournamentController: "You control",
+    accountTournamentReadOnly: "View only",
+    accountTournamentStatusActive: "Active",
+    accountTournamentStatusFinished: "Completed",
+    accountTournamentStatusSetup: "Draft",
+    accountTournamentUpdated: "Last updated:",
     accountUsername: "Username",
     accountVerificationEmailResent: "If the email can be verified, we have sent a new email.",
     accountVerificationEmailSent: "We have sent a verification link to your email.",

@@ -60,7 +60,7 @@ describe("STEP 25I-C1-C8A account tournament controller list API", () => {
     ]);
 
     const response = await listAccountTournaments();
-    const body = await response.json() as { tournaments: Array<{ name: string }> };
+    const body = await response.json() as { tournaments: Array<{ name: string; canManage: boolean; managementState: string; updatedAt?: string }> };
 
     expect(response.status).toBe(200);
     expect(body.tournaments.map((tournament) => tournament.name)).toEqual([
@@ -68,10 +68,43 @@ describe("STEP 25I-C1-C8A account tournament controller list API", () => {
       "Controller visible",
       "Legacy visible",
     ]);
+    expect(body.tournaments.map((tournament) => tournament.managementState)).toEqual([
+      "readOnly",
+      "controller",
+      "controller",
+    ]);
+    expect(body.tournaments.map((tournament) => tournament.canManage)).toEqual([
+      false,
+      true,
+      true,
+    ]);
+    expect(body.tournaments[0].updatedAt).toBe("2026-08-20T10:00:00.000Z");
     expect(restClientMocks.select).toHaveBeenCalledWith(
       "tournaments",
       expect.stringContaining("created_by_user_id.eq."),
     );
+  });
+
+  it("marks finished account tournaments as completed in the presentation state", async () => {
+    restClientMocks.select.mockResolvedValue([
+      {
+        ...createTournamentRow("Finished Cup", userId, userId, userId),
+        status: "finished",
+      },
+    ]);
+
+    const response = await listAccountTournaments();
+    const body = await response.json() as { tournaments: Array<{ name: string; canManage: boolean; managementState: string; status: string }> };
+
+    expect(response.status).toBe(200);
+    expect(body.tournaments).toEqual([
+      expect.objectContaining({
+        name: "Finished Cup",
+        status: "finished",
+        canManage: true,
+        managementState: "completed",
+      }),
+    ]);
   });
 });
 

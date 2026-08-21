@@ -1,4 +1,5 @@
 import { readAccountFromAccessToken, AuthError } from "@/lib/auth";
+import { canManageAccountTournament } from "@/lib/account/tournament-authority";
 import { readAuthAccessCookie } from "@/lib/auth/cookies";
 import { createSupabaseRestClient } from "@/lib/supabase/rest-client";
 
@@ -31,6 +32,10 @@ export async function GET(): Promise<Response> {
         format: row.format,
         status: row.status,
         updatedAt: row.updated_at,
+        canManage: canManageAccountTournament(row, account.userId),
+        managementState: row.status === "finished"
+          ? "completed"
+          : canManageAccountTournament(row, account.userId) ? "controller" : "readOnly",
       })),
     }, {
       headers: {

@@ -20,6 +20,9 @@ interface AccountTournament {
   name: string;
   format: string;
   status: string;
+  updatedAt?: string;
+  canManage?: boolean;
+  managementState?: "controller" | "readOnly" | "completed";
 }
 
 export type AccountView = "login" | "create" | "forgot" | "reset" | "verify";
@@ -416,11 +419,21 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
         <div className="rounded-md border border-[var(--line)] bg-white/70 p-3">
           <p className="text-sm font-black uppercase tracking-wide text-[var(--primary-strong)]">{t("accountOwnTournaments")}</p>
           {tournaments.length ? (
-            <ul className="mt-2 grid gap-2 text-sm font-bold">
-              {tournaments.slice(0, 5).map((tournament) => (
-                <li key={tournament.id} className="grid gap-1 rounded-md border border-[var(--line)] p-2">
-                  <span>{tournament.name}</span>
-                  <span className="text-xs text-[var(--muted)]">{tournament.status} · {tournament.format}</span>
+            <ul className="mt-2 grid max-h-[42dvh] gap-2 overflow-y-auto pr-1 text-sm font-bold" data-testid="account-tournament-list">
+              {tournaments.map((tournament) => (
+                <li key={tournament.id} className="grid min-w-0 gap-2 rounded-md border border-[var(--line)] bg-white/80 p-3" data-testid="account-tournament-card">
+                  <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <span className="block break-words text-base font-black text-[var(--foreground)]">{tournament.name}</span>
+                      <span className="mt-1 block text-xs font-black uppercase tracking-wide text-[var(--muted)]">{formatTournamentSummary(tournament)}</span>
+                    </div>
+                    <span className={`rounded-md border px-2 py-1 text-xs font-black ${getManagementBadgeClassName(tournament)}`}>
+                      {getManagementLabel(tournament)}
+                    </span>
+                  </div>
+                  {tournament.updatedAt ? (
+                    <span className="text-xs font-bold text-[var(--muted)]">{t("accountTournamentUpdated")} {formatUpdatedAt(tournament.updatedAt)}</span>
+                  ) : null}
                   <button className="btn-secondary min-h-10 text-sm" type="button" disabled={openingTournamentId === tournament.id || isLoading} onClick={() => void handleOpenTournament(tournament.id)}>
                     {openingTournamentId === tournament.id ? t("loadingTournament") : t("accountOpenTournament")}
                   </button>
@@ -563,6 +576,90 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
         {isShown ? t("accountHideCode") : t("accountShowCode")}
       </button>
     );
+  }
+
+  function formatTournamentSummary(tournament: AccountTournament): string {
+    return `${getTournamentStatusLabel(tournament.status)} · ${getTournamentFormatLabel(tournament.format)}`;
+  }
+
+  function getManagementLabel(tournament: AccountTournament): string {
+    if (tournament.managementState === "completed" || tournament.status === "finished") {
+      return t("accountTournamentCompleted");
+    }
+
+    if (tournament.managementState === "readOnly" || tournament.canManage === false) {
+      return t("accountTournamentReadOnly");
+    }
+
+    return t("accountTournamentController");
+  }
+
+  function getManagementBadgeClassName(tournament: AccountTournament): string {
+    if (tournament.managementState === "completed" || tournament.status === "finished") {
+      return "border-[var(--line)] bg-[var(--background)] text-[var(--muted)]";
+    }
+
+    if (tournament.managementState === "readOnly" || tournament.canManage === false) {
+      return "border-[var(--line)] bg-[var(--background)] text-[var(--muted)]";
+    }
+
+    return "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary-strong)]";
+  }
+
+  function getTournamentStatusLabel(status: string): string {
+    if (status === "setup") {
+      return t("accountTournamentStatusSetup");
+    }
+
+    if (status === "finished") {
+      return t("accountTournamentStatusFinished");
+    }
+
+    return t("accountTournamentStatusActive");
+  }
+
+  function getTournamentFormatLabel(format: string): string {
+    if (format === "americano") {
+      return t("formatAmericano");
+    }
+
+    if (format === "mexicano") {
+      return t("formatMexicano");
+    }
+
+    if (format === "mixed-americano") {
+      return t("formatMixedAmericano");
+    }
+
+    if (format === "fixed-partner-americano") {
+      return t("fixedPartnerAmericano");
+    }
+
+    if (format === "fixed-partner-mexicano") {
+      return t("fixedPartnerMexicano");
+    }
+
+    if (format === "pool-play") {
+      return t("formatPoolPlay");
+    }
+
+    return format;
+  }
+
+  function formatUpdatedAt(value: string): string {
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+
+    return new Intl.DateTimeFormat(undefined, {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date);
   }
 }
 
