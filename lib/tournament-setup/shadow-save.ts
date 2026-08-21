@@ -98,6 +98,43 @@ export function loadAllShadowSaveMetadata(): ShadowSaveMetadata[] {
   return Object.values(loadShadowSaveMetadataMap());
 }
 
+export function waitForShadowSaveCompletion(localId: string, timeoutMs = shadowSaveTimeoutMs + 500): Promise<ShadowSaveMetadata | null> {
+  if (typeof window === "undefined" || !isShadowSaveEnabled()) {
+    return Promise.resolve(loadShadowSaveMetadata(localId));
+  }
+
+  const currentMetadata = loadShadowSaveMetadata(localId);
+
+  if (currentMetadata && currentMetadata.status !== "syncing") {
+    return Promise.resolve(currentMetadata);
+  }
+
+  return new Promise((resolve) => {
+    const timeoutId = window.setTimeout(() => {
+      cleanup();
+      resolve(loadShadowSaveMetadata(localId));
+    }, timeoutMs);
+
+    function handleMetadataChanged(event: Event) {
+      const metadata = (event as CustomEvent<ShadowSaveMetadata>).detail;
+
+      if (metadata?.localId !== localId || metadata.status === "syncing") {
+        return;
+      }
+
+      cleanup();
+      resolve(metadata);
+    }
+
+    function cleanup() {
+      window.clearTimeout(timeoutId);
+      window.removeEventListener(shadowSaveMetadataChangedEvent, handleMetadataChanged);
+    }
+
+    window.addEventListener(shadowSaveMetadataChangedEvent, handleMetadataChanged);
+  });
+}
+
 export function clearShadowSaveMetadata(): void {
   if (typeof window === "undefined") {
     return;

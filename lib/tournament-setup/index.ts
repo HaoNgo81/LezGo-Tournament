@@ -8,7 +8,7 @@ export { createPlacementPoolStage } from "./pool-play-placement";
 export { createCrossMatchStage } from "./pool-play-cross-matches";
 export { createCrossMatchFinalStage } from "./pool-play-finals";
 export { advanceTeamVsTeamFourTeamBracket, advanceTeamVsTeamKnockout, calculateTeamVsTeamPlacements, calculateTeamVsTeamStandings, canAdvanceTeamVsTeamKnockout, finishTeamVsTeamTournament, getTeamVsTeamMatchWinnerTeamId, saveTeamVsTeamTieBreak } from "./team-vs-team-flow";
-export { clearShadowSaveMetadata, createStandardShadowSaveLocalId, createTeamVsTeamShadowSaveLocalId, isShadowSaveEnabled, loadAllShadowSaveMetadata, loadShadowSaveMetadata, markCloudTournamentRestored, markRemoteShadowSaveApplied, retryStandardTournamentShadowSave, retryTeamVsTeamShadowSave, shadowSaveMetadataChangedEvent } from "./shadow-save";
+export { clearShadowSaveMetadata, createStandardShadowSaveLocalId, createTeamVsTeamShadowSaveLocalId, isShadowSaveEnabled, loadAllShadowSaveMetadata, loadShadowSaveMetadata, markCloudTournamentRestored, markRemoteShadowSaveApplied, retryStandardTournamentShadowSave, retryTeamVsTeamShadowSave, shadowSaveMetadataChangedEvent, waitForShadowSaveCompletion } from "./shadow-save";
 export { loadActiveCloudTournamentAuthority, markActiveCloudTournamentAuthority } from "./cloud-authority";
 export { analyzeLocalStorageMigrationReadiness, formatMigrationDryRunSummary } from "./migration-readiness";
 export {

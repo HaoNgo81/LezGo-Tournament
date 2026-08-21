@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TournamentSetupForm } from "../components/tournament/tournament-setup-form";
@@ -374,6 +374,48 @@ describe("tournament setup form", () => {
     expect(screen.queryByText("Start turnering")).not.toBeInTheDocument();
   });
 
+  it("waits for the initial cloud shadow-save before navigating to live", async () => {
+    const originalFlag = process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE;
+    process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE = "1";
+    const deferred = createDeferred<Response>();
+    const fetchMock = vi.fn().mockReturnValue(deferred.promise);
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TournamentSetupForm />);
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Navn" }), { target: { value: "USER OWNERSHIP TEST" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Spillere, Et navn pr. linje" }), {
+      target: { value: "Hao\nMartin\nRonnie\nSimon" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Start turnering" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/supabase/shadow-save", expect.objectContaining({
+      method: "POST",
+    })));
+    expect(push).not.toHaveBeenCalled();
+
+    const payload = JSON.parse(fetchMock.mock.calls[0][1]?.body as string) as { legacyLocalId?: string; tournamentId?: string; state?: { tournamentName?: string } };
+    expect(payload.tournamentId).toBeUndefined();
+    expect(payload.legacyLocalId).toContain("user ownership test");
+    expect(payload.state?.tournamentName).toBe("USER OWNERSHIP TEST");
+
+    deferred.resolve(new Response(JSON.stringify({
+      ok: true,
+      saveMode: "insert",
+      tournamentId: "00000000-0000-4000-8000-00000000025a",
+      organizerToken: "STEP_25K_FIX1_ORGANIZER_TOKEN",
+      updatedAt: "2026-08-21T12:00:00.000Z",
+    }), { status: 200 }));
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/live"));
+
+    if (originalFlag === undefined) {
+      delete process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE;
+    } else {
+      process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE = originalFlag;
+    }
+  });
+
   it("starts Mixed Americano player fields empty", () => {
     render(<TournamentSetupForm />);
 
@@ -443,4 +485,12 @@ function expectSelectedFormat(formatName: string): void {
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve: (value: T) => void = () => undefined;
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve;
+  });
+  return { promise, resolve };
 }

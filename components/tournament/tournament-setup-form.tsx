@@ -9,7 +9,9 @@ import type { TranslationKey } from "@/lib/i18n/translations";
 import { tournamentTypes } from "@/lib/mock/tournament-data";
 import {
   createPoolTournamentFromSetup,
+  createStandardShadowSaveLocalId,
   createTeamVsTeamTournamentFromSetup,
+  createTeamVsTeamShadowSaveLocalId,
   createTournamentFromSetup,
   saveActiveTeamVsTeamTournament,
   saveActiveTournament,
@@ -20,6 +22,7 @@ import {
   type PoolUnmatchedResolution,
   type ScoringMode,
   type TournamentSetupFormat,
+  waitForShadowSaveCompletion,
 } from "@/lib/tournament-setup";
 import type { StandingsRankingMode } from "@/lib/tournament-engine";
 import {
@@ -157,7 +160,7 @@ export function TournamentSetupForm() {
     return countLines(playerText);
   }, [femalePlayerText, format, isPoolPlay, isTeamVsTeam, malePlayerText, playerText, playersPerTeam, teamCount]);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
 
@@ -177,6 +180,7 @@ export function TournamentSetupForm() {
         });
 
         saveActiveTeamVsTeamTournament(tournament);
+        await waitForShadowSaveCompletion(createTeamVsTeamShadowSaveLocalId(tournament));
         router.push("/team-vs-team");
         return;
       }
@@ -199,6 +203,7 @@ export function TournamentSetupForm() {
         });
 
         saveActiveTournament(tournament);
+        await waitForShadowSaveCompletion(createStandardShadowSaveLocalId(tournament));
         router.push("/live");
         return;
       }
@@ -220,6 +225,7 @@ export function TournamentSetupForm() {
       });
 
       saveActiveTournament(tournament);
+      await waitForShadowSaveCompletion(createStandardShadowSaveLocalId(tournament));
       router.push("/live");
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Turneringen kunne ikke oprettes.");
