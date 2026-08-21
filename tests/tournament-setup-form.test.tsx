@@ -467,6 +467,43 @@ describe("tournament setup form", () => {
     }
   });
 
+  it("blocks navigation when the initial cloud shadow-save does not create a Supabase tournament", async () => {
+    const originalFlag = process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE;
+    process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE = "1";
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      ok: false,
+      error: "Shadow-save failed.",
+    }), { status: 500 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TournamentSetupForm />);
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Navn" }), { target: { value: "FIX3 TEST" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Spillere, Et navn pr. linje" }), {
+      target: { value: "Hao\nMartin\nRonnie\nSimon" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Start turnering" }));
+
+    await screen.findByText("Turneringen blev gemt lokalt, men kunne ikke synkroniseres til skyen. Prøv igen.");
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/supabase/shadow-save", expect.objectContaining({
+      method: "POST",
+    }));
+    expect(push).not.toHaveBeenCalled();
+
+    const metadata = JSON.parse(window.localStorage.getItem("lezgo.shadowSaveMetadata.v1") ?? "{}") as Record<string, { status?: string; supabaseTournamentId?: string }>;
+    expect(metadata["fix3 test-americano"]).toMatchObject({
+      status: "error",
+    });
+    expect(metadata["fix3 test-americano"]?.supabaseTournamentId).toBeUndefined();
+
+    if (originalFlag === undefined) {
+      delete process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE;
+    } else {
+      process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE = originalFlag;
+    }
+  });
+
   it("starts Mixed Americano player fields empty", () => {
     render(<TournamentSetupForm />);
 

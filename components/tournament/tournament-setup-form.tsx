@@ -15,8 +15,10 @@ import {
   createTournamentFromSetup,
   ensureStandardTournamentShadowSaveCompleted,
   ensureTeamVsTeamTournamentShadowSaveCompleted,
+  isShadowSaveEnabled,
   saveActiveTeamVsTeamTournament,
   saveActiveTournament,
+  type ShadowSaveMetadata,
   type FixedScoreRule,
   type PoolAdvancementMode,
   type PoolParticipantType,
@@ -181,7 +183,7 @@ export function TournamentSetupForm() {
         });
 
         saveActiveTeamVsTeamTournament(tournament);
-        await ensureTeamVsTeamTournamentShadowSaveCompleted(createTeamVsTeamShadowSaveLocalId(tournament), tournament);
+        assertInitialCloudShadowSave(await ensureTeamVsTeamTournamentShadowSaveCompleted(createTeamVsTeamShadowSaveLocalId(tournament), tournament));
         router.push("/team-vs-team");
         return;
       }
@@ -204,7 +206,7 @@ export function TournamentSetupForm() {
         });
 
         saveActiveTournament(tournament);
-        await ensureStandardTournamentShadowSaveCompleted(createStandardShadowSaveLocalId(tournament), tournament);
+        assertInitialCloudShadowSave(await ensureStandardTournamentShadowSaveCompleted(createStandardShadowSaveLocalId(tournament), tournament));
         router.push("/live");
         return;
       }
@@ -226,7 +228,7 @@ export function TournamentSetupForm() {
       });
 
       saveActiveTournament(tournament);
-      await ensureStandardTournamentShadowSaveCompleted(createStandardShadowSaveLocalId(tournament), tournament);
+      assertInitialCloudShadowSave(await ensureStandardTournamentShadowSaveCompleted(createStandardShadowSaveLocalId(tournament), tournament));
       router.push("/live");
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Turneringen kunne ikke oprettes.");
@@ -833,6 +835,18 @@ export function TournamentSetupForm() {
       </Section>
     </form>
   );
+}
+
+function assertInitialCloudShadowSave(metadata: ShadowSaveMetadata | null): void {
+  if (!isShadowSaveEnabled()) {
+    return;
+  }
+
+  if (metadata?.status === "synced" && metadata.supabaseTournamentId) {
+    return;
+  }
+
+  throw new Error("Turneringen blev gemt lokalt, men kunne ikke synkroniseres til skyen. Prøv igen.");
 }
 
 function TeamEditor({ team, teamNumber, playersPerTeam, onChange }: { team: TeamVsTeamTeam; teamNumber: number; playersPerTeam: TeamVsTeamPlayersPerTeam; onChange: (team: TeamVsTeamTeam) => void }) {
