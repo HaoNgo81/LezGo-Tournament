@@ -21,6 +21,7 @@ describe("STEP 25I-C1-A credential foundation", () => {
   const originalServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const originalAccountCredentialSecret = process.env.LEZGO_ACCOUNT_CREDENTIAL_SECRET;
   const originalVercelEnv = process.env.VERCEL_ENV;
+  const originalPublicAppOrigin = process.env.LEZGO_PUBLIC_APP_ORIGIN;
 
   afterEach(() => {
     vi.restoreAllMocks();
@@ -62,6 +63,12 @@ describe("STEP 25I-C1-A credential foundation", () => {
     } else {
       process.env.VERCEL_ENV = originalVercelEnv;
     }
+
+    if (originalPublicAppOrigin === undefined) {
+      delete process.env.LEZGO_PUBLIC_APP_ORIGIN;
+    } else {
+      process.env.LEZGO_PUBLIC_APP_ORIGIN = originalPublicAppOrigin;
+    }
   });
 
   it("validates username and login code normalization without accepting invalid code shapes", () => {
@@ -87,6 +94,7 @@ describe("STEP 25I-C1-A credential foundation", () => {
 
   it("uses the locked production reset route for recovery redirects without localhost", () => {
     process.env.VERCEL_ENV = "production";
+    process.env.LEZGO_PUBLIC_APP_ORIGIN = "https://lezgotournament.vercel.app";
 
     const redirectTo = getCredentialRecoveryRedirectTo("https://app.lezgopadel.dk/account");
 
@@ -96,6 +104,7 @@ describe("STEP 25I-C1-A credential foundation", () => {
 
   it("keeps localhost recovery redirects only for local development", () => {
     delete process.env.VERCEL_ENV;
+    delete process.env.LEZGO_PUBLIC_APP_ORIGIN;
 
     expect(getCredentialRecoveryRedirectTo("http://localhost:3000/account")).toBe("http://localhost:3000/auth/reset");
   });

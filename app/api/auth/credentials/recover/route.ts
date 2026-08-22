@@ -19,9 +19,11 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
+    const redirectTo = getCredentialRecoveryRedirectTo(request.url);
+    logRecoveryRedirectTarget(redirectTo);
     const result = await requestLoginCodeRecovery({
       email: body.email ?? "",
-      redirectTo: getCredentialRecoveryRedirectTo(request.url),
+      redirectTo,
       rateLimitKey: getRateLimitKey(request, body.email ?? "unknown"),
     });
 
@@ -52,4 +54,12 @@ export async function POST(request: Request): Promise<Response> {
 function getRateLimitKey(request: Request, identifier: string): string {
   const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
   return `${forwarded || "unknown"}:${identifier}`;
+}
+
+function logRecoveryRedirectTarget(redirectTo: string): void {
+  const url = new URL(redirectTo);
+  console.info("[auth.credentials.recover] recovery redirect target", {
+    origin: url.origin,
+    pathname: url.pathname,
+  });
 }
