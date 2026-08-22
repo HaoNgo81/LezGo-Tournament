@@ -65,6 +65,7 @@ function translateKnownShellText(text: string, t: (key: TranslationKey) => strin
     "Aktive og afsluttede turneringer gemmes lokalt.": "tournamentsDescription",
     "Live turnering": "liveTournamentTitle",
     "En skærm til runde, kampe, scoring og stilling.": "liveTournamentDescription",
+    "Nulstil kode": "accountResetCodeTitle",
     "openRemoteTournament": "openRemoteTournament",
     "openRemoteTournamentDescription": "openRemoteTournamentDescription",
   };

@@ -153,7 +153,7 @@ describe("STEP 25I-C1-B main page account UI", () => {
 
     expectUsableAccountModalShell(dialog);
     expect(within(dialog).getByText("Indtast den email, der er tilknyttet din konto.")).toBeInTheDocument();
-    expect(screen.getByTestId("main-account-dialog-scroll")).toContainElement(within(dialog).getByRole("button", { name: "Send vejledning" }));
+    expect(screen.getByTestId("main-account-dialog-scroll")).toContainElement(within(dialog).getByRole("button", { name: "Send instruktioner" }));
   });
 
   it("renders logged-out account actions in English", async () => {
@@ -425,7 +425,7 @@ describe("STEP 25I-C1-B main page account UI", () => {
         expect(JSON.parse(String(init?.body))).toEqual({ email: "ukendt@example.com" });
         return new Response(JSON.stringify({
           ok: true,
-          message: "If the email is linked to an account, we have sent recovery instructions.",
+          message: "If the email address is registered, we have sent instructions for creating a new code.",
         }), { status: 200 });
       }
 
@@ -440,9 +440,9 @@ describe("STEP 25I-C1-B main page account UI", () => {
     expect(within(dialog).getByText("Indtast den email, der er tilknyttet din konto.")).toBeInTheDocument();
     expectUsableAccountModalShell(dialog);
     fireEvent.change(within(dialog).getByLabelText("E-mail"), { target: { value: "ukendt@example.com" } });
-    fireEvent.submit(within(dialog).getByRole("button", { name: "Send vejledning" }).closest("form") as HTMLFormElement);
+    fireEvent.submit(within(dialog).getByRole("button", { name: "Send instruktioner" }).closest("form") as HTMLFormElement);
 
-    await screen.findByText("Hvis emailen er tilknyttet en konto, har vi sendt en mail med instruktioner.");
+    await screen.findByText("Hvis e-mailadressen er registreret, har vi sendt instruktioner til at oprette en ny kode.");
   });
 
   it("resends account verification from the pending create-account state", async () => {

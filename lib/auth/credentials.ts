@@ -12,7 +12,8 @@ import {
 } from "./session";
 
 const genericLoginMessage = "Email/username or code is incorrect.";
-const genericRecoveryMessage = "If the email is linked to an account, we have sent recovery instructions.";
+const genericRecoveryMessage = "If the email address is registered, we have sent instructions for creating a new code.";
+const invalidRecoveryLinkMessage = "The link is invalid or expired.";
 const unverifiedEmailMessage = "Email is not verified.";
 const stalePendingAccountMs = 24 * 60 * 60 * 1000;
 
@@ -284,6 +285,44 @@ export async function updateLoginCodeWithSession(input: { accessToken: string | 
   if (!response.ok) {
     throw new AuthError("Login code could not be updated.", response.status || 401);
   }
+}
+
+export async function completeLoginCodeRecovery(input: { tokenHash: string; type: string; code: string; repeatCode: string; rateLimitKey?: string }): Promise<void> {
+  const tokenHash = input.tokenHash.trim();
+  const type = input.type.trim();
+  const code = normalizeLoginCode(input.code);
+
+  if (normalizeLoginCode(input.repeatCode) !== code) {
+    throw new AuthError("Login codes do not match.", 400);
+  }
+
+  assertAuthRateLimit("credential-recovery-complete", `${input.rateLimitKey ?? "unknown"}:${tokenHash.slice(0, 32)}`, { limit: 8, windowMs: 60 * 60 * 1000 });
+
+  if (!tokenHash || type !== "recovery") {
+    throw new AuthError(invalidRecoveryLinkMessage, 400);
+  }
+
+  const config = getSupabaseAuthConfig();
+  const response = await fetch(`${config.url}/auth/v1/verify`, {
+    method: "POST",
+    headers: getAuthHeaders(config.anonKey),
+    body: JSON.stringify({
+      token_hash: tokenHash,
+      type: "recovery",
+    }),
+  });
+  const body = await parseJson(response);
+
+  if (!response.ok || !isPasswordSession(body)) {
+    logCredentialAuthFailure("verify_recovery_token", response.status || 400, body);
+    throw new AuthError(invalidRecoveryLinkMessage, 400);
+  }
+
+  await updateLoginCodeWithSession({
+    accessToken: String(body.access_token),
+    code,
+    repeatCode: code,
+  });
 }
 
 async function resolveUsernameToEmail(identifier: string, client: SupabaseRestClient): Promise<string> {

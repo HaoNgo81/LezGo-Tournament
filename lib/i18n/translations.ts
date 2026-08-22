@@ -7,6 +7,7 @@ export type TranslationKey =
   | "accountAlreadyHaveLogin"
   | "accountBackToLogin"
   | "accountCode"
+  | "accountCodeInvalid"
   | "accountCodeCouldNotReset"
   | "accountCodeMismatch"
   | "accountCodeReset"
@@ -42,6 +43,9 @@ export type TranslationKey =
   | "accountOpenTournament"
   | "accountOwnTournaments"
   | "accountRepeatCode"
+  | "accountRecoveryCodeChanged"
+  | "accountRecoveryInvalidLink"
+  | "accountResetCodeTitle"
   | "accountResendVerification"
   | "accountSaveNewCode"
   | "accountSendInstructions"
@@ -320,6 +324,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountAlreadyHaveLogin: "Har du allerede en bruger? Log ind",
     accountBackToLogin: "Tilbage til log ind",
     accountCode: "6-tegns kode",
+    accountCodeInvalid: "Koden skal være præcis 6 bogstaver og/eller tal.",
     accountCodeCouldNotReset: "Koden kunne ikke gemmes.",
     accountCodeMismatch: "Koderne er ikke ens.",
     accountCodeReset: "Den nye kode er gemt.",
@@ -336,7 +341,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountEmailVerifiedMessage: "E-mail bekræftet. Din konto er nu aktiveret. Du kan logge ind.",
     accountForgotCode: "Glemt kode",
     accountForgotCodeHelp: "Indtast den email, der er tilknyttet din konto.",
-    accountGenericRecovery: "Hvis emailen er tilknyttet en konto, har vi sendt en mail med instruktioner.",
+    accountGenericRecovery: "Hvis e-mailadressen er registreret, har vi sendt instruktioner til at oprette en ny kode.",
     accountHideCode: "Skjul kode",
     accountIdentifier: "Email eller brugernavn",
     accountLogin: "Log ind",
@@ -354,10 +359,13 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountOpenTournament: "Åbn turnering",
     accountOwnTournaments: "Mine turneringer",
     accountRepeatCode: "Gentag kode",
+    accountRecoveryCodeChanged: "Din kode er ændret. Du kan nu logge ind.",
+    accountRecoveryInvalidLink: "Linket er ugyldigt eller udløbet.",
     accountRememberLogin: "Husk kode på denne enhed",
+    accountResetCodeTitle: "Nulstil kode",
     accountResendVerification: "Send mail igen",
     accountSaveNewCode: "Gem ny kode",
-    accountSendInstructions: "Send vejledning",
+    accountSendInstructions: "Send instruktioner",
     accountShowCode: "Vis kode",
     accountSignedIn: "Logget ind",
     accountTournamentOpenError: "Turneringen kunne ikke åbnes.",
@@ -632,6 +640,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountAlreadyHaveLogin: "Already have an account? Log in",
     accountBackToLogin: "Back to log in",
     accountCode: "6-character code",
+    accountCodeInvalid: "The code must be exactly 6 letters and/or numbers.",
     accountCodeCouldNotReset: "The code could not be saved.",
     accountCodeMismatch: "The codes do not match.",
     accountCodeReset: "The new code has been saved.",
@@ -648,7 +657,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountEmailVerifiedMessage: "Email verified. Your account is now active. You can log in.",
     accountForgotCode: "Forgot code",
     accountForgotCodeHelp: "Enter the email linked to your account.",
-    accountGenericRecovery: "If the email is linked to an account, we have sent recovery instructions.",
+    accountGenericRecovery: "If the email address is registered, we have sent instructions for creating a new code.",
     accountHideCode: "Hide code",
     accountIdentifier: "Email or username",
     accountLogin: "Log in",
@@ -666,7 +675,10 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountOpenTournament: "Open tournament",
     accountOwnTournaments: "My tournaments",
     accountRepeatCode: "Repeat code",
+    accountRecoveryCodeChanged: "Your code has been changed. You can now log in.",
+    accountRecoveryInvalidLink: "The link is invalid or expired.",
     accountRememberLogin: "Remember on this device",
+    accountResetCodeTitle: "Reset code",
     accountResendVerification: "Send email again",
     accountSaveNewCode: "Save new code",
     accountSendInstructions: "Send instructions",

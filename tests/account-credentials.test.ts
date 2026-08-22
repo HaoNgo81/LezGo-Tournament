@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  completeLoginCodeRecovery,
   createCredentialAccount,
   loginWithCredential,
   normalizeLoginCode,
@@ -611,15 +612,16 @@ describe("STEP 25I-C1-A credential foundation", () => {
 
     const result = await requestLoginCodeRecovery({
       email: "User@Example.com",
-      redirectTo: "https://lezgotournament.vercel.app/settings",
+      redirectTo: "https://lezgotournament.vercel.app/auth/reset",
     });
 
-    expect(result.message).toBe("If the email is linked to an account, we have sent recovery instructions.");
+    expect(result.message).toBe("If the email address is registered, we have sent instructions for creating a new code.");
     const recoverCall = fetchMock.mock.calls.find((call) => String(call[0]).endsWith("/auth/v1/recover"));
     expect(recoverCall).toBeTruthy();
     const requestBody = JSON.parse(recoverCall?.[1]?.body as string) as { email: string; password?: string; options: { redirect_to: string } };
     expect(requestBody.email).toBe("user@example.com");
     expect(requestBody).not.toHaveProperty("password");
+    expect(requestBody.options.redirect_to).toBe("https://lezgotournament.vercel.app/auth/reset");
   });
 
   it("does not send recovery instructions for an unverified credential account", async () => {
@@ -651,11 +653,172 @@ describe("STEP 25I-C1-A credential foundation", () => {
 
     const result = await requestLoginCodeRecovery({
       email: "Pending@Example.com",
-      redirectTo: "https://lezgotournament.vercel.app/settings",
+      redirectTo: "https://lezgotournament.vercel.app/auth/reset",
     });
 
-    expect(result.message).toBe("If the email is linked to an account, we have sent recovery instructions.");
+    expect(result.message).toBe("If the email address is registered, we have sent instructions for creating a new code.");
     expect(fetchMock.mock.calls.some((call) => String(call[0]).endsWith("/auth/v1/recover"))).toBe(false);
+  });
+
+  it("returns the same neutral recovery response for an unknown email without exposing account existence", async () => {
+    configureAuthEnv();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+
+      if (url.includes("/rest/v1/profiles?")) {
+        return new Response(JSON.stringify([]), { status: 200 });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    const result = await requestLoginCodeRecovery({
+      email: "unknown@example.com",
+      redirectTo: "https://lezgotournament.vercel.app/auth/reset",
+    });
+
+    expect(result.message).toBe("If the email address is registered, we have sent instructions for creating a new code.");
+    expect(fetchMock.mock.calls.some((call) => String(call[0]).endsWith("/auth/v1/recover"))).toBe(false);
+    expect(JSON.stringify(result)).not.toMatch(/unknown@example.com|user_id|role|username/i);
+  });
+
+  it("sets a new numeric 6-character code through a valid single-use recovery token without changing account metadata", async () => {
+    configureAuthEnv();
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        access_token: "recovery-access-token",
+        refresh_token: "not-used",
+        expires_in: 3600,
+        user: {
+          id: "00000000-0000-4000-8000-000000000940",
+          email: "recover@example.com",
+          email_confirmed_at: "2026-08-20T10:00:00.000Z",
+          confirmed_at: "2026-08-20T10:00:00.000Z",
+        },
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: "00000000-0000-4000-8000-000000000940",
+        email: "recover@example.com",
+        email_confirmed_at: "2026-08-20T10:00:00.000Z",
+        confirmed_at: "2026-08-20T10:00:00.000Z",
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: "00000000-0000-4000-8000-000000000940",
+        email: "recover@example.com",
+        email_confirmed_at: "2026-08-20T10:00:00.000Z",
+        confirmed_at: "2026-08-20T10:00:00.000Z",
+        app_metadata: { role: "user" },
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: "00000000-0000-4000-8000-000000000940",
+        email: "recover@example.com",
+      }), { status: 200 }));
+
+    await completeLoginCodeRecovery({
+      tokenHash: "valid-recovery-token-hash",
+      type: "recovery",
+      code: "123456",
+      repeatCode: "123456",
+      rateLimitKey: "device-a",
+    });
+
+    expect(fetchMock.mock.calls[0][0]).toBe("https://auth.example.supabase.co/auth/v1/verify");
+    expect(JSON.parse(fetchMock.mock.calls[0][1]?.body as string)).toEqual({
+      token_hash: "valid-recovery-token-hash",
+      type: "recovery",
+    });
+    expect(fetchMock.mock.calls[1][0]).toBe("https://auth.example.supabase.co/auth/v1/user");
+    expect(fetchMock.mock.calls[1][1]?.headers).toEqual(expect.objectContaining({
+      authorization: "Bearer recovery-access-token",
+    }));
+    expect(fetchMock.mock.calls[2][0]).toBe("https://auth.example.supabase.co/auth/v1/admin/users/00000000-0000-4000-8000-000000000940");
+    expect(fetchMock.mock.calls[3][0]).toBe("https://auth.example.supabase.co/auth/v1/user");
+    const updateBody = JSON.parse(fetchMock.mock.calls[3][1]?.body as string) as { password: string; role?: string; email_confirmed_at?: string };
+    expect(updateBody.password).toMatch(/^LezGo1![A-Za-z0-9_-]{30,}$/);
+    expect(updateBody.password).not.toBe("123456");
+    expect(updateBody).not.toHaveProperty("role");
+    expect(updateBody).not.toHaveProperty("email_confirmed_at");
+    expect(fetchMock.mock.calls.some((call) => String(call[0]).includes("/rest/v1/tournaments"))).toBe(false);
+  });
+
+  it("accepts an alphabetic 6-character code through recovery", async () => {
+    configureAuthEnv();
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        access_token: "recovery-access-token",
+        user: {
+          id: "00000000-0000-4000-8000-000000000941",
+          email: "alpha@example.com",
+          email_confirmed_at: "2026-08-20T10:00:00.000Z",
+        },
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: "00000000-0000-4000-8000-000000000941",
+        email: "alpha@example.com",
+        email_confirmed_at: "2026-08-20T10:00:00.000Z",
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: "00000000-0000-4000-8000-000000000941",
+        email: "alpha@example.com",
+        email_confirmed_at: "2026-08-20T10:00:00.000Z",
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: "00000000-0000-4000-8000-000000000941",
+        email: "alpha@example.com",
+      }), { status: 200 }));
+
+    await completeLoginCodeRecovery({
+      tokenHash: "alpha-recovery-token-hash",
+      type: "recovery",
+      code: "abcdef",
+      repeatCode: "ABCDEF",
+    });
+
+    const updateBody = JSON.parse(fetchMock.mock.calls[3][1]?.body as string) as { password: string };
+    expect(updateBody.password).not.toBe("ABCDEF");
+  });
+
+  it.each([
+    ["5-character code", "12345", "12345"],
+    ["7-character code", "1234567", "1234567"],
+    ["mismatching confirmation", "abc123", "abc124"],
+  ])("rejects recovery before consuming the token for %s", async (_label, code, repeatCode) => {
+    configureAuthEnv();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
+
+    await expect(completeLoginCodeRecovery({
+      tokenHash: "valid-recovery-token-hash",
+      type: "recovery",
+      code,
+      repeatCode,
+    })).rejects.toMatchObject({ status: 400 });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["invalid", "not-recovery", new Response(JSON.stringify({ error: "bad token" }), { status: 400 })],
+    ["expired", "recovery", new Response(JSON.stringify({ error: "expired" }), { status: 403 })],
+    ["already-used", "recovery", new Response(JSON.stringify({ error: "already used" }), { status: 400 })],
+  ])("rejects an %s recovery token with the same generic message", async (_label, type, response) => {
+    configureAuthEnv();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(response);
+
+    await expect(completeLoginCodeRecovery({
+      tokenHash: "bad-recovery-token-hash",
+      type,
+      code: "abc123",
+      repeatCode: "abc123",
+    })).rejects.toMatchObject({
+      status: 400,
+      message: "The link is invalid or expired.",
+    });
+
+    if (type === "recovery") {
+      expect(fetchMock).toHaveBeenCalledWith("https://auth.example.supabase.co/auth/v1/verify", expect.any(Object));
+    } else {
+      expect(fetchMock).not.toHaveBeenCalled();
+    }
   });
 
   it("updates Supabase with a server-derived password when resetting the 6-character code", async () => {

@@ -17,6 +17,7 @@ export {
 } from "./session";
 export {
   createCredentialAccount,
+  completeLoginCodeRecovery,
   loginWithCredential,
   normalizeCredentialEmail,
   normalizeLoginCode,

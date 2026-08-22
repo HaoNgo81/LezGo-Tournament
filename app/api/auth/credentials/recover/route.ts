@@ -1,8 +1,9 @@
 import { AuthError, requestLoginCodeRecovery } from "@/lib/auth";
+import { getCredentialRecoveryRedirectTo } from "@/lib/auth/credential-redirect";
 
 export const dynamic = "force-dynamic";
 
-const genericRecoveryMessage = "If the email is linked to an account, we have sent recovery instructions.";
+const genericRecoveryMessage = "If the email address is registered, we have sent instructions for creating a new code.";
 
 interface RecoverBody {
   email?: string;
@@ -20,7 +21,7 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const result = await requestLoginCodeRecovery({
       email: body.email ?? "",
-      redirectTo: new URL("/settings", request.url).toString(),
+      redirectTo: getCredentialRecoveryRedirectTo(request.url),
       rateLimitKey: getRateLimitKey(request, body.email ?? "unknown"),
     });
 

@@ -233,15 +233,11 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email: recoveryEmail }),
       });
-      const body = await response.json() as { ok?: boolean; message?: string; error?: string };
-
-      if (!response.ok || !body.ok) {
-        throw new Error(localizeAuthError(body.error, t("accountGenericRecovery")));
-      }
+      await response.json() as { ok?: boolean; message?: string; error?: string };
 
       setMessage(t("accountGenericRecovery"));
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : t("accountGenericRecovery"));
+    } catch {
+      setMessage(t("accountGenericRecovery"));
     } finally {
       setIsLoading(false);
     }
