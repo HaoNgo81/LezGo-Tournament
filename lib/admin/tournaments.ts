@@ -114,20 +114,10 @@ export async function returnManagedTournamentControlToOwner(input: {
     throw new AuthError("Tournament control cannot be returned.", 403);
   }
 
-  const [updated] = await client.update<TournamentRow>(
-    "tournaments",
-    [
-      `id=eq.${encodeURIComponent(input.tournamentId)}`,
-      `owner_user_id=eq.${encodeURIComponent(existing.owner_user_id)}`,
-      `controller_user_id=eq.${encodeURIComponent(input.actor.userId)}`,
-      "select=id,name,format,status,active_round_number,court_count,configured_rounds,created_at,updated_at,owner_user_id,created_by_user_id,controller_user_id",
-    ].join("&"),
-    { controller_user_id: existing.owner_user_id },
-  );
-
-  if (!updated) {
-    throw new AuthError("Tournament control cannot be returned.", 409);
-  }
+  const updated = await client.rpc<TournamentRow>("lezgo_admin_return_tournament_control_v1", {
+    p_tournament_id: input.tournamentId,
+    p_admin_user_id: input.actor.userId,
+  });
 
   const profilesById = await readProfilesById(collectUserIds([updated]), client);
 

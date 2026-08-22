@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
+import { canManageAccountTournament } from "../lib/account/tournament-authority";
 import { listManagedTournaments, returnManagedTournamentControlToOwner, takeoverManagedTournament } from "../lib/admin/tournaments";
 import type { SupabaseRestClient } from "../lib/supabase/rest-client";
 
@@ -53,17 +54,11 @@ describe("STEP 25I-C1-C8B admin tournament service", () => {
 
     const tournament = await returnManagedTournamentControlToOwner({ actor: admin, tournamentId }, { client });
 
-    expect(client.rpc).not.toHaveBeenCalled();
-    expect(client.update).toHaveBeenCalledWith(
-      "tournaments",
-      expect.stringContaining(`id=eq.${tournamentId}`),
-      { controller_user_id: creatorId },
-    );
-    expect(client.update).toHaveBeenCalledWith(
-      "tournaments",
-      expect.stringContaining(`controller_user_id=eq.${admin.userId}`),
-      { controller_user_id: creatorId },
-    );
+    expect(client.rpc).toHaveBeenCalledWith("lezgo_admin_return_tournament_control_v1", {
+      p_tournament_id: tournamentId,
+      p_admin_user_id: admin.userId,
+    });
+    expect(client.update).not.toHaveBeenCalled();
     expect(client.snapshot().find((row) => row.id === tournamentId)).toMatchObject({
       owner_user_id: creatorId,
       created_by_user_id: creatorId,
@@ -75,13 +70,54 @@ describe("STEP 25I-C1-C8B admin tournament service", () => {
     expect(tournament.canReturnControlToOwner).toBe(false);
   });
 
+  it("covers user create, admin takeover, admin return and controller-only write authority restoration", async () => {
+    const client = createClient({ ownerControlsTournament: true });
+
+    expect(canManageAccountTournament(client.snapshot()[0], creatorId)).toBe(true);
+    expect(canManageAccountTournament(client.snapshot()[0], admin.userId)).toBe(false);
+
+    await takeoverManagedTournament({ actor: admin, tournamentId }, { client });
+
+    expect(client.snapshot()[0]).toMatchObject({
+      owner_user_id: creatorId,
+      created_by_user_id: creatorId,
+      controller_user_id: admin.userId,
+    });
+    expect(canManageAccountTournament(client.snapshot()[0], creatorId)).toBe(false);
+    expect(canManageAccountTournament(client.snapshot()[0], admin.userId)).toBe(true);
+
+    await returnManagedTournamentControlToOwner({ actor: admin, tournamentId }, { client });
+
+    expect(client.snapshot()[0]).toMatchObject({
+      owner_user_id: creatorId,
+      created_by_user_id: creatorId,
+      controller_user_id: creatorId,
+    });
+    expect(canManageAccountTournament(client.snapshot()[0], admin.userId)).toBe(false);
+    expect(canManageAccountTournament(client.snapshot()[0], creatorId)).toBe(true);
+  });
+
   it("rejects return-control when the admin is not the current controller", async () => {
     const client = createClient();
 
     await expect(returnManagedTournamentControlToOwner({ actor: admin, tournamentId }, { client })).rejects.toMatchObject({ status: 403 });
 
+    expect(client.rpc).not.toHaveBeenCalled();
     expect(client.update).not.toHaveBeenCalled();
     expect(client.snapshot().find((row) => row.id === tournamentId)?.controller_user_id).toBe(otherId);
+  });
+
+  it("keeps controller unchanged when the return-control RPC fails", async () => {
+    const client = createClient({ adminControlsTournament: true, failReturnControl: true });
+
+    await expect(returnManagedTournamentControlToOwner({ actor: admin, tournamentId }, { client })).rejects.toThrow("permission denied for table tournaments");
+
+    expect(client.update).not.toHaveBeenCalled();
+    expect(client.snapshot().find((row) => row.id === tournamentId)).toMatchObject({
+      owner_user_id: creatorId,
+      created_by_user_id: creatorId,
+      controller_user_id: admin.userId,
+    });
   });
 
   it("blocks normal users from return-control before tournament data is changed", async () => {
@@ -115,9 +151,9 @@ describe("STEP 25I-C1-C8B admin tournament service", () => {
   });
 });
 
-function createClient(options: { failTakeover?: boolean; adminControlsTournament?: boolean } = {}): SupabaseRestClient & { snapshot: () => ReturnType<typeof createTournamentRow>[] } {
+function createClient(options: { failTakeover?: boolean; failReturnControl?: boolean; adminControlsTournament?: boolean; ownerControlsTournament?: boolean } = {}): SupabaseRestClient & { snapshot: () => ReturnType<typeof createTournamentRow>[] } {
   const tournaments = [
-    createTournamentRow(tournamentId, "Creator Cup", creatorId, options.adminControlsTournament ? admin.userId : otherId),
+    createTournamentRow(tournamentId, "Creator Cup", creatorId, options.adminControlsTournament ? admin.userId : options.ownerControlsTournament ? creatorId : otherId),
     createTournamentRow("00000000-0000-4000-8000-000000000102", "Legacy Cup", null, null),
     createTournamentRow("00000000-0000-4000-8000-000000000103", "Missing Profile Cup", "00000000-0000-4000-8000-000000000999", null),
   ];
@@ -139,27 +175,30 @@ function createClient(options: { failTakeover?: boolean; adminControlsTournament
     }
     return [];
   }) as SupabaseRestClient["select"];
-  const update: SupabaseRestClient["update"] = vi.fn(async (_table: string, query: string, values: Record<string, unknown>) => {
-    const row = tournaments.find((candidate) => query.includes(candidate.id));
-    if (!row || row.controller_user_id !== admin.userId || row.owner_user_id !== values.controller_user_id) {
-      return [];
-    }
-    row.controller_user_id = values.controller_user_id as string;
-    return [row];
-  }) as SupabaseRestClient["update"];
+  const update: SupabaseRestClient["update"] = vi.fn(async () => []) as SupabaseRestClient["update"];
   const rpc: SupabaseRestClient["rpc"] = vi.fn(async (functionName: string) => {
-    if (functionName !== "lezgo_admin_takeover_tournament_v1") {
-      throw new Error(`Unexpected RPC ${functionName}`);
+    if (functionName === "lezgo_admin_takeover_tournament_v1" && options.failTakeover) {
+      throw new Error("permission denied for table tournaments");
     }
-    if (options.failTakeover) {
+    if (functionName === "lezgo_admin_return_tournament_control_v1" && options.failReturnControl) {
       throw new Error("permission denied for table tournaments");
     }
     const row = tournaments.find((candidate) => candidate.id === tournamentId);
     if (!row) {
       throw new Error("Tournament was not found.");
     }
-    row.controller_user_id = admin.userId;
-    return row;
+    if (functionName === "lezgo_admin_takeover_tournament_v1") {
+      row.controller_user_id = admin.userId;
+      return row;
+    }
+    if (functionName === "lezgo_admin_return_tournament_control_v1") {
+      if (!row.owner_user_id || row.controller_user_id !== admin.userId || row.owner_user_id === admin.userId) {
+        throw new Error("Tournament control cannot be returned.");
+      }
+      row.controller_user_id = row.owner_user_id;
+      return row;
+    }
+    throw new Error(`Unexpected RPC ${functionName}`);
   }) as SupabaseRestClient["rpc"];
 
   const client = {
