@@ -27,6 +27,7 @@ describe("STEP 25I-C1-C8B admin tournament management UI", () => {
     expect(screen.getByText("Ingen turneringer kan slettes her.")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Overtag styring" })[0]).toHaveClass("whitespace-nowrap");
     expect(screen.getAllByRole("button", { name: "Åbn" })[0]).toHaveClass("whitespace-nowrap");
+    expect(screen.queryByRole("button", { name: "Giv styring tilbage" })).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Søg"), { target: { value: "fast makker" } });
     expect(screen.getAllByText("Partner Cup").length).toBeGreaterThan(0);
@@ -74,6 +75,46 @@ describe("STEP 25I-C1-C8B admin tournament management UI", () => {
     expect(screen.getAllByText("Admin One").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Du styrer").length).toBeGreaterThan(0);
     expect(fetchMock).toHaveBeenCalledWith(`/api/admin/tournaments/${tournaments[0].id}/takeover`, {
+      method: "POST",
+      credentials: "same-origin",
+    });
+  });
+
+  it("requires confirmation and returns admin control to the owning user", async () => {
+    const adminControlledTournament = {
+      ...tournaments[0],
+      controller: { userId: adminUserId, displayName: "Admin One", username: "admin" },
+      isControlledByCurrentAdmin: true,
+      canReturnControlToOwner: true,
+    };
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      ok: true,
+      tournament: {
+        ...adminControlledTournament,
+        controller: adminControlledTournament.creator,
+        isControlledByCurrentAdmin: false,
+        canReturnControlToOwner: false,
+      },
+    }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<AdminDashboard users={users} tournaments={[adminControlledTournament, tournaments[1]]} currentUserId={adminUserId} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Turneringer" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Giv styring tilbage" })[0]);
+
+    const dialog = screen.getByRole("dialog", { name: "Giv styring tilbage?" });
+    expect(within(dialog).getByText("Turneringen gives tilbage til den oprindelige bruger. Du kan stadig se turneringen som administrator og overtage styringen igen senere.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Creator Cup")).toBeInTheDocument();
+    expect(within(dialog).getByText("Admin One (@admin)")).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Giv styring tilbage" }));
+
+    await screen.findByText("Styringen er givet tilbage til brugeren.");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.getAllByText("Creator One").length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: "Overtag styring" }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "Giv styring tilbage" })).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(`/api/admin/tournaments/${adminControlledTournament.id}/return-control`, {
       method: "POST",
       credentials: "same-origin",
     });
@@ -129,6 +170,7 @@ const tournaments: ManagedTournament[] = [
     creator: { userId: "00000000-0000-4000-8000-0000000000a1", displayName: "Creator One", username: "creator" },
     controller: { userId: "00000000-0000-4000-8000-0000000000b2", displayName: "Controller Two", username: "controller" },
     isControlledByCurrentAdmin: false,
+    canReturnControlToOwner: false,
   },
   {
     id: "00000000-0000-4000-8000-000000000102",
@@ -143,5 +185,6 @@ const tournaments: ManagedTournament[] = [
     creator: { userId: adminUserId, displayName: "Admin One", username: "admin" },
     controller: { userId: adminUserId, displayName: "Admin One", username: "admin" },
     isControlledByCurrentAdmin: true,
+    canReturnControlToOwner: false,
   },
 ];

@@ -17,13 +17,15 @@ interface TakeoverResponse {
   error?: string;
 }
 
+type ConfirmAction = "takeover" | "return-control";
+
 export function AdminTournamentManagement({ tournaments: initialTournaments }: AdminTournamentManagementProps) {
   const [tournaments, setTournaments] = useState(initialTournaments);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [formatFilter, setFormatFilter] = useState<FormatFilter>("all");
   const [expandedTournamentId, setExpandedTournamentId] = useState<string | null>(null);
-  const [confirmTournament, setConfirmTournament] = useState<ManagedTournament | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ tournament: ManagedTournament; action: ConfirmAction } | null>(null);
   const [busyTournamentId, setBusyTournamentId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
 
@@ -68,10 +70,36 @@ export function AdminTournamentManagement({ tournaments: initialTournaments }: A
 
       replaceTournament(body.tournament);
       setExpandedTournamentId(body.tournament.id);
-      setConfirmTournament(null);
+      setConfirmAction(null);
       setMessage("Du styrer nu denne turnering.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Turneringen kunne ikke overtages.");
+    } finally {
+      setBusyTournamentId(null);
+    }
+  };
+
+  const handleReturnControl = async (tournament: ManagedTournament) => {
+    setBusyTournamentId(tournament.id);
+    setMessage("");
+
+    try {
+      const response = await fetch(`/api/admin/tournaments/${encodeURIComponent(tournament.id)}/return-control`, {
+        method: "POST",
+        credentials: "same-origin",
+      });
+      const body = await response.json() as TakeoverResponse;
+
+      if (!response.ok || !body.ok || !body.tournament) {
+        throw new Error(toReturnControlErrorMessage(body.error));
+      }
+
+      replaceTournament(body.tournament);
+      setExpandedTournamentId(body.tournament.id);
+      setConfirmAction(null);
+      setMessage("Styringen er givet tilbage til brugeren.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Styringen kunne ikke gives tilbage.");
     } finally {
       setBusyTournamentId(null);
     }
@@ -145,7 +173,8 @@ export function AdminTournamentManagement({ tournaments: initialTournaments }: A
                     expanded={expandedTournamentId === tournament.id}
                     busy={busyTournamentId === tournament.id}
                     onOpen={() => setExpandedTournamentId(expandedTournamentId === tournament.id ? null : tournament.id)}
-                    onTakeover={() => setConfirmTournament(tournament)}
+                    onTakeover={() => setConfirmAction({ tournament, action: "takeover" })}
+                    onReturnControl={() => setConfirmAction({ tournament, action: "return-control" })}
                   />
                 ))}
               </tbody>
@@ -160,7 +189,8 @@ export function AdminTournamentManagement({ tournaments: initialTournaments }: A
                 expanded={expandedTournamentId === tournament.id}
                 busy={busyTournamentId === tournament.id}
                 onOpen={() => setExpandedTournamentId(expandedTournamentId === tournament.id ? null : tournament.id)}
-                onTakeover={() => setConfirmTournament(tournament)}
+                onTakeover={() => setConfirmAction({ tournament, action: "takeover" })}
+                onReturnControl={() => setConfirmAction({ tournament, action: "return-control" })}
               />
             ))}
           </div>
@@ -169,24 +199,33 @@ export function AdminTournamentManagement({ tournaments: initialTournaments }: A
         <div className="app-card p-4 text-sm font-black text-[var(--muted)]">Ingen turneringer endnu.</div>
       )}
 
-      {confirmTournament ? (
-        <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/45 p-5" role="dialog" aria-modal="true" aria-labelledby="admin-takeover-title">
+      {confirmAction ? (
+        <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/45 p-5" role="dialog" aria-modal="true" aria-labelledby="admin-action-title">
           <div className="w-full max-w-lg rounded-md border border-[var(--line)] bg-[var(--surface)] p-5 shadow-2xl">
-            <h3 className="text-2xl font-black" id="admin-takeover-title">Overtag styring af turnering?</h3>
+            <h3 className="text-2xl font-black" id="admin-action-title">{confirmAction.action === "return-control" ? "Giv styring tilbage?" : "Overtag styring af turnering?"}</h3>
             <p className="mt-3 font-bold text-[var(--muted)]">
-              Du overtager styringen af denne turnering. Den oprindelige opretter bevares i historikken.
+              {confirmAction.action === "return-control"
+                ? "Turneringen gives tilbage til den oprindelige bruger. Du kan stadig se turneringen som administrator og overtage styringen igen senere."
+                : "Du overtager styringen af denne turnering. Den oprindelige opretter bevares i historikken."}
             </p>
             <dl className="mt-4 grid gap-2 text-sm font-bold">
-              <InfoRow label="Turnering" value={confirmTournament.name} />
-              <InfoRow label="Oprettet af" value={personLabel(confirmTournament.creator)} />
-              <InfoRow label="Styres i øjeblikket af" value={personLabel(confirmTournament.controller)} />
+              <InfoRow label="Turnering" value={confirmAction.tournament.name} />
+              <InfoRow label="Oprettet af" value={personLabel(confirmAction.tournament.creator)} />
+              <InfoRow label="Styres i øjeblikket af" value={personLabel(confirmAction.tournament.controller)} />
             </dl>
             <div className="mt-5 grid gap-2 sm:grid-cols-2">
-              <button className="btn-secondary min-h-12" type="button" disabled={busyTournamentId === confirmTournament.id} onClick={() => setConfirmTournament(null)}>
+              <button className="btn-secondary min-h-12" type="button" disabled={busyTournamentId === confirmAction.tournament.id} onClick={() => setConfirmAction(null)}>
                 Annuller
               </button>
-              <button className="btn-primary min-h-12" type="button" disabled={busyTournamentId === confirmTournament.id} onClick={() => void handleTakeover(confirmTournament)}>
-                {busyTournamentId === confirmTournament.id ? "Overtager..." : "Overtag styring"}
+              <button
+                className="btn-primary min-h-12"
+                type="button"
+                disabled={busyTournamentId === confirmAction.tournament.id}
+                onClick={() => void (confirmAction.action === "return-control" ? handleReturnControl(confirmAction.tournament) : handleTakeover(confirmAction.tournament))}
+              >
+                {confirmAction.action === "return-control"
+                  ? busyTournamentId === confirmAction.tournament.id ? "Giver tilbage..." : "Giv styring tilbage"
+                  : busyTournamentId === confirmAction.tournament.id ? "Overtager..." : "Overtag styring"}
               </button>
             </div>
           </div>
@@ -204,12 +243,21 @@ function toTakeoverErrorMessage(error: string | undefined): string {
   return error || "Turneringen kunne ikke overtages.";
 }
 
+function toReturnControlErrorMessage(error: string | undefined): string {
+  if (error === "Authentication was denied." || error === "Admin access requires a fresh login.") {
+    return "Godkendelse mislykkedes. Log ind igen og prøv igen.";
+  }
+
+  return error || "Styringen kunne ikke gives tilbage.";
+}
+
 function TournamentTableRows(props: {
   tournament: ManagedTournament;
   expanded: boolean;
   busy: boolean;
   onOpen: () => void;
   onTakeover: () => void;
+  onReturnControl: () => void;
 }) {
   return (
     <>
@@ -239,6 +287,7 @@ function TournamentCard(props: {
   busy: boolean;
   onOpen: () => void;
   onTakeover: () => void;
+  onReturnControl: () => void;
 }) {
   return (
     <article className="app-card grid gap-3 p-4" data-testid="admin-tournament-card">
@@ -265,6 +314,7 @@ function TournamentActions(props: {
   busy: boolean;
   onOpen: () => void;
   onTakeover: () => void;
+  onReturnControl: () => void;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -272,9 +322,16 @@ function TournamentActions(props: {
         Åbn
       </button>
       {props.tournament.isControlledByCurrentAdmin ? (
-        <span className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-md border border-[var(--primary)] bg-[var(--primary-soft)] px-3 py-2 text-center text-sm font-black text-[var(--primary-strong)]">
-          Du styrer
-        </span>
+        <>
+          <span className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-md border border-[var(--primary)] bg-[var(--primary-soft)] px-3 py-2 text-center text-sm font-black text-[var(--primary-strong)]">
+            Du styrer
+          </span>
+          {props.tournament.canReturnControlToOwner ? (
+            <button className="btn-secondary min-h-10 whitespace-nowrap px-3 py-2 text-sm" type="button" disabled={props.busy} onClick={props.onReturnControl}>
+              Giv styring tilbage
+            </button>
+          ) : null}
+        </>
       ) : (
         <button className="btn-secondary min-h-10 whitespace-nowrap px-3 py-2 text-sm" type="button" disabled={props.busy} onClick={props.onTakeover}>
           Overtag styring

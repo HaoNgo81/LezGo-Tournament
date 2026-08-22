@@ -22,6 +22,7 @@ export interface ManagedTournament {
   creator: ManagedTournamentPerson;
   controller: ManagedTournamentPerson;
   isControlledByCurrentAdmin: boolean;
+  canReturnControlToOwner: boolean;
 }
 
 interface TournamentRow {
@@ -92,6 +93,47 @@ export async function takeoverManagedTournament(input: {
   return toManagedTournament(updated, input.actor.userId, profilesById);
 }
 
+export async function returnManagedTournamentControlToOwner(input: {
+  actor: AuthenticatedAccount;
+  tournamentId: string;
+}, options: AdminTournamentServiceOptions = {}): Promise<ManagedTournament> {
+  assertAdminActor(input.actor);
+  assertUuid(input.tournamentId);
+
+  const client = options.client ?? createSupabaseRestClient();
+  const [existing] = await client.select<TournamentRow>(
+    "tournaments",
+    `id=eq.${encodeURIComponent(input.tournamentId)}&select=id,name,format,status,active_round_number,court_count,configured_rounds,created_at,updated_at,owner_user_id,created_by_user_id,controller_user_id&limit=1`,
+  );
+
+  if (!existing) {
+    throw new AuthError("Tournament was not found.", 404);
+  }
+
+  if (!existing.owner_user_id || existing.owner_user_id === input.actor.userId || existing.controller_user_id !== input.actor.userId) {
+    throw new AuthError("Tournament control cannot be returned.", 403);
+  }
+
+  const [updated] = await client.update<TournamentRow>(
+    "tournaments",
+    [
+      `id=eq.${encodeURIComponent(input.tournamentId)}`,
+      `owner_user_id=eq.${encodeURIComponent(existing.owner_user_id)}`,
+      `controller_user_id=eq.${encodeURIComponent(input.actor.userId)}`,
+      "select=id,name,format,status,active_round_number,court_count,configured_rounds,created_at,updated_at,owner_user_id,created_by_user_id,controller_user_id",
+    ].join("&"),
+    { controller_user_id: existing.owner_user_id },
+  );
+
+  if (!updated) {
+    throw new AuthError("Tournament control cannot be returned.", 409);
+  }
+
+  const profilesById = await readProfilesById(collectUserIds([updated]), client);
+
+  return toManagedTournament(updated, input.actor.userId, profilesById);
+}
+
 function assertAdminActor(actor: AuthenticatedAccount): void {
   if (actor.role !== "admin") {
     throw new AuthError("Admin access was denied.", 403);
@@ -120,6 +162,7 @@ async function readProfilesById(userIds: string[], client: SupabaseRestClient): 
 function toManagedTournament(row: TournamentRow, adminUserId: string, profilesById: Map<string, ProfileRow>): ManagedTournament {
   const creatorUserId = row.created_by_user_id ?? row.owner_user_id ?? undefined;
   const controllerUserId = row.controller_user_id ?? row.owner_user_id ?? undefined;
+  const ownerUserId = row.owner_user_id ?? undefined;
 
   return {
     id: row.id,
@@ -134,6 +177,7 @@ function toManagedTournament(row: TournamentRow, adminUserId: string, profilesBy
     creator: toPerson(creatorUserId, profilesById),
     controller: toPerson(controllerUserId, profilesById),
     isControlledByCurrentAdmin: controllerUserId === adminUserId,
+    canReturnControlToOwner: Boolean(ownerUserId && ownerUserId !== adminUserId && controllerUserId === adminUserId),
   };
 }
 

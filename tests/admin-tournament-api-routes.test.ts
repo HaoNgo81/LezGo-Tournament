@@ -9,6 +9,7 @@ const authMocks = vi.hoisted(() => ({
 const adminTournamentMocks = vi.hoisted(() => ({
   listManagedTournaments: vi.fn(),
   takeoverManagedTournament: vi.fn(),
+  returnManagedTournamentControlToOwner: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", async (importOriginal) => {
@@ -22,6 +23,7 @@ vi.mock("@/lib/auth", async (importOriginal) => {
 vi.mock("@/lib/admin/tournaments", () => ({
   listManagedTournaments: adminTournamentMocks.listManagedTournaments,
   takeoverManagedTournament: adminTournamentMocks.takeoverManagedTournament,
+  returnManagedTournamentControlToOwner: adminTournamentMocks.returnManagedTournamentControlToOwner,
 }));
 
 describe("STEP 25I-C1-C8B admin tournament API boundary", () => {
@@ -29,6 +31,7 @@ describe("STEP 25I-C1-C8B admin tournament API boundary", () => {
     authMocks.assertFreshAdminAccountFromCookies.mockReset();
     adminTournamentMocks.listManagedTournaments.mockReset();
     adminTournamentMocks.takeoverManagedTournament.mockReset();
+    adminTournamentMocks.returnManagedTournamentControlToOwner.mockReset();
   });
 
   it("allows admins to list safe tournament management data", async () => {
@@ -125,6 +128,62 @@ describe("STEP 25I-C1-C8B admin tournament API boundary", () => {
     expect(body.error).toBe("Overtagelse mislykkedes. Prøv igen.");
     expect(JSON.stringify(body)).not.toMatch(/permission denied|table tournaments|sql|postgres/i);
   });
+
+  it("allows admins to return control only through the trusted return-control service", async () => {
+    const { POST } = await import("../app/api/admin/tournaments/[tournamentId]/return-control/route");
+    const admin = createAccount("admin");
+    authMocks.assertFreshAdminAccountFromCookies.mockResolvedValue(admin);
+    adminTournamentMocks.returnManagedTournamentControlToOwner.mockResolvedValue({
+      ...managedTournament,
+      controller: managedTournament.creator,
+      isControlledByCurrentAdmin: false,
+      canReturnControlToOwner: false,
+    });
+
+    const response = await POST(new Request("http://localhost/api/admin/tournaments/00000000-0000-4000-8000-000000000101/return-control", {
+      method: "POST",
+      body: JSON.stringify({ targetUserId: "00000000-0000-4000-8000-0000000000ff" }),
+    }), {
+      params: Promise.resolve({ tournamentId: "00000000-0000-4000-8000-000000000101" }),
+    });
+    const body = await response.json() as { ok: boolean; tournament: ManagedTournament };
+
+    expect(response.status).toBe(200);
+    expect(body.tournament.controller).toEqual(managedTournament.creator);
+    expect(body.tournament.isControlledByCurrentAdmin).toBe(false);
+    expect(adminTournamentMocks.returnManagedTournamentControlToOwner).toHaveBeenCalledWith({
+      actor: admin,
+      tournamentId: "00000000-0000-4000-8000-000000000101",
+    });
+  });
+
+  it("blocks non-admin return-control attempts before service mutation", async () => {
+    const { AuthError } = await import("../lib/auth");
+    const { POST } = await import("../app/api/admin/tournaments/[tournamentId]/return-control/route");
+    authMocks.assertFreshAdminAccountFromCookies.mockRejectedValue(new AuthError("Admin access was denied.", 403));
+
+    const response = await POST(new Request("http://localhost/api/admin/tournaments/00000000-0000-4000-8000-000000000101/return-control", { method: "POST" }), {
+      params: Promise.resolve({ tournamentId: "00000000-0000-4000-8000-000000000101" }),
+    });
+
+    expect(response.status).toBe(403);
+    expect(adminTournamentMocks.returnManagedTournamentControlToOwner).not.toHaveBeenCalled();
+  });
+
+  it("hides raw database return-control errors from the user", async () => {
+    const { POST } = await import("../app/api/admin/tournaments/[tournamentId]/return-control/route");
+    authMocks.assertFreshAdminAccountFromCookies.mockResolvedValue(createAccount("admin"));
+    adminTournamentMocks.returnManagedTournamentControlToOwner.mockRejectedValue(new Error("permission denied for table tournaments"));
+
+    const response = await POST(new Request("http://localhost/api/admin/tournaments/00000000-0000-4000-8000-000000000101/return-control", { method: "POST" }), {
+      params: Promise.resolve({ tournamentId: "00000000-0000-4000-8000-000000000101" }),
+    });
+    const body = await response.json() as { ok: boolean; error: string };
+
+    expect(response.status).toBe(500);
+    expect(body.error).toBe("Styringen kunne ikke gives tilbage. Prøv igen.");
+    expect(JSON.stringify(body)).not.toMatch(/permission denied|table tournaments|sql|postgres/i);
+  });
 });
 
 function createAccount(role: "admin" | "user") {
@@ -150,4 +209,5 @@ const managedTournament: ManagedTournament = {
   creator: { userId: "00000000-0000-4000-8000-0000000000a1", displayName: "Creator One", username: "creator" },
   controller: { userId: "00000000-0000-4000-8000-0000000000b2", displayName: "Controller Two", username: "controller" },
   isControlledByCurrentAdmin: false,
+  canReturnControlToOwner: false,
 };
