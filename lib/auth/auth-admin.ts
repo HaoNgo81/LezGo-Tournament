@@ -4,6 +4,7 @@ export interface SupabaseAdminAuthUser {
   id: string;
   email: string;
   created_at?: unknown;
+  last_sign_in_at?: unknown;
   confirmed_at?: unknown;
   email_confirmed_at?: unknown;
   banned_until?: unknown;
@@ -50,19 +51,35 @@ export async function readSupabaseAdminAuthUser(userId: string): Promise<Supabas
 }
 
 export async function updateSupabaseAdminAuthUserBan(userId: string, banDuration: string): Promise<SupabaseAdminAuthUser> {
+  return updateSupabaseAdminAuthUser(userId, {
+    ban_duration: banDuration,
+  }, "Account status could not be updated.");
+}
+
+export async function updateSupabaseAdminAuthUserCredentials(userId: string, values: {
+  email?: string;
+  password?: string;
+  user_metadata?: Record<string, unknown>;
+}): Promise<SupabaseAdminAuthUser> {
+  return updateSupabaseAdminAuthUser(userId, values, "Account credentials could not be updated.");
+}
+
+async function updateSupabaseAdminAuthUser(
+  userId: string,
+  values: Record<string, unknown>,
+  errorMessage: string,
+): Promise<SupabaseAdminAuthUser> {
   const config = getSupabaseAdminAuthConfig();
   const response = await fetch(`${config.url}/auth/v1/admin/users/${encodeURIComponent(userId)}`, {
     method: "PUT",
     headers: getAdminAuthHeaders(config),
-    body: JSON.stringify({
-      ban_duration: banDuration,
-    }),
+    body: JSON.stringify(values),
   });
   const body = await parseJson(response);
   const user = getAuthUserFromBody(body);
 
   if (!response.ok || !user) {
-    throw new SupabaseAuthAdminError("Account status could not be updated.", response.status || 500);
+    throw new SupabaseAuthAdminError(errorMessage, response.status || 500);
   }
 
   return user;

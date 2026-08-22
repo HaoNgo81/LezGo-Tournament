@@ -8,6 +8,9 @@ const authMocks = vi.hoisted(() => ({
 
 const adminUserMocks = vi.hoisted(() => ({
   listManagedAccountUsers: vi.fn(),
+  updateManagedAccountDetails: vi.fn(),
+  updateManagedAccountAdminNote: vi.fn(),
+  resetManagedAccountLoginCode: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", async (importOriginal) => {
@@ -20,12 +23,18 @@ vi.mock("@/lib/auth", async (importOriginal) => {
 
 vi.mock("@/lib/admin/users", () => ({
   listManagedAccountUsers: adminUserMocks.listManagedAccountUsers,
+  updateManagedAccountDetails: adminUserMocks.updateManagedAccountDetails,
+  updateManagedAccountAdminNote: adminUserMocks.updateManagedAccountAdminNote,
+  resetManagedAccountLoginCode: adminUserMocks.resetManagedAccountLoginCode,
 }));
 
 describe("STEP 25I-C1-C7 admin user API boundary", () => {
   beforeEach(() => {
     authMocks.assertFreshAdminAccountFromCookies.mockReset();
     adminUserMocks.listManagedAccountUsers.mockReset();
+    adminUserMocks.updateManagedAccountDetails.mockReset();
+    adminUserMocks.updateManagedAccountAdminNote.mockReset();
+    adminUserMocks.resetManagedAccountLoginCode.mockReset();
   });
 
   it("allows admins to list safe users", async () => {
@@ -60,6 +69,54 @@ describe("STEP 25I-C1-C7 admin user API boundary", () => {
       expect(adminUserMocks.listManagedAccountUsers).not.toHaveBeenCalled();
     }
   });
+
+  it("routes admin detail, note and reset-code changes through trusted services", async () => {
+    const admin = createAccount("admin");
+    authMocks.assertFreshAdminAccountFromCookies.mockResolvedValue(admin);
+    adminUserMocks.updateManagedAccountDetails.mockResolvedValue({ ...managedUser, displayName: "Updated User" });
+    adminUserMocks.updateManagedAccountAdminNote.mockResolvedValue({ ...managedUser, adminNote: "Internal note" });
+    adminUserMocks.resetManagedAccountLoginCode.mockResolvedValue({ user: managedUser, generatedCode: "Q2W3E4" });
+
+    const detailsRoute = await import("../app/api/admin/users/[userId]/details/route");
+    const noteRoute = await import("../app/api/admin/users/[userId]/note/route");
+    const resetCodeRoute = await import("../app/api/admin/users/[userId]/reset-code/route");
+    const context = { params: Promise.resolve({ userId: managedUser.userId }) };
+
+    const detailsResponse = await detailsRoute.POST(jsonRequest({ displayName: "Updated User", username: "updated_user", email: "updated@example.com" }), context);
+    const noteResponse = await noteRoute.POST(jsonRequest({ note: "Internal note" }), context);
+    const resetResponse = await resetCodeRoute.POST(jsonRequest({ mode: "generate" }), context);
+    const resetBody = await resetResponse.json() as { generatedCode?: string };
+
+    expect(detailsResponse.status).toBe(200);
+    expect(noteResponse.status).toBe(200);
+    expect(resetResponse.status).toBe(200);
+    expect(resetBody.generatedCode).toBe("Q2W3E4");
+    expect(JSON.stringify(resetBody)).not.toMatch(/password|hash|token|service/i);
+    expect(adminUserMocks.updateManagedAccountDetails).toHaveBeenCalledWith(expect.objectContaining({
+      actor: admin,
+      targetUserId: managedUser.userId,
+      email: "updated@example.com",
+    }));
+    expect(adminUserMocks.updateManagedAccountAdminNote).toHaveBeenCalledWith(expect.objectContaining({
+      actor: admin,
+      note: "Internal note",
+    }));
+    expect(adminUserMocks.resetManagedAccountLoginCode).toHaveBeenCalledWith(expect.objectContaining({
+      actor: admin,
+      targetUserId: managedUser.userId,
+    }));
+  });
+
+  it("does not call admin mutation services when auth is denied", async () => {
+    const { AuthError } = await import("../lib/auth");
+    const { POST } = await import("../app/api/admin/users/[userId]/reset-code/route");
+    authMocks.assertFreshAdminAccountFromCookies.mockRejectedValue(new AuthError("Admin access was denied.", 403));
+
+    const response = await POST(jsonRequest({ code: "A1B2C3" }), { params: Promise.resolve({ userId: managedUser.userId }) });
+
+    expect(response.status).toBe(403);
+    expect(adminUserMocks.resetManagedAccountLoginCode).not.toHaveBeenCalled();
+  });
 });
 
 function createAccount(role: "admin" | "user") {
@@ -81,3 +138,13 @@ const managedUser: ManagedAccountUser = {
   emailVerified: true,
   status: "active",
 };
+
+function jsonRequest(body: unknown): Request {
+  return new Request("https://lezgotournament.vercel.app/api/admin/users/test", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+}

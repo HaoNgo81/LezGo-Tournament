@@ -2,6 +2,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   listManagedAccountUsers,
+  resetManagedAccountLoginCode,
+  updateManagedAccountAdminNote,
+  updateManagedAccountDetails,
   updateManagedAccountRole,
   updateManagedAccountStatus,
 } from "../lib/admin/users";
@@ -14,6 +17,7 @@ describe("STEP 25I-C1-C7 admin user management service", () => {
   const originalServerSupabaseUrl = process.env.SUPABASE_URL;
   const originalAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const originalServiceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const originalCredentialSecret = process.env.LEZGO_ACCOUNT_CREDENTIAL_SECRET;
 
   afterEach(() => {
     vi.restoreAllMocks();
@@ -21,6 +25,7 @@ describe("STEP 25I-C1-C7 admin user management service", () => {
     restoreEnv("SUPABASE_URL", originalServerSupabaseUrl);
     restoreEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", originalAnonKey);
     restoreEnv("SUPABASE_SERVICE_ROLE_KEY", originalServiceRole);
+    restoreEnv("LEZGO_ACCOUNT_CREDENTIAL_SECRET", originalCredentialSecret);
   });
 
   it("lists safe admin user fields with verification and account status", async () => {
@@ -115,6 +120,95 @@ describe("STEP 25I-C1-C7 admin user management service", () => {
     expect(store.banDurations).toContainEqual({ userId, banDuration: "none" });
   });
 
+  it("allows admins to update safe user details while enforcing unique username and email", async () => {
+    const store = createAdminUserStore();
+
+    const updated = await updateManagedAccountDetails({
+      actor: createActor("admin"),
+      targetUserId: userId,
+      displayName: "Updated User",
+      username: "updated_user",
+      email: "updated@example.com",
+    }, store.options());
+
+    expect(updated).toMatchObject({
+      displayName: "Updated User",
+      username: "updated_user",
+      email: "updated@example.com",
+    });
+    expect(store.profile(userId)).toMatchObject({
+      display_name: "Updated User",
+      username_normalized: "updated_user",
+      email_normalized: "updated@example.com",
+    });
+    expect(store.credentialUpdates).toContainEqual({
+      userId,
+      values: expect.objectContaining({
+        email: "updated@example.com",
+      }),
+    });
+
+    await expect(updateManagedAccountDetails({
+      actor: createActor("admin"),
+      targetUserId: userId,
+      displayName: "Updated User",
+      username: "admin_one",
+      email: "updated@example.com",
+    }, store.options())).rejects.toMatchObject({
+      status: 409,
+    });
+  });
+
+  it("stores internal notes outside profile fields and blocks normal users", async () => {
+    const store = createAdminUserStore();
+
+    const updated = await updateManagedAccountAdminNote({
+      actor: createActor("admin"),
+      targetUserId: userId,
+      note: "Support call completed.",
+    }, store.options());
+
+    expect(updated.adminNote).toBe("Support call completed.");
+    expect(store.note(userId)).toBe("Support call completed.");
+    expect(store.profile(userId)).not.toHaveProperty("admin_note");
+
+    await expect(updateManagedAccountAdminNote({
+      actor: createActor("user"),
+      targetUserId: userId,
+      note: "Not allowed.",
+    }, store.options())).rejects.toMatchObject({
+      status: 403,
+    });
+  });
+
+  it("resets a user's 6-character code without returning existing credentials", async () => {
+    const store = createAdminUserStore();
+    process.env.LEZGO_ACCOUNT_CREDENTIAL_SECRET = "test-credential-secret";
+
+    const manual = await resetManagedAccountLoginCode({
+      actor: createActor("admin"),
+      targetUserId: userId,
+      code: "A1B2C3",
+    }, store.options());
+
+    expect(manual.generatedCode).toBeUndefined();
+    expect(store.credentialUpdates.at(-1)).toMatchObject({
+      userId,
+      values: {
+        password: expect.stringMatching(/^LezGo1!/),
+      },
+    });
+    expect(JSON.stringify(manual)).not.toMatch(/hash|password|token|service/i);
+
+    const generated = await resetManagedAccountLoginCode({
+      actor: createActor("admin"),
+      targetUserId: userId,
+    }, store.options());
+
+    expect(generated.generatedCode).toBe("Q2W3E4");
+    expect(JSON.stringify(generated.user)).not.toMatch(/Q2W3E4|hash|password|token|service/i);
+  });
+
   it("rejects existing sessions for deactivated users at the trusted auth boundary", async () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://auth.example.supabase.co";
     process.env.SUPABASE_URL = "https://auth.example.supabase.co";
@@ -162,7 +256,9 @@ interface TestProfile {
   display_name: string | null;
   role: AccountRole;
   username: string | null;
+  username_normalized?: string | null;
   email: string | null;
+  email_normalized?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -180,14 +276,30 @@ function createActor(role: AccountRole): AuthenticatedAccount {
 function createAdminUserStore(input: { profiles?: TestProfile[]; authUsers?: SupabaseAdminAuthUser[] } = {}) {
   const profiles = new Map((input.profiles ?? [adminProfile(), secondAdminProfile(), userProfile()]).map((profile) => [profile.user_id, { ...profile }]));
   const authUsers = new Map((input.authUsers ?? [authUser(adminId), authUser(secondAdminId), authUser(userId)]).map((user) => [user.id, { ...user }]));
+  const notes = new Map<string, string>();
   const banDurations: { userId: string; banDuration: string }[] = [];
+  const credentialUpdates: { userId: string; values: { email?: string; password?: string; user_metadata?: Record<string, unknown> } }[] = [];
   const client: SupabaseRestClient = {
     async rpc<T>(): Promise<T> {
       throw new Error("rpc is not used.");
     },
     async select<T>(table: string, query: string): Promise<T[]> {
+      if (table === "admin_user_notes") {
+        return Array.from(notes.entries()).map(([noteUserId, note]) => ({ user_id: noteUserId, note })) as T[];
+      }
+
       if (table !== "profiles") {
         return [];
+      }
+
+      if (query.includes("username_normalized=eq.")) {
+        const username = decodeURIComponent(query.match(/username_normalized=eq\.([^&]+)/)?.[1] ?? "");
+        return Array.from(profiles.values()).filter((profile) => profile.username_normalized === username || profile.username === username) as T[];
+      }
+
+      if (query.includes("email_normalized=eq.")) {
+        const email = decodeURIComponent(query.match(/email_normalized=eq\.([^&]+)/)?.[1] ?? "");
+        return Array.from(profiles.values()).filter((profile) => profile.email_normalized === email || profile.email === email) as T[];
       }
 
       if (query.includes("user_id=eq.")) {
@@ -199,8 +311,14 @@ function createAdminUserStore(input: { profiles?: TestProfile[]; authUsers?: Sup
       const rows = Array.from(profiles.values());
       return (query.includes("role=eq.admin") ? rows.filter((profile) => profile.role === "admin") : rows) as T[];
     },
-    async insert<T>(): Promise<T[]> {
-      throw new Error("insert is not used.");
+    async insert<T>(table: string, rows: Record<string, unknown> | Record<string, unknown>[]): Promise<T[]> {
+      if (table !== "admin_user_notes") {
+        throw new Error("insert is not used.");
+      }
+
+      const row = Array.isArray(rows) ? rows[0] : rows;
+      notes.set(String(row.user_id), String(row.note ?? ""));
+      return [{ user_id: String(row.user_id), note: String(row.note ?? "") }] as T[];
     },
     async update<T>(table: string, query: string, values: Record<string, unknown>): Promise<T[]> {
       if (table !== "profiles") {
@@ -225,7 +343,9 @@ function createAdminUserStore(input: { profiles?: TestProfile[]; authUsers?: Sup
 
   return {
     banDurations,
+    credentialUpdates,
     profile: (id: string) => profiles.get(id),
+    note: (id: string) => notes.get(id),
     options: () => ({
       client,
       readAuthUser: async (id: string) => authUsers.get(id) ?? null,
@@ -239,6 +359,18 @@ function createAdminUserStore(input: { profiles?: TestProfile[]; authUsers?: Sup
         authUsers.set(id, updated);
         return updated;
       },
+      updateAuthCredentials: async (id: string, values: { email?: string; password?: string; user_metadata?: Record<string, unknown> }) => {
+        credentialUpdates.push({ userId: id, values });
+        const current = authUsers.get(id) ?? authUser(id);
+        const updated = {
+          ...current,
+          email: values.email ?? current.email,
+          user_metadata: values.user_metadata ?? current.user_metadata,
+        };
+        authUsers.set(id, updated);
+        return updated;
+      },
+      generateCode: () => "Q2W3E4",
     }),
   };
 }
@@ -249,7 +381,9 @@ function adminProfile(): TestProfile {
     display_name: "Admin One",
     role: "admin",
     username: "admin_one",
+    username_normalized: "admin_one",
     email: "admin@example.com",
+    email_normalized: "admin@example.com",
     created_at: "2026-08-20T10:00:00.000Z",
     updated_at: "2026-08-20T10:00:00.000Z",
   };
@@ -261,7 +395,9 @@ function secondAdminProfile(): TestProfile {
     display_name: "Admin Two",
     role: "admin",
     username: "admin_two",
+    username_normalized: "admin_two",
     email: "admin2@example.com",
+    email_normalized: "admin2@example.com",
     created_at: "2026-08-20T10:00:00.000Z",
     updated_at: "2026-08-20T10:00:00.000Z",
   };
@@ -273,7 +409,9 @@ function userProfile(): TestProfile {
     display_name: "User One",
     role: "user",
     username: "user_one",
+    username_normalized: "user_one",
     email: "user@example.com",
+    email_normalized: "user@example.com",
     created_at: "2026-08-20T10:00:00.000Z",
     updated_at: "2026-08-20T10:00:00.000Z",
   };

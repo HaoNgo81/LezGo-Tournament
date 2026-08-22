@@ -17,6 +17,7 @@ type VerificationFilter = "all" | "verified" | "unverified";
 interface AdminActionResponse {
   ok?: boolean;
   user?: ManagedAccountUser;
+  generatedCode?: string;
   error?: string;
 }
 
@@ -24,12 +25,16 @@ export function AdminUserManagement({ users: initialUsers, currentUserId }: Admi
   const { language } = useAppTranslation();
   const copy = language === "en" ? englishCopy : danishCopy;
   const [users, setUsers] = useState(initialUsers);
+  const [selectedUserId, setSelectedUserId] = useState(initialUsers[0]?.userId ?? "");
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [verificationFilter, setVerificationFilter] = useState<VerificationFilter>("all");
   const [busyAction, setBusyAction] = useState("");
   const [message, setMessage] = useState("");
+  const [generatedCode, setGeneratedCode] = useState("");
+
+  const selectedUser = users.find((user) => user.userId === selectedUserId) ?? users[0];
 
   const visibleUsers = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("en");
@@ -39,6 +44,7 @@ export function AdminUserManagement({ users: initialUsers, currentUserId }: Admi
         user.displayName,
         user.username ?? "",
         user.email,
+        user.adminNote ?? "",
       ].some((value) => value.toLocaleLowerCase("en").includes(normalizedQuery));
       const matchesRole = roleFilter === "all" || user.role === roleFilter;
       const matchesStatus = statusFilter === "all" || user.status === statusFilter;
@@ -50,6 +56,25 @@ export function AdminUserManagement({ users: initialUsers, currentUserId }: Admi
 
   const replaceUser = (updatedUser: ManagedAccountUser) => {
     setUsers((current) => current.map((user) => user.userId === updatedUser.userId ? updatedUser : user));
+    setSelectedUserId(updatedUser.userId);
+  };
+
+  const postUserAction = async (user: ManagedAccountUser, suffix: string, body: Record<string, unknown>, fallback: string): Promise<AdminActionResponse> => {
+    const response = await fetch(`/api/admin/users/${encodeURIComponent(user.userId)}/${suffix}`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+    const result = await response.json() as AdminActionResponse;
+
+    if (!response.ok || !result.ok || !result.user) {
+      throw new Error(result.error || fallback);
+    }
+
+    replaceUser(result.user);
+    return result;
   };
 
   const handleRoleChange = async (user: ManagedAccountUser) => {
@@ -65,20 +90,7 @@ export function AdminUserManagement({ users: initialUsers, currentUserId }: Admi
     }
 
     await runUserAction(`${user.userId}:role`, async () => {
-      const response = await fetch(`/api/admin/users/${encodeURIComponent(user.userId)}/role`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({ role: nextRole }),
-      });
-      const body = await response.json() as AdminActionResponse;
-
-      if (!response.ok || !body.ok || !body.user) {
-        throw new Error(body.error || copy.roleError);
-      }
-
-      replaceUser(body.user);
+      await postUserAction(user, "role", { role: nextRole }, copy.roleError);
       setMessage(nextRole === "admin" ? copy.promoted : copy.demoted);
     });
   };
@@ -94,27 +106,45 @@ export function AdminUserManagement({ users: initialUsers, currentUserId }: Admi
     }
 
     await runUserAction(`${user.userId}:status`, async () => {
-      const response = await fetch(`/api/admin/users/${encodeURIComponent(user.userId)}/status`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({ status: nextStatus }),
-      });
-      const body = await response.json() as AdminActionResponse;
-
-      if (!response.ok || !body.ok || !body.user) {
-        throw new Error(body.error || copy.statusError);
-      }
-
-      replaceUser(body.user);
+      await postUserAction(user, "status", { status: nextStatus }, copy.statusError);
       setMessage(nextStatus === "active" ? copy.reactivatedMessage : copy.deactivatedMessage);
+    });
+  };
+
+  const handleDetailsSave = async (user: ManagedAccountUser, values: UserDetailsFormValues) => {
+    if (!window.confirm(copy.confirmDetails(user.displayName))) {
+      return;
+    }
+
+    await runUserAction(`${user.userId}:details`, async () => {
+      await postUserAction(user, "details", { ...values }, copy.detailsError);
+      setMessage(copy.detailsSaved);
+    });
+  };
+
+  const handleNoteSave = async (user: ManagedAccountUser, note: string) => {
+    await runUserAction(`${user.userId}:note`, async () => {
+      await postUserAction(user, "note", { note }, copy.noteError);
+      setMessage(copy.noteSaved);
+    });
+  };
+
+  const handleCodeReset = async (user: ManagedAccountUser, code: string, mode: "manual" | "generate") => {
+    if (!window.confirm(copy.confirmResetCode(user.displayName))) {
+      return;
+    }
+
+    await runUserAction(`${user.userId}:reset-code`, async () => {
+      const result = await postUserAction(user, "reset-code", { mode, code: mode === "manual" ? code : undefined }, copy.resetCodeError);
+      setGeneratedCode(result.generatedCode ?? "");
+      setMessage(result.generatedCode ? copy.generatedCodeReady : copy.manualCodeSaved);
     });
   };
 
   const runUserAction = async (actionKey: string, action: () => Promise<void>) => {
     setBusyAction(actionKey);
     setMessage("");
+    setGeneratedCode("");
 
     try {
       await action();
@@ -167,71 +197,203 @@ export function AdminUserManagement({ users: initialUsers, currentUserId }: Admi
           <span>{copy.noCredentialMaterial}</span>
         </div>
         {message ? <p className="rounded-md border border-[var(--primary)] bg-[var(--primary-soft)]/45 px-3 py-2 text-sm font-black text-[var(--primary-strong)]" role="status">{message}</p> : null}
+        {generatedCode ? (
+          <p className="rounded-md border border-amber-400 bg-amber-50 px-3 py-2 text-sm font-black text-amber-900" role="status">
+            {copy.generatedCodeLabel}: <span className="font-mono text-base tracking-[0.2em]">{generatedCode}</span>
+          </p>
+        ) : null}
       </div>
 
-      <div className="hidden overflow-hidden rounded-md border border-[var(--line)] bg-[var(--surface)] shadow-xl md:block">
-        <table className="w-full table-fixed text-left text-sm">
-          <thead className="bg-[var(--primary-soft)]/60 text-xs uppercase text-[var(--primary-strong)]">
-            <tr>
-              <TableHeader className="w-[18%]">{copy.name}</TableHeader>
-              <TableHeader className="w-[14%]">{copy.username}</TableHeader>
-              <TableHeader className="w-[23%]">{copy.email}</TableHeader>
-              <TableHeader className="w-[9%]">{copy.role}</TableHeader>
-              <TableHeader className="w-[11%]">{copy.emailStatus}</TableHeader>
-              <TableHeader className="w-[11%]">{copy.status}</TableHeader>
-              <TableHeader className="w-[14%]">{copy.actions}</TableHeader>
-            </tr>
-          </thead>
-          <tbody>
-            {visibleUsers.map((user) => (
-              <tr className="border-t border-[var(--line)]" key={user.userId} data-testid="admin-user-row">
-                <TableCell>{user.displayName}</TableCell>
-                <TableCell>{user.username ? `@${user.username}` : "-"}</TableCell>
-                <TableCell>{user.email || "-"}</TableCell>
-                <TableCell><RoleBadge role={user.role} /></TableCell>
-                <TableCell>{user.emailVerified ? copy.verified : copy.unverified}</TableCell>
-                <TableCell><StatusBadge status={user.status} copy={copy} /></TableCell>
-                <TableCell>
-                  <UserActions
-                    copy={copy}
-                    user={user}
-                    busyAction={busyAction}
-                    onRoleChange={handleRoleChange}
-                    onStatusChange={handleStatusChange}
-                  />
-                </TableCell>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,28rem)]">
+        <div className="hidden overflow-hidden rounded-md border border-[var(--line)] bg-[var(--surface)] shadow-xl md:block">
+          <table className="w-full table-fixed text-left text-sm">
+            <thead className="bg-[var(--primary-soft)]/60 text-xs uppercase text-[var(--primary-strong)]">
+              <tr>
+                <TableHeader className="w-[18%]">{copy.name}</TableHeader>
+                <TableHeader className="w-[14%]">{copy.username}</TableHeader>
+                <TableHeader className="w-[22%]">{copy.email}</TableHeader>
+                <TableHeader className="w-[8%]">{copy.role}</TableHeader>
+                <TableHeader className="w-[12%]">{copy.created}</TableHeader>
+                <TableHeader className="w-[12%]">{copy.lastSignIn}</TableHeader>
+                <TableHeader className="w-[14%]">{copy.actions}</TableHeader>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {visibleUsers.map((user) => (
+                <tr className="border-t border-[var(--line)]" key={user.userId} data-testid="admin-user-row">
+                  <TableCell>{user.displayName}</TableCell>
+                  <TableCell>{user.username ? `@${user.username}` : "-"}</TableCell>
+                  <TableCell>{user.email || "-"}</TableCell>
+                  <TableCell><RoleBadge role={user.role} /></TableCell>
+                  <TableCell>{formatDate(user.createdAt)}</TableCell>
+                  <TableCell>{formatDate(user.lastSignInAt)}</TableCell>
+                  <TableCell>
+                    <UserActions
+                      copy={copy}
+                      user={user}
+                      busyAction={busyAction}
+                      onOpen={(nextUser) => setSelectedUserId(nextUser.userId)}
+                      onRoleChange={handleRoleChange}
+                      onStatusChange={handleStatusChange}
+                    />
+                  </TableCell>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
-      <div className="grid gap-3 md:hidden">
-        {visibleUsers.map((user) => (
-          <article className="app-card grid gap-3 p-4" key={user.userId} data-testid="admin-user-card">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h3 className="break-words text-xl font-black">{user.displayName}</h3>
-                <p className="break-words text-sm font-bold text-[var(--muted)]">{user.username ? `@${user.username}` : copy.noUsername}</p>
+        <div className="grid gap-3 md:hidden">
+          {visibleUsers.map((user) => (
+            <article className="app-card grid gap-3 p-4" key={user.userId} data-testid="admin-user-card">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="break-words text-xl font-black">{user.displayName}</h3>
+                  <p className="break-words text-sm font-bold text-[var(--muted)]">{user.username ? `@${user.username}` : copy.noUsername}</p>
+                </div>
+                <RoleBadge role={user.role} />
               </div>
-              <RoleBadge role={user.role} />
-            </div>
-            <dl className="grid gap-2 text-sm font-bold">
-              <InfoRow label={copy.email} value={user.email || "-"} />
-              <InfoRow label={copy.emailStatus} value={user.emailVerified ? copy.verified : copy.unverified} />
-              <InfoRow label={copy.status} value={user.status === "active" ? copy.active : copy.deactivated} />
-            </dl>
-            <UserActions
-              copy={copy}
-              user={user}
-              busyAction={busyAction}
-              onRoleChange={handleRoleChange}
-              onStatusChange={handleStatusChange}
-            />
-          </article>
-        ))}
+              <dl className="grid gap-2 text-sm font-bold">
+                <InfoRow label={copy.email} value={user.email || "-"} />
+                <InfoRow label={copy.emailStatus} value={user.emailVerified ? copy.verified : copy.unverified} />
+                <InfoRow label={copy.status} value={user.status === "active" ? copy.active : copy.deactivated} />
+                <InfoRow label={copy.created} value={formatDate(user.createdAt)} />
+                <InfoRow label={copy.lastSignIn} value={formatDate(user.lastSignInAt)} />
+              </dl>
+              <UserActions
+                copy={copy}
+                user={user}
+                busyAction={busyAction}
+                onOpen={(nextUser) => setSelectedUserId(nextUser.userId)}
+                onRoleChange={handleRoleChange}
+                onStatusChange={handleStatusChange}
+              />
+            </article>
+          ))}
+        </div>
+
+        {selectedUser ? (
+          <UserDetailPanel
+            key={selectedUser.userId}
+            copy={copy}
+            user={selectedUser}
+            busyAction={busyAction}
+            onDetailsSave={handleDetailsSave}
+            onNoteSave={handleNoteSave}
+            onCodeReset={handleCodeReset}
+          />
+        ) : null}
       </div>
     </section>
+  );
+}
+
+interface UserDetailsFormValues {
+  displayName: string;
+  username: string;
+  email: string;
+}
+
+function UserDetailPanel(props: {
+  copy: typeof danishCopy;
+  user: ManagedAccountUser;
+  busyAction: string;
+  onDetailsSave: (user: ManagedAccountUser, values: UserDetailsFormValues) => Promise<void>;
+  onNoteSave: (user: ManagedAccountUser, note: string) => Promise<void>;
+  onCodeReset: (user: ManagedAccountUser, code: string, mode: "manual" | "generate") => Promise<void>;
+}) {
+  const [displayName, setDisplayName] = useState(props.user.displayName);
+  const [username, setUsername] = useState(props.user.username ?? "");
+  const [email, setEmail] = useState(props.user.email);
+  const [note, setNote] = useState(props.user.adminNote ?? "");
+  const [manualCode, setManualCode] = useState("");
+  const detailsBusy = props.busyAction === `${props.user.userId}:details`;
+  const noteBusy = props.busyAction === `${props.user.userId}:note`;
+  const resetBusy = props.busyAction === `${props.user.userId}:reset-code`;
+
+  return (
+    <aside className="app-card grid gap-4 p-4 sm:p-5" data-testid="admin-user-detail">
+      <div>
+        <p className="text-xs font-black uppercase text-[var(--primary-strong)]">{props.copy.detail}</p>
+        <h3 className="mt-1 break-words text-xl font-black">{props.user.displayName}</h3>
+        <p className="break-words text-sm font-bold text-[var(--muted)]">{props.user.email}</p>
+      </div>
+
+      <dl className="grid gap-2 text-sm font-bold">
+        <InfoRow label={props.copy.role} value={props.user.role.toUpperCase()} />
+        <InfoRow label={props.copy.status} value={props.user.status === "active" ? props.copy.active : props.copy.deactivated} />
+        <InfoRow label={props.copy.created} value={formatDate(props.user.createdAt)} />
+        <InfoRow label={props.copy.lastSignIn} value={formatDate(props.user.lastSignInAt)} />
+      </dl>
+
+      <form className="grid gap-3" onSubmit={(event) => {
+        event.preventDefault();
+        void props.onDetailsSave(props.user, { displayName, username, email });
+      }}>
+        <h4 className="text-sm font-black uppercase text-[var(--primary-strong)]">{props.copy.profileDetails}</h4>
+        <TextField label={props.copy.name} value={displayName} onChange={setDisplayName} />
+        <TextField label={props.copy.username} value={username} onChange={setUsername} />
+        <TextField label={props.copy.email} value={email} onChange={setEmail} type="email" />
+        <button className="btn-primary min-h-10 px-3 py-2 text-sm" type="submit" disabled={detailsBusy}>
+          {detailsBusy ? props.copy.saving : props.copy.saveDetails}
+        </button>
+      </form>
+
+      <form className="grid gap-3" onSubmit={(event) => {
+        event.preventDefault();
+        void props.onNoteSave(props.user, note);
+      }}>
+        <h4 className="text-sm font-black uppercase text-[var(--primary-strong)]">{props.copy.internalNote}</h4>
+        <textarea
+          aria-label={props.copy.internalNote}
+          className="field-control min-h-28 resize-y"
+          maxLength={1000}
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+        />
+        <button className="btn-secondary min-h-10 px-3 py-2 text-sm" type="submit" disabled={noteBusy}>
+          {noteBusy ? props.copy.saving : props.copy.saveNote}
+        </button>
+      </form>
+
+      <form className="grid gap-3" onSubmit={(event) => {
+        event.preventDefault();
+        void props.onCodeReset(props.user, manualCode, "manual");
+        setManualCode("");
+      }}>
+        <h4 className="text-sm font-black uppercase text-[var(--primary-strong)]">{props.copy.codeReset}</h4>
+        <TextField label={props.copy.newCode} value={manualCode} onChange={(value) => setManualCode(value.toLocaleUpperCase("en"))} maxLength={6} />
+        <div className="grid gap-2 sm:grid-cols-2">
+          <button className="btn-primary min-h-10 px-3 py-2 text-sm" type="submit" disabled={resetBusy || manualCode.trim().length !== 6}>
+            {resetBusy ? props.copy.saving : props.copy.saveManualCode}
+          </button>
+          <button className="btn-secondary min-h-10 px-3 py-2 text-sm" type="button" disabled={resetBusy} onClick={() => void props.onCodeReset(props.user, "", "generate")}>
+            {props.copy.generateCode}
+          </button>
+        </div>
+      </form>
+    </aside>
+  );
+}
+
+function TextField(props: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+  maxLength?: number;
+}) {
+  return (
+    <label className="grid gap-1 text-sm font-black">
+      {props.label}
+      <input
+        className="field-control"
+        maxLength={props.maxLength}
+        type={props.type ?? "text"}
+        value={props.value}
+        onChange={(event) => props.onChange(event.target.value)}
+      />
+    </label>
   );
 }
 
@@ -276,18 +438,11 @@ function RoleBadge({ role }: { role: AccountRole }) {
   );
 }
 
-function StatusBadge({ status, copy }: { status: ManagedAccountStatus; copy: typeof danishCopy }) {
-  return (
-    <span className={`inline-flex w-fit rounded-md border px-2 py-1 text-xs font-black ${status === "active" ? "border-emerald-500/50 bg-emerald-50 text-emerald-800" : "border-red-500/50 bg-red-50 text-red-800"}`}>
-      {status === "active" ? copy.active : copy.deactivated}
-    </span>
-  );
-}
-
 function UserActions(props: {
   copy: typeof danishCopy;
   user: ManagedAccountUser;
   busyAction: string;
+  onOpen: (user: ManagedAccountUser) => void;
   onRoleChange: (user: ManagedAccountUser) => Promise<void>;
   onStatusChange: (user: ManagedAccountUser) => Promise<void>;
 }) {
@@ -296,6 +451,9 @@ function UserActions(props: {
 
   return (
     <div className="grid gap-2">
+      <button className="btn-secondary min-h-10 px-3 py-2 text-sm" type="button" onClick={() => props.onOpen(props.user)}>
+        {props.copy.open}
+      </button>
       <button className="btn-secondary min-h-10 px-3 py-2 text-sm" type="button" disabled={roleBusy || statusBusy} onClick={() => void props.onRoleChange(props.user)}>
         {props.user.role === "admin" ? props.copy.makeUser : props.copy.makeAdmin}
       </button>
@@ -306,11 +464,20 @@ function UserActions(props: {
   );
 }
 
+function formatDate(value: string | undefined): string {
+  if (!value) {
+    return "-";
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "-" : new Intl.DateTimeFormat("da-DK", { dateStyle: "short", timeStyle: "short" }).format(date);
+}
+
 const danishCopy = {
   title: "Brugerstyring",
-  description: "Administrer brugere, roller og kontostatus.",
+  description: "Administrer brugere, detaljer, interne noter, roller, status og kode-reset.",
   search: "Søg",
-  searchPlaceholder: "Navn, brugernavn eller e-mail",
+  searchPlaceholder: "Navn, brugernavn, e-mail eller note",
   all: "Alle",
   name: "Navn",
   username: "Brugernavn",
@@ -319,7 +486,20 @@ const danishCopy = {
   emailStatus: "E-mail",
   role: "Rolle",
   status: "Status",
+  created: "Oprettet",
+  lastSignIn: "Sidste login",
   actions: "Handlinger",
+  detail: "Brugerdetaljer",
+  profileDetails: "Profil",
+  internalNote: "Intern admin-note",
+  codeReset: "Kode-reset",
+  newCode: "Ny 6-tegns kode",
+  saveDetails: "Gem oplysninger",
+  saveNote: "Gem note",
+  saveManualCode: "Gem ny kode",
+  generateCode: "Generér kode",
+  saving: "Gemmer...",
+  open: "Åbn",
   verified: "Bekræftet",
   unverified: "Ikke bekræftet",
   active: "Aktiv",
@@ -333,22 +513,32 @@ const danishCopy = {
   confirmSelfDemote: (name: string) => `Du er ved at fjerne ADMIN fra dig selv (${name}). Fortsæt kun hvis en anden ADMIN findes.`,
   confirmDeactivate: (name: string) => `Deaktivér ${name}? Brugeren kan ikke logge ind eller skrive til egne turneringer.`,
   confirmReactivate: (name: string) => `Aktivér ${name}?`,
+  confirmDetails: (name: string) => `Gem ændringer for ${name}?`,
+  confirmResetCode: (name: string) => `Nulstil login-koden for ${name}? Den gamle kode virker ikke bagefter.`,
   showing: (visible: number, total: number) => `Viser ${visible} af ${total} brugere`,
-  noCredentialMaterial: "Koder og hashes vises aldrig.",
+  noCredentialMaterial: "Eksisterende koder, hashes og tokens vises aldrig.",
   roleError: "Rollen kunne ikke opdateres.",
   statusError: "Kontostatus kunne ikke opdateres.",
+  detailsError: "Brugeroplysninger kunne ikke gemmes.",
+  noteError: "Noten kunne ikke gemmes.",
+  resetCodeError: "Koden kunne ikke nulstilles.",
   genericError: "Handlingen kunne ikke gennemføres.",
   promoted: "Brugeren er nu ADMIN.",
   demoted: "Brugeren er nu USER.",
   deactivatedMessage: "Brugeren er deaktiveret.",
   reactivatedMessage: "Brugeren er aktiveret.",
+  detailsSaved: "Brugeroplysninger er gemt.",
+  noteSaved: "Intern note er gemt.",
+  manualCodeSaved: "Ny 6-tegns kode er gemt.",
+  generatedCodeReady: "Ny genereret kode er gemt. Vis den sikkert til brugeren nu.",
+  generatedCodeLabel: "Genereret kode",
 };
 
 const englishCopy: typeof danishCopy = {
   title: "User management",
-  description: "Manage users, roles and account status.",
+  description: "Manage users, details, internal notes, roles, status and code reset.",
   search: "Search",
-  searchPlaceholder: "Name, username or email",
+  searchPlaceholder: "Name, username, email or note",
   all: "All",
   name: "Name",
   username: "Username",
@@ -357,7 +547,20 @@ const englishCopy: typeof danishCopy = {
   emailStatus: "Email",
   role: "Role",
   status: "Status",
+  created: "Created",
+  lastSignIn: "Last login",
   actions: "Actions",
+  detail: "User details",
+  profileDetails: "Profile",
+  internalNote: "Internal admin note",
+  codeReset: "Code reset",
+  newCode: "New 6-character code",
+  saveDetails: "Save details",
+  saveNote: "Save note",
+  saveManualCode: "Save new code",
+  generateCode: "Generate code",
+  saving: "Saving...",
+  open: "Open",
   verified: "Verified",
   unverified: "Not verified",
   active: "Active",
@@ -371,13 +574,23 @@ const englishCopy: typeof danishCopy = {
   confirmSelfDemote: (name: string) => `You are removing ADMIN from yourself (${name}). Continue only if another ADMIN exists.`,
   confirmDeactivate: (name: string) => `Deactivate ${name}? The user cannot log in or write to owned tournaments.`,
   confirmReactivate: (name: string) => `Reactivate ${name}?`,
+  confirmDetails: (name: string) => `Save changes for ${name}?`,
+  confirmResetCode: (name: string) => `Reset the login code for ${name}? The old code will stop working.`,
   showing: (visible: number, total: number) => `Showing ${visible} of ${total} users`,
-  noCredentialMaterial: "Codes and hashes are never shown.",
+  noCredentialMaterial: "Existing codes, hashes and tokens are never shown.",
   roleError: "Role could not be updated.",
   statusError: "Account status could not be updated.",
+  detailsError: "User details could not be saved.",
+  noteError: "The note could not be saved.",
+  resetCodeError: "The code could not be reset.",
   genericError: "The action could not be completed.",
   promoted: "The user is now ADMIN.",
   demoted: "The user is now USER.",
   deactivatedMessage: "The user is deactivated.",
   reactivatedMessage: "The user is active.",
+  detailsSaved: "User details saved.",
+  noteSaved: "Internal note saved.",
+  manualCodeSaved: "New 6-character code saved.",
+  generatedCodeReady: "New generated code saved. Share it securely with the user now.",
+  generatedCodeLabel: "Generated code",
 };

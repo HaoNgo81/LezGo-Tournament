@@ -649,7 +649,7 @@ function getAuthHeaders(anonKey: string): HeadersInit {
   };
 }
 
-function toSupabaseCredentialPassword(email: string, code: string): string {
+export function toSupabaseCredentialPassword(email: string, code: string): string {
   const normalizedEmail = normalizeCredentialEmail(email);
   const normalizedCode = normalizeLoginCode(code);
   const secret = getCredentialPasswordSecret();
