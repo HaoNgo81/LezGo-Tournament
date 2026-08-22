@@ -1,4 +1,4 @@
-const productionAuthOrigin = "https://lezgotournament.vercel.app";
+const productionAuthOrigin = "https://lez-go-tournament.vercel.app";
 
 export function getCredentialEmailRedirectTo(requestUrl: string, outcome: "verified" | "error" = "verified"): string {
   const requestOrigin = new URL(requestUrl).origin;
