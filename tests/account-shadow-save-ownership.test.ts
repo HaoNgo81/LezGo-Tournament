@@ -109,4 +109,40 @@ describe("STEP 25K user-created tournament ownership shadow-save", () => {
     );
     expect(databaseMocks.teamVsTeamSave).not.toHaveBeenCalled();
   });
+
+  it("keeps legacy unauthenticated shadow-save working without assigning an owner", async () => {
+    authMocks.readAuthAccessCookie.mockRejectedValue(new Error("headers are not available"));
+    authMocks.readOptionalAccountFromAccessToken.mockResolvedValue(null);
+    databaseMocks.standardSave.mockResolvedValue({
+      tournamentId,
+      updatedAt: "2026-08-21T10:00:00.000Z",
+      saveMode: "insert",
+    });
+    const state = {
+      ...createMockLiveTournamentState(),
+      tournamentName: "STEP 25O Legacy Cup",
+    };
+
+    const response = await shadowSaveTournament(new Request("http://localhost/api/supabase/shadow-save", {
+      method: "POST",
+      body: JSON.stringify({
+        kind: "standard",
+        legacyLocalId: "step-25o-legacy-cup-americano",
+        state,
+      }),
+    }));
+    const body = await response.json() as { ok?: boolean; tournamentId?: string };
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({ ok: true, tournamentId });
+    expect(databaseMocks.standardSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tournamentName: "STEP 25O Legacy Cup",
+      }),
+      expect.objectContaining({
+        legacyLocalId: "step-25o-legacy-cup-americano",
+        ownerUserId: undefined,
+      }),
+    );
+  });
 });

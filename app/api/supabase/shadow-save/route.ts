@@ -32,7 +32,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    const account = await readOptionalAccountFromAccessToken(await readAuthAccessCookie());
+    const account = await readOptionalShadowSaveAccount();
 
     if (body.kind === "standard" && isLiveTournamentState(body.state)) {
       const result = await createStandardTournamentRepository().save(body.state, {
@@ -71,6 +71,14 @@ export async function POST(request: Request): Promise<Response> {
     const message = error instanceof Error ? error.message : "Shadow-save failed.";
     const status = message.toLocaleLowerCase("en").includes("conflict") ? 409 : 500;
     return Response.json({ ok: false, error: status === 409 ? "Tournament snapshot conflict." : "Shadow-save failed." }, { status });
+  }
+}
+
+async function readOptionalShadowSaveAccount() {
+  try {
+    return await readOptionalAccountFromAccessToken(await readAuthAccessCookie());
+  } catch {
+    return null;
   }
 }
 
