@@ -1,13 +1,14 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createAuthCookieHeaders, createLogoutCookieHeaders } from "../lib/auth/cookies";
-import { refreshAuthenticatedSession } from "../lib/auth/session";
+import { logoutOtherSupabaseSessions, refreshAuthenticatedSession } from "../lib/auth/session";
 
 const cookieMocks = vi.hoisted(() => ({
   values: new Map<string, string>(),
 }));
 
 const authRouteMocks = vi.hoisted(() => ({
+  changeOwnLoginCode: vi.fn(),
   readAccountFromAccessToken: vi.fn(),
   refreshAuthenticatedSession: vi.fn(),
 }));
@@ -25,6 +26,7 @@ vi.mock("@/lib/auth", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../lib/auth")>();
   return {
     ...actual,
+    changeOwnLoginCode: authRouteMocks.changeOwnLoginCode,
     readAccountFromAccessToken: authRouteMocks.readAccountFromAccessToken,
     refreshAuthenticatedSession: authRouteMocks.refreshAuthenticatedSession,
   };
@@ -38,6 +40,7 @@ describe("STEP 25I-C1-C7-FIX1 remember login policy", () => {
 
   beforeEach(() => {
     cookieMocks.values.clear();
+    authRouteMocks.changeOwnLoginCode.mockReset();
     authRouteMocks.readAccountFromAccessToken.mockReset();
     authRouteMocks.refreshAuthenticatedSession.mockReset();
   });
@@ -258,6 +261,65 @@ describe("STEP 25I-C1-C7-FIX1 remember login policy", () => {
     expect(body.account?.role).toBe("admin");
     expect(authRouteMocks.refreshAuthenticatedSession).not.toHaveBeenCalled();
     expect(response.headers.getSetCookie()).toEqual([]);
+  });
+
+  it("logs out other Supabase sessions while preserving the current session scope", async () => {
+    configureAuthEnv();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 204 }));
+
+    await logoutOtherSupabaseSessions("current-access-token");
+
+    expect(fetchMock).toHaveBeenCalledWith("https://auth.example.supabase.co/auth/v1/logout?scope=others", expect.objectContaining({
+      method: "POST",
+      headers: expect.objectContaining({
+        apikey: "anon-key",
+        authorization: "Bearer current-access-token",
+      }),
+    }));
+  });
+
+  it("uses the provider logout-other-devices route without clearing the current cookies", async () => {
+    configureAuthEnv();
+    const { POST } = await import("../app/api/auth/sessions/logout-others/route");
+    cookieMocks.values.set("lezgo_auth_access", "current-access-token");
+    authRouteMocks.readAccountFromAccessToken.mockResolvedValue(createAccount("user"));
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 204 }));
+
+    const response = await POST();
+    const body = await response.json() as { ok?: boolean; currentSessionPreserved?: boolean };
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({ ok: true, currentSessionPreserved: true });
+    expect(response.headers.getSetCookie()).toEqual([]);
+  });
+
+  it("changes code through the own-account route without accepting a target user id", async () => {
+    const { POST } = await import("../app/api/auth/credentials/change-code/route");
+    cookieMocks.values.set("lezgo_auth_access", "current-access-token");
+    authRouteMocks.changeOwnLoginCode.mockResolvedValue(undefined);
+
+    const response = await POST(new Request("https://lezgotournament.vercel.app/api/auth/credentials/change-code", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-forwarded-for": "203.0.113.9",
+      },
+      body: JSON.stringify({
+        currentCode: "OLD123",
+        newCode: "NEW456",
+        repeatNewCode: "NEW456",
+        targetUserId: "00000000-0000-4000-8000-000000000999",
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(authRouteMocks.changeOwnLoginCode).toHaveBeenCalledWith({
+      accessToken: "current-access-token",
+      currentCode: "OLD123",
+      newCode: "NEW456",
+      repeatNewCode: "NEW456",
+      rateLimitKey: "203.0.113.9",
+    });
   });
 });
 

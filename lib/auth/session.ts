@@ -186,6 +186,25 @@ export async function readOptionalAccountFromAccessToken(accessToken: string | u
   }
 }
 
+export async function logoutOtherSupabaseSessions(accessToken: string | undefined): Promise<void> {
+  if (!accessToken) {
+    throw new AuthError();
+  }
+
+  const config = getSupabaseAuthConfig();
+  const response = await fetch(`${config.url}/auth/v1/logout?scope=others`, {
+    method: "POST",
+    headers: {
+      apikey: config.anonKey,
+      authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new AuthError("Other sessions could not be logged out.", response.status || 401);
+  }
+}
+
 export async function assertAdminAccount(accessToken: string | undefined, client?: SupabaseRestClient): Promise<AuthenticatedAccount> {
   const account = await readAccountFromAccessToken(accessToken, client);
 

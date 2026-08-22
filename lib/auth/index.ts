@@ -5,6 +5,7 @@ export {
   authRefreshCookieName,
   getSupabaseAuthConfig,
   hashUserIdForLog,
+  logoutOtherSupabaseSessions,
   readAccountFromAccessToken,
   readOptionalAccountFromAccessToken,
   refreshAuthenticatedSession,
@@ -17,6 +18,7 @@ export {
 } from "./session";
 export {
   createCredentialAccount,
+  changeOwnLoginCode,
   completeLoginCodeRecovery,
   loginWithCredential,
   normalizeCredentialEmail,

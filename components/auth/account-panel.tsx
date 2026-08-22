@@ -83,6 +83,7 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
   const [repeatCode, setRepeatCode] = useState("");
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState("");
   const [recoveryEmail, setRecoveryEmail] = useState("");
+  const [currentCode, setCurrentCode] = useState("");
   const [newCode, setNewCode] = useState("");
   const [repeatNewCode, setRepeatNewCode] = useState("");
   const [showCode, setShowCode] = useState(false);
@@ -282,7 +283,7 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
     }
   }
 
-  async function handleResetCode(event: FormEvent<HTMLFormElement>) {
+  async function handleChangeCode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsLoading(true);
     setMessage("");
@@ -292,10 +293,10 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
         throw new Error(t("accountCodeMismatch"));
       }
 
-      const response = await fetch("/api/auth/credentials/reset-code", {
+      const response = await fetch("/api/auth/credentials/change-code", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ code: newCode, repeatCode: repeatNewCode }),
+        body: JSON.stringify({ currentCode, newCode, repeatNewCode }),
       });
       const body = await response.json() as { ok?: boolean; error?: string };
 
@@ -303,12 +304,39 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
         throw new Error(localizeAuthError(body.error, t("accountCodeCouldNotReset")));
       }
 
+      setCurrentCode("");
       setNewCode("");
       setRepeatNewCode("");
       setView("login");
       setMessage(t("accountCodeReset"));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t("accountCodeCouldNotReset"));
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function handleLogoutOtherDevices() {
+    if (!window.confirm(`${t("accountLogoutOtherDevicesConfirm")}\n\n${t("accountLogoutOtherDevicesHelp")}`)) {
+      return;
+    }
+
+    setIsLoading(true);
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/auth/sessions/logout-others", {
+        method: "POST",
+      });
+      const body = await response.json() as { ok?: boolean; error?: string };
+
+      if (!response.ok || !body.ok) {
+        throw new Error(localizeAuthError(body.error, t("accountLogoutOtherDevicesError")));
+      }
+
+      setMessage(t("accountLogoutOtherDevicesSuccess"));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : t("accountLogoutOtherDevicesError"));
     } finally {
       setIsLoading(false);
     }
@@ -324,6 +352,9 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
       setTournaments([]);
       setLoginCode("");
       setRememberLogin(false);
+      setCurrentCode("");
+      setNewCode("");
+      setRepeatNewCode("");
       setMessage(t("accountLoggedOut"));
     } finally {
       setIsLoading(false);
@@ -455,18 +486,32 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
           )}
         </div>
         {view === "reset" ? (
-          <form className="grid gap-3 rounded-md border border-[var(--line)] bg-white/70 p-3" onSubmit={handleResetCode}>
+          <form className="grid gap-3 rounded-md border border-[var(--line)] bg-white/70 p-3" onSubmit={handleChangeCode}>
+            <CodeField label={t("accountCurrentCode")} value={currentCode} onChange={setCurrentCode} showCode={showCode} />
             <CodeField label={t("accountNewCode")} value={newCode} onChange={setNewCode} showCode={showCode} />
             <CodeField label={t("accountRepeatCode")} value={repeatNewCode} onChange={setRepeatNewCode} showCode={showCode} />
+            <ShowCodeButton showCode={showCode} onToggle={() => setShowCode((value) => !value)} />
             <button className="btn-primary min-h-12" type="submit" disabled={isLoading}>
               {t("accountSaveNewCode")}
             </button>
           </form>
         ) : null}
+        <div className="rounded-md border border-[var(--line)] bg-white/70 p-3">
+          <p className="text-sm font-black uppercase tracking-wide text-[var(--primary-strong)]">{t("accountSecurity")}</p>
+          <div className="mt-2 grid gap-1 text-sm font-bold text-[var(--muted)]">
+            <p>{t("accountCurrentSession")}</p>
+            <p>{t("accountSessionHelp")}</p>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <button className="btn-secondary min-h-12" type="button" disabled={isLoading} onClick={() => setView(view === "reset" ? "login" : "reset")}>
+              {view === "reset" ? t("cancel") : t("accountChangeCode")}
+            </button>
+            <button className="btn-secondary min-h-12" type="button" disabled={isLoading} onClick={() => void handleLogoutOtherDevices()}>
+              {t("accountLogoutOtherDevices")}
+            </button>
+          </div>
+        </div>
         <div className="action-grid">
-          <button className="btn-secondary min-h-12" type="button" disabled={isLoading} onClick={() => setView(view === "reset" ? "login" : "reset")}>
-            {view === "reset" ? t("cancel") : t("accountNewCode")}
-          </button>
           <button className="btn-secondary min-h-12" type="button" disabled={isLoading} onClick={handleLogout}>
             {t("logout")}
           </button>

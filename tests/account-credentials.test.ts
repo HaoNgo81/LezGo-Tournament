@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  changeOwnLoginCode,
   completeLoginCodeRecovery,
   createCredentialAccount,
   loginWithCredential,
@@ -864,6 +865,150 @@ describe("STEP 25I-C1-A credential foundation", () => {
     expect(updateBody).not.toHaveProperty("role");
     expect(updateBody).not.toHaveProperty("email_confirmed_at");
     expect(fetchMock.mock.calls.some((call) => String(call[0]).includes("/rest/v1/tournaments"))).toBe(false);
+  });
+
+  it("changes the signed-in user's own code only after verifying the current code", async () => {
+    configureAuthEnv();
+    const userId = "00000000-0000-4000-8000-000000000950";
+    const client = createCredentialProfileClient({
+      emailProfiles: [{
+        user_id: userId,
+        display_name: "Secure User",
+        role: "user",
+        username: "secureuser",
+        email: "secure@example.com",
+      }],
+    });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+
+      if (url.endsWith("/auth/v1/user") && init?.method === "GET") {
+        return new Response(JSON.stringify({
+          id: userId,
+          email: "secure@example.com",
+          email_confirmed_at: "2026-08-20T10:00:00.000Z",
+          confirmed_at: "2026-08-20T10:00:00.000Z",
+        }), { status: 200 });
+      }
+
+      if (url.endsWith(`/auth/v1/admin/users/${userId}`)) {
+        return new Response(JSON.stringify({
+          id: userId,
+          email: "secure@example.com",
+          email_confirmed_at: "2026-08-20T10:00:00.000Z",
+          confirmed_at: "2026-08-20T10:00:00.000Z",
+        }), { status: 200 });
+      }
+
+      if (url.endsWith("/auth/v1/token?grant_type=password")) {
+        const body = JSON.parse(String(init?.body)) as { email: string; password: string };
+        expect(body.email).toBe("secure@example.com");
+        expect(body.password).toMatch(/^LezGo1!/);
+        expect(body.password).not.toBe("OLD123");
+        return new Response(JSON.stringify({
+          access_token: "verified-current-code-session",
+          user: {
+            id: userId,
+            email: "secure@example.com",
+            email_confirmed_at: "2026-08-20T10:00:00.000Z",
+          },
+        }), { status: 200 });
+      }
+
+      if (url.endsWith("/auth/v1/user") && init?.method === "PUT") {
+        const body = JSON.parse(String(init.body)) as { password: string };
+        expect(body.password).toMatch(/^LezGo1!/);
+        expect(body.password).not.toBe("NEW456");
+        return new Response(JSON.stringify({
+          id: userId,
+          email: "secure@example.com",
+        }), { status: 200 });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    await changeOwnLoginCode({
+      accessToken: "current-access-token",
+      currentCode: "old123",
+      newCode: "new456",
+      repeatNewCode: "NEW456",
+      rateLimitKey: "device-a",
+      client,
+    });
+
+    expect(fetchMock.mock.calls.some((call) => String(call[0]).endsWith("/auth/v1/user") && call[1]?.method === "PUT")).toBe(true);
+    expect(JSON.stringify(fetchMock.mock.calls)).not.toMatch(/OLD123|NEW456|old123|new456/);
+  });
+
+  it("rejects incorrect current codes before changing the credential", async () => {
+    configureAuthEnv();
+    const userId = "00000000-0000-4000-8000-000000000951";
+    const client = createCredentialProfileClient({
+      emailProfiles: [{
+        user_id: userId,
+        display_name: "Secure User",
+        role: "user",
+        username: "secureuser",
+        email: "secure@example.com",
+      }],
+    });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+
+      if (url.endsWith("/auth/v1/user") && init?.method === "GET") {
+        return new Response(JSON.stringify({
+          id: userId,
+          email: "secure@example.com",
+          email_confirmed_at: "2026-08-20T10:00:00.000Z",
+        }), { status: 200 });
+      }
+
+      if (url.endsWith(`/auth/v1/admin/users/${userId}`)) {
+        return new Response(JSON.stringify({
+          id: userId,
+          email: "secure@example.com",
+          email_confirmed_at: "2026-08-20T10:00:00.000Z",
+        }), { status: 200 });
+      }
+
+      if (url.endsWith("/auth/v1/token?grant_type=password")) {
+        return new Response("{}", { status: 401 });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    await expect(changeOwnLoginCode({
+      accessToken: "current-access-token",
+      currentCode: "BAD123",
+      newCode: "NEW456",
+      repeatNewCode: "NEW456",
+      rateLimitKey: "device-b",
+      client,
+    })).rejects.toMatchObject({ status: 401 });
+
+    expect(fetchMock.mock.calls.some((call) => String(call[0]).endsWith("/auth/v1/user") && call[1]?.method === "PUT")).toBe(false);
+  });
+
+  it("rejects mismatched and invalid own-code changes before Supabase mutation", async () => {
+    configureAuthEnv();
+
+    await expect(changeOwnLoginCode({
+      accessToken: "current-access-token",
+      currentCode: "ABC123",
+      newCode: "ABC123",
+      repeatNewCode: "XYZ789",
+      rateLimitKey: "device-c",
+    })).rejects.toMatchObject({ status: 400 });
+
+    await expect(changeOwnLoginCode({
+      accessToken: "current-access-token",
+      currentCode: "ABC123",
+      newCode: "TOO-LONG",
+      repeatNewCode: "TOO-LONG",
+      rateLimitKey: "device-c",
+    })).rejects.toMatchObject({ status: 400 });
   });
 
   it("accepts an alphabetic 6-character code through recovery", async () => {

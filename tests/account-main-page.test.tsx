@@ -227,6 +227,70 @@ describe("STEP 25I-C1-B main page account UI", () => {
     expect(within(dialog).getByRole("link", { name: "Admin" })).toHaveAttribute("href", "/admin");
   });
 
+  it("shows account security controls for signed-in users and calls trusted session endpoints", async () => {
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === "/api/auth/me") {
+        return new Response(JSON.stringify({
+          ok: true,
+          account: {
+            userId: "00000000-0000-4000-8000-00000000c1b1",
+            email: "hao@example.com",
+            displayName: "Hao",
+            username: "hao",
+            role: "user",
+          },
+        }), { status: 200 });
+      }
+
+      if (url === "/api/account/tournaments") {
+        return new Response(JSON.stringify({ ok: true, tournaments: [] }), { status: 200 });
+      }
+
+      if (url === "/api/auth/credentials/change-code") {
+        expect(JSON.parse(String(init?.body))).toEqual({
+          currentCode: "OLD123",
+          newCode: "NEW456",
+          repeatNewCode: "NEW456",
+        });
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      }
+
+      if (url === "/api/auth/sessions/logout-others") {
+        return new Response(JSON.stringify({ ok: true, currentSessionPreserved: true }), { status: 200 });
+      }
+
+      return new Response(JSON.stringify({ ok: false }), { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<HomePage />);
+
+    await waitFor(() => expect(screen.getByTestId("main-account-control")).toHaveTextContent("Hao"));
+    fireEvent.click(screen.getByTestId("main-account-control"));
+
+    const dialog = await screen.findByTestId("main-account-dialog");
+    expect(within(dialog).getByText("Sikkerhed")).toBeInTheDocument();
+    expect(within(dialog).getByText("Denne enhed er logget ind.")).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Skift kode" }));
+    fireEvent.change(within(dialog).getByLabelText("Nuværende kode"), { target: { value: "OLD123" } });
+    fireEvent.change(within(dialog).getByLabelText("Ny 6-tegns kode"), { target: { value: "NEW456" } });
+    fireEvent.change(within(dialog).getByLabelText("Gentag kode"), { target: { value: "NEW456" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Gem ny kode" }));
+
+    await within(dialog).findByText("Din kode er ændret.");
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Log andre enheder ud" }));
+    await within(dialog).findByText("Andre enheder er logget ud.");
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/auth/credentials/change-code", expect.objectContaining({ method: "POST" }));
+    expect(fetchMock).toHaveBeenCalledWith("/api/auth/sessions/logout-others", expect.objectContaining({ method: "POST" }));
+    expect(String(fetchMock.mock.calls.map((call) => call[1]?.body).join("\n"))).not.toMatch(/targetUserId|access_token|refresh_token/i);
+  });
+
   it("logs in with email and code through the C1-A credential endpoint", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);

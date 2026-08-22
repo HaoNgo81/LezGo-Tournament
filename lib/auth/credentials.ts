@@ -302,6 +302,47 @@ export async function updateLoginCodeWithSession(input: { accessToken: string | 
   }
 }
 
+export async function changeOwnLoginCode(input: {
+  accessToken: string | undefined;
+  currentCode: string;
+  newCode: string;
+  repeatNewCode: string;
+  rateLimitKey?: string;
+  client?: SupabaseRestClient;
+}): Promise<void> {
+  if (!input.accessToken) {
+    throw new AuthError();
+  }
+
+  const currentCode = normalizeLoginCode(input.currentCode);
+  const newCode = normalizeLoginCode(input.newCode);
+
+  if (normalizeLoginCode(input.repeatNewCode) !== newCode) {
+    throw new AuthError("Login codes do not match.", 400);
+  }
+
+  const config = getSupabaseAuthConfig();
+  const authUser = await readAuthUserForCredentialUpdate(input.accessToken, config.anonKey);
+  assertAuthRateLimit("credential-change-code", `${input.rateLimitKey ?? "unknown"}:${authUser.id}`, { limit: 8, windowMs: 60 * 60 * 1000 });
+
+  const verified = await loginWithCredential({
+    identifier: authUser.email,
+    code: currentCode,
+    rateLimitKey: input.rateLimitKey,
+    client: input.client,
+  });
+
+  if (verified.account.userId !== authUser.id) {
+    throw new AuthError("Current login code is incorrect.", 401);
+  }
+
+  await updateLoginCodeWithSession({
+    accessToken: input.accessToken,
+    code: newCode,
+    repeatCode: newCode,
+  });
+}
+
 export async function completeLoginCodeRecovery(input: { tokenHash?: string; accessToken?: string; type: string; code: string; repeatCode: string; rateLimitKey?: string }): Promise<void> {
   const tokenHash = input.tokenHash?.trim() ?? "";
   const accessToken = input.accessToken?.trim() ?? "";

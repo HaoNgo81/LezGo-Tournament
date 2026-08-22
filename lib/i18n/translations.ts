@@ -11,6 +11,7 @@ export type TranslationKey =
   | "accountCodeCouldNotReset"
   | "accountCodeMismatch"
   | "accountCodeReset"
+  | "accountChangeCode"
   | "accountContinue"
   | "accountCreateAccount"
   | "accountCreateOrLogin"
@@ -18,6 +19,8 @@ export type TranslationKey =
   | "accountCreateTournament"
   | "accountCreated"
   | "accountCreateError"
+  | "accountCurrentCode"
+  | "accountCurrentSession"
   | "accountEmail"
   | "accountEmailNotVerified"
   | "accountEmailVerificationFailed"
@@ -30,6 +33,11 @@ export type TranslationKey =
   | "accountLogin"
   | "accountLoginAdminNotRemembered"
   | "accountLoginError"
+  | "accountLogoutOtherDevices"
+  | "accountLogoutOtherDevicesConfirm"
+  | "accountLogoutOtherDevicesError"
+  | "accountLogoutOtherDevicesHelp"
+  | "accountLogoutOtherDevicesSuccess"
   | "accountNewCode"
   | "accountRememberLogin"
   | "accountLoggedIn"
@@ -48,7 +56,9 @@ export type TranslationKey =
   | "accountResetCodeTitle"
   | "accountResendVerification"
   | "accountSaveNewCode"
+  | "accountSecurity"
   | "accountSendInstructions"
+  | "accountSessionHelp"
   | "accountShowCode"
   | "accountSignedIn"
   | "accountTournamentOpenError"
@@ -327,7 +337,8 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountCodeInvalid: "Koden skal være præcis 6 bogstaver og/eller tal.",
     accountCodeCouldNotReset: "Koden kunne ikke gemmes.",
     accountCodeMismatch: "Koderne er ikke ens.",
-    accountCodeReset: "Den nye kode er gemt.",
+    accountCodeReset: "Din kode er ændret.",
+    accountChangeCode: "Skift kode",
     accountContinue: "Fortsæt",
     accountCreateAccount: "Opret bruger",
     accountCreateOrLogin: "Opret bruger / Log ind",
@@ -335,6 +346,8 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountCreateTournament: "Opret ny turnering",
     accountCreated: "Brugeren er oprettet. Log ind med email eller brugernavn og din kode.",
     accountCreateError: "Brugeren kunne ikke oprettes.",
+    accountCurrentCode: "Nuværende kode",
+    accountCurrentSession: "Denne enhed er logget ind.",
     accountEmail: "E-mail",
     accountEmailNotVerified: "Din e-mail er ikke bekræftet endnu. Tjek din indbakke.",
     accountEmailVerificationFailed: "E-mailen kunne ikke bekræftes. Prøv linket igen, eller send en ny mail.",
@@ -347,6 +360,11 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountLogin: "Log ind",
     accountLoginAdminNotRemembered: "Administrator-login huskes ikke af sikkerhedsmæssige årsager.",
     accountLoginError: "Email/brugernavn eller kode er forkert.",
+    accountLogoutOtherDevices: "Log andre enheder ud",
+    accountLogoutOtherDevicesConfirm: "Log andre enheder ud?",
+    accountLogoutOtherDevicesError: "Andre enheder kunne ikke logges ud.",
+    accountLogoutOtherDevicesHelp: "Andre enheder, hvor din konto er logget ind, skal logge ind igen.",
+    accountLogoutOtherDevicesSuccess: "Andre enheder er logget ud.",
     accountNewCode: "Ny 6-tegns kode",
     accountLoggedIn: "Du er logget ind.",
     accountLoggedOut: "Du er logget ud.",
@@ -365,7 +383,9 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountResetCodeTitle: "Nulstil kode",
     accountResendVerification: "Send mail igen",
     accountSaveNewCode: "Gem ny kode",
+    accountSecurity: "Sikkerhed",
     accountSendInstructions: "Send instruktioner",
+    accountSessionHelp: "Du kan skifte kode eller logge andre enheder ud uden at ændre dine turneringer.",
     accountShowCode: "Vis kode",
     accountSignedIn: "Logget ind",
     accountTournamentOpenError: "Turneringen kunne ikke åbnes.",
@@ -643,7 +663,8 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountCodeInvalid: "The code must be exactly 6 letters and/or numbers.",
     accountCodeCouldNotReset: "The code could not be saved.",
     accountCodeMismatch: "The codes do not match.",
-    accountCodeReset: "The new code has been saved.",
+    accountCodeReset: "Your code has been changed.",
+    accountChangeCode: "Change code",
     accountContinue: "Continue",
     accountCreateAccount: "Create account",
     accountCreateOrLogin: "Create account / Log in",
@@ -651,6 +672,8 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountCreateTournament: "Create new tournament",
     accountCreated: "The account has been created. Log in with email or username and your code.",
     accountCreateError: "The account could not be created.",
+    accountCurrentCode: "Current code",
+    accountCurrentSession: "This device is signed in.",
     accountEmail: "Email",
     accountEmailNotVerified: "Your email is not verified yet. Check your inbox.",
     accountEmailVerificationFailed: "The email could not be verified. Try the link again or send a new email.",
@@ -663,6 +686,11 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountLogin: "Log in",
     accountLoginAdminNotRemembered: "Administrator login is not remembered for security reasons.",
     accountLoginError: "Email/username or code is incorrect.",
+    accountLogoutOtherDevices: "Log out other devices",
+    accountLogoutOtherDevicesConfirm: "Log out other devices?",
+    accountLogoutOtherDevicesError: "Other devices could not be logged out.",
+    accountLogoutOtherDevicesHelp: "Other devices where your account is signed in must sign in again.",
+    accountLogoutOtherDevicesSuccess: "Other devices have been logged out.",
     accountNewCode: "New 6-character code",
     accountLoggedIn: "You are logged in.",
     accountLoggedOut: "You are logged out.",
@@ -681,7 +709,9 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountResetCodeTitle: "Reset code",
     accountResendVerification: "Send email again",
     accountSaveNewCode: "Save new code",
+    accountSecurity: "Security",
     accountSendInstructions: "Send instructions",
+    accountSessionHelp: "You can change your code or log out other devices without changing your tournaments.",
     accountShowCode: "Show code",
     accountSignedIn: "Signed in",
     accountTournamentOpenError: "The tournament could not be opened.",
