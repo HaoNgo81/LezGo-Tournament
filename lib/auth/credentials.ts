@@ -242,9 +242,7 @@ export async function requestLoginCodeRecovery(input: { email: string; redirectT
     headers: getAuthHeaders(config.anonKey),
     body: JSON.stringify({
       email,
-      options: {
-        redirect_to: input.redirectTo,
-      },
+      redirect_to: input.redirectTo,
     }),
   });
 
@@ -287,8 +285,9 @@ export async function updateLoginCodeWithSession(input: { accessToken: string | 
   }
 }
 
-export async function completeLoginCodeRecovery(input: { tokenHash: string; type: string; code: string; repeatCode: string; rateLimitKey?: string }): Promise<void> {
-  const tokenHash = input.tokenHash.trim();
+export async function completeLoginCodeRecovery(input: { tokenHash?: string; accessToken?: string; type: string; code: string; repeatCode: string; rateLimitKey?: string }): Promise<void> {
+  const tokenHash = input.tokenHash?.trim() ?? "";
+  const accessToken = input.accessToken?.trim() ?? "";
   const type = input.type.trim();
   const code = normalizeLoginCode(input.code);
 
@@ -296,10 +295,19 @@ export async function completeLoginCodeRecovery(input: { tokenHash: string; type
     throw new AuthError("Login codes do not match.", 400);
   }
 
-  assertAuthRateLimit("credential-recovery-complete", `${input.rateLimitKey ?? "unknown"}:${tokenHash.slice(0, 32)}`, { limit: 8, windowMs: 60 * 60 * 1000 });
+  assertAuthRateLimit("credential-recovery-complete", `${input.rateLimitKey ?? "unknown"}:${(tokenHash || accessToken).slice(0, 32)}`, { limit: 8, windowMs: 60 * 60 * 1000 });
 
-  if (!tokenHash || type !== "recovery") {
+  if (type !== "recovery" || (!tokenHash && !accessToken)) {
     throw new AuthError(invalidRecoveryLinkMessage, 400);
+  }
+
+  if (accessToken) {
+    await updateLoginCodeWithSession({
+      accessToken,
+      code,
+      repeatCode: code,
+    });
+    return;
   }
 
   const config = getSupabaseAuthConfig();

@@ -18,6 +18,7 @@ describe("STEP 25M account code recovery UI", () => {
     vi.restoreAllMocks();
     navigationMocks.push.mockReset();
     navigationMocks.searchParams = new URLSearchParams("token_hash=recovery-token-hash&type=recovery");
+    window.history.pushState(null, "", "/");
     window.localStorage.clear();
     window.sessionStorage.clear();
   });
@@ -26,6 +27,7 @@ describe("STEP 25M account code recovery UI", () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       expect(String(input)).toBe("/api/auth/credentials/recover/complete");
       expect(JSON.parse(String(init?.body))).toEqual({
+        accessToken: "",
         tokenHash: "recovery-token-hash",
         type: "recovery",
         code: "abc123",
@@ -47,6 +49,36 @@ describe("STEP 25M account code recovery UI", () => {
     expect(navigationMocks.push).toHaveBeenCalledWith("/");
     expect(window.localStorage.getItem("recovery-token-hash")).toBeNull();
     expect(window.sessionStorage.getItem("recovery-token-hash")).toBeNull();
+  });
+
+  it("submits Supabase recovery credentials from the URL hash and removes the hash from the address bar", async () => {
+    navigationMocks.searchParams = new URLSearchParams("");
+    window.history.pushState(null, "", "/auth/reset#access_token=fragment-access-token&refresh_token=fragment-refresh-token&type=recovery");
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe("/api/auth/credentials/recover/complete");
+      expect(JSON.parse(String(init?.body))).toEqual({
+        accessToken: "fragment-access-token",
+        tokenHash: "",
+        type: "recovery",
+        code: "123456",
+        repeatCode: "123456",
+      });
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AccountCodeRecoveryPanel />);
+
+    await waitFor(() => expect(window.location.hash).toBe(""));
+    fireEvent.change(screen.getByLabelText("Ny 6-tegns kode"), { target: { value: "123456" } });
+    fireEvent.change(screen.getByLabelText("Gentag kode"), { target: { value: "123456" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Nulstil kode" }).closest("form") as HTMLFormElement);
+
+    await screen.findByText("Din kode er ændret. Du kan nu logge ind.");
+    expect(document.body).not.toHaveTextContent("fragment-access-token");
+    expect(document.body).not.toHaveTextContent("fragment-refresh-token");
+    expect(window.localStorage.getItem("fragment-access-token")).toBeNull();
+    expect(window.sessionStorage.getItem("fragment-access-token")).toBeNull();
   });
 
   it("shows an invalid-link state when the recovery token is missing", () => {

@@ -6,6 +6,7 @@ const invalidRecoveryLinkMessage = "The link is invalid or expired.";
 
 interface CompleteRecoveryBody {
   tokenHash?: string;
+  accessToken?: string;
   type?: string;
   code?: string;
   repeatCode?: string;
@@ -23,10 +24,11 @@ export async function POST(request: Request): Promise<Response> {
   try {
     await completeLoginCodeRecovery({
       tokenHash: body.tokenHash ?? "",
+      accessToken: body.accessToken ?? "",
       type: body.type ?? "",
       code: body.code ?? "",
       repeatCode: body.repeatCode ?? "",
-      rateLimitKey: getRateLimitKey(request, body.tokenHash ?? "unknown"),
+      rateLimitKey: getRateLimitKey(request, body.tokenHash ?? body.accessToken ?? "unknown"),
     });
 
     return Response.json({ ok: true }, {

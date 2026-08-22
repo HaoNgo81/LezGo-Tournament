@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAppTranslation } from "@/lib/preferences/client";
 
@@ -14,9 +14,14 @@ export function AccountCodeRecoveryPanel() {
   const [message, setMessage] = useState("");
   const [isSuccess, setIsSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const tokenHash = searchParams.get("token_hash") ?? "";
-  const type = searchParams.get("type") ?? "";
-  const hasRecoveryToken = Boolean(tokenHash && type === "recovery");
+  const [recoveryCredentials] = useState(() => readRecoveryCredentials(searchParams));
+  const hasRecoveryToken = Boolean(recoveryCredentials.type === "recovery" && (recoveryCredentials.tokenHash || recoveryCredentials.accessToken));
+
+  useEffect(() => {
+    if (recoveryCredentials.accessToken && window.location.hash) {
+      window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+    }
+  }, [recoveryCredentials.accessToken]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -28,8 +33,9 @@ export function AccountCodeRecoveryPanel() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          tokenHash,
-          type,
+          accessToken: recoveryCredentials.accessToken,
+          tokenHash: recoveryCredentials.tokenHash,
+          type: recoveryCredentials.type,
           code,
           repeatCode,
         }),
@@ -93,6 +99,28 @@ export function AccountCodeRecoveryPanel() {
       {message && !isSuccess ? <p className="font-bold text-[var(--primary-strong)]" role="status">{message}</p> : null}
     </section>
   );
+}
+
+function readRecoveryCredentials(searchParams: URLSearchParams): { tokenHash: string; accessToken: string; type: string } {
+  if (typeof window !== "undefined" && window.location.hash) {
+    const hashParams = new URLSearchParams(window.location.hash.slice(1));
+    const accessToken = hashParams.get("access_token") ?? "";
+    const type = hashParams.get("type") ?? "";
+
+    if (accessToken && type === "recovery") {
+      return {
+        tokenHash: "",
+        accessToken,
+        type,
+      };
+    }
+  }
+
+  return {
+    tokenHash: searchParams.get("token_hash") ?? "",
+    accessToken: "",
+    type: searchParams.get("type") ?? "",
+  };
 }
 
 function CodeField({ label, value, onChange, showCode }: { label: string; value: string; onChange: (value: string) => void; showCode: boolean }) {

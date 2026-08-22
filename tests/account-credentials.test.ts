@@ -11,7 +11,7 @@ import {
   updateLoginCodeWithSession,
   verifyCredentialEmailToken,
 } from "../lib/auth";
-import { getCredentialEmailRedirectTo } from "../lib/auth/credential-redirect";
+import { getCredentialEmailRedirectTo, getCredentialRecoveryRedirectTo } from "../lib/auth/credential-redirect";
 import { resetAuthRateLimitForTests } from "../lib/auth/rate-limit";
 
 describe("STEP 25I-C1-A credential foundation", () => {
@@ -83,6 +83,21 @@ describe("STEP 25I-C1-A credential foundation", () => {
 
     expect(getCredentialEmailRedirectTo("https://app.lezgopadel.dk/register")).toBe("https://lezgotournament.vercel.app/?accountVerified=verified");
     expect(getCredentialEmailRedirectTo("https://lez-go-tournament.vercel.app/register", "error")).toBe("https://lezgotournament.vercel.app/?accountVerified=error");
+  });
+
+  it("uses the locked production reset route for recovery redirects without localhost", () => {
+    process.env.VERCEL_ENV = "production";
+
+    const redirectTo = getCredentialRecoveryRedirectTo("https://app.lezgopadel.dk/account");
+
+    expect(redirectTo).toBe("https://lezgotournament.vercel.app/auth/reset");
+    expect(redirectTo).not.toContain("localhost");
+  });
+
+  it("keeps localhost recovery redirects only for local development", () => {
+    delete process.env.VERCEL_ENV;
+
+    expect(getCredentialRecoveryRedirectTo("http://localhost:3000/account")).toBe("http://localhost:3000/auth/reset");
   });
 
   it("creates a pending USER account with Supabase email verification and no raw role choice", async () => {
@@ -618,10 +633,55 @@ describe("STEP 25I-C1-A credential foundation", () => {
     expect(result.message).toBe("If the email address is registered, we have sent instructions for creating a new code.");
     const recoverCall = fetchMock.mock.calls.find((call) => String(call[0]).endsWith("/auth/v1/recover"));
     expect(recoverCall).toBeTruthy();
-    const requestBody = JSON.parse(recoverCall?.[1]?.body as string) as { email: string; password?: string; options: { redirect_to: string } };
+    const requestBody = JSON.parse(recoverCall?.[1]?.body as string) as { email: string; password?: string; redirect_to: string; options?: { redirect_to?: string } };
     expect(requestBody.email).toBe("user@example.com");
     expect(requestBody).not.toHaveProperty("password");
-    expect(requestBody.options.redirect_to).toBe("https://lezgotournament.vercel.app/auth/reset");
+    expect(requestBody.redirect_to).toBe("https://lezgotournament.vercel.app/auth/reset");
+    expect(requestBody.redirect_to).not.toContain("localhost");
+    expect(requestBody).not.toHaveProperty("options");
+  });
+
+  it("sends the production recovery redirect as top-level redirect_to so Supabase does not fall back to Site URL", async () => {
+    configureAuthEnv();
+    process.env.VERCEL_ENV = "production";
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+
+      if (url.includes("/rest/v1/profiles?")) {
+        return new Response(JSON.stringify([{
+          user_id: "00000000-0000-4000-8000-000000000932",
+          display_name: "User One",
+          role: "user",
+          username: "userone",
+          email: "user@example.com",
+        }]), { status: 200 });
+      }
+
+      if (url.endsWith("/auth/v1/admin/users/00000000-0000-4000-8000-000000000932")) {
+        return new Response(JSON.stringify({
+          id: "00000000-0000-4000-8000-000000000932",
+          email: "user@example.com",
+          email_confirmed_at: "2026-08-20T10:00:00.000Z",
+        }), { status: 200 });
+      }
+
+      if (url.endsWith("/auth/v1/recover")) {
+        return new Response(JSON.stringify({ msg: "ok" }), { status: 200 });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    await requestLoginCodeRecovery({
+      email: "user@example.com",
+      redirectTo: getCredentialRecoveryRedirectTo("https://lez-go-tournament.vercel.app/"),
+    });
+
+    const recoverCall = fetchMock.mock.calls.find((call) => String(call[0]).endsWith("/auth/v1/recover"));
+    const requestBody = JSON.parse(recoverCall?.[1]?.body as string) as { redirect_to: string; options?: unknown };
+    expect(requestBody.redirect_to).toBe("https://lezgotournament.vercel.app/auth/reset");
+    expect(requestBody.redirect_to).not.toContain("localhost");
+    expect(requestBody.options).toBeUndefined();
   });
 
   it("does not send recovery instructions for an unverified credential account", async () => {
@@ -776,6 +836,41 @@ describe("STEP 25I-C1-A credential foundation", () => {
 
     const updateBody = JSON.parse(fetchMock.mock.calls[3][1]?.body as string) as { password: string };
     expect(updateBody.password).not.toBe("ABCDEF");
+  });
+
+  it("sets a new code from Supabase recovery access-token redirects without re-verifying a token hash", async () => {
+    configureAuthEnv();
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: "00000000-0000-4000-8000-000000000942",
+        email: "hashless@example.com",
+        email_confirmed_at: "2026-08-20T10:00:00.000Z",
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: "00000000-0000-4000-8000-000000000942",
+        email: "hashless@example.com",
+        email_confirmed_at: "2026-08-20T10:00:00.000Z",
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: "00000000-0000-4000-8000-000000000942",
+        email: "hashless@example.com",
+      }), { status: 200 }));
+
+    await completeLoginCodeRecovery({
+      accessToken: "fragment-recovery-access-token",
+      type: "recovery",
+      code: "abc123",
+      repeatCode: "abc123",
+    });
+
+    expect(fetchMock.mock.calls.some((call) => String(call[0]).endsWith("/auth/v1/verify"))).toBe(false);
+    expect(fetchMock.mock.calls[0][0]).toBe("https://auth.example.supabase.co/auth/v1/user");
+    expect(fetchMock.mock.calls[0][1]?.headers).toEqual(expect.objectContaining({
+      authorization: "Bearer fragment-recovery-access-token",
+    }));
+    const updateBody = JSON.parse(fetchMock.mock.calls[2][1]?.body as string) as { password: string };
+    expect(updateBody.password).toMatch(/^LezGo1![A-Za-z0-9_-]{30,}$/);
+    expect(updateBody.password).not.toBe("abc123");
   });
 
   it.each([
