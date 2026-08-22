@@ -88,17 +88,17 @@ describe("STEP 25I-C1-A credential foundation", () => {
   it("uses the locked production origin for credential email verification redirects", () => {
     process.env.VERCEL_ENV = "production";
 
-    expect(getCredentialEmailRedirectTo("https://app.lezgopadel.dk/register")).toBe("https://lez-go-tournament.vercel.app/?accountVerified=verified");
-    expect(getCredentialEmailRedirectTo("https://lez-go-tournament.vercel.app/register", "error")).toBe("https://lez-go-tournament.vercel.app/?accountVerified=error");
+    expect(getCredentialEmailRedirectTo("https://app.lezgopadel.dk/register")).toBe("https://lezgotournament.vercel.app/?accountVerified=verified");
+    expect(getCredentialEmailRedirectTo("https://lez-go-tournament.vercel.app/register", "error")).toBe("https://lezgotournament.vercel.app/?accountVerified=error");
   });
 
   it("uses the locked production reset route for recovery redirects without localhost", () => {
     process.env.VERCEL_ENV = "production";
-    process.env.LEZGO_PUBLIC_APP_ORIGIN = "https://lez-go-tournament.vercel.app";
+    process.env.LEZGO_PUBLIC_APP_ORIGIN = "https://lezgotournament.vercel.app";
 
     const redirectTo = getCredentialRecoveryRedirectTo("https://app.lezgopadel.dk/account");
 
-    expect(redirectTo).toBe("https://lez-go-tournament.vercel.app/auth/reset");
+    expect(redirectTo).toBe("https://lezgotournament.vercel.app/auth/reset");
     expect(redirectTo).not.toContain("localhost");
   });
 
@@ -132,7 +132,7 @@ describe("STEP 25I-C1-A credential foundation", () => {
       email: "User@Example.com",
       code: "abc123",
       repeatCode: "ABC123",
-      emailRedirectTo: "https://lez-go-tournament.vercel.app/?accountVerified=verified",
+      emailRedirectTo: "https://lezgotournament.vercel.app/?accountVerified=verified",
       client,
     });
 
@@ -154,7 +154,7 @@ describe("STEP 25I-C1-A credential foundation", () => {
     expect(body).not.toHaveProperty("email_confirm");
     expect(body.data.username).toBe("hao");
     expect(body.data).not.toHaveProperty("role");
-    expect(body.email_redirect_to).toBe("https://lez-go-tournament.vercel.app/?accountVerified=verified");
+    expect(body.email_redirect_to).toBe("https://lezgotournament.vercel.app/?accountVerified=verified");
     expect(body.email_redirect_to).not.toContain("ABC123");
     expect(authHeaders.apikey).toBe("anon-key");
     expect(authHeaders.authorization).toBe("Bearer anon-key");
@@ -503,7 +503,7 @@ describe("STEP 25I-C1-A credential foundation", () => {
 
     const result = await resendCredentialVerification({
       email: "Pending@Example.com",
-      redirectTo: "https://lez-go-tournament.vercel.app/?accountVerified=verified",
+      redirectTo: "https://lezgotournament.vercel.app/?accountVerified=verified",
       rateLimitKey: "device-a",
     });
 
@@ -514,7 +514,7 @@ describe("STEP 25I-C1-A credential foundation", () => {
     expect(resendBody).toEqual({
       type: "signup",
       email: "pending@example.com",
-      email_redirect_to: "https://lez-go-tournament.vercel.app/?accountVerified=verified",
+      email_redirect_to: "https://lezgotournament.vercel.app/?accountVerified=verified",
     });
     expect(JSON.stringify(resendBody)).not.toContain("ABC123");
   });
@@ -636,7 +636,7 @@ describe("STEP 25I-C1-A credential foundation", () => {
 
     const result = await requestLoginCodeRecovery({
       email: "User@Example.com",
-      redirectTo: "https://lez-go-tournament.vercel.app/auth/reset",
+      redirectTo: "https://lezgotournament.vercel.app/auth/reset",
     });
 
     expect(result.message).toBe("If the email address is registered, we have sent instructions for creating a new code.");
@@ -645,7 +645,7 @@ describe("STEP 25I-C1-A credential foundation", () => {
     const requestBody = JSON.parse(recoverCall?.[1]?.body as string) as { email: string; password?: string; redirect_to: string; options?: { redirect_to?: string } };
     expect(requestBody.email).toBe("user@example.com");
     expect(requestBody).not.toHaveProperty("password");
-    expect(requestBody.redirect_to).toBe("https://lez-go-tournament.vercel.app/auth/reset");
+    expect(requestBody.redirect_to).toBe("https://lezgotournament.vercel.app/auth/reset");
     expect(requestBody.redirect_to).not.toContain("localhost");
     expect(requestBody).not.toHaveProperty("options");
   });
@@ -683,12 +683,12 @@ describe("STEP 25I-C1-A credential foundation", () => {
 
     await requestLoginCodeRecovery({
       email: "user@example.com",
-      redirectTo: getCredentialRecoveryRedirectTo("https://lez-go-tournament.vercel.app/"),
+      redirectTo: getCredentialRecoveryRedirectTo("https://lezgotournament.vercel.app/"),
     });
 
     const recoverCall = fetchMock.mock.calls.find((call) => String(call[0]).endsWith("/auth/v1/recover"));
     const requestBody = JSON.parse(recoverCall?.[1]?.body as string) as { redirect_to: string; options?: unknown };
-    expect(requestBody.redirect_to).toBe("https://lez-go-tournament.vercel.app/auth/reset");
+    expect(requestBody.redirect_to).toBe("https://lezgotournament.vercel.app/auth/reset");
     expect(requestBody.redirect_to).not.toContain("localhost");
     expect(requestBody.options).toBeUndefined();
   });
@@ -722,7 +722,7 @@ describe("STEP 25I-C1-A credential foundation", () => {
 
     const result = await requestLoginCodeRecovery({
       email: "Pending@Example.com",
-      redirectTo: "https://lez-go-tournament.vercel.app/auth/reset",
+      redirectTo: "https://lezgotournament.vercel.app/auth/reset",
     });
 
     expect(result.message).toBe("If the email address is registered, we have sent instructions for creating a new code.");
@@ -743,7 +743,7 @@ describe("STEP 25I-C1-A credential foundation", () => {
 
     const result = await requestLoginCodeRecovery({
       email: "unknown@example.com",
-      redirectTo: "https://lez-go-tournament.vercel.app/auth/reset",
+      redirectTo: "https://lezgotournament.vercel.app/auth/reset",
     });
 
     expect(result.message).toBe("If the email address is registered, we have sent instructions for creating a new code.");
