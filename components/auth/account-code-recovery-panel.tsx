@@ -14,14 +14,20 @@ export function AccountCodeRecoveryPanel() {
   const [message, setMessage] = useState("");
   const [isSuccess, setIsSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [recoveryCredentials] = useState(() => readRecoveryCredentials(searchParams));
+  const [recoveryCredentials, setRecoveryCredentials] = useState(() => readQueryRecoveryCredentials(searchParams));
   const hasRecoveryToken = Boolean(recoveryCredentials.type === "recovery" && (recoveryCredentials.tokenHash || recoveryCredentials.accessToken));
 
   useEffect(() => {
-    if (recoveryCredentials.accessToken && window.location.hash) {
-      window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+    const hashCredentials = readHashRecoveryCredentials();
+
+    if (!hashCredentials) {
+      return;
     }
-  }, [recoveryCredentials.accessToken]);
+
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+    const timeoutId = window.setTimeout(() => setRecoveryCredentials(hashCredentials), 0);
+    return () => window.clearTimeout(timeoutId);
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -101,7 +107,7 @@ export function AccountCodeRecoveryPanel() {
   );
 }
 
-function readRecoveryCredentials(searchParams: URLSearchParams): { tokenHash: string; accessToken: string; type: string } {
+function readHashRecoveryCredentials(): { tokenHash: string; accessToken: string; type: string } | null {
   if (typeof window !== "undefined" && window.location.hash) {
     const hashParams = new URLSearchParams(window.location.hash.slice(1));
     const accessToken = hashParams.get("access_token") ?? "";
@@ -116,6 +122,10 @@ function readRecoveryCredentials(searchParams: URLSearchParams): { tokenHash: st
     }
   }
 
+  return null;
+}
+
+function readQueryRecoveryCredentials(searchParams: URLSearchParams): { tokenHash: string; accessToken: string; type: string } {
   return {
     tokenHash: searchParams.get("token_hash") ?? "",
     accessToken: "",

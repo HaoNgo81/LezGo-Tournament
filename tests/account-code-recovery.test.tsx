@@ -70,7 +70,7 @@ describe("STEP 25M account code recovery UI", () => {
     render(<AccountCodeRecoveryPanel />);
 
     await waitFor(() => expect(window.location.hash).toBe(""));
-    fireEvent.change(screen.getByLabelText("Ny 6-tegns kode"), { target: { value: "123456" } });
+    fireEvent.change(await screen.findByLabelText("Ny 6-tegns kode"), { target: { value: "123456" } });
     fireEvent.change(screen.getByLabelText("Gentag kode"), { target: { value: "123456" } });
     fireEvent.submit(screen.getByRole("button", { name: "Nulstil kode" }).closest("form") as HTMLFormElement);
 
@@ -117,7 +117,7 @@ describe("STEP 25M account code recovery UI", () => {
     render(<AccountCodeRecoveryPanel />);
 
     await waitFor(() => expect(window.location.hash).toBe(""));
-    fireEvent.change(screen.getByLabelText("Ny 6-tegns kode"), { target: { value: "abc123" } });
+    fireEvent.change(await screen.findByLabelText("Ny 6-tegns kode"), { target: { value: "abc123" } });
     fireEvent.change(screen.getByLabelText("Gentag kode"), { target: { value: "abc123" } });
     fireEvent.submit(screen.getByRole("button", { name: "Nulstil kode" }).closest("form") as HTMLFormElement);
 
