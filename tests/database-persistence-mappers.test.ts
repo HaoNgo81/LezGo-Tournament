@@ -42,6 +42,14 @@ describe("database persistence mappers", () => {
     expect(payload.rounds).toHaveLength(5);
     expect(payload.matches).toHaveLength(20);
     expect(payload.fixedPairs).toEqual([]);
+    expect(getOperationRows(createStandardTournamentWritePlan(payload, { createId: createDeterministicUuidFactory() }), "matches")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          legacy_match_id: firstMatch.id,
+          score_version: 1,
+        }),
+      ]),
+    );
     expect(payload.matchSides.find((side) => side.clientRef === `match-side:${firstMatch.id}:1`)?.score).toBe(17);
     expect(payload.matchSides.find((side) => side.clientRef === `match-side:${firstMatch.id}:2`)?.score).toBe(7);
     expect(payload.matchSidePlayers.filter((sidePlayer) => sidePlayer.matchSideRef === `match-side:${firstMatch.id}:1`).map((sidePlayer) => sidePlayer.tournamentPlayerRef)).toEqual(

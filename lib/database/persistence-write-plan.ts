@@ -116,6 +116,7 @@ export function createStandardTournamentWritePlan(
         label: match.label,
         court_number: match.court_number,
         status: match.status,
+        score_version: 1,
         metadata: match.metadata,
       })),
     },
