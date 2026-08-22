@@ -106,6 +106,27 @@ describe("STEP 25M account code recovery UI", () => {
     expect(screen.queryByText(/service-role-key|database timeout/i)).not.toBeInTheDocument();
   });
 
+  it("keeps expired recovery sessions in a safe request-new-link state after submit", async () => {
+    navigationMocks.searchParams = new URLSearchParams("");
+    window.history.pushState(null, "", "/auth/reset#access_token=expired-recovery-token&refresh_token=expired-refresh-token&type=recovery");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      ok: false,
+      error: "expired",
+    }), { status: 403 })));
+
+    render(<AccountCodeRecoveryPanel />);
+
+    await waitFor(() => expect(window.location.hash).toBe(""));
+    fireEvent.change(screen.getByLabelText("Ny 6-tegns kode"), { target: { value: "abc123" } });
+    fireEvent.change(screen.getByLabelText("Gentag kode"), { target: { value: "abc123" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Nulstil kode" }).closest("form") as HTMLFormElement);
+
+    await waitFor(() => expect(screen.getByText("Linket er ugyldigt eller udløbet.")).toBeInTheDocument());
+    expect(document.body).not.toHaveTextContent("expired-recovery-token");
+    expect(window.localStorage.getItem("expired-recovery-token")).toBeNull();
+    expect(window.sessionStorage.getItem("expired-recovery-token")).toBeNull();
+  });
+
   it("keeps the reset card compact for the account modal mobile regression", () => {
     render(<AccountCodeRecoveryPanel />);
 

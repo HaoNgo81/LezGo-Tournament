@@ -1,11 +1,20 @@
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import HomePage from "../app/page";
 import { saveTournamentSettings } from "../lib/tournament-settings";
+
+const navigationMocks = vi.hoisted(() => ({
+  replace: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => navigationMocks,
+}));
 
 describe("HomePage i18n", () => {
   afterEach(() => {
     cleanup();
+    navigationMocks.replace.mockReset();
     window.localStorage.clear();
     document.documentElement.lang = "da";
   });

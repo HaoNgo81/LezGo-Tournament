@@ -4,6 +4,7 @@ import HomePage from "../app/page";
 
 const navigationMocks = vi.hoisted(() => ({
   push: vi.fn(),
+  replace: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -32,10 +33,34 @@ describe("STEP 25I-C1-B main page account UI", () => {
     cleanup();
     vi.restoreAllMocks();
     navigationMocks.push.mockReset();
+    navigationMocks.replace.mockReset();
     window.localStorage.clear();
     window.sessionStorage.clear();
     document.documentElement.lang = "da";
     window.history.pushState(null, "", "/");
+  });
+
+  it("routes a Supabase recovery hash from the homepage into the reset-code UI without keeping tokens visible", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: false }), { status: 401 })));
+    window.history.pushState(null, "", "/#access_token=homepage-recovery-token&refresh_token=homepage-refresh-token&type=recovery");
+
+    render(<HomePage />);
+
+    await waitFor(() => expect(navigationMocks.replace).toHaveBeenCalledWith("/auth/reset#access_token=homepage-recovery-token&refresh_token=homepage-refresh-token&type=recovery"));
+    expect(window.location.hash).toBe("");
+    expect(document.body).not.toHaveTextContent("homepage-recovery-token");
+    expect(window.localStorage.getItem("homepage-recovery-token")).toBeNull();
+    expect(window.sessionStorage.getItem("homepage-recovery-token")).toBeNull();
+  });
+
+  it("does not enter reset mode for a normal homepage visit", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: false }), { status: 401 })));
+
+    render(<HomePage />);
+
+    await screen.findByTestId("main-account-control");
+    expect(navigationMocks.replace).not.toHaveBeenCalled();
+    expect(screen.getByRole("link", { name: /Ny turnering/i })).toBeInTheDocument();
   });
 
   it("shows compact logged-out account actions on the main page without removing existing cards", async () => {
