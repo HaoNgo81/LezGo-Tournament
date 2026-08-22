@@ -64,19 +64,19 @@ describe("STEP 25I-C1-C8A account tournament controller list API", () => {
 
     expect(response.status).toBe(200);
     expect(body.tournaments.map((tournament) => tournament.name)).toEqual([
-      "Creator visible",
       "Controller visible",
       "Legacy visible",
+      "Creator visible",
     ]);
     expect(body.tournaments.map((tournament) => tournament.managementState)).toEqual([
+      "controller",
+      "controller",
       "readOnly",
-      "controller",
-      "controller",
     ]);
     expect(body.tournaments.map((tournament) => tournament.canManage)).toEqual([
+      true,
+      true,
       false,
-      true,
-      true,
     ]);
     expect(body.tournaments[0].updatedAt).toBe("2026-08-20T10:00:00.000Z");
     expect(restClientMocks.select).toHaveBeenCalledWith(
@@ -105,6 +105,39 @@ describe("STEP 25I-C1-C8A account tournament controller list API", () => {
         managementState: "completed",
       }),
     ]);
+  });
+
+  it("sorts controller, read-only and completed tournaments by newest cloud update inside each group", async () => {
+    restClientMocks.select.mockResolvedValue([
+      { ...createTournamentRow("Old completed", userId, userId, userId), status: "finished", updated_at: "2026-08-22T08:00:00.000Z" },
+      { ...createTournamentRow("New read only", userId, userId, otherUserId), updated_at: "2026-08-22T12:00:00.000Z" },
+      { ...createTournamentRow("Old controller", userId, userId, userId), updated_at: "2026-08-22T09:00:00.000Z" },
+      { ...createTournamentRow("New completed", userId, userId, userId), status: "finished", updated_at: "2026-08-22T13:00:00.000Z" },
+      { ...createTournamentRow("New controller", userId, userId, userId), updated_at: "2026-08-22T14:00:00.000Z" },
+      { ...createTournamentRow("Old read only", userId, userId, otherUserId), updated_at: "2026-08-22T07:00:00.000Z" },
+    ]);
+
+    const response = await listAccountTournaments();
+    const body = await response.json() as { tournaments: Array<{ id: string; name: string; managementState: string; updatedAt: string }> };
+
+    expect(response.status).toBe(200);
+    expect(body.tournaments.map((tournament) => tournament.name)).toEqual([
+      "New controller",
+      "Old controller",
+      "New read only",
+      "Old read only",
+      "New completed",
+      "Old completed",
+    ]);
+    expect(body.tournaments.map((tournament) => tournament.managementState)).toEqual([
+      "controller",
+      "controller",
+      "readOnly",
+      "readOnly",
+      "completed",
+      "completed",
+    ]);
+    expect(body.tournaments[0].id).toBe(createTournamentRow("New controller", userId, userId, userId).id);
   });
 });
 

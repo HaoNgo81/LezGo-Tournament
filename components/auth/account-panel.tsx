@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAppTranslation } from "@/lib/preferences/client";
@@ -90,6 +90,7 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
   const [isLoading, setIsLoading] = useState(false);
   const [openingTournamentId, setOpeningTournamentId] = useState<string | null>(null);
   const [tournaments, setTournaments] = useState<AccountTournament[]>([]);
+  const sortedTournaments = useMemo(() => [...tournaments].sort(compareAccountTournaments), [tournaments]);
 
   const loadOwnTournaments = useCallback(async function loadOwnTournaments() {
     try {
@@ -361,7 +362,7 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
           controllerUserId: body.controllerUserId,
           ownerUserId: body.ownerUserId,
         });
-        router.push("/live");
+        router.push(body.state.status === "finished" ? "/finish" : "/live");
         return;
       }
 
@@ -418,9 +419,9 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
         </div>
         <div className="rounded-md border border-[var(--line)] bg-white/70 p-3">
           <p className="text-sm font-black uppercase tracking-wide text-[var(--primary-strong)]">{t("accountOwnTournaments")}</p>
-          {tournaments.length ? (
+          {sortedTournaments.length ? (
             <ul className="mt-2 grid max-h-[42dvh] gap-2 overflow-y-auto pr-1 text-sm font-bold" data-testid="account-tournament-list">
-              {tournaments.map((tournament) => (
+              {sortedTournaments.map((tournament) => (
                 <li key={tournament.id} className="grid min-w-0 gap-2 rounded-md border border-[var(--line)] bg-white/80 p-3" data-testid="account-tournament-card">
                   <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0">
@@ -435,13 +436,18 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
                     <span className="text-xs font-bold text-[var(--muted)]">{t("accountTournamentUpdated")} {formatUpdatedAt(tournament.updatedAt)}</span>
                   ) : null}
                   <button className="btn-secondary min-h-10 text-sm" type="button" disabled={openingTournamentId === tournament.id || isLoading} onClick={() => void handleOpenTournament(tournament.id)}>
-                    {openingTournamentId === tournament.id ? t("loadingTournament") : t("accountOpenTournament")}
+                    {openingTournamentId === tournament.id ? t("loadingTournament") : getTournamentActionLabel(tournament)}
                   </button>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="mt-2 text-sm font-bold text-[var(--muted)]">{t("accountNoOwnTournaments")}</p>
+            <div className="mt-2 grid gap-3 rounded-md border border-dashed border-[var(--line)] bg-white/60 p-3">
+              <p className="text-sm font-bold text-[var(--muted)]">{t("accountNoOwnTournaments")}</p>
+              <button className="btn-secondary min-h-10 text-sm" type="button" onClick={() => router.push("/new-tournament")}>
+                {t("accountCreateTournament")}
+              </button>
+            </div>
           )}
         </div>
         {view === "reset" ? (
@@ -594,6 +600,14 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
     return t("accountTournamentController");
   }
 
+  function getTournamentActionLabel(tournament: AccountTournament): string {
+    if (tournament.managementState === "completed" || tournament.status === "finished") {
+      return t("seeFinalStandings");
+    }
+
+    return t("accountOpenTournament");
+  }
+
   function getManagementBadgeClassName(tournament: AccountTournament): string {
     if (tournament.managementState === "completed" || tournament.status === "finished") {
       return "border-[var(--line)] bg-[var(--background)] text-[var(--muted)]";
@@ -661,6 +675,37 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
       minute: "2-digit",
     }).format(date);
   }
+}
+
+function compareAccountTournaments(left: AccountTournament, right: AccountTournament): number {
+  const groupDifference = getAccountTournamentSortGroup(left) - getAccountTournamentSortGroup(right);
+
+  if (groupDifference !== 0) {
+    return groupDifference;
+  }
+
+  return getUpdatedAtTime(right.updatedAt) - getUpdatedAtTime(left.updatedAt);
+}
+
+function getAccountTournamentSortGroup(tournament: AccountTournament): number {
+  if (tournament.managementState === "completed" || tournament.status === "finished") {
+    return 2;
+  }
+
+  if (tournament.managementState === "readOnly" || tournament.canManage === false) {
+    return 1;
+  }
+
+  return 0;
+}
+
+function getUpdatedAtTime(value: string | undefined): number {
+  if (!value) {
+    return 0;
+  }
+
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? 0 : time;
 }
 
 function CodeField({ label, value, onChange, showCode }: { label: string; value: string; onChange: (value: string) => void; showCode: boolean }) {

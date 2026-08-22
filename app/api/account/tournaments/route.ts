@@ -1,5 +1,5 @@
 import { readAccountFromAccessToken, AuthError } from "@/lib/auth";
-import { canManageAccountTournament } from "@/lib/account/tournament-authority";
+import { canManageAccountTournament, canReadAccountTournament } from "@/lib/account/tournament-authority";
 import { readAuthAccessCookie } from "@/lib/auth/cookies";
 import { createSupabaseRestClient } from "@/lib/supabase/rest-client";
 
@@ -26,17 +26,10 @@ export async function GET(): Promise<Response> {
 
     return Response.json({
       ok: true,
-      tournaments: rows.filter((row) => canReadAccountTournament(row, account.userId)).map((row) => ({
-        id: row.id,
-        name: row.name,
-        format: row.format,
-        status: row.status,
-        updatedAt: row.updated_at,
-        canManage: canManageAccountTournament(row, account.userId),
-        managementState: row.status === "finished"
-          ? "completed"
-          : canManageAccountTournament(row, account.userId) ? "controller" : "readOnly",
-      })),
+      tournaments: rows
+        .filter((row) => canReadAccountTournament(row, account.userId))
+        .map((row) => toAccountTournamentListItem(row, account.userId))
+        .sort(compareAccountTournamentListItems),
     }, {
       headers: {
         "Cache-Control": "no-store, max-age=0",
@@ -48,8 +41,52 @@ export async function GET(): Promise<Response> {
   }
 }
 
-function canReadAccountTournament(row: TournamentListRow, userId: string): boolean {
-  return row.created_by_user_id === userId
-    || row.controller_user_id === userId
-    || (!row.controller_user_id && row.owner_user_id === userId);
+function toAccountTournamentListItem(row: TournamentListRow, userId: string) {
+  const canManage = canManageAccountTournament(row, userId);
+
+  return {
+    id: row.id,
+    name: row.name,
+    format: row.format,
+    status: row.status,
+    updatedAt: row.updated_at,
+    canManage,
+    managementState: row.status === "finished"
+      ? "completed"
+      : canManage ? "controller" : "readOnly",
+  };
+}
+
+function compareAccountTournamentListItems(
+  left: ReturnType<typeof toAccountTournamentListItem>,
+  right: ReturnType<typeof toAccountTournamentListItem>,
+): number {
+  const groupDifference = getAccountTournamentSortGroup(left) - getAccountTournamentSortGroup(right);
+
+  if (groupDifference !== 0) {
+    return groupDifference;
+  }
+
+  return getUpdatedAtTime(right.updatedAt) - getUpdatedAtTime(left.updatedAt);
+}
+
+function getAccountTournamentSortGroup(tournament: ReturnType<typeof toAccountTournamentListItem>): number {
+  if (tournament.managementState === "completed" || tournament.status === "finished") {
+    return 2;
+  }
+
+  if (tournament.managementState === "readOnly" || tournament.canManage === false) {
+    return 1;
+  }
+
+  return 0;
+}
+
+function getUpdatedAtTime(value: string | undefined): number {
+  if (!value) {
+    return 0;
+  }
+
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? 0 : time;
 }

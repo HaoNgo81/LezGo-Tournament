@@ -14,6 +14,7 @@ export type TranslationKey =
   | "accountCreateAccount"
   | "accountCreateOrLogin"
   | "accountCreateSubmit"
+  | "accountCreateTournament"
   | "accountCreated"
   | "accountCreateError"
   | "accountEmail"
@@ -326,6 +327,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountCreateAccount: "Opret bruger",
     accountCreateOrLogin: "Opret bruger / Log ind",
     accountCreateSubmit: "Opret bruger",
+    accountCreateTournament: "Opret ny turnering",
     accountCreated: "Brugeren er oprettet. Log ind med email eller brugernavn og din kode.",
     accountCreateError: "Brugeren kunne ikke oprettes.",
     accountEmail: "E-mail",
@@ -348,7 +350,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountOtpCouldNotVerify: "Login-koden kunne ikke bekræftes.",
     accountOtpHelp: "Indtast navn og e-mail. Vi sender en Supabase-verifikationskode til e-mailen.",
     accountOtpSent: "Tjek din e-mail og indtast verifikationskoden.",
-    accountNoOwnTournaments: "Ingen turneringer endnu.",
+    accountNoOwnTournaments: "Du har endnu ingen turneringer.",
     accountOpenTournament: "Åbn turnering",
     accountOwnTournaments: "Mine turneringer",
     accountRepeatCode: "Gentag kode",
@@ -637,6 +639,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountCreateAccount: "Create account",
     accountCreateOrLogin: "Create account / Log in",
     accountCreateSubmit: "Create account",
+    accountCreateTournament: "Create new tournament",
     accountCreated: "The account has been created. Log in with email or username and your code.",
     accountCreateError: "The account could not be created.",
     accountEmail: "Email",
@@ -659,7 +662,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountOtpCouldNotVerify: "The login code could not be verified.",
     accountOtpHelp: "Enter name and email. We send a Supabase verification code to the email address.",
     accountOtpSent: "Check your email and enter the verification code.",
-    accountNoOwnTournaments: "No tournaments yet.",
+    accountNoOwnTournaments: "You do not have any tournaments yet.",
     accountOpenTournament: "Open tournament",
     accountOwnTournaments: "My tournaments",
     accountRepeatCode: "Repeat code",

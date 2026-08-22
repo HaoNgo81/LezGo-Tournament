@@ -178,4 +178,71 @@ describe("STEP 25I-B1 owner cloud tournament open UI", () => {
       canManage: false,
     });
   });
+
+  it("opens a completed owned cloud tournament on the final standings route with its authoritative id", async () => {
+    const serverState = { ...createMockLiveTournamentState(), tournamentName: "Finished Cloud Cup", status: "finished" as const };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === "/api/auth/me") {
+        return new Response(JSON.stringify({
+          ok: true,
+          account: {
+            userId: "00000000-0000-4000-8000-0000000000a1",
+            email: "owner@example.com",
+            displayName: "Owner",
+            role: "user",
+          },
+        }), { status: 200 });
+      }
+
+      if (url === "/api/account/tournaments") {
+        return new Response(JSON.stringify({
+          ok: true,
+          tournaments: [{
+            id: "00000000-0000-4000-8000-000000000303",
+            name: "Finished Cloud Cup",
+            format: "americano",
+            status: "finished",
+            updatedAt: "2026-08-22T10:00:00.000Z",
+            canManage: true,
+            managementState: "completed",
+          }],
+        }), { status: 200 });
+      }
+
+      if (url === "/api/account/tournaments/00000000-0000-4000-8000-000000000303") {
+        return new Response(JSON.stringify({
+          ok: true,
+          kind: "standard",
+          state: serverState,
+          tournamentId: "00000000-0000-4000-8000-000000000303",
+          updatedAt: "2026-08-22T10:00:00.000Z",
+          legacyLocalId: "finished-cloud-cup-americano",
+          organizerToken: "OWNER_ORGANIZER_TOKEN",
+          canManage: true,
+          matchScoreVersions: { [serverState.rounds[0].matches[0].id]: 1 },
+        }), { status: 200 });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AccountPanel />);
+
+    const openButton = await screen.findByRole("button", { name: "Se slutstilling" });
+    fireEvent.click(openButton);
+
+    await waitFor(() => expect(navigationMocks.push).toHaveBeenCalledWith("/finish"));
+    expect(fetchMock).toHaveBeenCalledWith("/api/account/tournaments/00000000-0000-4000-8000-000000000303", expect.any(Object));
+    expect(loadActiveTournament()).toMatchObject({
+      tournamentName: "Finished Cloud Cup",
+      status: "finished",
+    });
+    expect(loadShadowSaveMetadata(createStandardShadowSaveLocalId(serverState))).toMatchObject({
+      supabaseTournamentId: "00000000-0000-4000-8000-000000000303",
+      canManage: true,
+    });
+  });
 });

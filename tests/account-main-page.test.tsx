@@ -539,6 +539,9 @@ describe("STEP 25I-C1-B main page account UI", () => {
     expect(within(dialog).getByText("Test Person")).toBeInTheDocument();
     expect(within(dialog).getByText("@TestUser")).toBeInTheDocument();
     expect(within(dialog).getByText("example@example.com")).toBeInTheDocument();
+    expect(within(dialog).getByText("Du har endnu ingen turneringer.")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Opret ny turnering" }));
+    expect(navigationMocks.push).toHaveBeenCalledWith("/new-tournament");
     expect(within(dialog).queryByText("example")).not.toBeInTheDocument();
   });
 
@@ -695,6 +698,22 @@ describe("STEP 25I-C1-B main page account UI", () => {
 
     expect(cards).toHaveLength(6);
     expect(list).toHaveClass("max-h-[42dvh]", "overflow-y-auto");
+    expect(cards.map((card) => within(card).getByRole("button").textContent)).toEqual([
+      "Åbn turnering",
+      "Åbn turnering",
+      "Åbn turnering",
+      "Åbn turnering",
+      "Åbn turnering",
+      "Se slutstilling",
+    ]);
+    expect(cards.map((card) => within(card).getByText(/Cup|turneringstitel/).textContent)).toEqual([
+      "Sixth Cup",
+      "Fifth Cup",
+      "Draft Cup",
+      "Controller Cup",
+      "Transferred Cup",
+      longName,
+    ]);
     expect(within(dialog).getByText("Controller Cup")).toBeInTheDocument();
     expect(within(dialog).getByText("Transferred Cup")).toBeInTheDocument();
     expect(within(dialog).getByText(longName)).toHaveClass("break-words");
