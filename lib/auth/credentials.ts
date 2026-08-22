@@ -224,13 +224,23 @@ export async function loginWithCredential(input: {
 
 export async function requestLoginCodeRecovery(input: { email: string; redirectTo?: string; rateLimitKey?: string }): Promise<{ message: string }> {
   const email = normalizeCredentialEmail(input.email);
-  assertAuthRateLimit("credential-recovery", `${input.rateLimitKey ?? "unknown"}:${email}`, { limit: 5, windowMs: 60 * 60 * 1000 });
+
+  try {
+    assertAuthRateLimit("credential-recovery", `${input.rateLimitKey ?? "unknown"}:${email}`, { limit: 5, windowMs: 60 * 60 * 1000 });
+  } catch (error) {
+    logCredentialRecoveryDiagnostic("app_rate_limited", { status: 429, category: "app_recovery_rate_limit" });
+    throw error;
+  }
 
   const client = createSupabaseRestClient();
   const profile = await readProfileByEmail(email, client);
   const authUser = profile ? await readSupabaseAdminAuthUser(profile.user_id) : null;
 
   if (!authUser || !isAuthUserEmailVerified(authUser)) {
+    logCredentialRecoveryDiagnostic("skipped", {
+      status: 200,
+      category: authUser ? "unverified_or_inactive_account" : "no_verified_profile",
+    });
     return {
       message: genericRecoveryMessage,
     };
@@ -244,6 +254,13 @@ export async function requestLoginCodeRecovery(input: { email: string; redirectT
       email,
       redirect_to: input.redirectTo,
     }),
+  });
+  const body = await parseJson(response);
+  const category = response.ok ? "accepted" : getAuthFailureCategory(body);
+
+  logCredentialRecoveryDiagnostic("supabase_recover_response", {
+    status: response.status,
+    category,
   });
 
   if (!response.ok && response.status >= 500) {
@@ -676,6 +693,15 @@ function logCredentialAuthFailure(operation: string, status: number, body: unkno
     operation,
     status,
     category: getAuthFailureCategory(body),
+  });
+}
+
+function logCredentialRecoveryDiagnostic(event: string, details: { status: number; category: string }): void {
+  console.info("[auth.credentials.recovery] diagnostic", {
+    event,
+    at: new Date().toISOString(),
+    status: details.status,
+    category: details.category,
   });
 }
 

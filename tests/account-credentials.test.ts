@@ -603,6 +603,7 @@ describe("STEP 25I-C1-A credential foundation", () => {
 
   it("uses Supabase recovery email with generic privacy-preserving response", async () => {
     configureAuthEnv();
+    const logMock = vi.spyOn(console, "info").mockImplementation(() => undefined);
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = String(input);
 
@@ -648,6 +649,61 @@ describe("STEP 25I-C1-A credential foundation", () => {
     expect(requestBody.redirect_to).toBe("https://lezgotournament.vercel.app/auth/reset");
     expect(requestBody.redirect_to).not.toContain("localhost");
     expect(requestBody).not.toHaveProperty("options");
+    expect(logMock).toHaveBeenCalledWith("[auth.credentials.recovery] diagnostic", expect.objectContaining({
+      event: "supabase_recover_response",
+      status: 200,
+      category: "accepted",
+    }));
+    expect(JSON.stringify(logMock.mock.calls)).not.toMatch(/user@example.com|access_token|refresh_token|ABC123/i);
+  });
+
+  it("logs Supabase recovery throttling safely while preserving the generic recovery response", async () => {
+    configureAuthEnv();
+    const logMock = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+
+      if (url.includes("/rest/v1/profiles?")) {
+        return new Response(JSON.stringify([{
+          user_id: "00000000-0000-4000-8000-000000000933",
+          display_name: "User One",
+          role: "user",
+          username: "userone",
+          email: "user@example.com",
+        }]), { status: 200 });
+      }
+
+      if (url.endsWith("/auth/v1/admin/users/00000000-0000-4000-8000-000000000933")) {
+        return new Response(JSON.stringify({
+          id: "00000000-0000-4000-8000-000000000933",
+          email: "user@example.com",
+          email_confirmed_at: "2026-08-20T10:00:00.000Z",
+        }), { status: 200 });
+      }
+
+      if (url.endsWith("/auth/v1/recover")) {
+        return new Response(JSON.stringify({
+          error_code: "over_email_send_rate_limit",
+          msg: "rate limit exceeded",
+        }), { status: 429 });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    await expect(requestLoginCodeRecovery({
+      email: "user@example.com",
+      redirectTo: "https://lezgotournament.vercel.app/auth/reset",
+    })).resolves.toMatchObject({
+      message: "If the email address is registered, we have sent instructions for creating a new code.",
+    });
+
+    expect(logMock).toHaveBeenCalledWith("[auth.credentials.recovery] diagnostic", expect.objectContaining({
+      event: "supabase_recover_response",
+      status: 429,
+      category: "over_email_send_rate_limit",
+    }));
+    expect(JSON.stringify(logMock.mock.calls)).not.toMatch(/user@example.com|access_token|refresh_token|ABC123/i);
   });
 
   it("sends the production recovery redirect as top-level redirect_to so Supabase does not fall back to Site URL", async () => {

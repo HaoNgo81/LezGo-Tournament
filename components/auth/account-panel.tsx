@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAppTranslation } from "@/lib/preferences/client";
@@ -88,6 +88,7 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
   const [showCode, setShowCode] = useState(false);
   const [message, setMessage] = useState(initialMessage);
   const [isLoading, setIsLoading] = useState(false);
+  const recoveryRequestInFlight = useRef(false);
   const [openingTournamentId, setOpeningTournamentId] = useState<string | null>(null);
   const [tournaments, setTournaments] = useState<AccountTournament[]>([]);
   const sortedTournaments = useMemo(() => [...tournaments].sort(compareAccountTournaments), [tournaments]);
@@ -224,6 +225,12 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
 
   async function handleForgotCode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (recoveryRequestInFlight.current) {
+      return;
+    }
+
+    recoveryRequestInFlight.current = true;
     setIsLoading(true);
     setMessage("");
 
@@ -239,6 +246,7 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
     } catch {
       setMessage(t("accountGenericRecovery"));
     } finally {
+      recoveryRequestInFlight.current = false;
       setIsLoading(false);
     }
   }
@@ -561,7 +569,7 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
             <input className="field-control" value={recoveryEmail} onChange={(event) => setRecoveryEmail(event.target.value)} autoComplete="email" inputMode="email" type="email" />
           </label>
           <button className="btn-primary min-h-12" type="submit" disabled={isLoading}>
-            {t("accountSendInstructions")}
+            {isLoading ? t("loadingTournament") : t("accountSendInstructions")}
           </button>
           <button className="rounded-md px-1 py-2 text-left text-sm font-black text-[var(--primary-strong)]" type="button" onClick={() => { setView("login"); setMessage(""); }}>
             {t("accountLogin")}

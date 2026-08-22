@@ -470,6 +470,46 @@ describe("STEP 25I-C1-B main page account UI", () => {
     await screen.findByText("Hvis e-mailadressen er registreret, har vi sendt instruktioner til at oprette en ny kode.");
   });
 
+  it("prevents duplicate forgot-code recovery requests from one in-flight submit", async () => {
+    let resolveRecovery: ((response: Response) => void) | undefined;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === "/api/auth/me") {
+        return new Response(JSON.stringify({ ok: false }), { status: 401 });
+      }
+
+      if (url === "/api/auth/credentials/recover") {
+        expect(JSON.parse(String(init?.body))).toEqual({ email: "user@example.com" });
+        return await new Promise<Response>((resolve) => {
+          resolveRecovery = resolve;
+        });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<HomePage />);
+    fireEvent.click(await screen.findByTestId("main-account-control"));
+    const dialog = await screen.findByTestId("main-account-dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Glemt kode?" }));
+    fireEvent.change(within(dialog).getByLabelText("E-mail"), { target: { value: "user@example.com" } });
+
+    const form = within(dialog).getByRole("button", { name: "Send instruktioner" }).closest("form") as HTMLFormElement;
+    fireEvent.submit(form);
+    fireEvent.submit(form);
+
+    await waitFor(() => expect(fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/auth/credentials/recover")).toHaveLength(1));
+    expect(within(dialog).getByRole("button", { name: "Indlæser turnering..." })).toBeDisabled();
+
+    resolveRecovery?.(new Response(JSON.stringify({
+      ok: true,
+      message: "If the email address is registered, we have sent instructions for creating a new code.",
+    }), { status: 200 }));
+    await screen.findByText("Hvis e-mailadressen er registreret, har vi sendt instruktioner til at oprette en ny kode.");
+  });
+
   it("resends account verification from the pending create-account state", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
