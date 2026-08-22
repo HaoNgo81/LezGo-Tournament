@@ -12,7 +12,6 @@ interface AdminUserManagementProps {
 
 type RoleFilter = "all" | AccountRole;
 type StatusFilter = "all" | ManagedAccountStatus;
-type VerificationFilter = "all" | "verified" | "unverified";
 
 interface AdminActionResponse {
   ok?: boolean;
@@ -29,12 +28,11 @@ export function AdminUserManagement({ users: initialUsers, currentUserId }: Admi
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [verificationFilter, setVerificationFilter] = useState<VerificationFilter>("all");
   const [busyAction, setBusyAction] = useState("");
   const [message, setMessage] = useState("");
   const [generatedCode, setGeneratedCode] = useState("");
 
-  const selectedUser = users.find((user) => user.userId === selectedUserId) ?? users[0];
+  const selectedUser = selectedUserId ? users.find((user) => user.userId === selectedUserId) : undefined;
 
   const visibleUsers = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("en");
@@ -48,11 +46,10 @@ export function AdminUserManagement({ users: initialUsers, currentUserId }: Admi
       ].some((value) => value.toLocaleLowerCase("en").includes(normalizedQuery));
       const matchesRole = roleFilter === "all" || user.role === roleFilter;
       const matchesStatus = statusFilter === "all" || user.status === statusFilter;
-      const matchesVerification = verificationFilter === "all" || (verificationFilter === "verified" ? user.emailVerified : !user.emailVerified);
 
-      return matchesQuery && matchesRole && matchesStatus && matchesVerification;
+      return matchesQuery && matchesRole && matchesStatus;
     });
-  }, [query, roleFilter, statusFilter, users, verificationFilter]);
+  }, [query, roleFilter, statusFilter, users]);
 
   const replaceUser = (updatedUser: ManagedAccountUser) => {
     setUsers((current) => current.map((user) => user.userId === updatedUser.userId ? updatedUser : user));
@@ -156,7 +153,7 @@ export function AdminUserManagement({ users: initialUsers, currentUserId }: Admi
   };
 
   return (
-    <section className="grid gap-4" data-testid="admin-user-management">
+    <section className="mx-auto grid w-full max-w-6xl gap-4" data-testid="admin-user-management">
       <div className="app-card grid gap-3 p-4 sm:p-5">
         <div>
           <p className="text-sm font-black uppercase tracking-wide text-[var(--primary-strong)]">ADMIN</p>
@@ -164,7 +161,7 @@ export function AdminUserManagement({ users: initialUsers, currentUserId }: Admi
           <p className="mt-2 font-bold text-[var(--muted)]">{copy.description}</p>
         </div>
 
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto] lg:items-end">
+        <div className="grid gap-3 lg:grid-cols-[minmax(22rem,1fr)_minmax(10rem,auto)_minmax(11rem,auto)] lg:items-end">
           <label className="grid gap-1 text-sm font-black">
             {copy.search}
             <input
@@ -185,11 +182,6 @@ export function AdminUserManagement({ users: initialUsers, currentUserId }: Admi
             ["active", copy.active],
             ["deactivated", copy.deactivated],
           ]} />
-          <FilterSelect label={copy.email} value={verificationFilter} onChange={(value) => setVerificationFilter(value as VerificationFilter)} options={[
-            ["all", copy.all],
-            ["verified", copy.verified],
-            ["unverified", copy.unverified],
-          ]} />
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-black text-[var(--muted)]">
@@ -204,70 +196,38 @@ export function AdminUserManagement({ users: initialUsers, currentUserId }: Admi
         ) : null}
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,28rem)]">
-        <div className="hidden overflow-hidden rounded-md border border-[var(--line)] bg-[var(--surface)] shadow-xl md:block">
-          <table className="w-full table-fixed text-left text-sm">
-            <thead className="bg-[var(--primary-soft)]/60 text-xs uppercase text-[var(--primary-strong)]">
-              <tr>
-                <TableHeader className="w-[18%]">{copy.name}</TableHeader>
-                <TableHeader className="w-[14%]">{copy.username}</TableHeader>
-                <TableHeader className="w-[22%]">{copy.email}</TableHeader>
-                <TableHeader className="w-[8%]">{copy.role}</TableHeader>
-                <TableHeader className="w-[12%]">{copy.created}</TableHeader>
-                <TableHeader className="w-[12%]">{copy.lastSignIn}</TableHeader>
-                <TableHeader className="w-[14%]">{copy.actions}</TableHeader>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleUsers.map((user) => (
-                <tr className="border-t border-[var(--line)]" key={user.userId} data-testid="admin-user-row">
-                  <TableCell>{user.displayName}</TableCell>
-                  <TableCell>{user.username ? `@${user.username}` : "-"}</TableCell>
-                  <TableCell>{user.email || "-"}</TableCell>
-                  <TableCell><RoleBadge role={user.role} /></TableCell>
-                  <TableCell>{formatDate(user.createdAt)}</TableCell>
-                  <TableCell>{formatDate(user.lastSignInAt)}</TableCell>
-                  <TableCell>
-                    <UserActions
-                      copy={copy}
-                      user={user}
-                      busyAction={busyAction}
-                      onOpen={(nextUser) => setSelectedUserId(nextUser.userId)}
-                      onRoleChange={handleRoleChange}
-                      onStatusChange={handleStatusChange}
-                    />
-                  </TableCell>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="grid gap-3 md:hidden">
+      <div className="grid gap-3">
+        <div className="grid gap-3">
           {visibleUsers.map((user) => (
-            <article className="app-card grid gap-3 p-4" key={user.userId} data-testid="admin-user-card">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h3 className="break-words text-xl font-black">{user.displayName}</h3>
-                  <p className="break-words text-sm font-bold text-[var(--muted)]">{user.username ? `@${user.username}` : copy.noUsername}</p>
+            <article
+              className="rounded-md border border-[var(--line)] bg-[var(--surface)] p-4 shadow-lg transition hover:border-[var(--primary)]/70 sm:p-5"
+              key={user.userId}
+              data-testid="admin-user-row"
+            >
+              <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                <div className="grid min-w-0 gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="min-w-0 break-words text-xl font-black">{user.displayName}</h3>
+                    <RoleBadge role={user.role} />
+                    <StatusBadge status={user.status} copy={copy} />
+                  </div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm font-bold text-[var(--muted)]">
+                    <span>{user.username ? `@${user.username}` : copy.noUsername}</span>
+                    <span className="break-all sm:break-normal">{user.email || "-"}</span>
+                  </div>
+                  <dl className="grid gap-2 text-xs font-black uppercase text-[var(--muted)] sm:grid-cols-2">
+                    <CompactInfo label={copy.created} value={formatDate(user.createdAt)} />
+                    <CompactInfo label={copy.lastSignIn} value={formatDate(user.lastSignInAt)} />
+                  </dl>
                 </div>
-                <RoleBadge role={user.role} />
+                <button
+                  className="btn-primary min-h-11 w-full px-5 py-2 text-sm md:w-40"
+                  type="button"
+                  onClick={() => setSelectedUserId(user.userId)}
+                >
+                  {copy.manage}
+                </button>
               </div>
-              <dl className="grid gap-2 text-sm font-bold">
-                <InfoRow label={copy.email} value={user.email || "-"} />
-                <InfoRow label={copy.emailStatus} value={user.emailVerified ? copy.verified : copy.unverified} />
-                <InfoRow label={copy.status} value={user.status === "active" ? copy.active : copy.deactivated} />
-                <InfoRow label={copy.created} value={formatDate(user.createdAt)} />
-                <InfoRow label={copy.lastSignIn} value={formatDate(user.lastSignInAt)} />
-              </dl>
-              <UserActions
-                copy={copy}
-                user={user}
-                busyAction={busyAction}
-                onOpen={(nextUser) => setSelectedUserId(nextUser.userId)}
-                onRoleChange={handleRoleChange}
-                onStatusChange={handleStatusChange}
-              />
             </article>
           ))}
         </div>
@@ -278,9 +238,12 @@ export function AdminUserManagement({ users: initialUsers, currentUserId }: Admi
             copy={copy}
             user={selectedUser}
             busyAction={busyAction}
+            onClose={() => setSelectedUserId("")}
             onDetailsSave={handleDetailsSave}
             onNoteSave={handleNoteSave}
             onCodeReset={handleCodeReset}
+            onRoleChange={handleRoleChange}
+            onStatusChange={handleStatusChange}
           />
         ) : null}
       </div>
@@ -298,9 +261,12 @@ function UserDetailPanel(props: {
   copy: typeof danishCopy;
   user: ManagedAccountUser;
   busyAction: string;
+  onClose: () => void;
   onDetailsSave: (user: ManagedAccountUser, values: UserDetailsFormValues) => Promise<void>;
   onNoteSave: (user: ManagedAccountUser, note: string) => Promise<void>;
   onCodeReset: (user: ManagedAccountUser, code: string, mode: "manual" | "generate") => Promise<void>;
+  onRoleChange: (user: ManagedAccountUser) => Promise<void>;
+  onStatusChange: (user: ManagedAccountUser) => Promise<void>;
 }) {
   const [displayName, setDisplayName] = useState(props.user.displayName);
   const [username, setUsername] = useState(props.user.username ?? "");
@@ -310,69 +276,107 @@ function UserDetailPanel(props: {
   const detailsBusy = props.busyAction === `${props.user.userId}:details`;
   const noteBusy = props.busyAction === `${props.user.userId}:note`;
   const resetBusy = props.busyAction === `${props.user.userId}:reset-code`;
+  const roleBusy = props.busyAction === `${props.user.userId}:role`;
+  const statusBusy = props.busyAction === `${props.user.userId}:status`;
 
   return (
-    <aside className="app-card grid gap-4 p-4 sm:p-5" data-testid="admin-user-detail">
-      <div>
-        <p className="text-xs font-black uppercase text-[var(--primary-strong)]">{props.copy.detail}</p>
-        <h3 className="mt-1 break-words text-xl font-black">{props.user.displayName}</h3>
-        <p className="break-words text-sm font-bold text-[var(--muted)]">{props.user.email}</p>
-      </div>
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/35 p-3 sm:p-6" role="presentation">
+      <section
+        aria-modal="true"
+        className="max-h-[calc(100vh-1.5rem)] w-full max-w-4xl overflow-y-auto rounded-md border border-[var(--line)] bg-[var(--background)] shadow-2xl sm:max-h-[calc(100vh-3rem)]"
+        data-testid="admin-user-detail"
+        role="dialog"
+      >
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-[var(--line)] bg-[var(--surface)] p-4 sm:p-5">
+          <div className="min-w-0">
+            <p className="text-xs font-black uppercase text-[var(--primary-strong)]">{props.copy.detail}</p>
+            <h3 className="mt-1 break-words text-2xl font-black">{props.user.displayName}</h3>
+            <p className="break-words text-sm font-bold text-[var(--muted)]">{props.user.email}</p>
+          </div>
+          <button className="btn-secondary min-h-10 px-4 py-2 text-sm" type="button" onClick={props.onClose}>
+            {props.copy.close}
+          </button>
+        </div>
 
-      <dl className="grid gap-2 text-sm font-bold">
-        <InfoRow label={props.copy.role} value={props.user.role.toUpperCase()} />
-        <InfoRow label={props.copy.status} value={props.user.status === "active" ? props.copy.active : props.copy.deactivated} />
-        <InfoRow label={props.copy.created} value={formatDate(props.user.createdAt)} />
-        <InfoRow label={props.copy.lastSignIn} value={formatDate(props.user.lastSignInAt)} />
-      </dl>
+        <div className="grid gap-4 p-4 sm:p-5">
+          <PanelSection title={props.copy.userDetails}>
+            <dl className="grid gap-2 text-sm font-bold sm:grid-cols-2">
+              <InfoRow label={props.copy.name} value={props.user.displayName} />
+              <InfoRow label={props.copy.username} value={props.user.username ? `@${props.user.username}` : props.copy.noUsername} />
+              <InfoRow label={props.copy.email} value={props.user.email || "-"} />
+              <InfoRow label={props.copy.emailStatus} value={props.user.emailVerified ? props.copy.verified : props.copy.unverified} />
+              <InfoRow label={props.copy.role} value={props.user.role.toUpperCase()} />
+              <InfoRow label={props.copy.status} value={props.user.status === "active" ? props.copy.active : props.copy.deactivated} />
+              <InfoRow label={props.copy.created} value={formatDate(props.user.createdAt)} />
+              <InfoRow label={props.copy.lastSignIn} value={formatDate(props.user.lastSignInAt)} />
+            </dl>
+          </PanelSection>
 
-      <form className="grid gap-3" onSubmit={(event) => {
+          <PanelSection title={props.copy.profileDetails}>
+            <form className="grid gap-3" onSubmit={(event) => {
         event.preventDefault();
         void props.onDetailsSave(props.user, { displayName, username, email });
       }}>
-        <h4 className="text-sm font-black uppercase text-[var(--primary-strong)]">{props.copy.profileDetails}</h4>
-        <TextField label={props.copy.name} value={displayName} onChange={setDisplayName} />
-        <TextField label={props.copy.username} value={username} onChange={setUsername} />
-        <TextField label={props.copy.email} value={email} onChange={setEmail} type="email" />
-        <button className="btn-primary min-h-10 px-3 py-2 text-sm" type="submit" disabled={detailsBusy}>
-          {detailsBusy ? props.copy.saving : props.copy.saveDetails}
-        </button>
-      </form>
+              <div className="grid gap-3 md:grid-cols-3">
+                <TextField label={props.copy.name} value={displayName} onChange={setDisplayName} />
+                <TextField label={props.copy.username} value={username} onChange={setUsername} />
+                <TextField label={props.copy.email} value={email} onChange={setEmail} type="email" />
+              </div>
+              <button className="btn-primary min-h-11 w-full px-4 py-2 text-sm sm:w-fit" type="submit" disabled={detailsBusy}>
+                {detailsBusy ? props.copy.saving : props.copy.saveDetails}
+              </button>
+            </form>
+          </PanelSection>
 
-      <form className="grid gap-3" onSubmit={(event) => {
+          <PanelSection title={props.copy.internalNote}>
+            <form className="grid gap-3" onSubmit={(event) => {
         event.preventDefault();
         void props.onNoteSave(props.user, note);
       }}>
-        <h4 className="text-sm font-black uppercase text-[var(--primary-strong)]">{props.copy.internalNote}</h4>
-        <textarea
-          aria-label={props.copy.internalNote}
-          className="field-control min-h-28 resize-y"
-          maxLength={1000}
-          value={note}
-          onChange={(event) => setNote(event.target.value)}
-        />
-        <button className="btn-secondary min-h-10 px-3 py-2 text-sm" type="submit" disabled={noteBusy}>
-          {noteBusy ? props.copy.saving : props.copy.saveNote}
-        </button>
-      </form>
+              <textarea
+                aria-label={props.copy.internalNote}
+                className="field-control min-h-32 resize-y"
+                maxLength={1000}
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+              />
+              <button className="btn-secondary min-h-11 w-full px-4 py-2 text-sm sm:w-fit" type="submit" disabled={noteBusy}>
+                {noteBusy ? props.copy.saving : props.copy.saveNote}
+              </button>
+            </form>
+          </PanelSection>
 
-      <form className="grid gap-3" onSubmit={(event) => {
+          <PanelSection title={props.copy.security}>
+            <form className="grid gap-3" onSubmit={(event) => {
         event.preventDefault();
         void props.onCodeReset(props.user, manualCode, "manual");
         setManualCode("");
       }}>
-        <h4 className="text-sm font-black uppercase text-[var(--primary-strong)]">{props.copy.codeReset}</h4>
-        <TextField label={props.copy.newCode} value={manualCode} onChange={(value) => setManualCode(value.toLocaleUpperCase("en"))} maxLength={6} />
-        <div className="grid gap-2 sm:grid-cols-2">
-          <button className="btn-primary min-h-10 px-3 py-2 text-sm" type="submit" disabled={resetBusy || manualCode.trim().length !== 6}>
-            {resetBusy ? props.copy.saving : props.copy.saveManualCode}
-          </button>
-          <button className="btn-secondary min-h-10 px-3 py-2 text-sm" type="button" disabled={resetBusy} onClick={() => void props.onCodeReset(props.user, "", "generate")}>
-            {props.copy.generateCode}
-          </button>
+              <div className="grid gap-3 sm:grid-cols-[minmax(12rem,18rem)_auto_auto] sm:items-end">
+                <TextField label={props.copy.newCode} value={manualCode} onChange={(value) => setManualCode(value.toLocaleUpperCase("en"))} maxLength={6} />
+                <button className="btn-primary min-h-11 px-4 py-2 text-sm" type="submit" disabled={resetBusy || manualCode.trim().length !== 6}>
+                  {resetBusy ? props.copy.saving : props.copy.saveManualCode}
+                </button>
+                <button className="btn-secondary min-h-11 px-4 py-2 text-sm" type="button" disabled={resetBusy} onClick={() => void props.onCodeReset(props.user, "", "generate")}>
+                  {props.copy.generateCode}
+                </button>
+              </div>
+            </form>
+          </PanelSection>
+
+          <PanelSection title={props.copy.administration}>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <button className="btn-secondary min-h-11 px-4 py-2 text-sm" type="button" disabled={roleBusy || statusBusy} onClick={() => void props.onRoleChange(props.user)}>
+                {props.user.role === "admin" ? props.copy.makeUser : props.copy.makeAdmin}
+              </button>
+              <button className="btn-secondary min-h-11 px-4 py-2 text-sm" type="button" disabled={roleBusy || statusBusy} onClick={() => void props.onStatusChange(props.user)}>
+                {props.user.status === "active" ? props.copy.deactivate : props.copy.reactivate}
+              </button>
+            </div>
+          </PanelSection>
         </div>
-      </form>
-    </aside>
+      </section>
+    </div>
   );
 }
 
@@ -413,19 +417,20 @@ function FilterSelect(props: {
   );
 }
 
-function TableHeader({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <th className={`px-3 py-2 font-black ${className}`}>{children}</th>;
-}
-
-function TableCell({ children }: { children: React.ReactNode }) {
-  return <td className="break-words px-3 py-3 align-top font-bold">{children}</td>;
-}
-
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid grid-cols-[7rem_minmax(0,1fr)] gap-2 border-t border-[var(--line)] pt-2">
+    <div className="grid gap-1 rounded-md border border-[var(--line)] bg-white/50 p-3">
       <dt className="text-[var(--muted)]">{label}</dt>
       <dd className="break-words">{value}</dd>
+    </div>
+  );
+}
+
+function CompactInfo({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex min-w-0 gap-2">
+      <dt>{label}</dt>
+      <dd className="truncate normal-case text-[var(--foreground)]">{value}</dd>
     </div>
   );
 }
@@ -438,29 +443,20 @@ function RoleBadge({ role }: { role: AccountRole }) {
   );
 }
 
-function UserActions(props: {
-  copy: typeof danishCopy;
-  user: ManagedAccountUser;
-  busyAction: string;
-  onOpen: (user: ManagedAccountUser) => void;
-  onRoleChange: (user: ManagedAccountUser) => Promise<void>;
-  onStatusChange: (user: ManagedAccountUser) => Promise<void>;
-}) {
-  const roleBusy = props.busyAction === `${props.user.userId}:role`;
-  const statusBusy = props.busyAction === `${props.user.userId}:status`;
-
+function StatusBadge({ status, copy }: { status: ManagedAccountStatus; copy: typeof danishCopy }) {
   return (
-    <div className="grid gap-2">
-      <button className="btn-secondary min-h-10 px-3 py-2 text-sm" type="button" onClick={() => props.onOpen(props.user)}>
-        {props.copy.open}
-      </button>
-      <button className="btn-secondary min-h-10 px-3 py-2 text-sm" type="button" disabled={roleBusy || statusBusy} onClick={() => void props.onRoleChange(props.user)}>
-        {props.user.role === "admin" ? props.copy.makeUser : props.copy.makeAdmin}
-      </button>
-      <button className="btn-secondary min-h-10 px-3 py-2 text-sm" type="button" disabled={roleBusy || statusBusy} onClick={() => void props.onStatusChange(props.user)}>
-        {props.user.status === "active" ? props.copy.deactivate : props.copy.reactivate}
-      </button>
-    </div>
+    <span className={`inline-flex w-fit rounded-md border px-2 py-1 text-xs font-black ${status === "active" ? "border-emerald-500/50 bg-emerald-50 text-emerald-800" : "border-red-500/50 bg-red-50 text-red-800"}`}>
+      {status === "active" ? copy.active : copy.deactivated}
+    </span>
+  );
+}
+
+function PanelSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="grid gap-3 rounded-md border border-[var(--line)] bg-[var(--surface)] p-4 shadow-lg">
+      <h4 className="text-sm font-black uppercase text-[var(--primary-strong)]">{title}</h4>
+      {children}
+    </section>
   );
 }
 
@@ -490,8 +486,11 @@ const danishCopy = {
   lastSignIn: "Sidste login",
   actions: "Handlinger",
   detail: "Brugerdetaljer",
+  userDetails: "Brugerdetaljer",
   profileDetails: "Profil",
   internalNote: "Intern admin-note",
+  security: "Sikkerhed",
+  administration: "Administration",
   codeReset: "Kode-reset",
   newCode: "Ny 6-tegns kode",
   saveDetails: "Gem oplysninger",
@@ -500,6 +499,8 @@ const danishCopy = {
   generateCode: "Generér kode",
   saving: "Gemmer...",
   open: "Åbn",
+  manage: "Administrer",
+  close: "Luk",
   verified: "Bekræftet",
   unverified: "Ikke bekræftet",
   active: "Aktiv",
@@ -551,8 +552,11 @@ const englishCopy: typeof danishCopy = {
   lastSignIn: "Last login",
   actions: "Actions",
   detail: "User details",
+  userDetails: "User details",
   profileDetails: "Profile",
   internalNote: "Internal admin note",
+  security: "Security",
+  administration: "Administration",
   codeReset: "Code reset",
   newCode: "New 6-character code",
   saveDetails: "Save details",
@@ -561,6 +565,8 @@ const englishCopy: typeof danishCopy = {
   generateCode: "Generate code",
   saving: "Saving...",
   open: "Open",
+  manage: "Manage",
+  close: "Close",
   verified: "Verified",
   unverified: "Not verified",
   active: "Active",

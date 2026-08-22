@@ -31,12 +31,13 @@ describe("STEP 25I-C1-C7 admin user management UI", () => {
     fireEvent.change(screen.getByLabelText("Søg"), { target: { value: "user" } });
     expect(screen.getAllByTestId("admin-user-row")).toHaveLength(1);
     expect(screen.getAllByText("User One").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Status"), { target: { value: "deactivated" } });
     expect(screen.getByText("Viser 0 af 3 brugere")).toBeInTheDocument();
   });
 
-  it("calls trusted admin endpoints for role and status changes", async () => {
+  it("uses one row action and keeps role/status changes inside the management dialog", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       const user = url.includes("/role")
@@ -50,11 +51,17 @@ describe("STEP 25I-C1-C7 admin user management UI", () => {
 
     const row = screen.getAllByTestId("admin-user-row").find((candidate) => within(candidate).queryByText("User One"));
     expect(row).toBeTruthy();
+    expect(within(row as HTMLElement).getByRole("button", { name: "Administrer" })).toBeInTheDocument();
+    expect(within(row as HTMLElement).queryByRole("button", { name: "Gør ADMIN" })).not.toBeInTheDocument();
+    expect(within(row as HTMLElement).queryByRole("button", { name: "Deaktivér bruger" })).not.toBeInTheDocument();
 
-    fireEvent.click(within(row as HTMLElement).getByRole("button", { name: "Gør ADMIN" }));
+    fireEvent.click(within(row as HTMLElement).getByRole("button", { name: "Administrer" }));
+    const detail = screen.getByTestId("admin-user-detail");
+
+    fireEvent.click(within(detail).getByRole("button", { name: "Gør ADMIN" }));
     await screen.findByText("Brugeren er nu ADMIN.");
 
-    fireEvent.click(within(row as HTMLElement).getByRole("button", { name: "Deaktivér bruger" }));
+    fireEvent.click(within(detail).getByRole("button", { name: "Deaktivér bruger" }));
     await screen.findByText("Brugeren er deaktiveret.");
 
     expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining(`/api/admin/users/${users[2].userId}/role`), expect.objectContaining({
@@ -103,7 +110,7 @@ describe("STEP 25I-C1-C7 admin user management UI", () => {
 
     const row = screen.getAllByTestId("admin-user-row").find((candidate) => within(candidate).queryByText("User One"));
     expect(row).toBeTruthy();
-    fireEvent.click(within(row as HTMLElement).getByRole("button", { name: "Åbn" }));
+    fireEvent.click(within(row as HTMLElement).getByRole("button", { name: "Administrer" }));
 
     const detail = screen.getByTestId("admin-user-detail");
     fireEvent.change(within(detail).getByLabelText("Navn"), { target: { value: "Updated User" } });
