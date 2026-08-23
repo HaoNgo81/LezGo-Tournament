@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import {
   advanceLivePoolPlayState,
@@ -55,6 +55,11 @@ interface OrganizerRemoteReadResponse {
   tournamentId?: string;
   updatedAt?: string;
   matchScoreVersions?: Record<string, number>;
+  canRead?: boolean;
+  canManage?: boolean;
+  createdByUserId?: string | null;
+  controllerUserId?: string | null;
+  ownerUserId?: string | null;
   conflict?: boolean;
   error?: string;
 }
@@ -68,6 +73,11 @@ interface ShadowSaveWriteResponse {
   updatedAt?: string;
   organizerToken?: string;
   matchScoreVersions?: Record<string, number>;
+  canRead?: boolean;
+  canManage?: boolean;
+  createdByUserId?: string | null;
+  controllerUserId?: string | null;
+  ownerUserId?: string | null;
   error?: string;
 }
 
@@ -137,6 +147,51 @@ export function LiveScoringApp() {
     return () => window.clearInterval(intervalId);
   }, [isControllerReadOnly, state.roundTimer?.status]);
 
+  const applyOrganizerRemoteAuthority = useCallback((localId: string, body: OrganizerRemoteReadResponse | ShadowSaveWriteResponse): void => {
+    if (body.kind !== "standard" || !body.tournamentId || typeof body.canManage !== "boolean") {
+      return;
+    }
+
+    markActiveCloudTournamentAuthority({
+      source: "server",
+      kind: "standard",
+      localId,
+      tournamentId: body.tournamentId,
+      canRead: body.canRead ?? true,
+      canManage: body.canManage,
+      createdByUserId: body.createdByUserId,
+      controllerUserId: body.controllerUserId,
+      ownerUserId: body.ownerUserId,
+    });
+    setCloudAuthority(loadActiveCloudTournamentAuthority("standard", localId));
+  }, []);
+
+  const applyOrganizerRemoteBody = useCallback((localId: string, body: OrganizerRemoteReadResponse | ShadowSaveWriteResponse): void => {
+    if (body.kind !== "standard" || !body.state || !body.tournamentId) {
+      return;
+    }
+
+    saveActiveTournamentFromRemoteSync(body.state);
+    markCloudTournamentRestored({
+      localId,
+      legacyLocalId: localId,
+      kind: "standard",
+      tournamentId: body.tournamentId,
+      updatedAt: body.updatedAt,
+      canManage: body.canManage,
+      matchScoreVersions: body.matchScoreVersions,
+    });
+
+    applyOrganizerRemoteAuthority(localId, body);
+
+    stateRef.current = body.state;
+    setState(body.state);
+
+    if (selectedMatchId && !doesStateContainSelectedMatch(body.state, selectedMatchId)) {
+      setSelectedMatchId(null);
+    }
+  }, [applyOrganizerRemoteAuthority, selectedMatchId]);
+
   useEffect(() => {
     if (!hasHydrated || state.status !== "active") {
       return undefined;
@@ -155,12 +210,7 @@ export function LiveScoringApp() {
       const localId = createStandardShadowSaveLocalId(currentState);
       const metadata = loadShadowSaveMetadata(localId);
 
-      if (
-        !metadata?.supabaseTournamentId
-        || !metadata.organizerToken
-        || metadata.kind !== "standard"
-        || metadata.status === "conflict"
-      ) {
+      if (!metadata?.supabaseTournamentId || metadata.kind !== "standard" || metadata.status === "conflict") {
         scheduleNextPoll();
         return;
       }
@@ -170,15 +220,7 @@ export function LiveScoringApp() {
       try {
         const { response, body } = await readOrganizerRemoteState(metadata, localId);
 
-        if (
-          !response.ok
-          || !body.ok
-          || body.kind !== "standard"
-          || !body.state
-          || !body.updatedAt
-          || body.tournamentId !== metadata.supabaseTournamentId
-          || !isNewerOrganizerRemoteVersion(metadata.lastShadowSaveVersion, body.updatedAt)
-        ) {
+        if (!isUsableOrganizerRemoteBody(response, body, metadata.supabaseTournamentId)) {
           return;
         }
 
@@ -188,10 +230,11 @@ export function LiveScoringApp() {
           return;
         }
 
-        saveActiveTournamentFromRemoteSync(body.state);
-        markRemoteShadowSaveApplied(localId, "standard", body.updatedAt, new Date().toISOString(), body.matchScoreVersions);
-        stateRef.current = body.state;
-        setState(body.state);
+        if (shouldApplyOrganizerRemoteBody(latestMetadata?.lastShadowSaveVersion, body)) {
+          applyOrganizerRemoteBody(localId, body);
+        } else if (typeof body.canManage === "boolean") {
+          applyOrganizerRemoteAuthority(localId, body);
+        }
       } catch {
         // Organizer sync is best-effort; the local tournament remains primary if remote read fails.
       } finally {
@@ -206,16 +249,41 @@ export function LiveScoringApp() {
       }
     }
 
-    scheduleNextPoll();
+    function triggerImmediatePoll() {
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId);
+        timeoutId = undefined;
+      }
+
+      void pollOrganizerRemoteState();
+    }
+
+    function handleOnline() {
+      triggerImmediatePoll();
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        triggerImmediatePoll();
+      }
+    }
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("focus", handleOnline);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    triggerImmediatePoll();
 
     return () => {
       isDisposed = true;
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("focus", handleOnline);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
 
       if (timeoutId !== undefined) {
         window.clearTimeout(timeoutId);
       }
     };
-  }, [hasHydrated, state.status, state.tournamentName, state.format]);
+  }, [applyOrganizerRemoteAuthority, applyOrganizerRemoteBody, hasHydrated, state.status, state.tournamentName, state.format]);
 
   useEffect(() => {
     if (state.scoringMode === "Spil på tid" && state.roundTimer?.status === "expired" && alarmPlayedForRound.current !== state.roundTimer.roundNumber) {
@@ -430,10 +498,7 @@ export function LiveScoringApp() {
 
   async function reconcileSameControllerConflict(localId: string, tournamentId: string, conflictBody: ShadowSaveWriteResponse): Promise<void> {
     if (conflictBody.kind === "standard" && conflictBody.state && conflictBody.updatedAt) {
-      saveActiveTournamentFromRemoteSync(conflictBody.state);
-      markRemoteShadowSaveApplied(localId, "standard", conflictBody.updatedAt, new Date().toISOString(), conflictBody.matchScoreVersions);
-      stateRef.current = conflictBody.state;
-      setState(conflictBody.state);
+      applyOrganizerRemoteBody(localId, conflictBody);
       return;
     }
 
@@ -445,10 +510,7 @@ export function LiveScoringApp() {
       const body = await response.json() as OrganizerRemoteReadResponse;
 
       if (response.ok && body.ok && body.kind === "standard" && body.state) {
-        saveActiveTournamentFromRemoteSync(body.state);
-        markRemoteShadowSaveApplied(localId, "standard", body.updatedAt, new Date().toISOString(), body.matchScoreVersions);
-        stateRef.current = body.state;
-        setState(body.state);
+        applyOrganizerRemoteBody(localId, body);
       }
     } catch {
       // The stale write is still rejected server-side; the next remote poll can refresh the UI.
@@ -1561,6 +1623,38 @@ function isNewerOrganizerRemoteVersion(currentUpdatedAt: string | undefined, nex
   }
 
   return nextTime > currentTime;
+}
+
+function isUsableOrganizerRemoteBody(response: Response, body: OrganizerRemoteReadResponse, expectedTournamentId: string): body is OrganizerRemoteReadResponse & { kind: "standard"; state: LiveTournamentState; tournamentId: string } {
+  return Boolean(
+    response.ok
+    && body.ok
+    && body.kind === "standard"
+    && body.state
+    && body.tournamentId === expectedTournamentId,
+  );
+}
+
+function shouldApplyOrganizerRemoteBody(currentUpdatedAt: string | undefined, body: OrganizerRemoteReadResponse): boolean {
+  return Boolean(body.updatedAt && isNewerOrganizerRemoteVersion(currentUpdatedAt, body.updatedAt));
+}
+
+function doesStateContainSelectedMatch(state: LiveTournamentState, matchId: string): boolean {
+  if (state.rounds.some((round) => round.matches.some((match) => match.id === matchId))) {
+    return true;
+  }
+
+  const poolPlay = state.poolPlay;
+
+  if (!poolPlay) {
+    return false;
+  }
+
+  return [
+    ...poolPlay.initialStage.pools.flatMap((pool) => pool.encounters),
+    ...(poolPlay.crossMatchStage?.groups.flatMap((group) => group.encounters) ?? []),
+    ...(poolPlay.crossMatchFinalStage?.groups.flatMap((group) => [group.final, group.bronze]) ?? []),
+  ].some((encounter) => encounter.id === matchId);
 }
 
 async function readOrganizerRemoteState(metadata: { supabaseTournamentId?: string; organizerToken?: string; legacyLocalId?: string }, localId: string): Promise<{ response: Response; body: OrganizerRemoteReadResponse }> {

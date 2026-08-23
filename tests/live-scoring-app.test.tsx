@@ -278,6 +278,51 @@ describe("LiveScoringApp score sheet", () => {
     expect(loadActiveTournament()?.results).toEqual([{ matchId: localState.rounds[0].matches[0].id, teamAPoints: 17, teamBPoints: 7 }]);
   }, 10000);
 
+  it("reconciles immediately when a stale active controller tab comes back online", async () => {
+    const localState = createStandardTournament("Mexicano");
+    const remoteState = saveMatchResult(localState, {
+      matchId: localState.rounds[0].matches[0].id,
+      teamAPoints: 20,
+      teamBPoints: 4,
+    });
+    const localId = createStandardShadowSaveLocalId(localState);
+    saveActiveTournamentFromRemoteSync(localState);
+    saveShadowMetadata(localId, {
+      canManage: true,
+      kind: "standard",
+      lastLocalSaveAt: "2026-08-24T12:00:00.000Z",
+      lastShadowSaveVersion: "2026-08-24T12:00:00.000Z",
+      status: "synced",
+      supabaseTournamentId: "00000000-0000-4000-8000-0000000025a0",
+      matchScoreVersions: { [localState.rounds[0].matches[0].id]: 1 },
+    });
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      if (input.toString() === "/api/account/tournaments/00000000-0000-4000-8000-0000000025a0") {
+        return Promise.resolve(new Response(JSON.stringify({
+          ok: true,
+          kind: "standard",
+          state: remoteState,
+          tournamentId: "00000000-0000-4000-8000-0000000025a0",
+          updatedAt: "2026-08-24T12:00:05.000Z",
+          canRead: true,
+          canManage: true,
+          matchScoreVersions: { [localState.rounds[0].matches[0].id]: 2 },
+        }), { status: 200 }));
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({ ok: false }), { status: 500 }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<LiveScoringApp />);
+
+    expect(await screen.findByText("Mexicano test")).toBeInTheDocument();
+    window.dispatchEvent(new Event("online"));
+
+    await waitFor(() => expectLiveCourtScore("20", "4"));
+    expect(loadActiveTournament()?.results).toEqual([{ matchId: localState.rounds[0].matches[0].id, teamAPoints: 20, teamBPoints: 4 }]);
+  }, 10000);
+
   it("saves an owned cloud match through the owner score API with the loaded score version", async () => {
     const localState = createMockLiveTournamentState();
     const matchId = localState.rounds[0].matches[1].id;
@@ -313,10 +358,10 @@ describe("LiveScoringApp score sheet", () => {
       return Promise.resolve(new Response(JSON.stringify({
         ok: true,
         kind: "standard",
-        state: remoteState,
+        state: localState,
         tournamentId: "00000000-0000-4000-8000-000000000252",
-        updatedAt: "2026-08-19T12:00:05.000Z",
-        matchScoreVersions: { [matchId]: 4 },
+        updatedAt: "2026-08-19T12:00:00.000Z",
+        matchScoreVersions: { [matchId]: 3 },
       }), { status: 200 }));
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -440,6 +485,84 @@ describe("LiveScoringApp score sheet", () => {
     expect(screen.getAllByTestId("live-court-card")).toHaveLength(localState.rounds[0].matches.length);
   });
 
+  it("restores controller controls on reconnect after admin returns control", async () => {
+    const localState = createMockLiveTournamentState();
+    const localId = createStandardShadowSaveLocalId(localState);
+    saveActiveTournamentFromRemoteSync(localState);
+    markActiveCloudTournamentAuthority({
+      source: "server",
+      kind: "standard",
+      localId,
+      tournamentId: "00000000-0000-4000-8000-0000000025a1",
+      canRead: true,
+      canManage: false,
+      createdByUserId: "00000000-0000-4000-8000-00000000aaa1",
+      controllerUserId: "00000000-0000-4000-8000-00000000bbb2",
+      ownerUserId: "00000000-0000-4000-8000-00000000aaa1",
+    });
+    saveShadowMetadata(localId, {
+      canManage: false,
+      kind: "standard",
+      lastLocalSaveAt: "2026-08-24T12:10:00.000Z",
+      lastShadowSaveVersion: "2026-08-24T12:10:00.000Z",
+      status: "synced",
+      supabaseTournamentId: "00000000-0000-4000-8000-0000000025a1",
+    });
+    let accountReadCount = 0;
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      if (input.toString() === "/api/account/tournaments/00000000-0000-4000-8000-0000000025a1") {
+        accountReadCount += 1;
+
+        if (accountReadCount === 1) {
+          return Promise.resolve(new Response(JSON.stringify({
+            ok: true,
+            kind: "standard",
+            state: localState,
+            tournamentId: "00000000-0000-4000-8000-0000000025a1",
+            updatedAt: "2026-08-24T12:10:00.000Z",
+            canRead: true,
+            canManage: false,
+            createdByUserId: "00000000-0000-4000-8000-00000000aaa1",
+            controllerUserId: "00000000-0000-4000-8000-00000000bbb2",
+            ownerUserId: "00000000-0000-4000-8000-00000000aaa1",
+            matchScoreVersions: { [localState.rounds[0].matches[0].id]: 1 },
+          }), { status: 200 }));
+        }
+
+        return Promise.resolve(new Response(JSON.stringify({
+          ok: true,
+          kind: "standard",
+          state: localState,
+          tournamentId: "00000000-0000-4000-8000-0000000025a1",
+          updatedAt: "2026-08-24T12:11:00.000Z",
+          canRead: true,
+          canManage: true,
+          createdByUserId: "00000000-0000-4000-8000-00000000aaa1",
+          controllerUserId: "00000000-0000-4000-8000-00000000aaa1",
+          ownerUserId: "00000000-0000-4000-8000-00000000aaa1",
+          matchScoreVersions: { [localState.rounds[0].matches[0].id]: 1 },
+        }), { status: 200 }));
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({ ok: false }), { status: 500 }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<LiveScoringApp />);
+
+    expect(await screen.findByText("Mock Americano")).toBeInTheDocument();
+    expect(screen.getByTestId("controller-read-only-notice")).toBeInTheDocument();
+    window.dispatchEvent(new Event("focus"));
+
+    await waitFor(() => expect(screen.queryByTestId("controller-read-only-notice")).not.toBeInTheDocument());
+    expect(screen.getAllByRole("button", { name: "Indtast score" })).toHaveLength(localState.rounds[0].matches.length);
+    expect(JSON.parse(window.sessionStorage.getItem("lezgo.activeCloudTournamentAuthority.v1") ?? "{}")).toMatchObject({
+      canManage: true,
+      controllerUserId: "00000000-0000-4000-8000-00000000aaa1",
+      ownerUserId: "00000000-0000-4000-8000-00000000aaa1",
+    });
+  }, 10000);
+
   it("moves a stale controller to read-only when the owner score API denies a write", async () => {
     const localState = createMockLiveTournamentState();
     const matchId = localState.rounds[0].matches[1].id;
@@ -562,18 +685,10 @@ describe("LiveScoringApp score sheet", () => {
     render(<LiveScoringApp />);
 
     expect(await screen.findByText("Mexicano test")).toBeInTheDocument();
-    const nextButton = screen.getAllByRole("button", { name: "Næste" }).find((button) => !button.hasAttribute("disabled"));
-
-    if (!nextButton) {
-      throw new Error("Expected an enabled next round button.");
-    }
-
-    fireEvent.click(nextButton);
-
     await waitFor(() => expect(screen.getAllByText("Du har ikke længere styring af denne turnering.").length).toBeGreaterThan(0));
     expect(loadActiveTournament()?.activeRoundNumber).toBe(1);
     expect(screen.queryByRole("button", { name: "Næste" })).not.toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith("/api/supabase/shadow-save", expect.objectContaining({ method: "POST" }));
+    expect(fetchMock).not.toHaveBeenCalledWith("/api/supabase/shadow-save", expect.anything());
   }, 10000);
 
   it("reconciles a stale same-user round progression conflict without making the controller read-only", async () => {
