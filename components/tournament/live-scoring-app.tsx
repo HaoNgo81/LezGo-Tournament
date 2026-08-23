@@ -59,6 +59,16 @@ interface OrganizerRemoteReadResponse {
   error?: string;
 }
 
+interface ShadowSaveWriteResponse {
+  ok?: boolean;
+  tournamentId?: string;
+  updatedAt?: string;
+  organizerToken?: string;
+  error?: string;
+}
+
+type CommitResult = boolean | Promise<boolean>;
+
 export function LiveScoringApp() {
   const { t } = useAppTranslation();
   const [state, setState] = useState<LiveTournamentState>(() => createMockLiveTournamentState());
@@ -210,19 +220,57 @@ export function LiveScoringApp() {
     }
   }, [state.roundTimer, state.scoringMode]);
 
-  function commitState(updater: (currentState: LiveTournamentState) => LiveTournamentState) {
+  function commitState(updater: (currentState: LiveTournamentState) => LiveTournamentState): CommitResult {
     if (isControllerReadOnly) {
       setToast(t("remoteControlledByOtherUser"));
-      return;
+      return false;
     }
 
     const nextState = updater(stateRef.current);
-    saveActiveTournament(nextState);
+    const cloudSaveAccepted = saveControlledCloudSnapshot(nextState);
+
+    if (cloudSaveAccepted instanceof Promise) {
+      return cloudSaveAccepted.then((accepted) => {
+        if (!accepted) {
+          return false;
+        }
+
+        if (nextState.status === "finished") {
+          saveCompletedTournament(nextState);
+        }
+        stateRef.current = nextState;
+        setState(nextState);
+        return true;
+      });
+    }
+
+    if (!cloudSaveAccepted) {
+      return false;
+    }
+
     if (nextState.status === "finished") {
       saveCompletedTournament(nextState);
     }
     stateRef.current = nextState;
     setState(nextState);
+    return true;
+  }
+
+  function afterCommit(result: CommitResult, onSuccess: () => void): void {
+    if (typeof result === "boolean") {
+      if (result) {
+        onSuccess();
+      }
+      return;
+    }
+
+    void result.then((committed) => {
+      if (committed) {
+        onSuccess();
+      }
+    }).catch((caughtError) => {
+      setToast(caughtError instanceof Error ? caughtError.message : "Handlingen kunne ikke gemmes.");
+    });
   }
 
   if (!hasHydrated) {
@@ -231,8 +279,7 @@ export function LiveScoringApp() {
 
   function handleStartTimer() {
     try {
-      commitState((currentState) => startRoundTimer(currentState));
-      setToast("Ur startet.");
+      afterCommit(commitState((currentState) => startRoundTimer(currentState)), () => setToast("Ur startet."));
     } catch (caughtError) {
       setToast(caughtError instanceof Error ? caughtError.message : "Uret kunne ikke startes.");
     }
@@ -249,9 +296,10 @@ export function LiveScoringApp() {
         return;
       }
 
-      commitState((currentState) => saveMatchResult(currentState, result));
-      setSelectedMatchId(null);
-      setToast("Resultat gemt.");
+      afterCommit(commitState((currentState) => saveMatchResult(currentState, result)), () => {
+        setSelectedMatchId(null);
+        setToast("Resultat gemt.");
+      });
     } catch (caughtError) {
       setToast(caughtError instanceof Error ? caughtError.message : "Resultatet kunne ikke gemmes.");
     }
@@ -300,7 +348,7 @@ export function LiveScoringApp() {
     }
 
     if (response.status === 401 || response.status === 403) {
-      markCurrentCloudAuthorityReadOnly(localId, tournamentId);
+      void reconcileControlLost(localId, tournamentId);
       setSelectedMatchId(null);
       setToast(t("remoteControlledByOtherUser"));
       return;
@@ -316,6 +364,54 @@ export function LiveScoringApp() {
     setState(body.state);
     setSelectedMatchId(null);
     setToast("Resultat gemt.");
+  }
+
+  function saveControlledCloudSnapshot(nextState: LiveTournamentState): CommitResult {
+    const localId = createStandardShadowSaveLocalId(stateRef.current);
+    const metadata = loadShadowSaveMetadata(localId);
+
+    if (!activeCloudAuthority || !metadata?.supabaseTournamentId || metadata.kind !== "standard") {
+      saveActiveTournament(nextState);
+      return true;
+    }
+
+    const tournamentId = metadata.supabaseTournamentId;
+
+    return (async () => {
+      const response = await fetch("/api/supabase/shadow-save", {
+        method: "POST",
+        cache: "no-store",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          kind: "standard",
+          legacyLocalId: metadata.legacyLocalId ?? localId,
+          tournamentId,
+          expectedUpdatedAt: metadata.lastShadowSaveVersion,
+          state: nextState,
+        }),
+      });
+      const body = await parseShadowSaveWriteResponse(response);
+
+      if (response.status === 401 || response.status === 403) {
+        await reconcileControlLost(localId, tournamentId);
+        setToast(t("remoteControlledByOtherUser"));
+        return false;
+      }
+
+      if (response.status === 409) {
+        setToast("Tournament snapshot conflict.");
+        return false;
+      }
+
+      if (!response.ok || !body.ok || !body.tournamentId) {
+        setToast(body.error ?? "Synchronization failed. Local tournament is preserved.");
+        return false;
+      }
+
+      saveActiveTournamentFromRemoteSync(nextState);
+      markRemoteShadowSaveApplied(localId, "standard", body.updatedAt, new Date().toISOString());
+      return true;
+    })();
   }
 
   function markCurrentCloudAuthorityReadOnly(localId: string, tournamentId: string) {
@@ -346,31 +442,64 @@ export function LiveScoringApp() {
     setCloudAuthority(authority);
   }
 
+  async function reconcileControlLost(localId: string, tournamentId: string): Promise<void> {
+    try {
+      const response = await fetch(`/api/account/tournaments/${encodeURIComponent(tournamentId)}`, {
+        method: "GET",
+        cache: "no-store",
+      });
+      const body = await response.json() as OrganizerRemoteReadResponse;
+
+      if (response.ok && body.ok && body.kind === "standard" && body.state) {
+        saveActiveTournamentFromRemoteSync(body.state);
+        markCloudTournamentRestored({
+          localId,
+          legacyLocalId: localId,
+          kind: "standard",
+          tournamentId,
+          updatedAt: body.updatedAt,
+          canManage: false,
+          matchScoreVersions: body.matchScoreVersions,
+        });
+        stateRef.current = body.state;
+        setState(body.state);
+      }
+    } catch {
+      // Losing control should still make the stale client read-only even if the refresh is unavailable.
+    } finally {
+      markCurrentCloudAuthorityReadOnly(localId, tournamentId);
+    }
+  }
+
   function handleSavePoolResult(result: PoolMatchResult) {
-    commitState((currentState) => saveInitialPoolResult(currentState, result));
-    setSelectedMatchId(null);
-    setToast("Puljeresultat gemt.");
+    afterCommit(commitState((currentState) => saveInitialPoolResult(currentState, result)), () => {
+      setSelectedMatchId(null);
+      setToast("Puljeresultat gemt.");
+    });
   }
 
   function handleSavePoolScore(result: PoolMatchResult) {
     if (selectedPoolMatch?.stage === "placementTiebreak") {
-      commitState((currentState) => savePoolPlacementTiebreakResult(currentState, result));
-      setSelectedMatchId(null);
-      setToast("Tiebreak-resultat gemt.");
+      afterCommit(commitState((currentState) => savePoolPlacementTiebreakResult(currentState, result)), () => {
+        setSelectedMatchId(null);
+        setToast("Tiebreak-resultat gemt.");
+      });
       return;
     }
 
     if (selectedPoolMatch?.stage === "final") {
-      commitState((currentState) => savePoolFinalResult(currentState, result));
-      setSelectedMatchId(null);
-      setToast("Finaleresultat gemt.");
+      afterCommit(commitState((currentState) => savePoolFinalResult(currentState, result)), () => {
+        setSelectedMatchId(null);
+        setToast("Finaleresultat gemt.");
+      });
       return;
     }
 
     if (selectedPoolMatch?.stage === "next") {
-      commitState((currentState) => saveNextPoolPhaseResult(currentState, result));
-      setSelectedMatchId(null);
-      setToast("Næste faseresultat gemt.");
+      afterCommit(commitState((currentState) => saveNextPoolPhaseResult(currentState, result)), () => {
+        setSelectedMatchId(null);
+        setToast("Næste faseresultat gemt.");
+      });
       return;
     }
 
@@ -380,43 +509,44 @@ export function LiveScoringApp() {
   function handleAdvancePoolPlay() {
     try {
       const phase = state.poolPlay?.phase;
-      commitState((currentState) => (
+      afterCommit(commitState((currentState) => (
         currentState.poolPlay?.phase === "crossMatches"
           ? advanceLivePoolPlayToFinals(currentState)
           : advanceLivePoolPlayState(currentState)
-      ));
-      setSelectedMatchId(null);
-      setToast(phase === "crossMatches" ? "Finaler oprettet." : "Næste fase oprettet.");
+      )), () => {
+        setSelectedMatchId(null);
+        setToast(phase === "crossMatches" ? "Finaler oprettet." : "Næste fase oprettet.");
+      });
     } catch (caughtError) {
       setToast(caughtError instanceof Error ? caughtError.message : "Fasen kan ikke oprettes endnu.");
     }
   }
 
   function handleStopTimer() {
-    commitState((currentState) => stopRoundTimer(currentState));
-    setToast("Uret er stoppet.");
+    afterCommit(commitState((currentState) => stopRoundTimer(currentState)), () => setToast("Uret er stoppet."));
   }
 
   function handleResetTimer() {
-    commitState((currentState) => resetRoundTimer(currentState));
-    setToast("Uret er nulstillet.");
+    afterCommit(commitState((currentState) => resetRoundTimer(currentState)), () => setToast("Uret er nulstillet."));
   }
 
   function handleRankingModeChange(rankingMode: StandingsRankingMode) {
-    commitState((currentState) => setLiveRankingMode(currentState, rankingMode));
+    afterCommit(commitState((currentState) => setLiveRankingMode(currentState, rankingMode)), () => undefined);
   }
 
   function handlePreviousRound() {
-    commitState((currentState) => goToPreviousRound(currentState));
-    setSelectedMatchId(null);
-    setToast("");
+    afterCommit(commitState((currentState) => goToPreviousRound(currentState)), () => {
+      setSelectedMatchId(null);
+      setToast("");
+    });
   }
 
   function handleNextRound() {
     try {
-      commitState((currentState) => goToNextRound(currentState));
-      setSelectedMatchId(null);
-      setToast("Næste runde åbnet.");
+      afterCommit(commitState((currentState) => goToNextRound(currentState)), () => {
+        setSelectedMatchId(null);
+        setToast("Næste runde åbnet.");
+      });
     } catch (caughtError) {
       setToast(caughtError instanceof Error ? caughtError.message : "Næste runde kan ikke åbnes endnu.");
     }
@@ -1424,6 +1554,14 @@ async function readOrganizerRemoteState(metadata: { supabaseTournamentId?: strin
   });
   const body = await response.json() as OrganizerRemoteReadResponse;
   return { response, body };
+}
+
+async function parseShadowSaveWriteResponse(response: Response): Promise<ShadowSaveWriteResponse> {
+  try {
+    return await response.json() as ShadowSaveWriteResponse;
+  } catch {
+    return { ok: false, error: "Synchronization failed. Local tournament is preserved." };
+  }
 }
 
 function formatClock(totalSeconds: number): string {

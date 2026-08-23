@@ -12,9 +12,17 @@ import {
 } from "@/lib/live-scoring";
 import { createTournamentResultFileName, createTournamentResultPdf } from "@/lib/results-export";
 import {
+  createStandardShadowSaveLocalId,
+  loadActiveCloudTournamentAuthority,
   loadActiveTournament,
+  loadShadowSaveMetadata,
+  markActiveCloudTournamentAuthority,
+  markCloudTournamentRestored,
+  markRemoteShadowSaveApplied,
   saveActiveTournament,
+  saveActiveTournamentFromRemoteSync,
   saveCompletedTournament,
+  type CloudTournamentAuthority,
 } from "@/lib/tournament-setup";
 import { StandingsTable } from "@/components/tournament/standings-table";
 import { ResultSharePanel } from "@/components/tournament/result-share-panel";
@@ -27,9 +35,18 @@ const rankingModeLabels = {
   partiPointsFirst: "mostScorePoints",
 } as const;
 
+interface ShadowSaveWriteResponse {
+  ok?: boolean;
+  tournamentId?: string;
+  updatedAt?: string;
+  error?: string;
+}
+
 export function FinishTournamentApp() {
   const { t } = useAppTranslation();
   const [state, setState] = useState<LiveTournamentState>(() => createMockLiveTournamentState());
+  const [cloudAuthority, setCloudAuthority] = useState<CloudTournamentAuthority | null>(null);
+  const [message, setMessage] = useState("");
   const hasHydrated = useHasHydrated();
   const standings = useMemo(() => calculateLiveStandings(state), [state]);
   const poolSummary = useMemo(() => (state.poolPlay ? createPoolPlaySummary(state.poolPlay, state.rankingMode) : null), [state.poolPlay, state.rankingMode]);
@@ -41,7 +58,10 @@ export function FinishTournamentApp() {
     }
 
     const timeoutId = window.setTimeout(() => {
-      setState(loadActiveTournament() ?? createMockLiveTournamentState());
+      const loadedState = loadActiveTournament() ?? createMockLiveTournamentState();
+      const localId = createStandardShadowSaveLocalId(loadedState);
+      setState(loadedState);
+      setCloudAuthority(loadActiveCloudTournamentAuthority("standard", localId));
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
@@ -51,11 +71,99 @@ export function FinishTournamentApp() {
     return <div className="app-card p-4 font-bold text-[var(--muted)]">{t("loadingTournament")}</div>;
   }
 
-  function handleFinish() {
+  async function handleFinish() {
     const finishedState = finishTournament(state);
-    saveActiveTournament(finishedState);
+
+    if (!await saveControlledFinishSnapshot(finishedState)) {
+      return;
+    }
+
     saveCompletedTournament(finishedState);
     setState(finishedState);
+  }
+
+  async function saveControlledFinishSnapshot(finishedState: LiveTournamentState): Promise<boolean> {
+    const localId = createStandardShadowSaveLocalId(state);
+    const metadata = loadShadowSaveMetadata(localId);
+
+    if (!cloudAuthority || !metadata?.supabaseTournamentId || metadata.kind !== "standard") {
+      saveActiveTournament(finishedState);
+      return true;
+    }
+
+    const response = await fetch("/api/supabase/shadow-save", {
+      method: "POST",
+      cache: "no-store",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        kind: "standard",
+        legacyLocalId: metadata.legacyLocalId ?? localId,
+        tournamentId: metadata.supabaseTournamentId,
+        expectedUpdatedAt: metadata.lastShadowSaveVersion,
+        state: finishedState,
+      }),
+    });
+    const body = await parseShadowSaveWriteResponse(response);
+
+    if (response.status === 401 || response.status === 403) {
+      await reconcileControlLost(localId, metadata.supabaseTournamentId);
+      setMessage(t("remoteControlledByOtherUser"));
+      return false;
+    }
+
+    if (!response.ok || !body.ok || !body.tournamentId) {
+      setMessage(body.error ?? "Synchronization failed. Local tournament is preserved.");
+      return false;
+    }
+
+    saveActiveTournamentFromRemoteSync(finishedState);
+    markRemoteShadowSaveApplied(localId, "standard", body.updatedAt, new Date().toISOString());
+    return true;
+  }
+
+  async function reconcileControlLost(localId: string, tournamentId: string): Promise<void> {
+    try {
+      const response = await fetch(`/api/account/tournaments/${encodeURIComponent(tournamentId)}`, {
+        method: "GET",
+        cache: "no-store",
+      });
+      const body = await response.json() as { ok?: boolean; kind?: "standard"; state?: LiveTournamentState; updatedAt?: string; matchScoreVersions?: Record<string, number> };
+
+      if (response.ok && body.ok && body.kind === "standard" && body.state) {
+        saveActiveTournamentFromRemoteSync(body.state);
+        markCloudTournamentRestored({
+          localId,
+          legacyLocalId: localId,
+          kind: "standard",
+          tournamentId,
+          updatedAt: body.updatedAt,
+          canManage: false,
+          matchScoreVersions: body.matchScoreVersions,
+        });
+        setState(body.state);
+      }
+    } catch {
+      // Losing control should still remove finish authority even if refresh fails.
+    } finally {
+      const authority: CloudTournamentAuthority = {
+        ...(cloudAuthority ?? {
+          source: "server",
+          kind: "standard",
+          localId,
+          tournamentId,
+          canRead: true,
+          canManage: true,
+        }),
+        source: "server",
+        kind: "standard",
+        localId,
+        tournamentId,
+        canRead: true,
+        canManage: false,
+      };
+      markActiveCloudTournamentAuthority(authority);
+      setCloudAuthority(authority);
+    }
   }
 
   function handleDownloadPdf() {
@@ -88,10 +196,11 @@ export function FinishTournamentApp() {
           <button className="btn-outline-primary min-h-14 text-lg" type="button" onClick={handleDownloadPdf}>
             Download PDF
           </button>
-          <button className="min-h-14 rounded-md bg-red-600 px-5 text-lg font-black text-white disabled:bg-gray-300" type="button" disabled={isFinished} onClick={handleFinish}>
+          <button className="min-h-14 rounded-md bg-red-600 px-5 text-lg font-black text-white disabled:bg-gray-300" type="button" disabled={isFinished || cloudAuthority?.canManage === false} onClick={() => void handleFinish()}>
             {isFinished ? t("completed") : t("finishTournament")}
           </button>
         </div>
+        {message ? <p className="rounded-md bg-yellow-50 p-3 font-bold text-yellow-900">{message}</p> : null}
       </section>
 
       <ResultSharePanel state={state} />
@@ -224,4 +333,12 @@ function formatPoolResultScore(result: NonNullable<PoolPlaySummary["nextPhaseMat
   const baseScore = `${result.teamAPoints} - ${result.teamBPoints}`;
 
   return result.tieBreakWinner ? `${baseScore} (MTB: ${result.tieBreakWinner === "teamA" ? "hold A" : "hold B"})` : baseScore;
+}
+
+async function parseShadowSaveWriteResponse(response: Response): Promise<ShadowSaveWriteResponse> {
+  try {
+    return await response.json() as ShadowSaveWriteResponse;
+  } catch {
+    return { ok: false, error: "Synchronization failed. Local tournament is preserved." };
+  }
 }

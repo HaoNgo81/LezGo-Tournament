@@ -446,6 +446,75 @@ describe("LiveScoringApp score sheet", () => {
     });
   }, 10000);
 
+  it("rejects stale round progression before mutating the open USER tournament", async () => {
+    let localState = createMockLiveTournamentState();
+
+    for (const match of localState.rounds[0].matches) {
+      localState = saveMatchResult(localState, {
+        matchId: match.id,
+        teamAPoints: 21,
+        teamBPoints: 10,
+      });
+    }
+
+    const localId = createStandardShadowSaveLocalId(localState);
+    saveActiveTournamentFromRemoteSync(localState);
+    markActiveCloudTournamentAuthority({
+      source: "server",
+      kind: "standard",
+      localId,
+      tournamentId: "00000000-0000-4000-8000-0000000009e1",
+      canRead: true,
+      canManage: true,
+      createdByUserId: "00000000-0000-4000-8000-00000000aaa1",
+      controllerUserId: "00000000-0000-4000-8000-00000000aaa1",
+      ownerUserId: "00000000-0000-4000-8000-00000000aaa1",
+    });
+    saveShadowMetadata(localId, {
+      canManage: true,
+      kind: "standard",
+      lastLocalSaveAt: "2026-08-23T12:10:00.000Z",
+      lastShadowSaveVersion: "2026-08-23T12:10:00.000Z",
+      status: "synced",
+      supabaseTournamentId: "00000000-0000-4000-8000-0000000009e1",
+      organizerToken: "STALE_CREATOR_ORGANIZER_TOKEN",
+    });
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = input.toString();
+
+      if (url === "/api/supabase/shadow-save") {
+        return Promise.resolve(new Response(JSON.stringify({
+          ok: false,
+          error: "Du har ikke længere styring af denne turnering.",
+        }), { status: 403 }));
+      }
+
+      if (url === "/api/account/tournaments/00000000-0000-4000-8000-0000000009e1") {
+        return Promise.resolve(new Response(JSON.stringify({
+          ok: true,
+          kind: "standard",
+          state: localState,
+          tournamentId: "00000000-0000-4000-8000-0000000009e1",
+          updatedAt: "2026-08-23T12:12:00.000Z",
+          canManage: false,
+        }), { status: 200 }));
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({ ok: false }), { status: 500 }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<LiveScoringApp />);
+
+    expect(await screen.findByText("Mock Americano")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Næste" })[0]);
+
+    await waitFor(() => expect(screen.getAllByText("Du har ikke længere styring af denne turnering.").length).toBeGreaterThan(0));
+    expect(loadActiveTournament()?.activeRoundNumber).toBe(1);
+    expect(screen.queryByRole("button", { name: "Næste" })).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith("/api/supabase/shadow-save", expect.objectContaining({ method: "POST" }));
+  }, 10000);
+
   it("keeps a local tournament fully manageable without cloud authority", async () => {
     const localState = createMockLiveTournamentState();
     saveActiveTournament(localState);
