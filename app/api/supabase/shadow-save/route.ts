@@ -1,4 +1,4 @@
-import { createOrganizerToken, createStandardTournamentRepository, createTeamVsTeamTournamentRepository } from "@/lib/database";
+import { createOrganizerToken, createStandardTournamentRepository, createTeamVsTeamTournamentRepository, readOwnedMatchScoreVersions } from "@/lib/database";
 import { readOptionalAccountFromAccessToken } from "@/lib/auth";
 import { readAuthAccessCookie } from "@/lib/auth/cookies";
 import { canManageAccountTournament } from "@/lib/account/tournament-authority";
@@ -21,6 +21,14 @@ interface TournamentAuthorityRow {
   owner_user_id: string | null;
   created_by_user_id: string | null;
   controller_user_id: string | null;
+}
+
+interface LatestTournamentRow extends TournamentAuthorityRow {
+  id: string;
+  format: string;
+  legacy_local_id: string | null;
+  team_competition_mode: string | null;
+  updated_at?: string;
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -90,6 +98,11 @@ export async function POST(request: Request): Promise<Response> {
       : normalizedMessage.includes("authorization") || normalizedMessage.includes("authenticated")
       ? 403
       : normalizedMessage.includes("conflict") ? 409 : 500;
+
+    if (status === 409 && body.tournamentId) {
+      return await createSnapshotConflictResponse(body.tournamentId);
+    }
+
     const errorMessage = error instanceof TournamentWriteAccessError
       ? error.message
       : status === 403
@@ -97,6 +110,48 @@ export async function POST(request: Request): Promise<Response> {
       : status === 409 ? "Tournament snapshot conflict." : "Shadow-save failed.";
     return Response.json({ ok: false, error: errorMessage }, { status });
   }
+}
+
+async function createSnapshotConflictResponse(tournamentId: string): Promise<Response> {
+  const client = createSupabaseRestClient();
+  const [tournament] = await client.select<LatestTournamentRow>(
+    "tournaments",
+    `id=eq.${encodeURIComponent(tournamentId)}&select=id,format,legacy_local_id,owner_user_id,created_by_user_id,controller_user_id,team_competition_mode,updated_at`,
+  );
+
+  if (!tournament) {
+    return Response.json({ ok: false, error: "Tournament snapshot conflict.", conflict: true }, { status: 409 });
+  }
+
+  const kind = isTeamVsTeamTournament(tournament) ? "team-vs-team" : "standard";
+  const state = kind === "team-vs-team"
+    ? await createTeamVsTeamTournamentRepository(client).read(tournament.id)
+    : await createStandardTournamentRepository(client).read(tournament.id);
+  const matchScoreVersions = kind === "standard"
+    ? await readOwnedMatchScoreVersions(client, tournament.id)
+    : undefined;
+
+  return Response.json({
+    ok: false,
+    error: "The tournament was changed on another device. The latest data has been loaded.",
+    conflict: true,
+    kind,
+    state,
+    tournamentId: tournament.id,
+    updatedAt: tournament.updated_at,
+    legacyLocalId: tournament.legacy_local_id ?? undefined,
+    matchScoreVersions,
+    canRead: true,
+    canManage: true,
+    createdByUserId: tournament.created_by_user_id,
+    controllerUserId: tournament.controller_user_id,
+    ownerUserId: tournament.owner_user_id,
+  }, {
+    status: 409,
+    headers: {
+      "Cache-Control": "no-store, max-age=0",
+    },
+  });
 }
 
 async function readExistingTournamentAuthority(tournamentId: string | undefined): Promise<TournamentAuthorityRow | null> {
@@ -134,6 +189,10 @@ function resolveShadowSaveActorUserId(tournament: TournamentAuthorityRow | null,
 
 function isAccountControlledTournament(tournament: TournamentAuthorityRow): boolean {
   return Boolean(tournament.owner_user_id || tournament.created_by_user_id || tournament.controller_user_id);
+}
+
+function isTeamVsTeamTournament(tournament: LatestTournamentRow): boolean {
+  return tournament.team_competition_mode === "knockout" || tournament.team_competition_mode === "pool";
 }
 
 async function readOptionalShadowSaveAccount() {

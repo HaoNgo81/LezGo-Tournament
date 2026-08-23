@@ -9,7 +9,10 @@ const authMocks = vi.hoisted(() => ({
 
 const databaseMocks = vi.hoisted(() => ({
   createOrganizerToken: vi.fn(),
+  readOwnedMatchScoreVersions: vi.fn(),
+  standardRead: vi.fn(),
   standardSave: vi.fn(),
+  teamVsTeamRead: vi.fn(),
   teamVsTeamSave: vi.fn(),
 }));
 
@@ -36,8 +39,9 @@ vi.mock("@/lib/database", async (importOriginal) => {
   return {
     ...actual,
     createOrganizerToken: databaseMocks.createOrganizerToken,
-    createStandardTournamentRepository: () => ({ save: databaseMocks.standardSave }),
-    createTeamVsTeamTournamentRepository: () => ({ save: databaseMocks.teamVsTeamSave }),
+    createStandardTournamentRepository: () => ({ read: databaseMocks.standardRead, save: databaseMocks.standardSave }),
+    createTeamVsTeamTournamentRepository: () => ({ read: databaseMocks.teamVsTeamRead, save: databaseMocks.teamVsTeamSave }),
+    readOwnedMatchScoreVersions: databaseMocks.readOwnedMatchScoreVersions,
   };
 });
 
@@ -62,7 +66,10 @@ describe("STEP 25K user-created tournament ownership shadow-save", () => {
     authMocks.readAuthAccessCookie.mockReset();
     authMocks.readOptionalAccountFromAccessToken.mockReset();
     databaseMocks.createOrganizerToken.mockReset();
+    databaseMocks.readOwnedMatchScoreVersions.mockReset();
+    databaseMocks.standardRead.mockReset();
     databaseMocks.standardSave.mockReset();
+    databaseMocks.teamVsTeamRead.mockReset();
     databaseMocks.teamVsTeamSave.mockReset();
     restClientMocks.select.mockReset();
 
@@ -80,6 +87,8 @@ describe("STEP 25K user-created tournament ownership shadow-save", () => {
       updatedAt: "2026-08-21T10:00:00.000Z",
       saveMode: "insert",
     });
+    databaseMocks.standardRead.mockResolvedValue(createMockLiveTournamentState());
+    databaseMocks.readOwnedMatchScoreVersions.mockResolvedValue({});
   });
 
   afterEach(() => {
@@ -252,12 +261,67 @@ describe("STEP 25K user-created tournament ownership shadow-save", () => {
       }),
     );
   });
+
+  it("returns the latest authoritative snapshot when a current controller full snapshot is stale", async () => {
+    const latestState = {
+      ...createMockLiveTournamentState(),
+      tournamentName: "STEP 25S Latest Cup",
+      activeRoundNumber: 2,
+    };
+    authMocks.readOptionalAccountFromAccessToken.mockResolvedValue({
+      userId,
+      email: "owner@example.com",
+      displayName: "Owner",
+      role: "user",
+    });
+    restClientMocks.select
+      .mockResolvedValueOnce([createTournamentAuthorityRow(userId, userId, userId)])
+      .mockResolvedValueOnce([{
+        id: tournamentId,
+        format: "americano",
+        legacy_local_id: "step-25s-latest-cup-americano",
+        owner_user_id: userId,
+        created_by_user_id: userId,
+        controller_user_id: userId,
+        team_competition_mode: null,
+        updated_at: "2026-08-23T12:35:00.000Z",
+      }]);
+    databaseMocks.standardSave.mockRejectedValue(new Error("Snapshot conflict."));
+    databaseMocks.standardRead.mockResolvedValue(latestState);
+    databaseMocks.readOwnedMatchScoreVersions.mockResolvedValue({ "r1-c1": 2 });
+
+    const response = await shadowSaveTournament(new Request("http://localhost/api/supabase/shadow-save", {
+      method: "POST",
+      body: JSON.stringify({
+        kind: "standard",
+        legacyLocalId: "step-25s-latest-cup-americano",
+        tournamentId,
+        expectedUpdatedAt: "2026-08-23T12:30:00.000Z",
+        state: createMockLiveTournamentState(),
+      }),
+    }));
+    const body = await response.json() as { ok?: boolean; conflict?: boolean; state?: { activeRoundNumber?: number }; updatedAt?: string; matchScoreVersions?: Record<string, number> };
+
+    expect(response.status).toBe(409);
+    expect(body).toMatchObject({
+      ok: false,
+      conflict: true,
+      updatedAt: "2026-08-23T12:35:00.000Z",
+      matchScoreVersions: { "r1-c1": 2 },
+    });
+    expect(body.state?.activeRoundNumber).toBe(2);
+  });
 });
 
 function createTournamentAuthorityRow(owner_user_id: string | null, created_by_user_id: string | null, controller_user_id: string | null) {
   return {
+    id: tournamentId,
+    format: "americano",
+    legacy_local_id: "step-25s-cup-americano",
     owner_user_id,
     created_by_user_id,
     controller_user_id,
+    team_competition_mode: null,
+    updated_at: "2026-08-23T12:00:00.000Z",
   };
 }

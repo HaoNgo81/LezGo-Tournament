@@ -37,8 +37,12 @@ const rankingModeLabels = {
 
 interface ShadowSaveWriteResponse {
   ok?: boolean;
+  conflict?: boolean;
+  kind?: "standard" | "team-vs-team";
+  state?: LiveTournamentState;
   tournamentId?: string;
   updatedAt?: string;
+  matchScoreVersions?: Record<string, number>;
   error?: string;
 }
 
@@ -86,9 +90,14 @@ export function FinishTournamentApp() {
     const localId = createStandardShadowSaveLocalId(state);
     const metadata = loadShadowSaveMetadata(localId);
 
-    if (!cloudAuthority || !metadata?.supabaseTournamentId || metadata.kind !== "standard") {
+    if (!metadata?.supabaseTournamentId || metadata.kind !== "standard") {
       saveActiveTournament(finishedState);
       return true;
+    }
+
+    if (cloudAuthority?.canManage === false || metadata.canManage === false) {
+      setMessage(t("remoteControlledByOtherUser"));
+      return false;
     }
 
     const response = await fetch("/api/supabase/shadow-save", {
@@ -111,6 +120,12 @@ export function FinishTournamentApp() {
       return false;
     }
 
+    if (response.status === 409) {
+      await reconcileSameControllerConflict(localId, metadata.supabaseTournamentId, body);
+      setMessage(t("ownerTournamentConflictMessage"));
+      return false;
+    }
+
     if (!response.ok || !body.ok || !body.tournamentId) {
       setMessage(body.error ?? "Synchronization failed. Local tournament is preserved.");
       return false;
@@ -119,6 +134,31 @@ export function FinishTournamentApp() {
     saveActiveTournamentFromRemoteSync(finishedState);
     markRemoteShadowSaveApplied(localId, "standard", body.updatedAt, new Date().toISOString());
     return true;
+  }
+
+  async function reconcileSameControllerConflict(localId: string, tournamentId: string, conflictBody: ShadowSaveWriteResponse): Promise<void> {
+    if (conflictBody.kind === "standard" && conflictBody.state && conflictBody.updatedAt) {
+      saveActiveTournamentFromRemoteSync(conflictBody.state);
+      markRemoteShadowSaveApplied(localId, "standard", conflictBody.updatedAt, new Date().toISOString(), conflictBody.matchScoreVersions);
+      setState(conflictBody.state);
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/account/tournaments/${encodeURIComponent(tournamentId)}`, {
+        method: "GET",
+        cache: "no-store",
+      });
+      const body = await response.json() as { ok?: boolean; kind?: "standard"; state?: LiveTournamentState; updatedAt?: string; matchScoreVersions?: Record<string, number> };
+
+      if (response.ok && body.ok && body.kind === "standard" && body.state) {
+        saveActiveTournamentFromRemoteSync(body.state);
+        markRemoteShadowSaveApplied(localId, "standard", body.updatedAt, new Date().toISOString(), body.matchScoreVersions);
+        setState(body.state);
+      }
+    } catch {
+      // The stale finish was rejected server-side; the current page remains unchanged until refresh succeeds.
+    }
   }
 
   async function reconcileControlLost(localId: string, tournamentId: string): Promise<void> {

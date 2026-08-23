@@ -61,9 +61,13 @@ interface OrganizerRemoteReadResponse {
 
 interface ShadowSaveWriteResponse {
   ok?: boolean;
+  conflict?: boolean;
+  kind?: "standard" | "team-vs-team";
+  state?: LiveTournamentState;
   tournamentId?: string;
   updatedAt?: string;
   organizerToken?: string;
+  matchScoreVersions?: Record<string, number>;
   error?: string;
 }
 
@@ -370,12 +374,17 @@ export function LiveScoringApp() {
     const localId = createStandardShadowSaveLocalId(stateRef.current);
     const metadata = loadShadowSaveMetadata(localId);
 
-    if (!activeCloudAuthority || !metadata?.supabaseTournamentId || metadata.kind !== "standard") {
+    if (!metadata?.supabaseTournamentId || metadata.kind !== "standard") {
       saveActiveTournament(nextState);
       return true;
     }
 
     const tournamentId = metadata.supabaseTournamentId;
+
+    if (metadata.canManage === false) {
+      setToast(t("remoteControlledByOtherUser"));
+      return false;
+    }
 
     return (async () => {
       const response = await fetch("/api/supabase/shadow-save", {
@@ -399,7 +408,8 @@ export function LiveScoringApp() {
       }
 
       if (response.status === 409) {
-        setToast("Tournament snapshot conflict.");
+        await reconcileSameControllerConflict(localId, tournamentId, body);
+        setToast(t("ownerTournamentConflictMessage"));
         return false;
       }
 
@@ -412,6 +422,33 @@ export function LiveScoringApp() {
       markRemoteShadowSaveApplied(localId, "standard", body.updatedAt, new Date().toISOString());
       return true;
     })();
+  }
+
+  async function reconcileSameControllerConflict(localId: string, tournamentId: string, conflictBody: ShadowSaveWriteResponse): Promise<void> {
+    if (conflictBody.kind === "standard" && conflictBody.state && conflictBody.updatedAt) {
+      saveActiveTournamentFromRemoteSync(conflictBody.state);
+      markRemoteShadowSaveApplied(localId, "standard", conflictBody.updatedAt, new Date().toISOString(), conflictBody.matchScoreVersions);
+      stateRef.current = conflictBody.state;
+      setState(conflictBody.state);
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/account/tournaments/${encodeURIComponent(tournamentId)}`, {
+        method: "GET",
+        cache: "no-store",
+      });
+      const body = await response.json() as OrganizerRemoteReadResponse;
+
+      if (response.ok && body.ok && body.kind === "standard" && body.state) {
+        saveActiveTournamentFromRemoteSync(body.state);
+        markRemoteShadowSaveApplied(localId, "standard", body.updatedAt, new Date().toISOString(), body.matchScoreVersions);
+        stateRef.current = body.state;
+        setState(body.state);
+      }
+    } catch {
+      // The stale write is still rejected server-side; the next remote poll can refresh the UI.
+    }
   }
 
   function markCurrentCloudAuthorityReadOnly(localId: string, tournamentId: string) {

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "../components/layout/app-shell";
 import { LiveScoringApp } from "../components/tournament/live-scoring-app";
 import { SyncStatusPanel } from "../components/tournament/sync-status-panel";
-import { advanceLivePoolPlayState, createMockLiveTournamentState, saveMatchResult, saveNextPoolPhaseResult } from "../lib/live-scoring";
+import { advanceLivePoolPlayState, createMockLiveTournamentState, goToNextRound, saveMatchResult, saveNextPoolPhaseResult } from "../lib/live-scoring";
 import { createPoolTournamentFromSetup, createStandardShadowSaveLocalId, createTournamentFromSetup, loadActiveTournament, loadShadowSaveMetadata, markActiveCloudTournamentAuthority, saveActiveTournament, saveActiveTournamentFromRemoteSync, type TournamentSetupFormat } from "../lib/tournament-setup";
 
 const sixteenPlayerText = Array.from({ length: 16 }, (_, index) => `Spiller ${index + 1}`).join("\n");
@@ -447,7 +447,7 @@ describe("LiveScoringApp score sheet", () => {
   }, 10000);
 
   it("rejects stale round progression before mutating the open USER tournament", async () => {
-    let localState = createMockLiveTournamentState();
+    let localState = createStandardTournament("Mexicano");
 
     for (const match of localState.rounds[0].matches) {
       localState = saveMatchResult(localState, {
@@ -506,13 +506,92 @@ describe("LiveScoringApp score sheet", () => {
 
     render(<LiveScoringApp />);
 
-    expect(await screen.findByText("Mock Americano")).toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole("button", { name: "Næste" })[0]);
+    expect(await screen.findByText("Mexicano test")).toBeInTheDocument();
+    const nextButton = screen.getAllByRole("button", { name: "Næste" }).find((button) => !button.hasAttribute("disabled"));
+
+    if (!nextButton) {
+      throw new Error("Expected an enabled next round button.");
+    }
+
+    fireEvent.click(nextButton);
 
     await waitFor(() => expect(screen.getAllByText("Du har ikke længere styring af denne turnering.").length).toBeGreaterThan(0));
     expect(loadActiveTournament()?.activeRoundNumber).toBe(1);
     expect(screen.queryByRole("button", { name: "Næste" })).not.toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith("/api/supabase/shadow-save", expect.objectContaining({ method: "POST" }));
+  }, 10000);
+
+  it("reconciles a stale same-user round progression conflict without making the controller read-only", async () => {
+    let localState = createStandardTournament("Mexicano");
+
+    for (const match of localState.rounds[0].matches) {
+      localState = saveMatchResult(localState, {
+        matchId: match.id,
+        teamAPoints: 21,
+        teamBPoints: 10,
+      });
+    }
+
+    const remoteState = goToNextRound(localState);
+    const localId = createStandardShadowSaveLocalId(localState);
+    saveActiveTournamentFromRemoteSync(localState);
+    markActiveCloudTournamentAuthority({
+      source: "server",
+      kind: "standard",
+      localId,
+      tournamentId: "00000000-0000-4000-8000-0000000009e2",
+      canRead: true,
+      canManage: true,
+      createdByUserId: "00000000-0000-4000-8000-00000000aaa1",
+      controllerUserId: "00000000-0000-4000-8000-00000000aaa1",
+      ownerUserId: "00000000-0000-4000-8000-00000000aaa1",
+    });
+    saveShadowMetadata(localId, {
+      canManage: true,
+      kind: "standard",
+      lastLocalSaveAt: "2026-08-23T12:10:00.000Z",
+      lastShadowSaveVersion: "2026-08-23T12:10:00.000Z",
+      status: "synced",
+      supabaseTournamentId: "00000000-0000-4000-8000-0000000009e2",
+      organizerToken: "SAME_USER_ORGANIZER_TOKEN",
+    });
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      if (input.toString() === "/api/supabase/shadow-save") {
+        return Promise.resolve(new Response(JSON.stringify({
+          ok: false,
+          conflict: true,
+          kind: "standard",
+          state: remoteState,
+          tournamentId: "00000000-0000-4000-8000-0000000009e2",
+          updatedAt: "2026-08-23T12:12:00.000Z",
+          matchScoreVersions: { [localState.rounds[0].matches[0].id]: 2 },
+        }), { status: 409 }));
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({ ok: false }), { status: 500 }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<LiveScoringApp />);
+
+    expect(await screen.findByText("Mexicano test")).toBeInTheDocument();
+    const nextButton = screen.getAllByRole("button", { name: "Næste" }).find((button) => !button.hasAttribute("disabled"));
+
+    if (!nextButton) {
+      throw new Error("Expected an enabled next round button.");
+    }
+
+    fireEvent.click(nextButton);
+
+    await waitFor(() => expect(screen.getByText("Turneringen blev ændret på en anden enhed. De nyeste data er hentet. Prøv igen.")).toBeInTheDocument());
+    expect(loadActiveTournament()?.activeRoundNumber).toBe(2);
+    expect(loadShadowSaveMetadata(localId)).toMatchObject({
+      canManage: true,
+      status: "synced",
+      lastShadowSaveVersion: "2026-08-23T12:12:00.000Z",
+    });
+    expect(screen.queryByTestId("controller-read-only-notice")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Forrige" }).length).toBeGreaterThan(0);
   }, 10000);
 
   it("keeps a local tournament fully manageable without cloud authority", async () => {
