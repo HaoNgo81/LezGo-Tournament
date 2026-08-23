@@ -1,4 +1,5 @@
 import { assertOrganizerToken, createPublicResultSnapshotRepository, OrganizerTokenError, PublicResultSnapshotError } from "@/lib/database";
+import { assertAccountTournamentControllerIfRequired, TournamentWriteAccessError } from "@/lib/account/tournament-write-access";
 import type { LiveTournamentState } from "@/lib/live-scoring";
 import { CURRENT_PUBLIC_RESULT_ORIGIN, createResultUrl, normalizeOptionalPublicResultOrigin } from "@/lib/results-sharing";
 
@@ -35,6 +36,7 @@ export async function POST(request: Request): Promise<Response> {
       kind: body.kind,
       legacyLocalId: body.legacyLocalId,
     });
+    await assertAccountTournamentControllerIfRequired(body.tournamentId);
 
     const snapshot = await createPublicResultSnapshotRepository().publishStandard({
       tournamentId: body.tournamentId,
@@ -53,7 +55,7 @@ export async function POST(request: Request): Promise<Response> {
       },
     });
   } catch (error) {
-    const status = error instanceof OrganizerTokenError || error instanceof PublicResultSnapshotError ? error.status : 500;
+    const status = error instanceof OrganizerTokenError || error instanceof PublicResultSnapshotError || error instanceof TournamentWriteAccessError ? error.status : 500;
     const message = error instanceof OrganizerTokenError
       ? "Organizer authorization was denied."
       : error instanceof Error

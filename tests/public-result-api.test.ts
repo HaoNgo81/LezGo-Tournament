@@ -6,6 +6,37 @@ const repositoryMocks = vi.hoisted(() => ({
   read: vi.fn(),
 }));
 
+const authMocks = vi.hoisted(() => ({
+  readAuthAccessCookie: vi.fn(),
+  readOptionalAccountFromAccessToken: vi.fn(),
+}));
+
+const restClientMocks = vi.hoisted(() => ({
+  select: vi.fn(),
+}));
+
+vi.mock("@/lib/auth/cookies", () => ({
+  readAuthAccessCookie: authMocks.readAuthAccessCookie,
+}));
+
+vi.mock("@/lib/auth", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/auth")>();
+
+  return {
+    ...actual,
+    readOptionalAccountFromAccessToken: authMocks.readOptionalAccountFromAccessToken,
+  };
+});
+
+vi.mock("@/lib/supabase/rest-client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/supabase/rest-client")>();
+
+  return {
+    ...actual,
+    createSupabaseRestClient: () => restClientMocks,
+  };
+});
+
 vi.mock("@/lib/database", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/database")>();
 
@@ -44,6 +75,12 @@ describe("STEP 25G public result API", () => {
     process.env.LEZGO_PUBLIC_APP_ORIGIN = "https://app.lezgopadel.dk";
     repositoryMocks.publishStandard.mockReset();
     repositoryMocks.read.mockReset();
+    authMocks.readAuthAccessCookie.mockReset();
+    authMocks.readOptionalAccountFromAccessToken.mockReset();
+    restClientMocks.select.mockReset();
+    authMocks.readAuthAccessCookie.mockRejectedValue(new Error("No account cookie."));
+    authMocks.readOptionalAccountFromAccessToken.mockResolvedValue(null);
+    restClientMocks.select.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -138,6 +175,40 @@ describe("STEP 25G public result API", () => {
     expect(repositoryMocks.publishStandard).not.toHaveBeenCalled();
   });
 
+  it("blocks stale former-controller result publishing for an account-owned tournament", async () => {
+    const state = finishTournament(createMockLiveTournamentState(), "2026-08-19T18:30:00.000Z");
+    restClientMocks.select.mockResolvedValueOnce([createTournamentAuthorityRow(
+      "00000000-0000-4000-8000-0000000000a1",
+      "00000000-0000-4000-8000-0000000000a1",
+      "00000000-0000-4000-8000-0000000000b2",
+    )]);
+    authMocks.readAuthAccessCookie.mockResolvedValue("stale-user-cookie");
+    authMocks.readOptionalAccountFromAccessToken.mockResolvedValue({
+      userId: "00000000-0000-4000-8000-0000000000a1",
+      email: "owner@example.com",
+      displayName: "Owner",
+      role: "user",
+    });
+
+    const response = await publishPublicResult(new Request("https://lezgotournament.vercel.app/api/supabase/result-snapshots/publish", {
+      method: "POST",
+      body: JSON.stringify({
+        kind: "standard",
+        legacyLocalId: "step-25g-result",
+        organizerToken: "VALID_ORGANIZER_TOKEN",
+        tournamentId: "00000000-0000-4000-8000-000000000261",
+        state,
+      }),
+    }));
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({
+      ok: false,
+      error: "Du har ikke længere styring af denne turnering.",
+    });
+    expect(repositoryMocks.publishStandard).not.toHaveBeenCalled();
+  });
+
   it("reads a public result snapshot without returning private access material", async () => {
     repositoryMocks.read.mockResolvedValue({
       resultId: "ABCDEFGHJKLM2345",
@@ -170,3 +241,11 @@ describe("STEP 25G public result API", () => {
     expect(await response.json()).toMatchObject({ ok: false, error: "Public result was not found." });
   });
 });
+
+function createTournamentAuthorityRow(owner_user_id: string | null, created_by_user_id: string | null, controller_user_id: string | null) {
+  return {
+    owner_user_id,
+    created_by_user_id,
+    controller_user_id,
+  };
+}

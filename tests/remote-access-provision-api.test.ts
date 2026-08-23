@@ -6,6 +6,37 @@ const repositoryMocks = vi.hoisted(() => ({
   revoke: vi.fn(),
 }));
 
+const authMocks = vi.hoisted(() => ({
+  readAuthAccessCookie: vi.fn(),
+  readOptionalAccountFromAccessToken: vi.fn(),
+}));
+
+const restClientMocks = vi.hoisted(() => ({
+  select: vi.fn(),
+}));
+
+vi.mock("@/lib/auth/cookies", () => ({
+  readAuthAccessCookie: authMocks.readAuthAccessCookie,
+}));
+
+vi.mock("@/lib/auth", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/auth")>();
+
+  return {
+    ...actual,
+    readOptionalAccountFromAccessToken: authMocks.readOptionalAccountFromAccessToken,
+  };
+});
+
+vi.mock("@/lib/supabase/rest-client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/supabase/rest-client")>();
+
+  return {
+    ...actual,
+    createSupabaseRestClient: () => restClientMocks,
+  };
+});
+
 vi.mock("@/lib/database", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/database")>();
 
@@ -54,6 +85,12 @@ describe("STEP 24B remote access provisioning API", () => {
     repositoryMocks.provisionAccess.mockReset();
     repositoryMocks.provisionHandoff.mockReset();
     repositoryMocks.revoke.mockReset();
+    authMocks.readAuthAccessCookie.mockReset();
+    authMocks.readOptionalAccountFromAccessToken.mockReset();
+    restClientMocks.select.mockReset();
+    authMocks.readAuthAccessCookie.mockRejectedValue(new Error("No account cookie."));
+    authMocks.readOptionalAccountFromAccessToken.mockResolvedValue(null);
+    restClientMocks.select.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -121,6 +158,76 @@ describe("STEP 24B remote access provisioning API", () => {
     expect(await response.json()).toMatchObject({ ok: false, error: "Organizer authorization was denied." });
   });
 
+  it("blocks stale score-entry access provisioning for an account-owned tournament after controller transfer", async () => {
+    restClientMocks.select.mockResolvedValueOnce([createTournamentAuthorityRow(
+      "00000000-0000-4000-8000-0000000000a1",
+      "00000000-0000-4000-8000-0000000000a1",
+      "00000000-0000-4000-8000-0000000000b2",
+    )]);
+    authMocks.readAuthAccessCookie.mockResolvedValue("stale-user-cookie");
+    authMocks.readOptionalAccountFromAccessToken.mockResolvedValue({
+      userId: "00000000-0000-4000-8000-0000000000a1",
+      email: "owner@example.com",
+      displayName: "Owner",
+      role: "user",
+    });
+
+    const response = await provisionAccess(createAuthorizedAccessRequest("/api/supabase/tournament-access/provision", "00000000-0000-4000-8000-000000000108"));
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({
+      ok: false,
+      error: "Du har ikke længere styring af denne turnering.",
+    });
+    expect(repositoryMocks.provisionAccess).not.toHaveBeenCalled();
+  });
+
+  it("blocks stale TV handoff provisioning for an account-owned tournament after controller transfer", async () => {
+    restClientMocks.select.mockResolvedValueOnce([createTournamentAuthorityRow(
+      "00000000-0000-4000-8000-0000000000a1",
+      "00000000-0000-4000-8000-0000000000a1",
+      "00000000-0000-4000-8000-0000000000b2",
+    )]);
+    authMocks.readAuthAccessCookie.mockResolvedValue("stale-user-cookie");
+    authMocks.readOptionalAccountFromAccessToken.mockResolvedValue({
+      userId: "00000000-0000-4000-8000-0000000000a1",
+      email: "owner@example.com",
+      displayName: "Owner",
+      role: "user",
+    });
+
+    const response = await provisionHandoff(createAuthorizedHandoffRequest("http://localhost/api/supabase/tournament-handoff/provision", "00000000-0000-4000-8000-000000000109"));
+
+    expect(response.status).toBe(403);
+    expect(repositoryMocks.provisionHandoff).not.toHaveBeenCalled();
+  });
+
+  it("allows the current controller to provision score-entry access for an account-owned tournament", async () => {
+    restClientMocks.select.mockResolvedValueOnce([createTournamentAuthorityRow(
+      "00000000-0000-4000-8000-0000000000a1",
+      "00000000-0000-4000-8000-0000000000a1",
+      "00000000-0000-4000-8000-0000000000b2",
+    )]);
+    authMocks.readAuthAccessCookie.mockResolvedValue("admin-controller-cookie");
+    authMocks.readOptionalAccountFromAccessToken.mockResolvedValue({
+      userId: "00000000-0000-4000-8000-0000000000b2",
+      email: "admin@example.com",
+      displayName: "Admin",
+      role: "admin",
+    });
+    repositoryMocks.provisionAccess.mockResolvedValue({
+      tournamentId: "00000000-0000-4000-8000-000000000110",
+      tournamentCode: "K7M4XP",
+      shareToken: "2222",
+      tokenVersion: 1,
+    });
+
+    const response = await provisionAccess(createAuthorizedAccessRequest("/api/supabase/tournament-access/provision", "00000000-0000-4000-8000-000000000110"));
+
+    expect(response.status).toBe(200);
+    expect(repositoryMocks.provisionAccess).toHaveBeenCalledWith("00000000-0000-4000-8000-000000000110");
+  });
+
   it("uses the configured reachable public origin for TV handoff links instead of the bind host", async () => {
     process.env.LEZGO_PUBLIC_APP_ORIGIN = "http://192.168.0.60:3015";
     repositoryMocks.provisionHandoff.mockResolvedValue({
@@ -176,6 +283,13 @@ function createJsonRequest(path: string, body: Record<string, unknown>): Request
   });
 }
 
+function createAuthorizedAccessRequest(path: string, tournamentId: string): Request {
+  return createJsonRequest(path, {
+    tournamentId,
+    organizerToken: "VALID_ORGANIZER_TOKEN",
+  });
+}
+
 function createAuthorizedHandoffRequest(url: string, tournamentId: string): Request {
   return new Request(url, {
     method: "POST",
@@ -184,4 +298,12 @@ function createAuthorizedHandoffRequest(url: string, tournamentId: string): Requ
       organizerToken: "VALID_ORGANIZER_TOKEN",
     }),
   });
+}
+
+function createTournamentAuthorityRow(owner_user_id: string | null, created_by_user_id: string | null, controller_user_id: string | null) {
+  return {
+    owner_user_id,
+    created_by_user_id,
+    controller_user_id,
+  };
 }

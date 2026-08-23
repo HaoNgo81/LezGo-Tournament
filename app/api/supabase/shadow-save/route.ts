@@ -2,6 +2,7 @@ import { createOrganizerToken, createStandardTournamentRepository, createTeamVsT
 import { readOptionalAccountFromAccessToken } from "@/lib/auth";
 import { readAuthAccessCookie } from "@/lib/auth/cookies";
 import { canManageAccountTournament } from "@/lib/account/tournament-authority";
+import { TournamentWriteAccessError } from "@/lib/account/tournament-write-access";
 import { createSupabaseRestClient } from "@/lib/supabase/rest-client";
 import type { LiveTournamentState } from "@/lib/live-scoring";
 import type { TeamVsTeamTournamentState } from "@/lib/tournament-setup";
@@ -84,10 +85,14 @@ export async function POST(request: Request): Promise<Response> {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Shadow-save failed.";
     const normalizedMessage = message.toLocaleLowerCase("en");
-    const status = normalizedMessage.includes("authorization") || normalizedMessage.includes("authenticated")
+    const status = error instanceof TournamentWriteAccessError
+      ? error.status
+      : normalizedMessage.includes("authorization") || normalizedMessage.includes("authenticated")
       ? 403
       : normalizedMessage.includes("conflict") ? 409 : 500;
-    const errorMessage = status === 403
+    const errorMessage = error instanceof TournamentWriteAccessError
+      ? error.message
+      : status === 403
       ? "Du har ikke længere styring af denne turnering."
       : status === 409 ? "Tournament snapshot conflict." : "Shadow-save failed.";
     return Response.json({ ok: false, error: errorMessage }, { status });
@@ -117,11 +122,11 @@ function resolveShadowSaveActorUserId(tournament: TournamentAuthorityRow | null,
   }
 
   if (!accountUserId) {
-    throw new Error("Authenticated tournament controller is required.");
+    throw new TournamentWriteAccessError();
   }
 
   if (!canManageAccountTournament(tournament, accountUserId)) {
-    throw new Error("Tournament controller authorization was denied.");
+    throw new TournamentWriteAccessError();
   }
 
   return accountUserId;

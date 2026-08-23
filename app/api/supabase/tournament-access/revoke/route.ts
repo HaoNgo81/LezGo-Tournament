@@ -1,4 +1,5 @@
 import { assertOrganizerToken, createTournamentAccessRepository, OrganizerTokenError, TournamentAccessError } from "@/lib/database";
+import { assertAccountTournamentControllerIfRequired, TournamentWriteAccessError } from "@/lib/account/tournament-write-access";
 
 export const dynamic = "force-dynamic";
 
@@ -27,10 +28,11 @@ export async function POST(request: Request): Promise<Response> {
 
   try {
     assertOrganizerToken(body.organizerToken, { tournamentId: body.tournamentId });
+    await assertAccountTournamentControllerIfRequired(body.tournamentId);
     await createTournamentAccessRepository().revoke(body.tournamentCode);
     return Response.json({ ok: true });
   } catch (error) {
-    const status = error instanceof OrganizerTokenError || error instanceof TournamentAccessError ? error.status : 500;
+    const status = error instanceof OrganizerTokenError || error instanceof TournamentAccessError || error instanceof TournamentWriteAccessError ? error.status : 500;
     const message = error instanceof OrganizerTokenError ? "Organizer authorization was denied." : error instanceof Error ? error.message : "Could not revoke tournament access.";
     return Response.json({ ok: false, error: message }, { status });
   }
