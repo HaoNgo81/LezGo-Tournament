@@ -391,6 +391,75 @@ describe("LiveScoringApp score sheet", () => {
     expect(fetchMock).not.toHaveBeenCalledWith("/api/supabase/shadow-save", expect.anything());
   }, 10000);
 
+  it("blocks rapid duplicate owned score saves while the first score write is pending", async () => {
+    const localState = createMockLiveTournamentState();
+    const matchId = localState.rounds[0].matches[0].id;
+    const remoteState = saveMatchResult(localState, {
+      matchId,
+      teamAPoints: 14,
+      teamBPoints: 9,
+    });
+    const localId = createStandardShadowSaveLocalId(localState);
+    saveActiveTournamentFromRemoteSync(localState);
+    saveShadowMetadata(localId, {
+      canManage: true,
+      kind: "standard",
+      lastLocalSaveAt: "2026-08-24T13:00:00.000Z",
+      lastShadowSaveVersion: "2026-08-24T13:00:00.000Z",
+      status: "synced",
+      supabaseTournamentId: "00000000-0000-4000-8000-0000000025b1",
+      matchScoreVersions: { [matchId]: 3 },
+    });
+    const deferredScore = createDeferred<Response>();
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = input.toString();
+
+      if (url === "/api/account/tournaments/00000000-0000-4000-8000-0000000025b1/score") {
+        return deferredScore.promise;
+      }
+
+      if (url === "/api/account/tournaments/00000000-0000-4000-8000-0000000025b1") {
+        return Promise.resolve(new Response(JSON.stringify({
+          ok: true,
+          kind: "standard",
+          state: localState,
+          tournamentId: "00000000-0000-4000-8000-0000000025b1",
+          updatedAt: "2026-08-24T13:00:00.000Z",
+          canRead: true,
+          canManage: true,
+          matchScoreVersions: { [matchId]: 3 },
+        }), { status: 200 }));
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({ ok: false }), { status: 500 }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<LiveScoringApp />);
+
+    expect(await screen.findByText("Mock Americano")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Indtast score" })[0]);
+    fireEvent.change(screen.getByRole("textbox", { name: "Hold A scorepoint" }), { target: { value: "14" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Hold B scorepoint" }), { target: { value: "9" } });
+
+    const saveButton = screen.getByRole("button", { name: "Gem" });
+    fireEvent.click(saveButton);
+    fireEvent.click(saveButton);
+
+    await waitFor(() => expect(fetchMock.mock.calls.filter((call) => call[0] === "/api/account/tournaments/00000000-0000-4000-8000-0000000025b1/score")).toHaveLength(1));
+
+    deferredScore.resolve(new Response(JSON.stringify({
+      ok: true,
+      kind: "standard",
+      state: remoteState,
+      tournamentId: "00000000-0000-4000-8000-0000000025b1",
+      updatedAt: "2026-08-24T13:00:05.000Z",
+      matchScoreVersions: { [matchId]: 4 },
+    }), { status: 200 }));
+
+    await waitFor(() => expectLiveCourtScore("14", "9"));
+  }, 10000);
+
   it("does not fall back to a full stale snapshot when cloud score versions are missing", async () => {
     const localState = createMockLiveTournamentState();
     const matchId = localState.rounds[0].matches[0].id;
@@ -762,6 +831,112 @@ describe("LiveScoringApp score sheet", () => {
     });
     expect(screen.queryByTestId("controller-read-only-notice")).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Forrige" }).length).toBeGreaterThan(0);
+  }, 10000);
+
+  it("blocks rapid duplicate round advancement while the first snapshot write is pending", async () => {
+    let localState = createStandardTournament("Mexicano");
+
+    for (const match of localState.rounds[0].matches) {
+      localState = saveMatchResult(localState, {
+        matchId: match.id,
+        teamAPoints: 21,
+        teamBPoints: 10,
+      });
+    }
+
+    const nextRoundState = goToNextRound(localState);
+    const localId = createStandardShadowSaveLocalId(localState);
+    saveActiveTournamentFromRemoteSync(localState);
+    saveShadowMetadata(localId, {
+      canManage: true,
+      kind: "standard",
+      lastLocalSaveAt: "2026-08-24T13:10:00.000Z",
+      lastShadowSaveVersion: "2026-08-24T13:10:00.000Z",
+      status: "synced",
+      supabaseTournamentId: "00000000-0000-4000-8000-0000000025b2",
+      matchScoreVersions: Object.fromEntries(localState.rounds[0].matches.map((match) => [match.id, 1])),
+    });
+    const deferredSnapshot = createDeferred<Response>();
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      if (input.toString() === "/api/supabase/shadow-save") {
+        return deferredSnapshot.promise;
+      }
+
+      if (input.toString() === "/api/account/tournaments/00000000-0000-4000-8000-0000000025b2") {
+        return Promise.resolve(new Response(JSON.stringify({
+          ok: true,
+          kind: "standard",
+          state: localState,
+          tournamentId: "00000000-0000-4000-8000-0000000025b2",
+          updatedAt: "2026-08-24T13:10:00.000Z",
+          canRead: true,
+          canManage: true,
+        }), { status: 200 }));
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({ ok: false }), { status: 500 }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<LiveScoringApp />);
+
+    expect(await screen.findByText("Mexicano test")).toBeInTheDocument();
+    const nextButtons = screen.getAllByRole("button", { name: "Næste" }).filter((button) => !button.hasAttribute("disabled"));
+    fireEvent.click(nextButtons[0]);
+    fireEvent.click(nextButtons[0]);
+
+    await waitFor(() => expect(fetchMock.mock.calls.filter((call) => call[0] === "/api/supabase/shadow-save")).toHaveLength(1));
+
+    deferredSnapshot.resolve(new Response(JSON.stringify({
+      ok: true,
+      kind: "standard",
+      state: nextRoundState,
+      tournamentId: "00000000-0000-4000-8000-0000000025b2",
+      updatedAt: "2026-08-24T13:10:05.000Z",
+    }), { status: 200 }));
+
+    await waitFor(() => expect(loadActiveTournament()?.activeRoundNumber).toBe(2));
+    expect(fetchMock.mock.calls.filter((call) => call[0] === "/api/supabase/shadow-save")).toHaveLength(1);
+  }, 10000);
+
+  it("ignores a newer remote snapshot when it belongs to a different tournament", async () => {
+    const tournamentA = createStandardTournament("Americano");
+    const tournamentBBase = createStandardTournament("Mexicano");
+    const tournamentB = saveMatchResult(tournamentBBase, {
+      matchId: tournamentBBase.rounds[0].matches[0].id,
+      teamAPoints: 20,
+      teamBPoints: 4,
+    });
+    const localId = createStandardShadowSaveLocalId(tournamentA);
+    saveActiveTournamentFromRemoteSync(tournamentA);
+    saveShadowMetadata(localId, {
+      canManage: true,
+      kind: "standard",
+      lastLocalSaveAt: "2026-08-24T13:20:00.000Z",
+      lastShadowSaveVersion: "2026-08-24T13:20:00.000Z",
+      status: "synced",
+      supabaseTournamentId: "00000000-0000-4000-8000-0000000025b3",
+    });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      ok: true,
+      kind: "standard",
+      state: tournamentB,
+      tournamentId: "00000000-0000-4000-8000-0000000025b4",
+      updatedAt: "2026-08-24T13:21:00.000Z",
+      canRead: true,
+      canManage: true,
+    }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<LiveScoringApp />);
+
+    expect(await screen.findByText("Americano test")).toBeInTheDocument();
+    window.dispatchEvent(new Event("online"));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(screen.queryByText("Mexicano test")).not.toBeInTheDocument();
+    expect(loadActiveTournament()?.tournamentName).toBe("Americano test");
+    expect(loadActiveTournament()?.results).toEqual([]);
   }, 10000);
 
   it("keeps a local tournament fully manageable without cloud authority", async () => {
@@ -1235,6 +1410,17 @@ function expectLiveCourtScore(teamA: string, teamB: string, cardIndex = 0): HTML
   expect(within(scoreRow).getByTestId("live-court-right-score")).toHaveTextContent(teamB);
 
   return card;
+}
+
+function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void; reject: (reason?: unknown) => void } {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+
+  return { promise, resolve, reject };
 }
 
 function saveShadowMetadata(localId: string, metadata: Record<string, unknown>): void {

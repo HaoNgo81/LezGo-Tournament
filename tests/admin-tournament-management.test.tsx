@@ -80,6 +80,35 @@ describe("STEP 25I-C1-C8B admin tournament management UI", () => {
     });
   });
 
+  it("blocks rapid duplicate admin takeover submissions while the first request is pending", async () => {
+    const deferredTakeover = createDeferred<Response>();
+    const fetchMock = vi.fn(() => deferredTakeover.promise);
+    vi.stubGlobal("fetch", fetchMock);
+    render(<AdminDashboard users={users} tournaments={tournaments} currentUserId={adminUserId} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Turneringer" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Overtag styring" })[0]);
+
+    const dialog = screen.getByRole("dialog", { name: "Overtag styring af turnering?" });
+    const confirmButton = within(dialog).getByRole("button", { name: "Overtag styring" });
+    fireEvent.click(confirmButton);
+    fireEvent.click(confirmButton);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    deferredTakeover.resolve(new Response(JSON.stringify({
+      ok: true,
+      tournament: {
+        ...tournaments[0],
+        controller: { userId: adminUserId, displayName: "Admin One", username: "admin" },
+        isControlledByCurrentAdmin: true,
+      },
+    }), { status: 200 }));
+
+    await screen.findByText("Du styrer nu denne turnering.");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("requires confirmation and returns admin control to the owning user", async () => {
     const adminControlledTournament = {
       ...tournaments[0],
@@ -118,6 +147,42 @@ describe("STEP 25I-C1-C8B admin tournament management UI", () => {
       method: "POST",
       credentials: "same-origin",
     });
+  });
+
+  it("blocks rapid duplicate return-control submissions while the first request is pending", async () => {
+    const adminControlledTournament = {
+      ...tournaments[0],
+      controller: { userId: adminUserId, displayName: "Admin One", username: "admin" },
+      isControlledByCurrentAdmin: true,
+      canReturnControlToOwner: true,
+    };
+    const deferredReturn = createDeferred<Response>();
+    const fetchMock = vi.fn(() => deferredReturn.promise);
+    vi.stubGlobal("fetch", fetchMock);
+    render(<AdminDashboard users={users} tournaments={[adminControlledTournament, tournaments[1]]} currentUserId={adminUserId} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Turneringer" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Giv styring tilbage" })[0]);
+
+    const dialog = screen.getByRole("dialog", { name: "Giv styring tilbage?" });
+    const confirmButton = within(dialog).getByRole("button", { name: "Giv styring tilbage" });
+    fireEvent.click(confirmButton);
+    fireEvent.click(confirmButton);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    deferredReturn.resolve(new Response(JSON.stringify({
+      ok: true,
+      tournament: {
+        ...adminControlledTournament,
+        controller: adminControlledTournament.creator,
+        isControlledByCurrentAdmin: false,
+        canReturnControlToOwner: false,
+      },
+    }), { status: 200 }));
+
+    await screen.findByText("Styringen er givet tilbage til brugeren.");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("shows a safe re-login message when takeover auth is denied and keeps the row unchanged", async () => {
@@ -188,3 +253,14 @@ const tournaments: ManagedTournament[] = [
     canReturnControlToOwner: false,
   },
 ];
+
+function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void; reject: (reason?: unknown) => void } {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+
+  return { promise, resolve, reject };
+}

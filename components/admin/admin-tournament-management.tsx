@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { ManagedTournament, ManagedTournamentPerson, ManagedTournamentStatus } from "@/lib/admin/tournaments";
 
 interface AdminTournamentManagementProps {
@@ -28,6 +28,7 @@ export function AdminTournamentManagement({ tournaments: initialTournaments }: A
   const [confirmAction, setConfirmAction] = useState<{ tournament: ManagedTournament; action: ConfirmAction } | null>(null);
   const [busyTournamentId, setBusyTournamentId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
+  const busyActionRef = useRef<string | null>(null);
 
   const visibleTournaments = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("da");
@@ -54,6 +55,11 @@ export function AdminTournamentManagement({ tournaments: initialTournaments }: A
   };
 
   const handleTakeover = async (tournament: ManagedTournament) => {
+    if (busyActionRef.current === tournament.id) {
+      return;
+    }
+
+    busyActionRef.current = tournament.id;
     setBusyTournamentId(tournament.id);
     setMessage("");
 
@@ -75,11 +81,17 @@ export function AdminTournamentManagement({ tournaments: initialTournaments }: A
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Turneringen kunne ikke overtages.");
     } finally {
+      busyActionRef.current = null;
       setBusyTournamentId(null);
     }
   };
 
   const handleReturnControl = async (tournament: ManagedTournament) => {
+    if (busyActionRef.current === tournament.id) {
+      return;
+    }
+
+    busyActionRef.current = tournament.id;
     setBusyTournamentId(tournament.id);
     setMessage("");
 
@@ -101,6 +113,7 @@ export function AdminTournamentManagement({ tournaments: initialTournaments }: A
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Styringen kunne ikke gives tilbage.");
     } finally {
+      busyActionRef.current = null;
       setBusyTournamentId(null);
     }
   };

@@ -199,6 +199,60 @@ describe("FinishTournamentApp pool play", () => {
     });
     expect(screen.getByRole("button", { name: "Afsluttet" })).toBeDisabled();
   });
+
+  it("blocks rapid duplicate finish clicks while the first finish write is pending", async () => {
+    const activeState = createMockLiveTournamentState();
+    const localId = createStandardShadowSaveLocalId(activeState);
+    saveActiveTournamentFromRemoteSync(activeState);
+    markActiveCloudTournamentAuthority({
+      source: "server",
+      kind: "standard",
+      localId,
+      tournamentId: "00000000-0000-4000-8000-0000000025b5",
+      canRead: true,
+      canManage: true,
+      createdByUserId: "00000000-0000-4000-8000-00000000aaa1",
+      controllerUserId: "00000000-0000-4000-8000-00000000aaa1",
+      ownerUserId: "00000000-0000-4000-8000-00000000aaa1",
+    });
+    window.localStorage.setItem("lezgo.shadowSaveMetadata.v1", JSON.stringify({
+      [localId]: {
+        localId,
+        kind: "standard",
+        status: "synced",
+        supabaseTournamentId: "00000000-0000-4000-8000-0000000025b5",
+        lastShadowSaveVersion: "2026-08-24T13:30:00.000Z",
+      },
+    }));
+    const deferredFinish = createDeferred<Response>();
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      if (input.toString() === "/api/supabase/shadow-save") {
+        return deferredFinish.promise;
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({ ok: false }), { status: 500 }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<FinishTournamentApp />);
+
+    expect(await screen.findByRole("heading", { name: "Mock Americano" })).toBeInTheDocument();
+    const finishButton = screen.getByRole("button", { name: "Afslut turnering" });
+    fireEvent.click(finishButton);
+    fireEvent.click(finishButton);
+
+    await waitFor(() => expect(fetchMock.mock.calls.filter((call) => call[0] === "/api/supabase/shadow-save")).toHaveLength(1));
+
+    deferredFinish.resolve(new Response(JSON.stringify({
+      ok: true,
+      kind: "standard",
+      tournamentId: "00000000-0000-4000-8000-0000000025b5",
+      updatedAt: "2026-08-24T13:30:05.000Z",
+    }), { status: 200 }));
+
+    await waitFor(() => expect(loadActiveTournament()?.status).toBe("finished"));
+    expect(fetchMock.mock.calls.filter((call) => call[0] === "/api/supabase/shadow-save")).toHaveLength(1);
+  });
 });
 
 function createPoolTournament() {
@@ -245,4 +299,15 @@ function createCompletedInitialPoolTournament() {
   }
 
   return state;
+}
+
+function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void; reject: (reason?: unknown) => void } {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+
+  return { promise, resolve, reject };
 }

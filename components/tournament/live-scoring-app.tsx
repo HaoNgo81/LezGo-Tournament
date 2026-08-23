@@ -92,6 +92,7 @@ export function LiveScoringApp() {
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [toast, setToast] = useState("");
   const alarmPlayedForRound = useRef<number | null>(null);
+  const controllerMutationInFlightRef = useRef(false);
   const isPoolPlay = Boolean(state.poolPlay);
   const liveMatches = useMemo(() => (isPoolPlay ? [] : getLiveMatches(state)), [isPoolPlay, state]);
   const standings = useMemo(() => (isPoolPlay ? [] : calculateLiveStandings(state)), [isPoolPlay, state]);
@@ -377,7 +378,7 @@ export function LiveScoringApp() {
     }
   }
 
-  function saveOwnedCloudMatchResult(result: MatchResult): Promise<void> | null {
+  function saveOwnedCloudMatchResult(result: MatchResult): Promise<void | false> | null {
     const currentState = stateRef.current;
     const localId = createStandardShadowSaveLocalId(currentState);
     const metadata = loadShadowSaveMetadata(localId);
@@ -386,17 +387,18 @@ export function LiveScoringApp() {
       return null;
     }
 
+    const tournamentId = metadata.supabaseTournamentId;
     const expectedScoreVersion = metadata.matchScoreVersions?.[result.matchId];
 
     if (!expectedScoreVersion) {
-      return reconcileSameControllerConflict(localId, metadata.supabaseTournamentId, {})
+      return reconcileSameControllerConflict(localId, tournamentId, {})
         .then(() => {
           setSelectedMatchId(null);
           setToast(t("ownerTournamentConflictMessage"));
         });
     }
 
-    return performOwnedCloudMatchSave(result, localId, metadata.supabaseTournamentId, expectedScoreVersion);
+    return runControllerMutation(() => performOwnedCloudMatchSave(result, localId, tournamentId, expectedScoreVersion));
   }
 
   async function performOwnedCloudMatchSave(result: MatchResult, localId: string, tournamentId: string, expectedScoreVersion: number): Promise<void> {
@@ -458,7 +460,7 @@ export function LiveScoringApp() {
       return false;
     }
 
-    return (async () => {
+    return runControllerMutation(async () => {
       const response = await fetch("/api/supabase/shadow-save", {
         method: "POST",
         cache: "no-store",
@@ -493,7 +495,22 @@ export function LiveScoringApp() {
       saveActiveTournamentFromRemoteSync(nextState);
       markRemoteShadowSaveApplied(localId, "standard", body.updatedAt, new Date().toISOString(), body.matchScoreVersions);
       return true;
-    })();
+    });
+  }
+
+  async function runControllerMutation<T>(operation: () => Promise<T>): Promise<T | false> {
+    if (controllerMutationInFlightRef.current) {
+      setToast("Gemmer allerede. Vent et øjeblik.");
+      return false;
+    }
+
+    controllerMutationInFlightRef.current = true;
+
+    try {
+      return await operation();
+    } finally {
+      controllerMutationInFlightRef.current = false;
+    }
   }
 
   async function reconcileSameControllerConflict(localId: string, tournamentId: string, conflictBody: ShadowSaveWriteResponse): Promise<void> {

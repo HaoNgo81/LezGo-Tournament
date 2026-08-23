@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   calculateLiveStandings,
@@ -51,6 +51,7 @@ export function FinishTournamentApp() {
   const [state, setState] = useState<LiveTournamentState>(() => createMockLiveTournamentState());
   const [cloudAuthority, setCloudAuthority] = useState<CloudTournamentAuthority | null>(null);
   const [message, setMessage] = useState("");
+  const finishInFlightRef = useRef(false);
   const hasHydrated = useHasHydrated();
   const standings = useMemo(() => calculateLiveStandings(state), [state]);
   const poolSummary = useMemo(() => (state.poolPlay ? createPoolPlaySummary(state.poolPlay, state.rankingMode) : null), [state.poolPlay, state.rankingMode]);
@@ -76,14 +77,24 @@ export function FinishTournamentApp() {
   }
 
   async function handleFinish() {
-    const finishedState = finishTournament(state);
-
-    if (!await saveControlledFinishSnapshot(finishedState)) {
+    if (finishInFlightRef.current) {
       return;
     }
 
-    saveCompletedTournament(finishedState);
-    setState(finishedState);
+    finishInFlightRef.current = true;
+
+    try {
+      const finishedState = finishTournament(state);
+
+      if (!await saveControlledFinishSnapshot(finishedState)) {
+        return;
+      }
+
+      saveCompletedTournament(finishedState);
+      setState(finishedState);
+    } finally {
+      finishInFlightRef.current = false;
+    }
   }
 
   async function saveControlledFinishSnapshot(finishedState: LiveTournamentState): Promise<boolean> {
