@@ -13,6 +13,10 @@ const databaseMocks = vi.hoisted(() => ({
   teamVsTeamSave: vi.fn(),
 }));
 
+const restClientMocks = vi.hoisted(() => ({
+  select: vi.fn(),
+}));
+
 vi.mock("@/lib/auth/cookies", () => ({
   readAuthAccessCookie: authMocks.readAuthAccessCookie,
 }));
@@ -37,9 +41,19 @@ vi.mock("@/lib/database", async (importOriginal) => {
   };
 });
 
+vi.mock("@/lib/supabase/rest-client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/supabase/rest-client")>();
+
+  return {
+    ...actual,
+    createSupabaseRestClient: () => restClientMocks,
+  };
+});
+
 import { POST as shadowSaveTournament } from "../app/api/supabase/shadow-save/route";
 
 const userId = "00000000-0000-4000-8000-0000000000a1";
+const adminId = "00000000-0000-4000-8000-0000000000b2";
 const tournamentId = "00000000-0000-4000-8000-000000000501";
 const originalShadowSaveFlag = process.env.LEZGO_ENABLE_SUPABASE_SHADOW_SAVE;
 
@@ -50,6 +64,7 @@ describe("STEP 25K user-created tournament ownership shadow-save", () => {
     databaseMocks.createOrganizerToken.mockReset();
     databaseMocks.standardSave.mockReset();
     databaseMocks.teamVsTeamSave.mockReset();
+    restClientMocks.select.mockReset();
 
     process.env.LEZGO_ENABLE_SUPABASE_SHADOW_SAVE = "1";
     authMocks.readAuthAccessCookie.mockResolvedValue("auth-cookie-token");
@@ -145,4 +160,104 @@ describe("STEP 25K user-created tournament ownership shadow-save", () => {
       }),
     );
   });
+
+  it("blocks anonymous snapshot updates to existing account-owned tournaments", async () => {
+    authMocks.readAuthAccessCookie.mockRejectedValue(new Error("headers are not available"));
+    authMocks.readOptionalAccountFromAccessToken.mockResolvedValue(null);
+    restClientMocks.select.mockResolvedValueOnce([createTournamentAuthorityRow(userId, userId, userId)]);
+    const state = {
+      ...createMockLiveTournamentState(),
+      tournamentName: "STEP 25R Owned Cup",
+    };
+
+    const response = await shadowSaveTournament(new Request("http://localhost/api/supabase/shadow-save", {
+      method: "POST",
+      body: JSON.stringify({
+        kind: "standard",
+        legacyLocalId: "step-25r-owned-cup-americano",
+        tournamentId,
+        state,
+      }),
+    }));
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({
+      ok: false,
+      error: "Du har ikke længere styring af denne turnering.",
+    });
+    expect(databaseMocks.standardSave).not.toHaveBeenCalled();
+  });
+
+  it("blocks a stale former controller from replacing an account-owned snapshot after takeover", async () => {
+    authMocks.readOptionalAccountFromAccessToken.mockResolvedValue({
+      userId,
+      email: "owner@example.com",
+      displayName: "Owner",
+      role: "user",
+    });
+    restClientMocks.select.mockResolvedValueOnce([createTournamentAuthorityRow(userId, userId, adminId)]);
+    const state = {
+      ...createMockLiveTournamentState(),
+      tournamentName: "STEP 25R Taken Over Cup",
+    };
+
+    const response = await shadowSaveTournament(new Request("http://localhost/api/supabase/shadow-save", {
+      method: "POST",
+      body: JSON.stringify({
+        kind: "standard",
+        legacyLocalId: "step-25r-taken-over-cup-americano",
+        tournamentId,
+        state,
+      }),
+    }));
+
+    expect(response.status).toBe(403);
+    expect(databaseMocks.standardSave).not.toHaveBeenCalled();
+  });
+
+  it("allows the current controller to replace an existing account-owned snapshot", async () => {
+    authMocks.readOptionalAccountFromAccessToken.mockResolvedValue({
+      userId: adminId,
+      email: "admin@example.com",
+      displayName: "Admin",
+      role: "admin",
+    });
+    restClientMocks.select.mockResolvedValueOnce([createTournamentAuthorityRow(userId, userId, adminId)]);
+    const state = {
+      ...createMockLiveTournamentState(),
+      tournamentName: "STEP 25R Controlled Cup",
+    };
+
+    const response = await shadowSaveTournament(new Request("http://localhost/api/supabase/shadow-save", {
+      method: "POST",
+      body: JSON.stringify({
+        kind: "standard",
+        legacyLocalId: "step-25r-controlled-cup-americano",
+        tournamentId,
+        expectedUpdatedAt: "2026-08-23T09:00:00.000Z",
+        state,
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(databaseMocks.standardSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tournamentName: "STEP 25R Controlled Cup",
+      }),
+      expect.objectContaining({
+        legacyLocalId: "step-25r-controlled-cup-americano",
+        tournamentId,
+        expectedUpdatedAt: "2026-08-23T09:00:00.000Z",
+        ownerUserId: adminId,
+      }),
+    );
+  });
 });
+
+function createTournamentAuthorityRow(owner_user_id: string | null, created_by_user_id: string | null, controller_user_id: string | null) {
+  return {
+    owner_user_id,
+    created_by_user_id,
+    controller_user_id,
+  };
+}

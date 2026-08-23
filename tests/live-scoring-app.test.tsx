@@ -4,7 +4,7 @@ import { AppShell } from "../components/layout/app-shell";
 import { LiveScoringApp } from "../components/tournament/live-scoring-app";
 import { SyncStatusPanel } from "../components/tournament/sync-status-panel";
 import { advanceLivePoolPlayState, createMockLiveTournamentState, saveMatchResult, saveNextPoolPhaseResult } from "../lib/live-scoring";
-import { createPoolTournamentFromSetup, createStandardShadowSaveLocalId, createTournamentFromSetup, loadActiveTournament, markActiveCloudTournamentAuthority, saveActiveTournament, saveActiveTournamentFromRemoteSync, type TournamentSetupFormat } from "../lib/tournament-setup";
+import { createPoolTournamentFromSetup, createStandardShadowSaveLocalId, createTournamentFromSetup, loadActiveTournament, loadShadowSaveMetadata, markActiveCloudTournamentAuthority, saveActiveTournament, saveActiveTournamentFromRemoteSync, type TournamentSetupFormat } from "../lib/tournament-setup";
 
 const sixteenPlayerText = Array.from({ length: 16 }, (_, index) => `Spiller ${index + 1}`).join("\n");
 const originalShadowSaveFlag = process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE;
@@ -374,7 +374,7 @@ describe("LiveScoringApp score sheet", () => {
 
     render(<LiveScoringApp />);
 
-    expect(await screen.findByText("Turneringen styres nu af en anden bruger.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByText("Du har ikke længere styring af denne turnering.").length).toBeGreaterThan(0));
     expect(screen.getByText("Du kan stadig se turneringen, men du kan ikke længere ændre den.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Indtast score" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Aktivér deling" })).not.toBeInTheDocument();
@@ -384,6 +384,67 @@ describe("LiveScoringApp score sheet", () => {
     expect(screen.getByRole("heading", { name: "Stilling" })).toBeInTheDocument();
     expect(screen.getAllByTestId("live-court-card")).toHaveLength(localState.rounds[0].matches.length);
   });
+
+  it("moves a stale controller to read-only when the owner score API denies a write", async () => {
+    const localState = createMockLiveTournamentState();
+    const matchId = localState.rounds[0].matches[1].id;
+    const localId = createStandardShadowSaveLocalId(localState);
+    saveActiveTournamentFromRemoteSync(localState);
+    markActiveCloudTournamentAuthority({
+      source: "server",
+      kind: "standard",
+      localId,
+      tournamentId: "00000000-0000-4000-8000-0000000009d9",
+      canRead: true,
+      canManage: true,
+      createdByUserId: "00000000-0000-4000-8000-00000000aaa1",
+      controllerUserId: "00000000-0000-4000-8000-00000000aaa1",
+      ownerUserId: "00000000-0000-4000-8000-00000000aaa1",
+    });
+    saveShadowMetadata(localId, {
+      canManage: true,
+      kind: "standard",
+      lastLocalSaveAt: "2026-08-23T12:00:00.000Z",
+      lastShadowSaveVersion: "2026-08-23T12:00:00.000Z",
+      status: "synced",
+      supabaseTournamentId: "00000000-0000-4000-8000-0000000009d9",
+      organizerToken: "STALE_CREATOR_ORGANIZER_TOKEN",
+      matchScoreVersions: { [matchId]: 1 },
+    });
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = input.toString();
+
+      if (url === "/api/account/tournaments/00000000-0000-4000-8000-0000000009d9/score") {
+        return Promise.resolve(new Response(JSON.stringify({
+          ok: false,
+          error: "Du har ikke længere styring af denne turnering.",
+        }), { status: 403 }));
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({ ok: false }), { status: 500 }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<LiveScoringApp />);
+
+    expect(await screen.findByText("Mock Americano")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Indtast score" })[1]);
+    fireEvent.change(screen.getByRole("textbox", { name: "Hold A scorepoint" }), { target: { value: "14" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Hold B scorepoint" }), { target: { value: "9" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gem" }));
+
+    await waitFor(() => expect(screen.getAllByText("Du har ikke længere styring af denne turnering.").length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Indtast score" })).not.toBeInTheDocument());
+    expect(loadShadowSaveMetadata(localId)).toMatchObject({
+      canManage: false,
+      supabaseTournamentId: "00000000-0000-4000-8000-0000000009d9",
+    });
+    expect(loadShadowSaveMetadata(localId)?.organizerToken).toBeUndefined();
+    expect(JSON.parse(window.sessionStorage.getItem("lezgo.activeCloudTournamentAuthority.v1") ?? "{}")).toMatchObject({
+      canManage: false,
+      tournamentId: "00000000-0000-4000-8000-0000000009d9",
+    });
+  }, 10000);
 
   it("keeps a local tournament fully manageable without cloud authority", async () => {
     const localState = createMockLiveTournamentState();

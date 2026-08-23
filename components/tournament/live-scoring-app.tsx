@@ -36,7 +36,7 @@ import { SyncStatusPanel } from "@/components/tournament/sync-status-panel";
 import { UnifiedCourtCard } from "@/components/tournament/unified-court-card";
 import { useAppTranslation } from "@/lib/preferences/client";
 import type { TranslationKey } from "@/lib/i18n/translations";
-import { calculateInitialPoolStandings, createStandardShadowSaveLocalId, loadActiveCloudTournamentAuthority, loadActiveTournament, loadShadowSaveMetadata, markRemoteShadowSaveApplied, saveActiveTournament, saveActiveTournamentFromRemoteSync, saveCompletedTournament, type CloudTournamentAuthority, type CrossMatchFinalEncounter, type CrossMatchFinalStage, type PoolMatchResult, type PoolParticipant } from "@/lib/tournament-setup";
+import { calculateInitialPoolStandings, createStandardShadowSaveLocalId, loadActiveCloudTournamentAuthority, loadActiveTournament, loadShadowSaveMetadata, markActiveCloudTournamentAuthority, markCloudTournamentRestored, markRemoteShadowSaveApplied, saveActiveTournament, saveActiveTournamentFromRemoteSync, saveCompletedTournament, type CloudTournamentAuthority, type CrossMatchFinalEncounter, type CrossMatchFinalStage, type PoolMatchResult, type PoolParticipant } from "@/lib/tournament-setup";
 import { calculateFixedTotalScore } from "@/lib/tournament-setup/scoring";
 import { loadTournamentSettings, playTournamentAlarmSound } from "@/lib/tournament-settings";
 import type { MatchResult, StandingsRankingMode, TournamentPlayer } from "@/lib/tournament-engine";
@@ -299,6 +299,13 @@ export function LiveScoringApp() {
       return;
     }
 
+    if (response.status === 401 || response.status === 403) {
+      markCurrentCloudAuthorityReadOnly(localId, tournamentId);
+      setSelectedMatchId(null);
+      setToast(t("remoteControlledByOtherUser"));
+      return;
+    }
+
     if (!response.ok || !body.ok || body.kind !== "standard" || !body.state || !body.updatedAt) {
       throw new Error(body.error ?? "Resultatet kunne ikke gemmes.");
     }
@@ -309,6 +316,34 @@ export function LiveScoringApp() {
     setState(body.state);
     setSelectedMatchId(null);
     setToast("Resultat gemt.");
+  }
+
+  function markCurrentCloudAuthorityReadOnly(localId: string, tournamentId: string) {
+    const authority: CloudTournamentAuthority = {
+      ...(activeCloudAuthority ?? {
+        source: "server",
+        kind: "standard",
+        localId,
+        tournamentId,
+        canRead: true,
+        canManage: true,
+      }),
+      source: "server",
+      kind: "standard",
+      localId,
+      tournamentId,
+      canRead: true,
+      canManage: false,
+    };
+
+    markActiveCloudTournamentAuthority(authority);
+    markCloudTournamentRestored({
+      localId,
+      kind: "standard",
+      tournamentId,
+      canManage: false,
+    });
+    setCloudAuthority(authority);
   }
 
   function handleSavePoolResult(result: PoolMatchResult) {

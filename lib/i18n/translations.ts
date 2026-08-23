@@ -553,7 +553,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     remoteReadOnlyBanner: "Visning fra anden enhed - skrivebeskyttet",
     remoteReadOnlyHelp: "Du kan se live score og stilling, men denne visning kan ikke gemme, redigere eller overskrive lokale turneringer.",
     remoteReadOnlyShort: "Skrivebeskyttet",
-    remoteControlledByOtherUser: "Turneringen styres nu af en anden bruger.",
+    remoteControlledByOtherUser: "Du har ikke længere styring af denne turnering.",
     remoteControlledByOtherUserHelp: "Du kan stadig se turneringen, men du kan ikke længere ændre den.",
     remoteScoreEntryBanner: "Visning fra anden enhed - scoreindtastning aktiv",
     remoteScoreEntryShort: "Score aktiv",
