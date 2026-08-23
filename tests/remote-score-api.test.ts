@@ -100,6 +100,7 @@ describe("STEP 23A remote score API", () => {
         matchId: "match-1",
         teamAPoints: 17,
         teamBPoints: 7,
+        expectedUpdatedAt: "2026-08-13T12:00:00.000Z",
       }),
     }));
 
@@ -179,11 +180,32 @@ describe("STEP 23A remote score API", () => {
         matchId: state.rounds[0].matches[0].id,
         teamAPoints: 17,
         teamBPoints: 7,
+        expectedUpdatedAt: "2026-08-13T12:00:00.000Z",
       }),
     }));
 
     expect(response.status).toBe(409);
     expect(await response.json()).toMatchObject({ ok: false, error: "Conflict: newer version exists." });
+  });
+
+  it("rejects score-entry writes that omit the expected tournament revision", async () => {
+    const state = createMockLiveTournamentState();
+
+    const response = await POST(new Request("http://localhost/api/supabase/tournament-access/score", {
+      method: "POST",
+      body: JSON.stringify({
+        tournamentCode: "K7M4XP",
+        shareToken: "2222",
+        matchId: state.rounds[0].matches[0].id,
+        teamAPoints: 17,
+        teamBPoints: 7,
+      }),
+    }));
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ ok: false, error: "Tournament revision is required." });
+    expect(repositoryMocks.readByAccess).not.toHaveBeenCalled();
+    expect(repositoryMocks.save).not.toHaveBeenCalled();
   });
 
   it("rate limits repeated score writes per tournament code", async () => {
@@ -239,6 +261,7 @@ function createScoreRequest(tournamentCode: string, matchId: string): Request {
       matchId,
       teamAPoints: 17,
       teamBPoints: 7,
+      expectedUpdatedAt: "2026-08-13T12:00:00.000Z",
     }),
   });
 }

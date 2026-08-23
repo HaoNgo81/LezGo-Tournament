@@ -57,6 +57,10 @@ export async function POST(request: Request): Promise<Response> {
     const existingAuthority = await readExistingTournamentAuthority(body.tournamentId);
     const ownerUserId = resolveShadowSaveActorUserId(existingAuthority, account?.userId);
 
+    if (body.tournamentId && existingAuthority && isAccountControlledTournament(existingAuthority) && !body.expectedUpdatedAt) {
+      return await createSnapshotConflictResponse(body.tournamentId);
+    }
+
     if (body.kind === "standard" && isLiveTournamentState(body.state)) {
       const result = await createStandardTournamentRepository().save(body.state, {
         legacyLocalId: body.legacyLocalId,
@@ -64,11 +68,13 @@ export async function POST(request: Request): Promise<Response> {
         expectedUpdatedAt: body.expectedUpdatedAt,
         ownerUserId,
       });
+      const matchScoreVersions = await readStandardMatchScoreVersions(result.tournamentId);
       return Response.json({
         ok: true,
         tournamentId: result.tournamentId,
         updatedAt: result.updatedAt,
         saveMode: result.saveMode,
+        matchScoreVersions,
         organizerToken: createOrganizerToken({ tournamentId: result.tournamentId, kind: body.kind, legacyLocalId: body.legacyLocalId }),
       });
     }
@@ -110,6 +116,10 @@ export async function POST(request: Request): Promise<Response> {
       : status === 409 ? "Tournament snapshot conflict." : "Shadow-save failed.";
     return Response.json({ ok: false, error: errorMessage }, { status });
   }
+}
+
+async function readStandardMatchScoreVersions(tournamentId: string): Promise<Record<string, number>> {
+  return await readOwnedMatchScoreVersions(createSupabaseRestClient(), tournamentId);
 }
 
 async function createSnapshotConflictResponse(tournamentId: string): Promise<Response> {

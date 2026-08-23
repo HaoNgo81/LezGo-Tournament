@@ -89,6 +89,7 @@ describe("STEP 25K user-created tournament ownership shadow-save", () => {
     });
     databaseMocks.standardRead.mockResolvedValue(createMockLiveTournamentState());
     databaseMocks.readOwnedMatchScoreVersions.mockResolvedValue({});
+    restClientMocks.select.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -113,12 +114,13 @@ describe("STEP 25K user-created tournament ownership shadow-save", () => {
         state,
       }),
     }));
-    const body = await response.json() as { ok?: boolean; tournamentId?: string; organizerToken?: string };
+    const body = await response.json() as { ok?: boolean; tournamentId?: string; organizerToken?: string; matchScoreVersions?: Record<string, number> };
 
     expect(response.status).toBe(200);
     expect(body).toMatchObject({
       ok: true,
       tournamentId,
+      matchScoreVersions: {},
       organizerToken: "STEP_25K_ORGANIZER_TOKEN",
     });
     expect(authMocks.readOptionalAccountFromAccessToken).toHaveBeenCalledWith("auth-cookie-token");
@@ -260,6 +262,44 @@ describe("STEP 25K user-created tournament ownership shadow-save", () => {
         ownerUserId: adminId,
       }),
     );
+  });
+
+  it("rejects an existing account-owned full snapshot when the client omits the expected revision", async () => {
+    authMocks.readOptionalAccountFromAccessToken.mockResolvedValue({
+      userId,
+      email: "owner@example.com",
+      displayName: "Owner",
+      role: "user",
+    });
+    restClientMocks.select
+      .mockResolvedValueOnce([createTournamentAuthorityRow(userId, userId, userId)])
+      .mockResolvedValueOnce([createTournamentAuthorityRow(userId, userId, userId)]);
+    databaseMocks.standardRead.mockResolvedValue({
+      ...createMockLiveTournamentState(),
+      tournamentName: "STEP 25S Preserved Cup",
+      results: [{ matchId: "r1-c1", teamAPoints: 21, teamBPoints: 10 }],
+    });
+    databaseMocks.readOwnedMatchScoreVersions.mockResolvedValue({ "r1-c1": 2, "r1-c2": 1 });
+
+    const response = await shadowSaveTournament(new Request("http://localhost/api/supabase/shadow-save", {
+      method: "POST",
+      body: JSON.stringify({
+        kind: "standard",
+        legacyLocalId: "step-25s-preserved-cup-americano",
+        tournamentId,
+        state: createMockLiveTournamentState(),
+      }),
+    }));
+    const body = await response.json() as { ok?: boolean; conflict?: boolean; state?: { results?: unknown[] }; matchScoreVersions?: Record<string, number> };
+
+    expect(response.status).toBe(409);
+    expect(body).toMatchObject({
+      ok: false,
+      conflict: true,
+      matchScoreVersions: { "r1-c1": 2, "r1-c2": 1 },
+    });
+    expect(body.state?.results).toEqual([{ matchId: "r1-c1", teamAPoints: 21, teamBPoints: 10 }]);
+    expect(databaseMocks.standardSave).not.toHaveBeenCalled();
   });
 
   it("returns the latest authoritative snapshot when a current controller full snapshot is stale", async () => {

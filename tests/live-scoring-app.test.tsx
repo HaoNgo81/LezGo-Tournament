@@ -346,6 +346,61 @@ describe("LiveScoringApp score sheet", () => {
     expect(fetchMock).not.toHaveBeenCalledWith("/api/supabase/shadow-save", expect.anything());
   }, 10000);
 
+  it("does not fall back to a full stale snapshot when cloud score versions are missing", async () => {
+    const localState = createMockLiveTournamentState();
+    const matchId = localState.rounds[0].matches[0].id;
+    const latestState = saveMatchResult(localState, {
+      matchId,
+      teamAPoints: 21,
+      teamBPoints: 10,
+    });
+    const localId = createStandardShadowSaveLocalId(localState);
+    saveActiveTournamentFromRemoteSync(localState);
+    saveShadowMetadata(localId, {
+      canManage: true,
+      kind: "standard",
+      lastLocalSaveAt: "2026-08-23T12:50:00.000Z",
+      lastShadowSaveVersion: "2026-08-23T12:50:00.000Z",
+      status: "synced",
+      supabaseTournamentId: "00000000-0000-4000-8000-0000000009e3",
+      organizerToken: "SAME_USER_ORGANIZER_TOKEN",
+    });
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = input.toString();
+
+      if (url === "/api/account/tournaments/00000000-0000-4000-8000-0000000009e3") {
+        return Promise.resolve(new Response(JSON.stringify({
+          ok: true,
+          kind: "standard",
+          state: latestState,
+          tournamentId: "00000000-0000-4000-8000-0000000009e3",
+          updatedAt: "2026-08-23T12:51:00.000Z",
+          matchScoreVersions: { [matchId]: 2 },
+        }), { status: 200 }));
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({ ok: false, error: `Unexpected URL ${url}` }), { status: 500 }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<LiveScoringApp />);
+
+    expect(await screen.findByText("Mock Americano")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Indtast score" })[0]);
+    fireEvent.change(screen.getByRole("textbox", { name: "Hold A scorepoint" }), { target: { value: "11" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Hold B scorepoint" }), { target: { value: "9" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gem" }));
+
+    await waitFor(() => expect(screen.getByText("Turneringen blev ændret på en anden enhed. De nyeste data er hentet. Prøv igen.")).toBeInTheDocument());
+    expect(loadActiveTournament()?.results).toEqual([{ matchId, teamAPoints: 21, teamBPoints: 10 }]);
+    expect(loadShadowSaveMetadata(localId)?.matchScoreVersions).toEqual({ [matchId]: 2 });
+    expect(fetchMock).toHaveBeenCalledWith("/api/account/tournaments/00000000-0000-4000-8000-0000000009e3", expect.objectContaining({
+      method: "GET",
+      cache: "no-store",
+    }));
+    expect(fetchMock).not.toHaveBeenCalledWith("/api/supabase/shadow-save", expect.anything());
+  }, 10000);
+
   it("opens a controller-transferred cloud tournament as read-only for the former creator", async () => {
     const localState = createMockLiveTournamentState();
     const localId = createStandardShadowSaveLocalId(localState);

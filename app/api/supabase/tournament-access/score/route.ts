@@ -44,6 +44,10 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ ok: false, error: "Indtast en gyldig score." }, { status: 400 });
   }
 
+  if (!body.expectedUpdatedAt) {
+    return Response.json({ ok: false, error: "Tournament revision is required." }, { status: 409 });
+  }
+
   try {
     const access = await createTournamentAccessRepository().readByAccess(body.tournamentCode, body.shareToken);
 

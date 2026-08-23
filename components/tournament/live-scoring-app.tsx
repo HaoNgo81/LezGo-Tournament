@@ -321,7 +321,11 @@ export function LiveScoringApp() {
     const expectedScoreVersion = metadata.matchScoreVersions?.[result.matchId];
 
     if (!expectedScoreVersion) {
-      return null;
+      return reconcileSameControllerConflict(localId, metadata.supabaseTournamentId, {})
+        .then(() => {
+          setSelectedMatchId(null);
+          setToast(t("ownerTournamentConflictMessage"));
+        });
     }
 
     return performOwnedCloudMatchSave(result, localId, metadata.supabaseTournamentId, expectedScoreVersion);
@@ -419,7 +423,7 @@ export function LiveScoringApp() {
       }
 
       saveActiveTournamentFromRemoteSync(nextState);
-      markRemoteShadowSaveApplied(localId, "standard", body.updatedAt, new Date().toISOString());
+      markRemoteShadowSaveApplied(localId, "standard", body.updatedAt, new Date().toISOString(), body.matchScoreVersions);
       return true;
     })();
   }

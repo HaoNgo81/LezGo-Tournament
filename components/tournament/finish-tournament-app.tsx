@@ -132,7 +132,7 @@ export function FinishTournamentApp() {
     }
 
     saveActiveTournamentFromRemoteSync(finishedState);
-    markRemoteShadowSaveApplied(localId, "standard", body.updatedAt, new Date().toISOString());
+    markRemoteShadowSaveApplied(localId, "standard", body.updatedAt, new Date().toISOString(), body.matchScoreVersions);
     return true;
   }
 
