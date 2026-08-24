@@ -2,7 +2,6 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "../components/layout/app-shell";
 import { LiveScoringApp } from "../components/tournament/live-scoring-app";
-import { SyncStatusPanel } from "../components/tournament/sync-status-panel";
 import { advanceLivePoolPlayState, createMockLiveTournamentState, goToNextRound, saveMatchResult, saveNextPoolPhaseResult } from "../lib/live-scoring";
 import { createPoolTournamentFromSetup, createStandardShadowSaveLocalId, createTournamentFromSetup, loadActiveTournament, loadShadowSaveMetadata, markActiveCloudTournamentAuthority, saveActiveTournament, saveActiveTournamentFromRemoteSync, type TournamentSetupFormat } from "../lib/tournament-setup";
 
@@ -230,49 +229,6 @@ describe("LiveScoringApp score sheet", () => {
     const playerLine = screen.getAllByTestId("live-court-left-player-1")[0];
     expect(playerLine).toHaveStyle({ overflowWrap: "break-word", wordBreak: "normal" });
     expect(playerLine).not.toHaveStyle({ overflowWrap: "anywhere" });
-  });
-
-  it("keeps synced sharing compact on mobile and exposes TV/access actions without the long UUID", async () => {
-    const state = createStandardTournament("Mexicano");
-    const localId = "step-24f-synced";
-    saveShadowMetadata(localId, {
-      kind: "standard",
-      lastLocalSaveAt: "2026-08-13T12:00:00.000Z",
-      lastShadowSaveVersion: "2026-08-13T12:00:00.000Z",
-      lastSuccessfulShadowSaveAt: "2026-08-13T12:00:00.000Z",
-      organizerToken: "STEP_24F_ORGANIZER_TOKEN",
-      status: "synced",
-      supabaseTournamentId: "00000000-0000-4000-8000-00000000024f",
-    });
-
-    render(<SyncStatusPanel kind="standard" localId={localId} state={state} />);
-
-    const syncPanel = screen.getByTestId("live-sync-status-panel");
-    expect(within(syncPanel).getByTestId("live-compact-sync-status")).toHaveTextContent("Synkroniseret");
-    expect(within(syncPanel).getByRole("button", { name: "TV / Livescore" })).toBeInTheDocument();
-    expect(within(syncPanel).getByRole("button", { name: "Scoreindtastning" })).toBeInTheDocument();
-    expect(within(syncPanel).getByText("TV")).toHaveClass("sm:hidden");
-    expect(within(syncPanel).getByText("Adgang")).toHaveClass("sm:hidden");
-    expect(within(syncPanel).getByText(/Sidst synkroniseret/)).toHaveClass("hidden", "sm:block");
-  });
-
-  it("keeps sync errors visible in the compact mobile status", async () => {
-    const state = createStandardTournament("Mexicano");
-    const localId = "step-24f-sync-error";
-    saveShadowMetadata(localId, {
-      kind: "standard",
-      lastError: "Supabase unavailable",
-      lastLocalSaveAt: "2026-08-13T12:00:00.000Z",
-      status: "error",
-    });
-
-    render(<SyncStatusPanel kind="standard" localId={localId} state={state} />);
-
-    const syncPanel = screen.getByTestId("live-sync-status-panel");
-    expect(within(syncPanel).getByText("Synkronisering fejlede")).toBeInTheDocument();
-    expect(within(syncPanel).getByText("Synkronisering kunne ikke gennemføres. Dine lokale data er bevaret.")).not.toHaveClass("hidden");
-    expect(within(syncPanel).queryByText(/Supabase unavailable/)).not.toBeInTheDocument();
-    expect(within(syncPanel).getByRole("button", { name: "Prøv igen" })).toBeInTheDocument();
   });
 
   it("uses English compact labels when English is selected", async () => {

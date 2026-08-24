@@ -115,17 +115,6 @@ html[data-theme="hybridLezgo"] [data-testid="live-mobile-round-summary"] {
   color: var(--surface-dark-text);
 }
 
-html[data-theme="hybridLezgo"] [data-testid="live-sync-status-panel"] {
-  border-color: rgba(220, 174, 47, 0.24);
-  background: var(--surface-dark);
-  color: var(--surface-dark-text);
-}
-
-html[data-theme="hybridLezgo"] [data-testid="live-sync-status-panel"] input,
-html[data-theme="hybridLezgo"] [data-testid="live-sync-status-panel"] code {
-  color: #191d1b;
-}
-
 a {
   color: inherit;
   text-decoration: none;

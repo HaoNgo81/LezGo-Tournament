@@ -57,14 +57,13 @@ describe("theme presets", () => {
     expect(globalCss).toMatch(/linear-gradient\(rgba\(247, 241, 229, 0\.76\), rgba\(247, 241, 229, 0\.84\)\)/);
   });
 
-  it("keeps Hybrid LEZGO color fidelity scoped to court cards, metrics and sync status without layout rules", () => {
+  it("keeps Hybrid LEZGO color fidelity scoped to court cards and metrics without layout rules", () => {
     const globalCss = readFileSync(resolve(process.cwd(), "app/globals.css"), "utf8");
 
     expect(globalCss).toContain('html[data-theme="hybridLezgo"] [data-card-structure="unified-court-card"]');
     expect(globalCss).toContain("--surface-dark: #4a3524;");
     expect(globalCss).toContain("background: var(--surface-dark);");
     expect(globalCss).toContain('html[data-theme="hybridLezgo"] [data-testid="live-summary-metric"]');
-    expect(globalCss).toContain('html[data-theme="hybridLezgo"] [data-testid="live-sync-status-panel"]');
     expect(globalCss).toContain(".tournament-format-button-selected [data-format-description]");
     expect(globalCss).toContain("color: var(--surface-dark-muted);");
     const hybridRules = globalCss.match(/html\[data-theme="hybridLezgo"\][^{]+\{[^}]+\}/g) ?? [];

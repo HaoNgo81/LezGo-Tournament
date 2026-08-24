@@ -1,4 +1,13 @@
 import Link from "next/link";
+import { AppShell } from "@/components/layout/app-shell";
+
+export function LegacyDisabledFeatureRoute() {
+  return (
+    <AppShell title="LEZGO PADEL" subtitle="Denne funktion er ikke længere tilgængelig." primaryAction={null}>
+      <DisabledFeaturePage />
+    </AppShell>
+  );
+}
 
 export function DisabledFeaturePage() {
   return (
