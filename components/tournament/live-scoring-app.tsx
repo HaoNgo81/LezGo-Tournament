@@ -904,8 +904,13 @@ function ScreenMirroringDialog({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
+        <div className="rounded-md border border-[var(--primary)] bg-[var(--primary-soft)]/50 p-3">
+          <p className="text-sm font-black text-[var(--primary-strong)]">Direkte TV-søgning er ikke tilgængelig i webversionen.</p>
+          <p className="mt-1 text-sm font-bold text-[var(--muted)]">Brug browserens eller enhedens indbyggede skærmvalg for at vise den samme controller-skærm på TV-skærmen.</p>
+        </div>
+
         <div className="grid gap-3">
-          <ScreenMirroringStep title="Desktop / Chrome" body="Brug Cast i Chrome og vælg dit TV. Vælg den aktuelle fane, så TV&apos;et viser samme LEZGO-skærm som controlleren." />
+          <ScreenMirroringStep title="Desktop / Chrome" body="Brug Cast i Chrome og vælg dit TV. Vælg den aktuelle fane, så TV-skærmen viser samme LEZGO-skærm som controlleren." />
           <ScreenMirroringStep title="Windows" body="Tryk Win + K og vælg en trådløs skærm." />
           <ScreenMirroringStep title="Apple" body="Brug Skærmspejling/AirPlay og vælg dit TV." />
           <ScreenMirroringStep title="Mobil / tablet" body="Brug telefonens eller tablettens indbyggede Cast/Skærmspejling." />

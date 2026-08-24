@@ -66,6 +66,7 @@ describe("LiveScoringApp score sheet", () => {
 
     const dialog = await screen.findByRole("dialog", { name: "Screen Mirroring" });
     expect(within(dialog).getByText("Vis LEZGO-turneringen på dit TV.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Direkte TV-søgning er ikke tilgængelig i webversionen.")).toBeInTheDocument();
     expect(within(dialog).getByText("Desktop / Chrome")).toBeInTheDocument();
     expect(within(dialog).getByText(/Brug Cast i Chrome og vælg dit TV/)).toBeInTheDocument();
     expect(within(dialog).getByText("Windows")).toBeInTheDocument();
