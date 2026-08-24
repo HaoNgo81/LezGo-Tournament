@@ -421,7 +421,7 @@ export function TournamentSetupForm() {
                 onClick={() => handleFormatClick(option)}
               >
                 <span id={labelId} className="text-base font-black leading-tight sm:text-lg">{getFormatDisplayName(option, t)}</span>
-                <span id={descriptionId} className="mt-1 block text-sm font-semibold leading-snug text-[var(--muted)]">{getFormatDescription(option, t)}</span>
+                <span id={descriptionId} className="mt-1 block text-sm font-semibold leading-snug text-[var(--muted)]" data-format-description>{getFormatDescription(option, t)}</span>
               </button>
             );
           })}

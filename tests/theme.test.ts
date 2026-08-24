@@ -12,6 +12,9 @@ const requiredControlTokens = [
   "--selected-bg",
   "--selected-text",
   "--selected-border",
+  "--surface-dark",
+  "--surface-dark-text",
+  "--surface-dark-muted",
 ] as const;
 
 describe("theme presets", () => {
@@ -26,11 +29,11 @@ describe("theme presets", () => {
     }
   });
 
-  it("adds Hybrid LEZGO as a warm cream, graphite and gold theme without replacing existing presets", () => {
+  it("adds Hybrid LEZGO as a warm cream, brown and gold theme without replacing existing presets", () => {
     expect(themePresets.hybridLezgo).toMatchObject({
       preset: "hybridLezgo",
       primary: "#d7a91e",
-      secondary: "#1d2221",
+      secondary: "#4a3524",
       background: "#f7f1e5",
       surface: "#fbf7ef",
       foreground: "#181b18",
@@ -58,10 +61,12 @@ describe("theme presets", () => {
     const globalCss = readFileSync(resolve(process.cwd(), "app/globals.css"), "utf8");
 
     expect(globalCss).toContain('html[data-theme="hybridLezgo"] [data-card-structure="unified-court-card"]');
-    expect(globalCss).toContain("background: #1b211f;");
+    expect(globalCss).toContain("--surface-dark: #4a3524;");
+    expect(globalCss).toContain("background: var(--surface-dark);");
     expect(globalCss).toContain('html[data-theme="hybridLezgo"] [data-testid="live-summary-metric"]');
     expect(globalCss).toContain('html[data-theme="hybridLezgo"] [data-testid="live-sync-status-panel"]');
-    expect(globalCss).toContain("background: #10251f;");
+    expect(globalCss).toContain(".tournament-format-button-selected [data-format-description]");
+    expect(globalCss).toContain("color: var(--surface-dark-muted);");
     const hybridRules = globalCss.match(/html\[data-theme="hybridLezgo"\][^{]+\{[^}]+\}/g) ?? [];
 
     expect(hybridRules.join("\n")).not.toMatch(/grid-template-columns|font-size|width:|height:|padding:|margin:|position:/);
@@ -81,6 +86,8 @@ describe("theme presets", () => {
 
       expect(getContrastRatio(variables["--control-bg"], variables["--control-text"])).toBeGreaterThanOrEqual(4.5);
       expect(getContrastRatio(variables["--selected-bg"], variables["--selected-text"])).toBeGreaterThanOrEqual(4.5);
+      expect(getContrastRatio(variables["--surface-dark"], variables["--surface-dark-text"])).toBeGreaterThanOrEqual(4.5);
+      expect(getContrastRatio(variables["--surface-dark"], variables["--surface-dark-muted"])).toBeGreaterThanOrEqual(4.5);
       expect(variables["--control-bg"]).not.toBe(variables["--selected-bg"]);
       expect(variables["--control-border"]).not.toBe(variables["--selected-border"]);
     }

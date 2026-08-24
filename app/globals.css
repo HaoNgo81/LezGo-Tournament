@@ -13,14 +13,17 @@
   --secondary: #fbf7ef;
   --secondary-text: #191d1b;
   --accent: #c99712;
+  --surface-dark: #4a3524;
+  --surface-dark-text: #fff5df;
+  --surface-dark-muted: #eadcc6;
   --line: rgba(153, 119, 39, 0.20);
   --border: rgba(153, 119, 39, 0.20);
   --control-bg: #fff9ef;
   --control-text: #191d1b;
   --control-border: rgba(205, 155, 20, 0.55);
   --control-hover-bg: #f4ead3;
-  --selected-bg: #1b211f;
-  --selected-text: #fff4de;
+  --selected-bg: var(--surface-dark);
+  --selected-text: var(--surface-dark-text);
   --selected-border: #d8aa20;
   --focus-ring: rgba(216, 170, 32, 0.30);
   --warning: #f7d046;
@@ -61,8 +64,8 @@ html[data-theme="hybridLezgo"] .app-card {
 
 html[data-theme="hybridLezgo"] [data-card-structure="unified-court-card"] {
   border-color: rgba(220, 174, 47, 0.20);
-  background: #1b211f;
-  color: #f4ebdd;
+  background: var(--surface-dark);
+  color: var(--surface-dark-text);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
 }
 
@@ -76,17 +79,17 @@ html[data-theme="hybridLezgo"] [data-card-structure="unified-court-card"] [data-
 }
 
 html[data-theme="hybridLezgo"] [data-card-structure="unified-court-card"] [data-testid$="-score-row"] {
-  color: #fff4de;
+  color: var(--surface-dark-text);
 }
 
 html[data-theme="hybridLezgo"] [data-card-structure="unified-court-card"] [data-testid$="-score-separator"] {
-  color: #d7cebc;
+  color: var(--surface-dark-muted);
 }
 
 html[data-theme="hybridLezgo"] [data-card-structure="unified-court-card"] [data-testid$="-unsaved-status"] {
   border-color: rgba(216, 170, 32, 0.32);
   background: rgba(255, 244, 222, 0.10);
-  color: #d7cebc;
+  color: var(--surface-dark-muted);
 }
 
 html[data-theme="hybridLezgo"] [data-card-structure="unified-court-card"] > div:first-child > span {
@@ -97,25 +100,25 @@ html[data-theme="hybridLezgo"] [data-card-structure="unified-court-card"] > div:
 html[data-theme="hybridLezgo"] .metric-card,
 html[data-theme="hybridLezgo"] [data-testid="live-summary-metric"] {
   border-color: rgba(220, 174, 47, 0.20);
-  background: #1b211f;
-  color: #fff5df;
+  background: var(--surface-dark);
+  color: var(--surface-dark-text);
 }
 
 html[data-theme="hybridLezgo"] .metric-card p:first-child,
 html[data-theme="hybridLezgo"] [data-testid="live-summary-metric"] p:first-child {
-  color: #d5ccba;
+  color: var(--surface-dark-muted);
 }
 
 html[data-theme="hybridLezgo"] [data-testid="live-mobile-round-summary"] {
   border-color: rgba(220, 174, 47, 0.20);
-  background: #1b211f;
-  color: #fff5df;
+  background: var(--surface-dark);
+  color: var(--surface-dark-text);
 }
 
 html[data-theme="hybridLezgo"] [data-testid="live-sync-status-panel"] {
   border-color: rgba(220, 174, 47, 0.24);
-  background: #10251f;
-  color: #f4ebdd;
+  background: var(--surface-dark);
+  color: var(--surface-dark-text);
 }
 
 html[data-theme="hybridLezgo"] [data-testid="live-sync-status-panel"] input,
@@ -219,6 +222,10 @@ img {
   background: var(--selected-bg);
   color: var(--selected-text);
   box-shadow: inset 0 0 0 2px var(--selected-border);
+}
+
+.tournament-format-button-selected [data-format-description] {
+  color: var(--surface-dark-muted);
 }
 
 .tournament-format-button-unselected {

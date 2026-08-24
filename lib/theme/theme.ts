@@ -23,9 +23,9 @@ export const themePresets: Record<Exclude<ThemePreset, "custom">, AppTheme> = {
   darkGold: {
     preset: "darkGold",
     primary: "#f7d046",
-    secondary: "#201d14",
-    background: "#0b0a07",
-    surface: "#15130d",
+    secondary: "#5a402c",
+    background: "#3a291c",
+    surface: "#4a3524",
     foreground: "#fff8df",
     accent: "#caa253",
   },
@@ -68,7 +68,7 @@ export const themePresets: Record<Exclude<ThemePreset, "custom">, AppTheme> = {
   hybridLezgo: {
     preset: "hybridLezgo",
     primary: "#d7a91e",
-    secondary: "#1d2221",
+    secondary: "#4a3524",
     background: "#f7f1e5",
     surface: "#fbf7ef",
     foreground: "#181b18",
@@ -91,6 +91,9 @@ export interface ThemeCssVariables {
   "--secondary": string;
   "--secondary-text": string;
   "--accent": string;
+  "--surface-dark": string;
+  "--surface-dark-text": string;
+  "--surface-dark-muted": string;
   "--control-bg": string;
   "--control-text": string;
   "--control-border": string;
@@ -161,12 +164,15 @@ export function createThemeCssVariables(theme: AppTheme): ThemeCssVariables {
       "--secondary": "#fbf7ef",
       "--secondary-text": "#191d1b",
       "--accent": "#c99712",
+      "--surface-dark": "#4a3524",
+      "--surface-dark-text": "#fff5df",
+      "--surface-dark-muted": "#eadcc6",
       "--control-bg": "#fff9ef",
       "--control-text": "#191d1b",
       "--control-border": "rgba(205, 155, 20, 0.55)",
       "--control-hover-bg": "#f4ead3",
-      "--selected-bg": "#1b211f",
-      "--selected-text": "#fff4de",
+      "--selected-bg": "#4a3524",
+      "--selected-text": "#fff5df",
       "--selected-border": "#d8aa20",
       "--focus-ring": "rgba(216, 170, 32, 0.30)",
       "--danger-bg": "#fff2ed",
@@ -178,7 +184,10 @@ export function createThemeCssVariables(theme: AppTheme): ThemeCssVariables {
   const muted = mixHex(theme.foreground, theme.background, 0.38);
   const line = mixHex(theme.foreground, theme.background, 0.82);
   const primarySoft = mixHex(theme.primary, theme.surface, 0.84);
-  const selectedText = getReadableTextColor(primarySoft);
+  const surfaceDark = getRelativeLuminance(theme.secondary) < 0.25 ? theme.secondary : mixHex(theme.foreground, "#000000", 0.2);
+  const surfaceDarkText = getReadableTextColor(surfaceDark);
+  const surfaceDarkMuted = surfaceDarkText === "#ffffff" ? mixHex("#ffffff", surfaceDark, 0.18) : mixHex(theme.foreground, theme.background, 0.38);
+  const selectedBg = surfaceDark === theme.secondary ? mixHex(surfaceDark, "#000000", 0.18) : surfaceDark;
   const focusRing = withAlpha(theme.primary, 0.28);
   const controlHoverBg = mixHex(theme.primary, theme.secondary, 0.9);
   const dangerBg = mixHex("#dc2626", theme.surface, 0.88);
@@ -198,12 +207,15 @@ export function createThemeCssVariables(theme: AppTheme): ThemeCssVariables {
     "--secondary": theme.secondary,
     "--secondary-text": secondaryText,
     "--accent": theme.accent,
+    "--surface-dark": surfaceDark,
+    "--surface-dark-text": surfaceDarkText,
+    "--surface-dark-muted": surfaceDarkMuted,
     "--control-bg": theme.secondary,
     "--control-text": secondaryText,
     "--control-border": line,
     "--control-hover-bg": controlHoverBg,
-    "--selected-bg": primarySoft,
-    "--selected-text": selectedText,
+    "--selected-bg": selectedBg,
+    "--selected-text": surfaceDarkText,
     "--selected-border": theme.primary,
     "--focus-ring": focusRing,
     "--danger-bg": dangerBg,

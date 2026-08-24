@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -58,6 +60,22 @@ describe("tournament setup form", () => {
       expect(within(button).getByText(description)).toBeInTheDocument();
       expect(within(button).getByText(description)).toHaveClass("text-sm", "font-semibold", "text-[var(--muted)]");
     }
+  });
+
+  it("keeps selected format-card descriptions readable on the dark brown surface", () => {
+    const globalCss = readFileSync(resolve(process.cwd(), "app/globals.css"), "utf8");
+
+    render(<TournamentSetupForm />);
+
+    const selectedButton = screen.getByRole("button", { name: "Americano" });
+    const description = within(selectedButton).getByText("Alle spiller med og mod hinanden.");
+
+    expect(selectedButton).toHaveClass("tournament-format-button-selected");
+    expect(description).toHaveAttribute("data-format-description");
+    expect(globalCss).toContain("--surface-dark: #4a3524;");
+    expect(globalCss).toContain("--selected-bg: var(--surface-dark);");
+    expect(globalCss).toContain(".tournament-format-button-selected [data-format-description]");
+    expect(globalCss).toContain("color: var(--surface-dark-muted);");
   });
 
   it("selects the format when clicking the description inside the card", () => {

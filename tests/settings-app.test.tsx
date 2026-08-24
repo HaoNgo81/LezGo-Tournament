@@ -53,8 +53,8 @@ describe("SettingsApp", () => {
     }
 
     fireEvent.change(themeSelect, { target: { value: "darkGold" } });
-    expect(document.documentElement.style.getPropertyValue("--background")).toBe("#0b0a07");
-    expect(document.documentElement.style.getPropertyValue("--control-bg")).toBe("#201d14");
+    expect(document.documentElement.style.getPropertyValue("--background")).toBe("#3a291c");
+    expect(document.documentElement.style.getPropertyValue("--control-bg")).toBe("#5a402c");
 
     fireEvent.click(screen.getByRole("button", { name: "Gem indstillinger" }));
     await waitFor(() => expect(loadTournamentSettings().theme.preset).toBe("darkGold"));
@@ -70,7 +70,8 @@ describe("SettingsApp", () => {
     expect(document.documentElement.style.getPropertyValue("--background")).toBe("#f7f1e5");
     expect(document.documentElement.style.getPropertyValue("--surface")).toBe("#fff9ef");
     expect(document.documentElement.style.getPropertyValue("--primary")).toBe("#d8aa20");
-    expect(document.documentElement.style.getPropertyValue("--selected-bg")).toBe("#1b211f");
+    expect(document.documentElement.style.getPropertyValue("--surface-dark")).toBe("#4a3524");
+    expect(document.documentElement.style.getPropertyValue("--selected-bg")).toBe("#4a3524");
     expect(document.documentElement.style.getPropertyValue("--control-bg")).toBe("#fff9ef");
 
     fireEvent.click(screen.getByRole("button", { name: "Gem indstillinger" }));

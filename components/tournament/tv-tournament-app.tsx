@@ -48,19 +48,19 @@ function StandardTvView({ state }: { state: LiveTournamentState }) {
   }
 
   return (
-    <main className="min-h-screen bg-[#0f1b14] p-6 text-white md:p-10">
+    <main className="min-h-screen bg-[var(--surface-dark)] p-6 text-[var(--surface-dark-text)] md:p-10">
       <header className="flex flex-wrap items-end justify-between gap-4 border-b border-white/20 pb-5">
         <div>
           <p className="text-lg font-bold uppercase text-[#f7d046]">LEZGO PADEL TV</p>
           <h1 className="mt-2 text-4xl font-black md:text-6xl">{view.tournamentName}</h1>
         </div>
         <div className="grid grid-cols-2 gap-4 text-right md:grid-cols-4">
-          <div><p className="text-white/60">{t("round")}</p><p className="text-4xl font-black">{view.activeRoundNumber} / {view.totalRounds}</p></div>
-          <div><p className="text-white/60">{t("players")}</p><p className="text-4xl font-black">{view.players}</p></div>
-          <div><p className="text-white/60">{t("courts")}</p><p className="text-4xl font-black">{view.courts}</p></div>
+          <div><p className="text-[var(--surface-dark-muted)]">{t("round")}</p><p className="text-4xl font-black">{view.activeRoundNumber} / {view.totalRounds}</p></div>
+          <div><p className="text-[var(--surface-dark-muted)]">{t("players")}</p><p className="text-4xl font-black">{view.players}</p></div>
+          <div><p className="text-[var(--surface-dark-muted)]">{t("courts")}</p><p className="text-4xl font-black">{view.courts}</p></div>
         </div>
       </header>
-      {view.byePlayers.length ? <p className="mt-5 rounded-md bg-[#f7d046] p-3 text-lg font-black text-[#0f1b14]">Pause: {view.byePlayers.join(" / ")}</p> : null}
+      {view.byePlayers.length ? <p className="mt-5 rounded-md bg-[#f7d046] p-3 text-lg font-black text-[var(--surface-dark)]">Pause: {view.byePlayers.join(" / ")}</p> : null}
       <section className="mt-6 grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
         <div className="[&_article]:bg-white [&_article]:text-[var(--foreground)]">
           <h2 className="mb-3 text-2xl font-black">{t("allCourts")}</h2>
@@ -77,18 +77,18 @@ function StandardTvView({ state }: { state: LiveTournamentState }) {
 
 function PoolPlayTvView({ view, poolPlay }: { view: ReadOnlyTournamentView; poolPlay: NonNullable<ReadOnlyTournamentView["poolPlay"]> }) {
   return (
-    <main className="min-h-screen bg-[#0f1b14] p-6 text-white md:p-10">
+    <main className="min-h-screen bg-[var(--surface-dark)] p-6 text-[var(--surface-dark-text)] md:p-10">
       <header className="flex flex-wrap items-end justify-between gap-4 border-b border-white/20 pb-5">
         <div>
           <p className="text-lg font-bold uppercase text-[#f7d046]">LEZGO PADEL TV</p>
           <h1 className="mt-2 text-4xl font-black md:text-6xl">{view.tournamentName}</h1>
-          <p className="mt-3 text-xl font-bold text-white/70">Puljespil · {poolPlay.phase}</p>
+          <p className="mt-3 text-xl font-bold text-[var(--surface-dark-muted)]">Puljespil · {poolPlay.phase}</p>
         </div>
         <div className="grid grid-cols-2 gap-4 text-right md:grid-cols-4">
-          <div><p className="text-white/60">Deltagere</p><p className="text-4xl font-black">{poolPlay.participantCount}</p></div>
-          <div><p className="text-white/60">Puljer</p><p className="text-4xl font-black">{poolPlay.poolCount}</p></div>
-          <div><p className="text-white/60">Næste fase</p><p className="text-4xl font-black">{poolPlay.nextPhaseMatches.length}</p></div>
-          <div><p className="text-white/60">Finaler</p><p className="text-4xl font-black">{poolPlay.finalMatches.length}</p></div>
+          <div><p className="text-[var(--surface-dark-muted)]">Deltagere</p><p className="text-4xl font-black">{poolPlay.participantCount}</p></div>
+          <div><p className="text-[var(--surface-dark-muted)]">Puljer</p><p className="text-4xl font-black">{poolPlay.poolCount}</p></div>
+          <div><p className="text-[var(--surface-dark-muted)]">Næste fase</p><p className="text-4xl font-black">{poolPlay.nextPhaseMatches.length}</p></div>
+          <div><p className="text-[var(--surface-dark-muted)]">Finaler</p><p className="text-4xl font-black">{poolPlay.finalMatches.length}</p></div>
         </div>
       </header>
 
@@ -158,17 +158,17 @@ function PoolPlayTvView({ view, poolPlay }: { view: ReadOnlyTournamentView; pool
 
 function TeamVsTeamTvView({ view }: { view: TeamVsTeamReadOnlyView }) {
   return (
-    <main className="min-h-screen bg-[#0f1b14] p-6 text-white md:p-10">
+    <main className="min-h-screen bg-[var(--surface-dark)] p-6 text-[var(--surface-dark-text)] md:p-10">
       <header className="flex flex-wrap items-end justify-between gap-4 border-b border-white/20 pb-5">
         <div>
           <p className="text-lg font-bold uppercase text-[#f7d046]">LEZGO PADEL TV</p>
           <h1 className="mt-2 text-4xl font-black md:text-6xl">{view.tournamentName}</h1>
-          <p className="mt-3 text-xl font-bold text-white/70">Team vs. Team · {view.activeMatchLabel} · Runde {view.activeRoundNumber} / {view.totalRounds}</p>
+          <p className="mt-3 text-xl font-bold text-[var(--surface-dark-muted)]">Team vs. Team · {view.activeMatchLabel} · Runde {view.activeRoundNumber} / {view.totalRounds}</p>
         </div>
         <div className="grid grid-cols-2 gap-4 text-right md:grid-cols-4">
-          <div><p className="text-white/60">Hold</p><p className="text-4xl font-black">{view.teamsCount}</p></div>
-          <div><p className="text-white/60">Spillere/hold</p><p className="text-4xl font-black">{view.playersPerTeam}</p></div>
-          <div><p className="text-white/60">Kampformat</p><p className="text-3xl font-black">{view.matchFormat}</p></div>
+          <div><p className="text-[var(--surface-dark-muted)]">Hold</p><p className="text-4xl font-black">{view.teamsCount}</p></div>
+          <div><p className="text-[var(--surface-dark-muted)]">Spillere/hold</p><p className="text-4xl font-black">{view.playersPerTeam}</p></div>
+          <div><p className="text-[var(--surface-dark-muted)]">Kampformat</p><p className="text-3xl font-black">{view.matchFormat}</p></div>
         </div>
       </header>
 
