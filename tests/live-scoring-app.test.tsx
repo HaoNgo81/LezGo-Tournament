@@ -46,7 +46,24 @@ describe("LiveScoringApp score sheet", () => {
     expect(screen.getAllByRole("button", { name: "Næste" })).toHaveLength(2);
   });
 
-  it("opens /live with the fallback tournament when local active storage is malformed", async () => {
+  it("opens /live directly with a controlled empty state when no active tournament exists", async () => {
+    render(<LiveScoringApp />);
+
+    expect(await screen.findByTestId("live-empty-state")).toHaveTextContent("Ingen aktiv turnering til visning");
+    expect(screen.getByRole("link", { name: "Turneringer" })).toHaveAttribute("href", "/tournaments");
+    expect(screen.getByRole("link", { name: "Ny turnering" })).toHaveAttribute("href", "/new-tournament");
+  });
+
+  it("opens /live with a controlled empty state when local active storage is malformed JSON", async () => {
+    window.localStorage.setItem("lezgo.activeTournament.v1", "{bad-json");
+
+    render(<LiveScoringApp />);
+
+    expect(await screen.findByTestId("live-empty-state")).toHaveTextContent("Ingen aktiv turnering til visning");
+    expect(window.localStorage.getItem("lezgo.activeTournament.v1")).toBeNull();
+  });
+
+  it("opens /live with a controlled empty state when local active storage is incomplete", async () => {
     window.localStorage.setItem("lezgo.activeTournament.v1", JSON.stringify({
       tournamentName: "Broken live state",
       format: "americano",
@@ -55,8 +72,21 @@ describe("LiveScoringApp score sheet", () => {
 
     render(<LiveScoringApp />);
 
-    expect(await screen.findByRole("heading", { name: "Mock Americano" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Stilling" })).toBeInTheDocument();
+    expect(await screen.findByTestId("live-empty-state")).toHaveTextContent("Ingen aktiv turnering til visning");
+    expect(window.localStorage.getItem("lezgo.activeTournament.v1")).toBeNull();
+  });
+
+  it("opens /live with a controlled empty state when the active round is missing", async () => {
+    const staleState = {
+      ...createMockLiveTournamentState(),
+      tournamentName: "Missing active round",
+      activeRoundNumber: 99,
+    };
+    window.localStorage.setItem("lezgo.activeTournament.v1", JSON.stringify(staleState));
+
+    render(<LiveScoringApp />);
+
+    expect(await screen.findByTestId("live-empty-state")).toHaveTextContent("Ingen aktiv turnering til visning");
     expect(window.localStorage.getItem("lezgo.activeTournament.v1")).toBeNull();
   });
 

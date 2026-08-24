@@ -86,6 +86,7 @@ type CommitResult = boolean | Promise<boolean>;
 export function LiveScoringApp() {
   const { t } = useAppTranslation();
   const [state, setState] = useState<LiveTournamentState>(() => createMockLiveTournamentState());
+  const [hasActiveTournament, setHasActiveTournament] = useState(true);
   const [cloudAuthority, setCloudAuthority] = useState<CloudTournamentAuthority | null>(null);
   const stateRef = useRef(state);
   const hasHydrated = useHasHydrated();
@@ -122,8 +123,10 @@ export function LiveScoringApp() {
     }
 
     const timeoutId = window.setTimeout(() => {
-      const loadedState = loadActiveTournament() ?? createMockLiveTournamentState();
+      const loadedTournament = loadActiveTournament();
+      const loadedState = loadedTournament ?? createMockLiveTournamentState();
       const loadedLocalId = createStandardShadowSaveLocalId(loadedState);
+      setHasActiveTournament(Boolean(loadedTournament));
       stateRef.current = loadedState;
       setState(loadedState);
       setCloudAuthority(loadActiveCloudTournamentAuthority("standard", loadedLocalId));
@@ -694,6 +697,10 @@ export function LiveScoringApp() {
     );
   }
 
+  if (hasHydrated && !hasActiveTournament) {
+    return <EmptyLiveTournamentState />;
+  }
+
   return (
     <div className="grid gap-3 sm:gap-5" data-testid="live-layout">
       <div className="app-card p-3 sm:p-5" data-testid="live-compact-mobile-header">
@@ -780,6 +787,22 @@ export function LiveScoringApp() {
       {selectedMatch && !isControllerReadOnly ? (
         <ScoreSheet liveMatch={selectedMatch} players={state.players} state={state} onClose={() => setSelectedMatchId(null)} onSave={handleSave} />
       ) : null}
+    </div>
+  );
+}
+
+function EmptyLiveTournamentState() {
+  return (
+    <div className="app-card grid gap-4 p-5 text-center sm:p-8" data-testid="live-empty-state">
+      <div>
+        <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">Live turnering</p>
+        <h2 className="mt-1 text-2xl font-black">Ingen aktiv turnering til visning</h2>
+        <p className="mt-2 font-bold text-[var(--muted)]">Åbn en turnering fra din konto eller opret en ny turnering for at bruge livescore.</p>
+      </div>
+      <div className="mx-auto grid w-full max-w-md gap-2 sm:grid-cols-2">
+        <Link className="btn-primary" href="/tournaments">Turneringer</Link>
+        <Link className="btn-secondary" href="/new-tournament">Ny turnering</Link>
+      </div>
     </div>
   );
 }

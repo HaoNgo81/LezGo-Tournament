@@ -251,6 +251,30 @@ describe("tournament storage", () => {
     expect(window.localStorage.getItem("lezgo.activeTournament.v1")).toBeNull();
   });
 
+  it("drops stale selected standard tournament state when the active round is missing", () => {
+    const staleState = {
+      ...createMockLiveTournamentState(),
+      activeRoundNumber: 99,
+    };
+
+    window.localStorage.setItem("lezgo.activeTournament.v1", JSON.stringify(staleState));
+
+    expect(loadActiveTournament()).toBeNull();
+    expect(window.localStorage.getItem("lezgo.activeTournament.v1")).toBeNull();
+  });
+
+  it("drops stale selected standard tournament state when a round has malformed matches", () => {
+    const staleState = {
+      ...createMockLiveTournamentState(),
+      rounds: [{ roundNumber: 1, matches: [{ id: "broken-match" }] }],
+    };
+
+    window.localStorage.setItem("lezgo.activeTournament.v1", JSON.stringify(staleState));
+
+    expect(loadActiveTournament()).toBeNull();
+    expect(window.localStorage.getItem("lezgo.activeTournament.v1")).toBeNull();
+  });
+
   it("filters malformed entries out of the active standard tournament list", () => {
     const validState = {
       ...createMockLiveTournamentState(),

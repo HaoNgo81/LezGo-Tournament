@@ -429,15 +429,73 @@ function isLoadableStandardTournamentState(value: unknown): value is LiveTournam
 
   const candidate = value as Partial<LiveTournamentState>;
 
-  return typeof candidate.tournamentName === "string"
+  const baseIsLoadable = typeof candidate.tournamentName === "string"
     && typeof candidate.format === "string"
     && (candidate.status === "active" || candidate.status === "finished")
-    && Array.isArray(candidate.players)
-    && Array.isArray(candidate.rounds)
-    && Array.isArray(candidate.results)
+    && isLoadablePlayers(candidate.players)
     && typeof candidate.activeRoundNumber === "number"
+    && Number.isInteger(candidate.activeRoundNumber)
+    && isLoadableResults(candidate.results)
     && typeof candidate.scoringMode === "string"
     && typeof candidate.rankingMode === "string";
+
+  if (!baseIsLoadable) {
+    return false;
+  }
+
+  if (candidate.poolPlay) {
+    return true;
+  }
+
+  return isLoadableRounds(candidate.rounds)
+    && candidate.rounds.some((round) => round.roundNumber === candidate.activeRoundNumber);
+}
+
+function isLoadablePlayers(value: unknown): value is LiveTournamentState["players"] {
+  return Array.isArray(value)
+    && value.every((player) => (
+      Boolean(player)
+      && typeof player === "object"
+      && typeof (player as { id?: unknown }).id === "string"
+      && typeof (player as { name?: unknown }).name === "string"
+    ));
+}
+
+function isLoadableRounds(value: unknown): value is LiveTournamentState["rounds"] {
+  return Array.isArray(value)
+    && value.length > 0
+    && value.every((round) => (
+      Boolean(round)
+      && typeof round === "object"
+      && typeof (round as { roundNumber?: unknown }).roundNumber === "number"
+      && Number.isInteger((round as { roundNumber?: unknown }).roundNumber)
+      && Array.isArray((round as { matches?: unknown }).matches)
+      && ((round as { matches: unknown[] }).matches).every(isLoadableMatch)
+    ));
+}
+
+function isLoadableMatch(value: unknown): boolean {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const match = value as { id?: unknown; courtNumber?: unknown; teamA?: { playerIds?: unknown }; teamB?: { playerIds?: unknown } };
+
+  return typeof match.id === "string"
+    && typeof match.courtNumber === "number"
+    && Array.isArray(match.teamA?.playerIds)
+    && Array.isArray(match.teamB?.playerIds);
+}
+
+function isLoadableResults(value: unknown): value is LiveTournamentState["results"] {
+  return Array.isArray(value)
+    && value.every((result) => (
+      Boolean(result)
+      && typeof result === "object"
+      && typeof (result as { matchId?: unknown }).matchId === "string"
+      && typeof (result as { teamAPoints?: unknown }).teamAPoints === "number"
+      && typeof (result as { teamBPoints?: unknown }).teamBPoints === "number"
+    ));
 }
 
 function createCompletedTournamentId(state: LiveTournamentState): string {
