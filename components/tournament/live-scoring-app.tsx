@@ -732,6 +732,7 @@ export function LiveScoringApp() {
           </div>
         </div>
         {isControllerReadOnly ? <div className="mt-2 sm:mt-3"><ControllerReadOnlyNotice /></div> : null}
+        {!isControllerReadOnly ? <div className="mt-3 flex justify-start sm:justify-end"><ScreenMirroringControl /></div> : null}
       </div>
 
       <div className="grid gap-2 sm:gap-3 sm:grid-cols-[repeat(4,minmax(0,1fr))_minmax(220px,1.2fr)]">
@@ -874,6 +875,74 @@ function ControllerReadOnlyNotice() {
   );
 }
 
+function ScreenMirroringControl() {
+  const [isMirroring, setIsMirroring] = useState(false);
+  const [message, setMessage] = useState("");
+  const streamRef = useRef<MediaStream | null>(null);
+
+  useEffect(() => () => stopMirroringStream(streamRef.current), []);
+
+  async function handleStartMirroring() {
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getDisplayMedia) {
+      setMessage("Screen Mirroring understøttes ikke direkte på denne enhed. Brug enhedens indbyggede skærmspejling eller casting.");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+      streamRef.current = stream;
+      setIsMirroring(true);
+      setMessage("Screen Mirroring aktiv");
+
+      for (const track of stream.getTracks()) {
+        track.addEventListener("ended", handleMirroringEnded, { once: true });
+      }
+    } catch (caughtError) {
+      if (caughtError instanceof DOMException && caughtError.name === "NotAllowedError") {
+        setMessage("");
+        return;
+      }
+
+      setMessage("Screen Mirroring kunne ikke startes. Brug enhedens indbyggede skærmspejling eller casting.");
+    }
+  }
+
+  function handleMirroringEnded() {
+    streamRef.current = null;
+    setIsMirroring(false);
+    setMessage("");
+  }
+
+  function handleStopMirroring() {
+    stopMirroringStream(streamRef.current);
+    streamRef.current = null;
+    setIsMirroring(false);
+    setMessage("");
+  }
+
+  return (
+    <div className="grid justify-items-stretch gap-2 sm:justify-items-end" data-testid="screen-mirroring-control">
+      {isMirroring ? (
+        <button className="btn-secondary min-h-10 whitespace-nowrap px-3 text-sm" type="button" onClick={handleStopMirroring}>
+          Stop Screen Mirroring
+        </button>
+      ) : (
+        <button className="btn-outline-primary min-h-10 whitespace-nowrap px-3 text-sm" type="button" onClick={() => void handleStartMirroring()}>
+          <span aria-hidden="true" className="mr-2">▭</span>
+          Screen Mirroring
+        </button>
+      )}
+      {message ? <p className="max-w-72 rounded-md bg-[var(--primary-soft)]/60 px-3 py-2 text-xs font-black text-[var(--primary-strong)]" role="status">{message}</p> : null}
+    </div>
+  );
+}
+
+function stopMirroringStream(stream: MediaStream | null): void {
+  for (const track of stream?.getTracks() ?? []) {
+    track.stop();
+  }
+}
+
 function RoundTimerPanel({ state, onReset, onStart, onStop }: { state: LiveTournamentState; onReset: () => void; onStart: () => void; onStop: () => void }) {
   const { t } = useAppTranslation();
   const timer = state.roundTimer;
@@ -960,6 +1029,7 @@ function PoolPlayLiveView({
         {isControllerReadOnly ? <div className="mt-3"><ControllerReadOnlyNotice /></div> : null}
         {!isControllerReadOnly ? <div className="mt-4 action-grid">
           <Link className="btn-outline-primary" href="/finish">Afslut turnering</Link>
+          <ScreenMirroringControl />
         </div> : null}
       </div>
 
