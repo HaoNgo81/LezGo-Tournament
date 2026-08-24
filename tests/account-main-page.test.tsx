@@ -1,6 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import HomePage from "../app/page";
+import { createMockLiveTournamentState } from "../lib/live-scoring";
+import { createStandardShadowSaveLocalId, loadActiveCloudTournamentAuthority, loadActiveTournament, markActiveCloudTournamentAuthority, saveActiveTournament } from "../lib/tournament-setup";
 
 const navigationMocks = vi.hoisted(() => ({
   push: vi.fn(),
@@ -331,9 +333,151 @@ describe("STEP 25I-C1-B main page account UI", () => {
     fireEvent.submit(within(dialog).getByRole("button", { name: "Log ind" }).closest("form") as HTMLFormElement);
 
     await waitFor(() => expect(screen.getByTestId("main-account-control")).toHaveTextContent("Hao"));
+    await waitFor(() => expect(screen.queryByTestId("main-account-dialog")).not.toBeInTheDocument());
     expect(screen.getByTestId("main-account-control")).not.toHaveTextContent("hao@example.com");
     expect(screen.queryByTestId("main-account-create-control")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Ny turnering/i })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /^Indstillinger/i })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("main-account-control"));
+    expect(await screen.findByTestId("main-account-dialog")).toBeInTheDocument();
+  });
+
+  it("closes the account modal after USER login without changing the active tournament or controller", async () => {
+    const activeTournament = createMockLiveTournamentState();
+    const localId = createStandardShadowSaveLocalId(activeTournament);
+    saveActiveTournament(activeTournament);
+    markActiveCloudTournamentAuthority({
+      source: "server",
+      kind: "standard",
+      localId,
+      tournamentId: "00000000-0000-4000-8000-00000025b001",
+      canRead: true,
+      canManage: true,
+      createdByUserId: "00000000-0000-4000-8000-00000000c1b1",
+      controllerUserId: "00000000-0000-4000-8000-00000000c1b1",
+      ownerUserId: "00000000-0000-4000-8000-00000000c1b1",
+    });
+    const beforeTournament = window.localStorage.getItem("lezgo.activeTournament.v1");
+    const beforeAuthority = loadActiveCloudTournamentAuthority("standard", localId);
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === "/api/auth/me") {
+        return new Response(JSON.stringify({ ok: false }), { status: 401 });
+      }
+
+      if (url === "/api/auth/credentials/login") {
+        expect(JSON.parse(String(init?.body))).toEqual({ identifier: "hao", code: "abc123", remember: false });
+        return new Response(JSON.stringify({
+          ok: true,
+          account: {
+            userId: "00000000-0000-4000-8000-00000000c1b1",
+            email: "hao@example.com",
+            displayName: "Hao",
+            username: "hao",
+            role: "user",
+          },
+        }), { status: 200 });
+      }
+
+      if (url === "/api/account/tournaments") {
+        return new Response(JSON.stringify({ ok: true, tournaments: [] }), { status: 200 });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<HomePage />);
+    fireEvent.click(await screen.findByTestId("main-account-control"));
+    const dialog = await screen.findByTestId("main-account-dialog");
+    fireEvent.change(within(dialog).getByLabelText("Email eller brugernavn"), { target: { value: "hao" } });
+    fireEvent.change(within(dialog).getByLabelText("6-tegns kode"), { target: { value: "abc123" } });
+    fireEvent.submit(within(dialog).getByRole("button", { name: "Log ind" }).closest("form") as HTMLFormElement);
+
+    await waitFor(() => expect(screen.queryByTestId("main-account-dialog")).not.toBeInTheDocument());
+    expect(screen.getByTestId("main-account-control")).toHaveTextContent("Hao");
+    expect(screen.getByRole("link", { name: /Ny turnering/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /^Turneringer/i })).toBeInTheDocument();
+    expect(window.localStorage.getItem("lezgo.activeTournament.v1")).toBe(beforeTournament);
+    expect(loadActiveTournament()).toMatchObject({
+      tournamentName: activeTournament.tournamentName,
+      activeRoundNumber: activeTournament.activeRoundNumber,
+      status: activeTournament.status,
+    });
+    expect(loadActiveCloudTournamentAuthority("standard", localId)).toEqual(beforeAuthority);
+    expect(navigationMocks.push).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("main-account-control"));
+    expect(await screen.findByTestId("main-account-dialog")).toBeInTheDocument();
+  });
+
+  it("closes the account modal after ADMIN login and keeps admin entry explicit", async () => {
+    let isLoggedIn = false;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === "/api/auth/me") {
+        if (!isLoggedIn) {
+          return new Response(JSON.stringify({ ok: false }), { status: 401 });
+        }
+
+        return new Response(JSON.stringify({
+          ok: true,
+          account: {
+            userId: "00000000-0000-4000-8000-00000000ad01",
+            email: "admin@example.com",
+            displayName: "Admin User",
+            username: "admin",
+            role: "admin",
+          },
+        }), { status: 200 });
+      }
+
+      if (url === "/api/auth/credentials/login") {
+        expect(JSON.parse(String(init?.body))).toEqual({ identifier: "admin", code: "adm123", remember: false });
+        isLoggedIn = true;
+        return new Response(JSON.stringify({
+          ok: true,
+          rememberDenied: true,
+          account: {
+            userId: "00000000-0000-4000-8000-00000000ad01",
+            email: "admin@example.com",
+            displayName: "Admin User",
+            username: "admin",
+            role: "admin",
+          },
+        }), { status: 200 });
+      }
+
+      if (url === "/api/account/tournaments") {
+        return new Response(JSON.stringify({ ok: true, tournaments: [] }), { status: 200 });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<HomePage />);
+    fireEvent.click(await screen.findByTestId("main-account-control"));
+    const dialog = await screen.findByTestId("main-account-dialog");
+    fireEvent.change(within(dialog).getByLabelText("Email eller brugernavn"), { target: { value: "admin" } });
+    fireEvent.change(within(dialog).getByLabelText("6-tegns kode"), { target: { value: "adm123" } });
+    fireEvent.submit(within(dialog).getByRole("button", { name: "Log ind" }).closest("form") as HTMLFormElement);
+
+    await waitFor(() => expect(screen.queryByTestId("main-account-dialog")).not.toBeInTheDocument());
+    expect(screen.getByTestId("main-account-control")).toHaveTextContent("Admin User");
+    expect(screen.getByRole("link", { name: /Ny turnering/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /^Turneringer/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /^Indstillinger/i })).toHaveAttribute("href", "/settings");
+    expect(screen.queryByText("Beskyttet område for systemadministration")).not.toBeInTheDocument();
+    expect(navigationMocks.push).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("main-account-control"));
+    const reopenedDialog = await screen.findByTestId("main-account-dialog");
+    expect(within(reopenedDialog).getByText("ADMIN")).toBeInTheDocument();
+    expect(within(reopenedDialog).getByRole("link", { name: "Admin" })).toHaveAttribute("href", "/admin");
   });
 
   it("logs in with username and code through the same C1-A credential endpoint", async () => {
@@ -676,10 +820,15 @@ describe("STEP 25I-C1-B main page account UI", () => {
   });
 
   it("shows display name or username, own tournament list and logout for signed-in users", async () => {
+    let isLoggedIn = true;
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
 
       if (url === "/api/auth/me") {
+        if (!isLoggedIn) {
+          return new Response(JSON.stringify({ ok: false }), { status: 401 });
+        }
+
         return new Response(JSON.stringify({
           ok: true,
           account: {
@@ -708,6 +857,7 @@ describe("STEP 25I-C1-B main page account UI", () => {
       }
 
       if (url === "/api/auth/logout") {
+        isLoggedIn = false;
         return new Response(JSON.stringify({ ok: true }), { status: 200 });
       }
 

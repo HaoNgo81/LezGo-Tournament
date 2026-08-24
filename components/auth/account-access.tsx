@@ -81,9 +81,13 @@ export function AccountAccess({ onAccountChange }: AccountAccessProps) {
 
   const label = account ? account.displayName || account.username || t("account") : t("accountLogin");
   const handlePanelAccountChange = useCallback((nextAccount: Account | null) => {
+    if (isOpen && !account && nextAccount) {
+      setIsOpen(false);
+    }
+
     setAccount(nextAccount);
     onAccountChange?.(nextAccount);
-  }, [onAccountChange]);
+  }, [account, isOpen, onAccountChange]);
   const openDialog = (view: AccountDialogView) => {
     setDialogView(view);
     setDialogMessage("");
