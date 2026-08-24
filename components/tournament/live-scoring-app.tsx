@@ -876,71 +876,68 @@ function ControllerReadOnlyNotice() {
 }
 
 function ScreenMirroringControl() {
-  const [isMirroring, setIsMirroring] = useState(false);
-  const [message, setMessage] = useState("");
-  const streamRef = useRef<MediaStream | null>(null);
-
-  useEffect(() => () => stopMirroringStream(streamRef.current), []);
-
-  async function handleStartMirroring() {
-    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getDisplayMedia) {
-      setMessage("Screen Mirroring understøttes ikke direkte på denne enhed. Brug enhedens indbyggede skærmspejling eller casting.");
-      return;
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
-      streamRef.current = stream;
-      setIsMirroring(true);
-      setMessage("Screen Mirroring aktiv");
-
-      for (const track of stream.getTracks()) {
-        track.addEventListener("ended", handleMirroringEnded, { once: true });
-      }
-    } catch (caughtError) {
-      if (caughtError instanceof DOMException && caughtError.name === "NotAllowedError") {
-        setMessage("");
-        return;
-      }
-
-      setMessage("Screen Mirroring kunne ikke startes. Brug enhedens indbyggede skærmspejling eller casting.");
-    }
-  }
-
-  function handleMirroringEnded() {
-    streamRef.current = null;
-    setIsMirroring(false);
-    setMessage("");
-  }
-
-  function handleStopMirroring() {
-    stopMirroringStream(streamRef.current);
-    streamRef.current = null;
-    setIsMirroring(false);
-    setMessage("");
-  }
+  const [isOpen, setIsOpen] = useState(false);
 
   return (
     <div className="grid justify-items-stretch gap-2 sm:justify-items-end" data-testid="screen-mirroring-control">
-      {isMirroring ? (
-        <button className="btn-secondary min-h-10 whitespace-nowrap px-3 text-sm" type="button" onClick={handleStopMirroring}>
-          Stop Screen Mirroring
-        </button>
-      ) : (
-        <button className="btn-outline-primary min-h-10 whitespace-nowrap px-3 text-sm" type="button" onClick={() => void handleStartMirroring()}>
-          <span aria-hidden="true" className="mr-2">▭</span>
-          Screen Mirroring
-        </button>
-      )}
-      {message ? <p className="max-w-72 rounded-md bg-[var(--primary-soft)]/60 px-3 py-2 text-xs font-black text-[var(--primary-strong)]" role="status">{message}</p> : null}
+      <button className="btn-outline-primary min-h-10 whitespace-nowrap px-3 text-sm" type="button" onClick={() => setIsOpen(true)}>
+        <DisplayIcon />
+        Screen Mirroring
+      </button>
+      {isOpen ? <ScreenMirroringDialog onClose={() => setIsOpen(false)} /> : null}
     </div>
   );
 }
 
-function stopMirroringStream(stream: MediaStream | null): void {
-  for (const track of stream?.getTracks() ?? []) {
-    track.stop();
-  }
+function ScreenMirroringDialog({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-end bg-black/35 p-0 sm:place-items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="screen-mirroring-heading">
+      <div className="grid max-h-[92svh] w-full max-w-xl gap-4 overflow-y-auto overflow-x-hidden rounded-t-md border border-[var(--line)] bg-[var(--card)] p-4 text-[var(--foreground)] shadow-2xl sm:rounded-md sm:p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-black uppercase text-[var(--primary-strong)]">Skærmspejling</p>
+            <h2 id="screen-mirroring-heading" className="text-2xl font-black leading-tight sm:text-3xl">Screen Mirroring</h2>
+            <p className="mt-1 text-sm font-bold text-[var(--muted)]">Vis LEZGO-turneringen på dit TV.</p>
+          </div>
+          <button className="btn-secondary min-h-9 px-3 text-sm" type="button" onClick={onClose}>
+            Luk
+          </button>
+        </div>
+
+        <div className="grid gap-3">
+          <ScreenMirroringStep title="Desktop / Chrome" body="Brug Cast i Chrome og vælg dit TV. Vælg den aktuelle fane, så TV&apos;et viser samme LEZGO-skærm som controlleren." />
+          <ScreenMirroringStep title="Windows" body="Tryk Win + K og vælg en trådløs skærm." />
+          <ScreenMirroringStep title="Apple" body="Brug Skærmspejling/AirPlay og vælg dit TV." />
+          <ScreenMirroringStep title="Mobil / tablet" body="Brug telefonens eller tablettens indbyggede Cast/Skærmspejling." />
+        </div>
+
+        <details className="rounded-md border border-[var(--line)] bg-[var(--primary-soft)]/40 p-3">
+          <summary className="cursor-pointer text-sm font-black text-[var(--primary-strong)]">Sådan gør du</summary>
+          <p className="mt-2 text-sm font-bold text-[var(--muted)]">
+            LEZGO styrer ikke TV&apos;et direkte. Start skærmspejling eller casting på din enhed, og behold denne turnering åben på controlleren.
+          </p>
+        </details>
+      </div>
+    </div>
+  );
+}
+
+function ScreenMirroringStep({ title, body }: { title: string; body: string }) {
+  return (
+    <section className="rounded-md border border-[var(--line)] bg-white/70 p-3">
+      <h3 className="text-sm font-black text-[var(--foreground)]">{title}</h3>
+      <p className="mt-1 text-sm font-bold text-[var(--muted)]">{body}</p>
+    </section>
+  );
+}
+
+function DisplayIcon() {
+  return (
+    <svg aria-hidden="true" className="mr-2 h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+      <rect x="3" y="5" width="18" height="12" rx="2" />
+      <path d="M8 21h8M12 17v4" />
+    </svg>
+  );
 }
 
 function RoundTimerPanel({ state, onReset, onStart, onStop }: { state: LiveTournamentState; onReset: () => void; onStart: () => void; onStop: () => void }) {

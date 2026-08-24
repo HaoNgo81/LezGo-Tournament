@@ -55,11 +55,8 @@ describe("LiveScoringApp score sheet", () => {
     expect(screen.getAllByRole("link", { name: "Afslut turnering" })).toHaveLength(2);
   });
 
-  it("starts and stops native Screen Mirroring without changing tournament state", async () => {
+  it("opens Screen Mirroring guidance without changing tournament state", async () => {
     const state = createMockLiveTournamentState();
-    const stop = vi.fn();
-    const getDisplayMedia = vi.fn().mockResolvedValue(createDisplayMediaStreamMock(stop));
-    setDisplayMediaMock(getDisplayMedia);
     saveActiveTournament(state);
     const before = window.localStorage.getItem("lezgo.activeTournament.v1");
 
@@ -67,14 +64,22 @@ describe("LiveScoringApp score sheet", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Screen Mirroring" }));
 
-    await waitFor(() => expect(getDisplayMedia).toHaveBeenCalledWith({ video: true, audio: false }));
-    expect(await screen.findByText("Screen Mirroring aktiv")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Stop Screen Mirroring" })).toBeInTheDocument();
+    const dialog = await screen.findByRole("dialog", { name: "Screen Mirroring" });
+    expect(within(dialog).getByText("Vis LEZGO-turneringen på dit TV.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Desktop / Chrome")).toBeInTheDocument();
+    expect(within(dialog).getByText(/Brug Cast i Chrome og vælg dit TV/)).toBeInTheDocument();
+    expect(within(dialog).getByText("Windows")).toBeInTheDocument();
+    expect(within(dialog).getByText(/Tryk Win \+ K/)).toBeInTheDocument();
+    expect(within(dialog).getByText("Apple")).toBeInTheDocument();
+    expect(within(dialog).getByText(/Skærmspejling\/AirPlay/)).toBeInTheDocument();
+    expect(within(dialog).getByText("Mobil / tablet")).toBeInTheDocument();
+    expect(within(dialog).getByText(/indbyggede Cast\/Skærmspejling/)).toBeInTheDocument();
+    expect(screen.queryByText("Screen Mirroring aktiv")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Stop Screen Mirroring" })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Stop Screen Mirroring" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Luk" }));
 
-    expect(stop).toHaveBeenCalledTimes(1);
-    expect(await screen.findByRole("button", { name: "Screen Mirroring" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Screen Mirroring" })).not.toBeInTheDocument());
     expect(window.localStorage.getItem("lezgo.activeTournament.v1")).toBe(before);
     expect(loadActiveTournament()).toMatchObject({
       tournamentName: state.tournamentName,
@@ -83,9 +88,12 @@ describe("LiveScoringApp score sheet", () => {
     });
   });
 
-  it("returns safely when Screen Mirroring is cancelled", async () => {
-    const getDisplayMedia = vi.fn().mockRejectedValue(new DOMException("Permission denied", "NotAllowedError"));
-    setDisplayMediaMock(getDisplayMedia);
+  it("does not call browser capture APIs for Screen Mirroring guidance", async () => {
+    const getDisplayMedia = vi.fn();
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getDisplayMedia },
+    });
     saveActiveTournament(createMockLiveTournamentState());
     const before = window.localStorage.getItem("lezgo.activeTournament.v1");
 
@@ -93,25 +101,21 @@ describe("LiveScoringApp score sheet", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Screen Mirroring" }));
 
-    await waitFor(() => expect(getDisplayMedia).toHaveBeenCalledTimes(1));
-    expect(screen.getByRole("button", { name: "Screen Mirroring" })).toBeInTheDocument();
-    expect(screen.queryByText("Screen Mirroring aktiv")).not.toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Screen Mirroring" })).toBeInTheDocument();
+    expect(getDisplayMedia).not.toHaveBeenCalled();
     expect(window.localStorage.getItem("lezgo.activeTournament.v1")).toBe(before);
   });
 
-  it("explains when native Screen Mirroring is unavailable", async () => {
-    Object.defineProperty(navigator, "mediaDevices", {
-      configurable: true,
-      value: undefined,
-    });
+  it("keeps Screen Mirroring guidance available when direct browser casting APIs are unavailable", async () => {
     saveActiveTournament(createMockLiveTournamentState());
 
     render(<LiveScoringApp />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Screen Mirroring" }));
 
-    expect(await screen.findByText("Screen Mirroring understøttes ikke direkte på denne enhed. Brug enhedens indbyggede skærmspejling eller casting.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Screen Mirroring" })).toBeInTheDocument();
+    const dialog = await screen.findByRole("dialog", { name: "Screen Mirroring" });
+    expect(within(dialog).getByText(/LEZGO styrer ikke TV'et direkte/)).toBeInTheDocument();
+    expect(screen.queryByText("Screen Mirroring understøttes ikke direkte på denne enhed. Brug enhedens indbyggede skærmspejling eller casting.")).not.toBeInTheDocument();
   });
 
   it("opens /live directly with a controlled empty state when no active tournament exists", async () => {
@@ -1800,22 +1804,4 @@ function createCompletedInitialOddPlayerPoolTournament() {
   }
 
   return state;
-}
-
-function setDisplayMediaMock(getDisplayMedia: ReturnType<typeof vi.fn>): void {
-  Object.defineProperty(navigator, "mediaDevices", {
-    configurable: true,
-    value: { getDisplayMedia },
-  });
-}
-
-function createDisplayMediaStreamMock(stop: () => void): MediaStream {
-  const track = {
-    addEventListener: vi.fn(),
-    stop,
-  } as unknown as MediaStreamTrack;
-
-  return {
-    getTracks: () => [track],
-  } as unknown as MediaStream;
 }
