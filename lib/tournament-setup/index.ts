@@ -19,6 +19,7 @@ export {
   loadActiveTeamVsTeamTournament,
   loadCompletedTeamVsTeamTournaments,
   loadCompletedTournaments,
+  isLoadableStandardTournamentState,
   reopenCompletedTeamVsTeamTournament,
   reopenCompletedTournament,
   restoreCompletedTeamVsTeamTournament,

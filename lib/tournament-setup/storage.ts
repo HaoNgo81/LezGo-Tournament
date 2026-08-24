@@ -422,7 +422,7 @@ function isMatchFormat(value: unknown): value is TeamVsTeamMatchFormat {
   return value === "oneSet" || value === "bestOfThree";
 }
 
-function isLoadableStandardTournamentState(value: unknown): value is LiveTournamentState {
+export function isLoadableStandardTournamentState(value: unknown): value is LiveTournamentState {
   if (!value || typeof value !== "object") {
     return false;
   }

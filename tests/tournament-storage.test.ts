@@ -275,6 +275,20 @@ describe("tournament storage", () => {
     expect(window.localStorage.getItem("lezgo.activeTournament.v1")).toBeNull();
   });
 
+  it("drops legacy-domain selected state when its active round no longer exists", () => {
+    const staleState = {
+      ...createMockLiveTournamentState(),
+      legacyOrigin: "https://lez-go-tournament.vercel.app",
+      tvUrl: "https://lez-go-tournament.vercel.app/live",
+      activeRoundNumber: 4,
+    };
+
+    window.localStorage.setItem("lezgo.activeTournament.v1", JSON.stringify(staleState));
+
+    expect(loadActiveTournament()).toBeNull();
+    expect(window.localStorage.getItem("lezgo.activeTournament.v1")).toBeNull();
+  });
+
   it("filters malformed entries out of the active standard tournament list", () => {
     const validState = {
       ...createMockLiveTournamentState(),

@@ -36,7 +36,7 @@ import { SyncStatusPanel } from "@/components/tournament/sync-status-panel";
 import { UnifiedCourtCard } from "@/components/tournament/unified-court-card";
 import { useAppTranslation } from "@/lib/preferences/client";
 import type { TranslationKey } from "@/lib/i18n/translations";
-import { calculateInitialPoolStandings, createStandardShadowSaveLocalId, loadActiveCloudTournamentAuthority, loadActiveTournament, loadShadowSaveMetadata, markActiveCloudTournamentAuthority, markCloudTournamentRestored, markRemoteShadowSaveApplied, saveActiveTournament, saveActiveTournamentFromRemoteSync, saveCompletedTournament, type CloudTournamentAuthority, type CrossMatchFinalEncounter, type CrossMatchFinalStage, type PoolMatchResult, type PoolParticipant } from "@/lib/tournament-setup";
+import { calculateInitialPoolStandings, createStandardShadowSaveLocalId, isLoadableStandardTournamentState, loadActiveCloudTournamentAuthority, loadActiveTournament, loadShadowSaveMetadata, markActiveCloudTournamentAuthority, markCloudTournamentRestored, markRemoteShadowSaveApplied, saveActiveTournament, saveActiveTournamentFromRemoteSync, saveCompletedTournament, type CloudTournamentAuthority, type CrossMatchFinalEncounter, type CrossMatchFinalStage, type PoolMatchResult, type PoolParticipant } from "@/lib/tournament-setup";
 import { calculateFixedTotalScore } from "@/lib/tournament-setup/scoring";
 import { loadTournamentSettings, playTournamentAlarmSound } from "@/lib/tournament-settings";
 import type { MatchResult, StandingsRankingMode, TournamentPlayer } from "@/lib/tournament-engine";
@@ -83,6 +83,22 @@ interface ShadowSaveWriteResponse {
 
 type CommitResult = boolean | Promise<boolean>;
 
+interface LiveRenderState {
+  ok: boolean;
+  isPoolPlay: boolean;
+  liveMatches: LiveMatchView[];
+  standings: ReturnType<typeof calculateLiveStandings>;
+  roundProgress: ReturnType<typeof getRoundProgress> | null;
+  poolMatchViews: PoolMatchView[];
+  nextPoolMatchViews: PoolMatchView[];
+  finalPoolMatchViews: PoolMatchView[];
+  placementTiebreakMatchViews: PoolMatchView[];
+  poolProgress: ReturnType<typeof getInitialPoolProgress> | null;
+  nextPoolProgress: ReturnType<typeof getNextPoolPhaseProgress>;
+  finalPoolProgress: ReturnType<typeof getPoolFinalProgress>;
+  nextRoundIsAvailable: boolean;
+}
+
 export function LiveScoringApp() {
   const { t } = useAppTranslation();
   const [state, setState] = useState<LiveTournamentState>(() => createMockLiveTournamentState());
@@ -94,20 +110,20 @@ export function LiveScoringApp() {
   const [toast, setToast] = useState("");
   const alarmPlayedForRound = useRef<number | null>(null);
   const controllerMutationInFlightRef = useRef(false);
-  const isPoolPlay = Boolean(state.poolPlay);
-  const liveMatches = useMemo(() => (isPoolPlay ? [] : getLiveMatches(state)), [isPoolPlay, state]);
-  const standings = useMemo(() => (isPoolPlay ? [] : calculateLiveStandings(state)), [isPoolPlay, state]);
-  const roundProgress = useMemo(() => (isPoolPlay ? null : getRoundProgress(state)), [isPoolPlay, state]);
-  const poolMatchViews = useMemo(() => (state.poolPlay ? getInitialPoolMatchViews(state.poolPlay.initialStage, state.poolPlay.initialResults) : []), [state.poolPlay]);
-  const nextPoolMatchViews = useMemo(() => (state.poolPlay ? getNextPoolPhaseMatchViews(state.poolPlay, state.poolPlay.nextStageResults ?? []) : []), [state.poolPlay]);
-  const finalPoolMatchViews = useMemo(() => (state.poolPlay ? getPoolFinalMatchViews(state.poolPlay, state.poolPlay.finalResults ?? []) : []), [state.poolPlay]);
-  const placementTiebreakMatchViews = useMemo(() => (state.poolPlay ? getPlacementTiebreakMatchViews(state.poolPlay, state.poolPlay.placementTiebreakResults ?? []) : []), [state.poolPlay]);
-  const poolProgress = useMemo(() => (state.poolPlay ? getInitialPoolProgress(state.poolPlay) : null), [state.poolPlay]);
-  const nextPoolProgress = useMemo(() => (state.poolPlay ? getNextPoolPhaseProgress(state.poolPlay) : null), [state.poolPlay]);
-  const finalPoolProgress = useMemo(() => (state.poolPlay ? getPoolFinalProgress(state.poolPlay) : null), [state.poolPlay]);
+  const renderState = useMemo(() => createLiveRenderState(state), [state]);
+  const liveMatches = renderState.liveMatches;
+  const standings = renderState.standings;
+  const roundProgress = renderState.roundProgress;
+  const poolMatchViews = renderState.poolMatchViews;
+  const nextPoolMatchViews = renderState.nextPoolMatchViews;
+  const finalPoolMatchViews = renderState.finalPoolMatchViews;
+  const placementTiebreakMatchViews = renderState.placementTiebreakMatchViews;
+  const poolProgress = renderState.poolProgress;
+  const nextPoolProgress = renderState.nextPoolProgress;
+  const finalPoolProgress = renderState.finalPoolProgress;
   const selectedMatch = liveMatches.find((liveMatch) => liveMatch.match.id === selectedMatchId) ?? null;
   const selectedPoolMatch = [...poolMatchViews, ...nextPoolMatchViews, ...finalPoolMatchViews, ...placementTiebreakMatchViews].find((match) => match.id === selectedMatchId) ?? null;
-  const nextRoundIsAvailable = !isPoolPlay && canGoToNextRound(state);
+  const nextRoundIsAvailable = renderState.nextRoundIsAvailable;
   const rankingModeIsLocked = state.format === "mexicano" || state.format === "fixed-partner-mexicano";
   const currentLocalId = createStandardShadowSaveLocalId(state);
   const activeCloudAuthority = cloudAuthority?.kind === "standard" && cloudAuthority.localId === currentLocalId ? cloudAuthority : null;
@@ -172,6 +188,11 @@ export function LiveScoringApp() {
 
   const applyOrganizerRemoteBody = useCallback((localId: string, body: OrganizerRemoteReadResponse | ShadowSaveWriteResponse): void => {
     if (body.kind !== "standard" || !body.state || !body.tournamentId) {
+      return;
+    }
+
+    if (!isLoadableStandardTournamentState(body.state)) {
+      applyOrganizerRemoteAuthority(localId, body);
       return;
     }
 
@@ -675,6 +696,10 @@ export function LiveScoringApp() {
     }
   }
 
+  if (hasHydrated && (!hasActiveTournament || !renderState.ok)) {
+    return <EmptyLiveTournamentState />;
+  }
+
   if (state.poolPlay && poolProgress) {
     return (
       <PoolPlayLiveView
@@ -695,10 +720,6 @@ export function LiveScoringApp() {
         onSelectMatch={setSelectedMatchId}
       />
     );
-  }
-
-  if (hasHydrated && !hasActiveTournament) {
-    return <EmptyLiveTournamentState />;
   }
 
   return (
@@ -805,6 +826,57 @@ function EmptyLiveTournamentState() {
       </div>
     </div>
   );
+}
+
+function createLiveRenderState(state: LiveTournamentState): LiveRenderState {
+  const emptyState: LiveRenderState = {
+    ok: false,
+    isPoolPlay: Boolean(state.poolPlay),
+    liveMatches: [],
+    standings: [],
+    roundProgress: null,
+    poolMatchViews: [],
+    nextPoolMatchViews: [],
+    finalPoolMatchViews: [],
+    placementTiebreakMatchViews: [],
+    poolProgress: null,
+    nextPoolProgress: null,
+    finalPoolProgress: null,
+    nextRoundIsAvailable: false,
+  };
+
+  try {
+    if (state.poolPlay) {
+      const poolProgress = getInitialPoolProgress(state.poolPlay);
+
+      return {
+        ...emptyState,
+        ok: Boolean(poolProgress),
+        isPoolPlay: true,
+        poolMatchViews: getInitialPoolMatchViews(state.poolPlay.initialStage, state.poolPlay.initialResults),
+        nextPoolMatchViews: getNextPoolPhaseMatchViews(state.poolPlay, state.poolPlay.nextStageResults ?? []),
+        finalPoolMatchViews: getPoolFinalMatchViews(state.poolPlay, state.poolPlay.finalResults ?? []),
+        placementTiebreakMatchViews: getPlacementTiebreakMatchViews(state.poolPlay, state.poolPlay.placementTiebreakResults ?? []),
+        poolProgress,
+        nextPoolProgress: getNextPoolPhaseProgress(state.poolPlay),
+        finalPoolProgress: getPoolFinalProgress(state.poolPlay),
+      };
+    }
+
+    const liveMatches = getLiveMatches(state);
+
+    return {
+      ...emptyState,
+      ok: true,
+      isPoolPlay: false,
+      liveMatches,
+      standings: calculateLiveStandings(state),
+      roundProgress: getRoundProgress(state),
+      nextRoundIsAvailable: canGoToNextRound(state),
+    };
+  } catch {
+    return emptyState;
+  }
 }
 
 function ControllerReadOnlyNotice() {
