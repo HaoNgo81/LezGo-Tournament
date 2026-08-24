@@ -24,14 +24,15 @@ export interface CompletedTeamVsTeamTournament {
 }
 
 export function saveActiveTournament(state: LiveTournamentState): void {
+  const tournamentId = createActiveTournamentId(state);
   window.localStorage.setItem(activeTournamentStorageKey, JSON.stringify(state));
   window.localStorage.removeItem(activeTeamVsTeamStorageKey);
 
   if (state.status !== "active") {
+    removeActiveTournamentFromList(tournamentId);
     return;
   }
 
-  const tournamentId = createActiveTournamentId(state);
   const activeTournaments = loadActiveTournaments().filter((tournament) => createActiveTournamentId(tournament) !== tournamentId);
   window.localStorage.setItem(activeTournamentsStorageKey, JSON.stringify([state, ...activeTournaments].slice(0, maxActiveTournaments)));
   markLocalShadowSave(tournamentId, "standard");
@@ -39,14 +40,15 @@ export function saveActiveTournament(state: LiveTournamentState): void {
 }
 
 export function saveActiveTournamentFromRemoteSync(state: LiveTournamentState): void {
+  const tournamentId = createActiveTournamentId(state);
   window.localStorage.setItem(activeTournamentStorageKey, JSON.stringify(state));
   window.localStorage.removeItem(activeTeamVsTeamStorageKey);
 
   if (state.status !== "active") {
+    removeActiveTournamentFromList(tournamentId);
     return;
   }
 
-  const tournamentId = createActiveTournamentId(state);
   const activeTournaments = loadActiveTournaments().filter((tournament) => createActiveTournamentId(tournament) !== tournamentId);
   window.localStorage.setItem(activeTournamentsStorageKey, JSON.stringify([state, ...activeTournaments].slice(0, maxActiveTournaments)));
 }
@@ -70,7 +72,15 @@ export function loadActiveTournament(): LiveTournamentState | null {
       return loadActiveTournaments()[0] ?? null;
     }
 
-    return normalizeActiveTournamentState(parsedState);
+    const normalizedState = normalizeActiveTournamentState(parsedState);
+    const completedTournament = normalizedState.status === "active" ? findCompletedTournamentByActiveId(createActiveTournamentId(normalizedState)) : null;
+
+    if (completedTournament) {
+      window.localStorage.setItem(activeTournamentStorageKey, JSON.stringify(completedTournament.state));
+      return completedTournament.state;
+    }
+
+    return normalizedState;
   } catch {
     window.localStorage.removeItem(activeTournamentStorageKey);
     return null;
@@ -97,10 +107,12 @@ export function loadActiveTournaments(): LiveTournamentState[] {
       return [];
     }
 
+    const completedActiveIds = new Set(loadCompletedTournaments().map((tournament) => createActiveTournamentId(tournament.state)));
+
     return parsedTournaments
       .filter(isLoadableStandardTournamentState)
       .map(normalizeActiveTournamentState)
-      .filter((state) => state.status === "active")
+      .filter((state) => state.status === "active" && !completedActiveIds.has(createActiveTournamentId(state)))
       .slice(0, maxActiveTournaments);
   } catch {
     window.localStorage.removeItem(activeTournamentsStorageKey);
@@ -169,6 +181,8 @@ export function saveCompletedTournament(state: LiveTournamentState): CompletedTo
   const completedTournaments = loadCompletedTournaments().filter((tournament) => tournament.id !== completedTournament.id);
 
   window.localStorage.setItem(completedTournamentsStorageKey, JSON.stringify([completedTournament, ...completedTournaments]));
+  replaceSelectedActiveTournamentIfSameId(createActiveTournamentId(completedTournament.state), completedTournament.state);
+  removeActiveTournamentFromList(createActiveTournamentId(completedTournament.state));
 
   return completedTournament;
 }
@@ -197,6 +211,7 @@ export function reopenCompletedTournament(id: string): LiveTournamentState | nul
     status: "active",
   };
 
+  deleteCompletedTournament(id);
   saveActiveTournament(activeState);
 
   return activeState;
@@ -274,6 +289,7 @@ export function reopenCompletedTeamVsTeamTournament(id: string): TeamVsTeamTourn
     status: "active",
   };
 
+  deleteCompletedTeamVsTeamTournament(id);
   saveActiveTeamVsTeamTournament(activeState);
 
   return activeState;
@@ -504,6 +520,55 @@ function createCompletedTournamentId(state: LiveTournamentState): string {
 
 function createActiveTournamentId(state: LiveTournamentState): string {
   return createStandardShadowSaveLocalId(state);
+}
+
+function removeActiveTournamentFromList(tournamentId: string): void {
+  const savedTournaments = window.localStorage.getItem(activeTournamentsStorageKey);
+
+  if (!savedTournaments) {
+    return;
+  }
+
+  try {
+    const parsedTournaments = JSON.parse(savedTournaments) as unknown;
+
+    if (!Array.isArray(parsedTournaments)) {
+      window.localStorage.removeItem(activeTournamentsStorageKey);
+      return;
+    }
+
+    const activeTournaments = parsedTournaments
+      .filter(isLoadableStandardTournamentState)
+      .map(normalizeActiveTournamentState)
+      .filter((state) => state.status === "active" && createActiveTournamentId(state) !== tournamentId)
+      .slice(0, maxActiveTournaments);
+
+    window.localStorage.setItem(activeTournamentsStorageKey, JSON.stringify(activeTournaments));
+  } catch {
+    window.localStorage.removeItem(activeTournamentsStorageKey);
+  }
+}
+
+function replaceSelectedActiveTournamentIfSameId(tournamentId: string, state: LiveTournamentState): void {
+  const savedState = window.localStorage.getItem(activeTournamentStorageKey);
+
+  if (!savedState) {
+    return;
+  }
+
+  try {
+    const parsedState = JSON.parse(savedState) as unknown;
+
+    if (isLoadableStandardTournamentState(parsedState) && createActiveTournamentId(normalizeActiveTournamentState(parsedState)) === tournamentId) {
+      window.localStorage.setItem(activeTournamentStorageKey, JSON.stringify(state));
+    }
+  } catch {
+    window.localStorage.removeItem(activeTournamentStorageKey);
+  }
+}
+
+function findCompletedTournamentByActiveId(tournamentId: string): CompletedTournament | null {
+  return loadCompletedTournaments().find((tournament) => createActiveTournamentId(tournament.state) === tournamentId) ?? null;
 }
 
 function createCompletedTeamVsTeamTournamentId(state: TeamVsTeamTournamentState, finishedAt: string): string {

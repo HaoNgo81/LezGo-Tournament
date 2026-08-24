@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { TournamentListApp } from "../components/tournament/tournament-list-app";
 import { advanceLivePoolPlayState, finishTournament, saveNextPoolPhaseResult } from "../lib/live-scoring";
@@ -45,6 +45,35 @@ describe("TournamentListApp pool play", () => {
     expect(screen.getByText(/Afsluttet .* 16 spillere/)).toBeInTheDocument();
   });
 
+  it("classifies a finished tournament only under completed even when a stale active copy exists", async () => {
+    const tournament = createStandardTournament("FIX 6");
+    saveActiveTournament(tournament);
+    saveCompletedTournament(finishTournament(tournament, "2026-08-24T12:00:00.000Z"));
+
+    render(<TournamentListApp />);
+
+    const activeSection = getSectionByHeading("Aktive");
+    const completedSection = getSectionByHeading("Afsluttet");
+
+    expect(await within(completedSection).findByText("FIX 6")).toBeInTheDocument();
+    expect(within(activeSection).queryByText("FIX 6")).not.toBeInTheDocument();
+  });
+
+  it("blocks stale active-list snapshots from duplicating completed tournaments after refresh", async () => {
+    const tournament = createStandardTournament("Stale finished list copy");
+    const staleActiveCopy = { ...tournament, status: "active" as const };
+    saveCompletedTournament(finishTournament(tournament, "2026-08-24T12:10:00.000Z"));
+    window.localStorage.setItem("lezgo.activeTournaments.v1", JSON.stringify([staleActiveCopy]));
+
+    render(<TournamentListApp />);
+
+    const activeSection = getSectionByHeading("Aktive");
+    const completedSection = getSectionByHeading("Afsluttet");
+
+    expect(await within(completedSection).findByText("Stale finished list copy")).toBeInTheDocument();
+    expect(within(activeSection).queryByText("Stale finished list copy")).not.toBeInTheDocument();
+  });
+
   it("shows up to five active standard tournaments and opens the selected one", async () => {
     Array.from({ length: 5 }, (_, index) => createTournamentFromSetup({
       name: `Aktiv ${index + 1}`,
@@ -84,9 +113,20 @@ function createPoolTournament(name: string) {
   });
 }
 
-function createStandardTournament() {
+function getSectionByHeading(name: string): HTMLElement {
+  const heading = screen.getByRole("heading", { name });
+  const section = heading.closest("section");
+
+  if (!section) {
+    throw new Error(`Missing section for ${name}`);
+  }
+
+  return section;
+}
+
+function createStandardTournament(name = "Fast Makker Mexicano 16/4") {
   return createTournamentFromSetup({
-    name: "Fast Makker Mexicano 16/4",
+    name,
     format: "Fast Makker Mexicano",
     playerText: sixteenPlayerText,
     femalePlayerText: "",

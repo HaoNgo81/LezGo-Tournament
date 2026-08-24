@@ -46,6 +46,7 @@ describe("LiveScoringApp score sheet", () => {
     expect(screen.queryByRole("button", { name: "Scoreindtastning" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "TV / Mirror" })).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Næste" })).toHaveLength(2);
+    expect(screen.getAllByRole("link", { name: "Afslut turnering" })).toHaveLength(2);
   });
 
   it("opens /live directly with a controlled empty state when no active tournament exists", async () => {
@@ -132,15 +133,13 @@ describe("LiveScoringApp score sheet", () => {
     expect(roundCard).toHaveClass("p-2.5", "sm:p-5");
     expect(within(roundCard).getByText("Alle kampe skal gemmes før næste runde.")).toBeInTheDocument();
     const roundActions = within(roundCard).getByTestId("live-round-navigation-actions");
-    expect(roundActions).toHaveClass("grid-cols-2");
+    expect(roundActions).toHaveClass("grid-cols-1", "sm:grid-cols-3");
     const roundButtons = within(roundActions).getAllByRole("button");
     expect(roundButtons.map((button) => button.textContent)).toEqual(["Forrige", "Næste"]);
     expect(roundButtons[0]).toBeDisabled();
-
-    const moreMenu = screen.getByTestId("live-mobile-more-menu");
-    expect(moreMenu).toHaveClass("sm:hidden");
-    expect(within(moreMenu).getByLabelText("Flere handlinger")).toBeInTheDocument();
-    expect(within(moreMenu).getByRole("link", { name: "Afslut turnering" })).toHaveAttribute("href", "/finish");
+    expect(within(roundActions).getByRole("link", { name: "Afslut turnering" })).toHaveAttribute("href", "/finish");
+    expect(screen.queryByTestId("live-mobile-more-menu")).not.toBeInTheDocument();
+    expect(within(header).queryByRole("link", { name: "Afslut turnering" })).not.toBeInTheDocument();
   });
 
   it("keeps /live mobile compact while allowing a wider desktop shell", async () => {
@@ -216,8 +215,9 @@ describe("LiveScoringApp score sheet", () => {
     render(<LiveScoringApp />);
 
     expect(await screen.findByText("Mexicano test")).toBeInTheDocument();
-    expect(await screen.findByLabelText("More actions")).toBeInTheDocument();
     expect(await screen.findByText("Saved")).toBeInTheDocument();
+    expect(screen.queryByLabelText("More actions")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Finish tournament" })).toHaveLength(2);
     expect(screen.queryByRole("button", { name: "Activate sharing" })).not.toBeInTheDocument();
     expect(screen.queryByText("Share")).not.toBeInTheDocument();
   });
@@ -1295,10 +1295,11 @@ describe("LiveScoringApp score sheet", () => {
     expect(await screen.findByText("1 / 5")).toBeInTheDocument();
     scoreVisibleRound();
     const bottomNavigation = screen.getByTestId("live-bottom-round-navigation");
-    expect(bottomNavigation).toHaveClass("grid-cols-2");
+    expect(bottomNavigation).toHaveClass("grid-cols-1", "sm:grid-cols-3");
     const bottomButtons = within(bottomNavigation).getAllByRole("button");
     expect(bottomButtons.map((button) => button.textContent)).toEqual(["Forrige", "Næste"]);
     expect(bottomButtons[0]).toBeDisabled();
+    expect(within(bottomNavigation).getByRole("link", { name: "Afslut turnering" })).toHaveAttribute("href", "/finish");
     fireEvent.click(within(bottomNavigation).getByRole("button", { name: "Næste" }));
 
     expect(screen.getByText("Næste runde åbnet.")).toBeInTheDocument();

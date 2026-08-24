@@ -62,6 +62,19 @@ describe("tournament storage", () => {
     expect(loadCompletedTournaments()[0].state.status).toBe("finished");
   });
 
+  it("removes a tournament from active storage when it is saved as completed", () => {
+    const activeState = {
+      ...createMockLiveTournamentState(),
+      tournamentName: "FIX 6",
+    };
+
+    saveActiveTournament(activeState);
+    saveCompletedTournament(finishTournament(activeState, "2026-08-24T12:00:00.000Z"));
+
+    expect(loadActiveTournaments().map((tournament) => tournament.tournamentName)).not.toContain("FIX 6");
+    expect(loadCompletedTournaments().map((tournament) => tournament.state.tournamentName)).toContain("FIX 6");
+  });
+
   it("persists an already generated randomized first round without regenerating it on reload", () => {
     const state = createTournamentFromSetup({
       name: "Random seed persistence",
@@ -301,6 +314,19 @@ describe("tournament storage", () => {
     ]));
 
     expect(loadActiveTournaments().map((tournament) => tournament.tournamentName)).toEqual(["Valid aktiv"]);
+  });
+
+  it("filters stale active-list entries when the same tournament is already completed", () => {
+    const staleState = {
+      ...createMockLiveTournamentState(),
+      tournamentName: "Stale completed active copy",
+    };
+
+    saveCompletedTournament(finishTournament(staleState, "2026-08-24T12:15:00.000Z"));
+    window.localStorage.setItem("lezgo.activeTournaments.v1", JSON.stringify([staleState]));
+
+    expect(loadActiveTournaments()).toEqual([]);
+    expect(loadCompletedTournaments().map((tournament) => tournament.state.tournamentName)).toEqual(["Stale completed active copy"]);
   });
 
   it("normalizes older Team vs. Team results from local storage", () => {

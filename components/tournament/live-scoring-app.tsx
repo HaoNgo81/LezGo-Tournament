@@ -730,21 +730,8 @@ export function LiveScoringApp() {
             <h2 className="mt-0.5 text-xl font-black leading-tight sm:mt-1 sm:text-2xl">{state.tournamentName}</h2>
             <p className="mt-0.5 text-xs font-bold text-[var(--muted)] sm:mt-1 sm:text-sm">{state.players.length} {t("players").toLowerCase()} · {state.configuredRounds ?? state.rounds.length} {t("rounds").toLowerCase()}</p>
           </div>
-          {!isControllerReadOnly ? <details className="relative sm:hidden" data-testid="live-mobile-more-menu">
-            <summary className="flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-center rounded-md border border-[var(--line)] bg-white px-3 text-xl font-black text-[var(--primary-strong)]" aria-label={t("moreActions")} title={t("moreActions")}>
-              ⋯
-            </summary>
-            <div className="absolute right-0 z-10 mt-2 w-52 rounded-md border border-[var(--line)] bg-white p-2 shadow-2xl">
-              <Link className="btn-outline-primary min-h-11 w-full text-sm" href="/finish">{t("finishTournament")}</Link>
-            </div>
-          </details> : null}
         </div>
         {isControllerReadOnly ? <div className="mt-2 sm:mt-3"><ControllerReadOnlyNotice /></div> : null}
-        {!isControllerReadOnly ? <div className="mt-4 hidden sm:block">
-          <div className="action-grid">
-            <Link className="btn-outline-primary" href="/finish">{t("finishTournament")}</Link>
-          </div>
-        </div> : null}
       </div>
 
       <div className="grid gap-2 sm:gap-3 sm:grid-cols-[repeat(4,minmax(0,1fr))_minmax(220px,1.2fr)]">
@@ -1592,9 +1579,10 @@ function RoundNavigationButtons({
   const { t } = useAppTranslation();
 
   return (
-    <div className="grid grid-cols-2 gap-2 sm:min-w-72 sm:max-w-md sm:flex-1" data-testid={testId}>
+    <div className="grid grid-cols-1 gap-2 sm:min-w-[26rem] sm:max-w-xl sm:flex-1 sm:grid-cols-3" data-testid={testId}>
       <button className="btn-secondary min-h-11 px-3 py-2 text-sm disabled:opacity-40 sm:min-h-12 sm:text-base" type="button" disabled={!canGoPrevious} onClick={onPrevious}>{t("previous")}</button>
       <button className="btn-primary min-h-11 px-3 py-2 text-sm disabled:bg-gray-300 sm:min-h-12 sm:text-base" type="button" disabled={!canGoNext} onClick={onNext}>{t("next")}</button>
+      <Link className="btn-danger min-h-11 px-3 py-2 text-sm sm:min-h-12 sm:text-base" href="/finish">{t("finishTournament")}</Link>
     </div>
   );
 }
