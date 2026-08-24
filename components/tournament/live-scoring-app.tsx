@@ -231,7 +231,7 @@ export function LiveScoringApp() {
           return;
         }
 
-        if (shouldApplyOrganizerRemoteBody(latestMetadata?.lastShadowSaveVersion, body)) {
+        if (shouldApplyOrganizerRemoteBody(latestMetadata?.lastShadowSaveVersion, body, currentState, latestMetadata?.matchScoreVersions)) {
           applyOrganizerRemoteBody(localId, body);
         } else if (typeof body.canManage === "boolean") {
           applyOrganizerRemoteAuthority(localId, body);
@@ -1642,6 +1642,21 @@ function isNewerOrganizerRemoteVersion(currentUpdatedAt: string | undefined, nex
   return nextTime > currentTime;
 }
 
+function isOlderOrganizerRemoteVersion(currentUpdatedAt: string | undefined, nextUpdatedAt: string | undefined): boolean {
+  if (!currentUpdatedAt || !nextUpdatedAt) {
+    return false;
+  }
+
+  const currentTime = Date.parse(currentUpdatedAt);
+  const nextTime = Date.parse(nextUpdatedAt);
+
+  if (Number.isNaN(currentTime) || Number.isNaN(nextTime)) {
+    return false;
+  }
+
+  return nextTime < currentTime;
+}
+
 function isUsableOrganizerRemoteBody(response: Response, body: OrganizerRemoteReadResponse, expectedTournamentId: string): body is OrganizerRemoteReadResponse & { kind: "standard"; state: LiveTournamentState; tournamentId: string } {
   return Boolean(
     response.ok
@@ -1652,8 +1667,50 @@ function isUsableOrganizerRemoteBody(response: Response, body: OrganizerRemoteRe
   );
 }
 
-function shouldApplyOrganizerRemoteBody(currentUpdatedAt: string | undefined, body: OrganizerRemoteReadResponse): boolean {
-  return Boolean(body.updatedAt && isNewerOrganizerRemoteVersion(currentUpdatedAt, body.updatedAt));
+function shouldApplyOrganizerRemoteBody(currentUpdatedAt: string | undefined, body: OrganizerRemoteReadResponse, currentState: LiveTournamentState, currentScoreVersions: Record<string, number> | undefined): boolean {
+  if (body.updatedAt && isNewerOrganizerRemoteVersion(currentUpdatedAt, body.updatedAt)) {
+    return true;
+  }
+
+  if (isOlderOrganizerRemoteVersion(currentUpdatedAt, body.updatedAt)) {
+    return false;
+  }
+
+  return haveOrganizerMatchScoreVersionsChanged(currentScoreVersions, body.matchScoreVersions)
+    || getOrganizerStateSyncSignature(currentState) !== getOrganizerStateSyncSignature(body.state);
+}
+
+function haveOrganizerMatchScoreVersionsChanged(currentScoreVersions: Record<string, number> | undefined, nextScoreVersions: Record<string, number> | undefined): boolean {
+  if (!nextScoreVersions) {
+    return false;
+  }
+
+  const currentEntries = Object.entries(currentScoreVersions ?? {}).sort(([left], [right]) => left.localeCompare(right));
+  const nextEntries = Object.entries(nextScoreVersions).sort(([left], [right]) => left.localeCompare(right));
+
+  return JSON.stringify(currentEntries) !== JSON.stringify(nextEntries);
+}
+
+function getOrganizerStateSyncSignature(state: LiveTournamentState | undefined): string {
+  if (!state) {
+    return "";
+  }
+
+  return JSON.stringify({
+    activeRoundNumber: state.activeRoundNumber,
+    finishedAt: state.finishedAt ?? null,
+    finalResults: sortMatchResults(state.poolPlay?.finalResults),
+    initialResults: sortMatchResults(state.poolPlay?.initialResults),
+    nextStageResults: sortMatchResults(state.poolPlay?.nextStageResults),
+    placementTiebreakResults: sortMatchResults(state.poolPlay?.placementTiebreakResults),
+    results: sortMatchResults(state.results),
+    startedMatchIds: [...(state.startedMatchIds ?? [])].sort(),
+    status: state.status,
+  });
+}
+
+function sortMatchResults(results: readonly MatchResult[] | readonly PoolMatchResult[] | undefined): Array<MatchResult | PoolMatchResult> {
+  return [...(results ?? [])].sort((left, right) => left.matchId.localeCompare(right.matchId));
 }
 
 function doesStateContainSelectedMatch(state: LiveTournamentState, matchId: string): boolean {

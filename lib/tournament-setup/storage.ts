@@ -63,7 +63,14 @@ export function loadActiveTournament(): LiveTournamentState | null {
   }
 
   try {
-    return normalizeActiveTournamentState(JSON.parse(savedState) as LiveTournamentState);
+    const parsedState = JSON.parse(savedState) as unknown;
+
+    if (!isLoadableStandardTournamentState(parsedState)) {
+      window.localStorage.removeItem(activeTournamentStorageKey);
+      return loadActiveTournaments()[0] ?? null;
+    }
+
+    return normalizeActiveTournamentState(parsedState);
   } catch {
     window.localStorage.removeItem(activeTournamentStorageKey);
     return null;
@@ -83,7 +90,15 @@ export function loadActiveTournaments(): LiveTournamentState[] {
   }
 
   try {
-    return (JSON.parse(savedTournaments) as LiveTournamentState[])
+    const parsedTournaments = JSON.parse(savedTournaments) as unknown;
+
+    if (!Array.isArray(parsedTournaments)) {
+      window.localStorage.removeItem(activeTournamentsStorageKey);
+      return [];
+    }
+
+    return parsedTournaments
+      .filter(isLoadableStandardTournamentState)
       .map(normalizeActiveTournamentState)
       .filter((state) => state.status === "active")
       .slice(0, maxActiveTournaments);
@@ -341,7 +356,14 @@ function loadSelectedActiveTournament(): LiveTournamentState | null {
   }
 
   try {
-    return normalizeActiveTournamentState(JSON.parse(savedState) as LiveTournamentState);
+    const parsedState = JSON.parse(savedState) as unknown;
+
+    if (!isLoadableStandardTournamentState(parsedState)) {
+      window.localStorage.removeItem(activeTournamentStorageKey);
+      return null;
+    }
+
+    return normalizeActiveTournamentState(parsedState);
   } catch {
     window.localStorage.removeItem(activeTournamentStorageKey);
     return null;
@@ -398,6 +420,24 @@ function isPlayersPerTeam(value: unknown): value is TeamVsTeamPlayersPerTeam {
 
 function isMatchFormat(value: unknown): value is TeamVsTeamMatchFormat {
   return value === "oneSet" || value === "bestOfThree";
+}
+
+function isLoadableStandardTournamentState(value: unknown): value is LiveTournamentState {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Partial<LiveTournamentState>;
+
+  return typeof candidate.tournamentName === "string"
+    && typeof candidate.format === "string"
+    && (candidate.status === "active" || candidate.status === "finished")
+    && Array.isArray(candidate.players)
+    && Array.isArray(candidate.rounds)
+    && Array.isArray(candidate.results)
+    && typeof candidate.activeRoundNumber === "number"
+    && typeof candidate.scoringMode === "string"
+    && typeof candidate.rankingMode === "string";
 }
 
 function createCompletedTournamentId(state: LiveTournamentState): string {

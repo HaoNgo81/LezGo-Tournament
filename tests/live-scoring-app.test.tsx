@@ -46,6 +46,20 @@ describe("LiveScoringApp score sheet", () => {
     expect(screen.getAllByRole("button", { name: "Næste" })).toHaveLength(2);
   });
 
+  it("opens /live with the fallback tournament when local active storage is malformed", async () => {
+    window.localStorage.setItem("lezgo.activeTournament.v1", JSON.stringify({
+      tournamentName: "Broken live state",
+      format: "americano",
+      status: "active",
+    }));
+
+    render(<LiveScoringApp />);
+
+    expect(await screen.findByRole("heading", { name: "Mock Americano" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Stilling" })).toBeInTheDocument();
+    expect(window.localStorage.getItem("lezgo.activeTournament.v1")).toBeNull();
+  });
+
   it("uses a compact mobile header with combined round metrics and a protected more menu", async () => {
     const state = createStandardTournament("Mexicano");
     saveActiveTournament(state);
@@ -276,6 +290,47 @@ describe("LiveScoringApp score sheet", () => {
       cache: "no-store",
     }));
     expect(loadActiveTournament()?.results).toEqual([{ matchId: localState.rounds[0].matches[0].id, teamAPoints: 17, teamBPoints: 7 }]);
+  }, 10000);
+
+  it("pulls a score-entry update into the organizer live view when the remote timestamp is unchanged", async () => {
+    const localState = createStandardTournament("Mexicano");
+    const matchId = localState.rounds[0].matches[0].id;
+    const remoteState = saveMatchResult(localState, {
+      matchId,
+      teamAPoints: 18,
+      teamBPoints: 6,
+    });
+    const localId = createStandardShadowSaveLocalId(localState);
+    saveActiveTournamentFromRemoteSync(localState);
+    saveShadowMetadata(localId, {
+      canManage: true,
+      kind: "standard",
+      lastLocalSaveAt: "2026-08-24T14:00:00.000Z",
+      lastShadowSaveVersion: "2026-08-24T14:00:00.000Z",
+      status: "synced",
+      supabaseTournamentId: "00000000-0000-4000-8000-0000000025c1",
+      matchScoreVersions: { [matchId]: 1 },
+    });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      ok: true,
+      kind: "standard",
+      state: remoteState,
+      tournamentId: "00000000-0000-4000-8000-0000000025c1",
+      updatedAt: "2026-08-24T14:00:00.000Z",
+      canRead: true,
+      canManage: true,
+      matchScoreVersions: { [matchId]: 1 },
+    }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<LiveScoringApp />);
+
+    expect(await screen.findByText("Mexicano test")).toBeInTheDocument();
+    expect(screen.queryByText("18 - 6")).not.toBeInTheDocument();
+
+    await waitFor(() => expectLiveCourtScore("18", "6"), { timeout: 3500 });
+    expect(screen.getByTestId("live-compact-standings")).toHaveTextContent("18");
+    expect(loadActiveTournament()?.results).toEqual([{ matchId, teamAPoints: 18, teamBPoints: 6 }]);
   }, 10000);
 
   it("reconciles immediately when a stale active controller tab comes back online", async () => {

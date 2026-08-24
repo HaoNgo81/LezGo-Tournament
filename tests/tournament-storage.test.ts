@@ -234,6 +234,37 @@ describe("tournament storage", () => {
     expect(loadActiveTournament()?.tournamentName).toBe("Aktiv 3");
   });
 
+  it("drops malformed selected standard tournament state and falls back to the active list", () => {
+    const fallbackState = {
+      ...createMockLiveTournamentState(),
+      tournamentName: "Fallback aktiv",
+    };
+
+    window.localStorage.setItem("lezgo.activeTournament.v1", JSON.stringify({
+      tournamentName: "Partial stale state",
+      format: "americano",
+      status: "active",
+    }));
+    window.localStorage.setItem("lezgo.activeTournaments.v1", JSON.stringify([fallbackState]));
+
+    expect(loadActiveTournament()?.tournamentName).toBe("Fallback aktiv");
+    expect(window.localStorage.getItem("lezgo.activeTournament.v1")).toBeNull();
+  });
+
+  it("filters malformed entries out of the active standard tournament list", () => {
+    const validState = {
+      ...createMockLiveTournamentState(),
+      tournamentName: "Valid aktiv",
+    };
+
+    window.localStorage.setItem("lezgo.activeTournaments.v1", JSON.stringify([
+      { tournamentName: "Partial stale list state", format: "americano", status: "active" },
+      validState,
+    ]));
+
+    expect(loadActiveTournaments().map((tournament) => tournament.tournamentName)).toEqual(["Valid aktiv"]);
+  });
+
   it("normalizes older Team vs. Team results from local storage", () => {
     const legacyState = {
       name: "Klubkamp",
