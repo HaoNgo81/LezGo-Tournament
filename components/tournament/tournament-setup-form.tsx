@@ -397,26 +397,34 @@ export function TournamentSetupForm() {
     <form className="grid gap-5" onSubmit={handleSubmit}>
       <Section title={`1. ${t("tournamentFormat")}`}>
         <div className="grid gap-3 sm:grid-cols-2">
-          {formatOptions.map((option) => (
-            <button
-              key={option}
-              aria-pressed={format === option}
-              className={getFormatButtonClass(format === option)}
-              data-selected={format === option ? "true" : "false"}
-              type="button"
-              onPointerCancel={() => cancelFormatTapGesture(option)}
-              onPointerDown={(event) => handleFormatPointerDown(option, event)}
-              onPointerMove={(event) => handleFormatPointerMove(option, event)}
-              onPointerUp={(event) => handleFormatPointerUp(option, event)}
-              onTouchCancel={() => cancelFormatTapGesture(option)}
-              onTouchEnd={(event) => handleFormatTouchEnd(option, event)}
-              onTouchMove={(event) => handleFormatTouchMove(option, event)}
-              onTouchStart={(event) => handleFormatTouchStart(option, event)}
-              onClick={() => handleFormatClick(option)}
-            >
-              {getFormatDisplayName(option, t)}
-            </button>
-          ))}
+          {formatOptions.map((option) => {
+            const labelId = getFormatDomId(option, "label");
+            const descriptionId = getFormatDomId(option, "description");
+
+            return (
+              <button
+                key={option}
+                aria-describedby={descriptionId}
+                aria-labelledby={labelId}
+                aria-pressed={format === option}
+                className={getFormatButtonClass(format === option)}
+                data-selected={format === option ? "true" : "false"}
+                type="button"
+                onPointerCancel={() => cancelFormatTapGesture(option)}
+                onPointerDown={(event) => handleFormatPointerDown(option, event)}
+                onPointerMove={(event) => handleFormatPointerMove(option, event)}
+                onPointerUp={(event) => handleFormatPointerUp(option, event)}
+                onTouchCancel={() => cancelFormatTapGesture(option)}
+                onTouchEnd={(event) => handleFormatTouchEnd(option, event)}
+                onTouchMove={(event) => handleFormatTouchMove(option, event)}
+                onTouchStart={(event) => handleFormatTouchStart(option, event)}
+                onClick={() => handleFormatClick(option)}
+              >
+                <span id={labelId} className="text-base font-black leading-tight sm:text-lg">{getFormatDisplayName(option, t)}</span>
+                <span id={descriptionId} className="mt-1 block text-sm font-semibold leading-snug text-[var(--muted)]">{getFormatDescription(option, t)}</span>
+              </button>
+            );
+          })}
         </div>
       </Section>
 
@@ -935,6 +943,25 @@ function getFormatDisplayName(format: TournamentSetupFormat, t: (key: Translatio
   }
 }
 
+function getFormatDescription(format: TournamentSetupFormat, t: (key: TranslationKey) => string): string {
+  switch (format) {
+    case "Americano":
+      return t("formatAmericanoDescription");
+    case "Mexicano":
+      return t("formatMexicanoDescription");
+    case "Mixed Americano":
+      return t("formatMixedAmericanoDescription");
+    case "Fast Makker Americano":
+      return t("fixedPartnerAmericanoDescription");
+    case "Fast Makker Mexicano":
+      return t("fixedPartnerMexicanoDescription");
+    case "Puljespil":
+      return "";
+    case "Team vs. Team":
+      return "";
+  }
+}
+
 function countLines(text: string): number {
   return text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).length;
 }
@@ -1009,4 +1036,8 @@ function participantSummaryLabel(format: TournamentSetupFormat, poolParticipantT
 
 function getFormatButtonClass(isSelected: boolean): string {
   return `tournament-format-button ${isSelected ? "tournament-format-button-selected" : "tournament-format-button-unselected"}`;
+}
+
+function getFormatDomId(format: TournamentSetupFormat, suffix: "label" | "description"): string {
+  return `format-${format.toLocaleLowerCase("en").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${suffix}`;
 }

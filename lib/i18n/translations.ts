@@ -150,8 +150,13 @@ export type TranslationKey =
   | "fixedScore"
   | "format"
   | "formatAmericano"
+  | "formatAmericanoDescription"
   | "formatMexicano"
+  | "formatMexicanoDescription"
   | "formatMixedAmericano"
+  | "formatMixedAmericanoDescription"
+  | "fixedPartnerAmericanoDescription"
+  | "fixedPartnerMexicanoDescription"
   | "formatPoolPlay"
   | "finalPlacements"
   | "homeNewTournamentDescription"
@@ -475,12 +480,17 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     scoring: "Scoring",
     scorePoints: "Scorepoint",
     fixedPartnerAmericano: "Fast Makker Americano",
+    fixedPartnerAmericanoDescription: "Faste makkerpar møder de øvrige par.",
     fixedPartnerMexicano: "Fast Makker Mexicano",
+    fixedPartnerMexicanoDescription: "Faste makkerpar møder modstandere efter stillingen.",
     fixedScore: "Fast score",
     format: "Format",
     formatAmericano: "Americano",
+    formatAmericanoDescription: "Alle spiller med og mod hinanden.",
     formatMexicano: "Mexicano",
+    formatMexicanoDescription: "Nye makkere og modstandere dannes efter stillingen.",
     formatMixedAmericano: "Mixed Americano",
+    formatMixedAmericanoDescription: "Kvinde og mand spiller sammen i skiftende makkerpar.",
     formatPoolPlay: "Puljespil",
     finalPlacements: "Slutplaceringer",
     homeNewTournamentDescription: "Vælg format, indstillinger og spillere.",
@@ -802,12 +812,17 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     scoring: "Scoring",
     scorePoints: "Score points",
     fixedPartnerAmericano: "Fixed Partner Americano",
+    fixedPartnerAmericanoDescription: "Fixed partner pairs play the other pairs.",
     fixedPartnerMexicano: "Fixed Partner Mexicano",
+    fixedPartnerMexicanoDescription: "Fixed partner pairs meet opponents by standings.",
     fixedScore: "Fixed score",
     format: "Format",
     formatAmericano: "Americano",
+    formatAmericanoDescription: "Everyone plays with and against each other.",
     formatMexicano: "Mexicano",
+    formatMexicanoDescription: "New partners and opponents are formed by standings.",
     formatMixedAmericano: "Mixed Americano",
+    formatMixedAmericanoDescription: "Women and men pair up in changing teams.",
     formatPoolPlay: "Pool Play",
     finalPlacements: "Final placements",
     homeNewTournamentDescription: "Choose format, settings and players.",

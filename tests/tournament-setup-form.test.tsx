@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TournamentSetupForm } from "../components/tournament/tournament-setup-form";
@@ -40,6 +40,33 @@ describe("tournament setup form", () => {
     expect(screen.getByRole("button", { name: "Fast Makker Americano" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("textbox", { name: "Par 1, spiller 1" })).toHaveValue("");
     expect(screen.getByRole("textbox", { name: "Par 1, spiller 2" })).toHaveValue("");
+  });
+
+  it("renders short descriptions inside every visible tournament format card", () => {
+    render(<TournamentSetupForm />);
+
+    const descriptions = [
+      ["Americano", "Alle spiller med og mod hinanden."],
+      ["Mexicano", "Nye makkere og modstandere dannes efter stillingen."],
+      ["Mixed Americano", "Kvinde og mand spiller sammen i skiftende makkerpar."],
+      ["Fast Makker Americano", "Faste makkerpar møder de øvrige par."],
+      ["Fast Makker Mexicano", "Faste makkerpar møder modstandere efter stillingen."],
+    ] as const;
+
+    for (const [formatName, description] of descriptions) {
+      const button = screen.getByRole("button", { name: formatName });
+      expect(within(button).getByText(description)).toBeInTheDocument();
+      expect(within(button).getByText(description)).toHaveClass("text-sm", "font-semibold", "text-[var(--muted)]");
+    }
+  });
+
+  it("selects the format when clicking the description inside the card", () => {
+    render(<TournamentSetupForm />);
+
+    fireEvent.click(screen.getByText("Nye makkere og modstandere dannes efter stillingen."));
+
+    expectSelectedFormat("Mexicano");
+    expect(screen.getByRole("textbox", { name: "Navn" })).toHaveValue("Mexicano");
   });
 
   it("keeps exactly one visual selected-state aligned with the actual selected format", () => {
@@ -369,6 +396,9 @@ describe("tournament setup form", () => {
     expect(screen.getByRole("heading", { name: "5. Start tournament" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Start tournament" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Fixed Partner Americano" })).toBeInTheDocument();
+    expect(within(screen.getByRole("button", { name: "Americano" })).getByText("Everyone plays with and against each other.")).toBeInTheDocument();
+    expect(within(screen.getByRole("button", { name: "Fixed Partner Americano" })).getByText("Fixed partner pairs play the other pairs.")).toBeInTheDocument();
+    expect(within(screen.getByRole("button", { name: "Mixed Americano" })).getByText("Women and men pair up in changing teams.")).toBeInTheDocument();
     expect(screen.queryByText("Turneringsform")).not.toBeInTheDocument();
     expect(screen.queryByText("Start turnering")).not.toBeInTheDocument();
   });
