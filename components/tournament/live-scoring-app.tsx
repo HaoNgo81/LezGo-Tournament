@@ -32,7 +32,6 @@ import {
 } from "@/lib/live-scoring";
 import { CrossMatchStagePanel } from "@/components/tournament/cross-match-stage-panel";
 import { StandingsTable } from "@/components/tournament/standings-table";
-import { SyncStatusPanel } from "@/components/tournament/sync-status-panel";
 import { UnifiedCourtCard } from "@/components/tournament/unified-court-card";
 import { useAppTranslation } from "@/lib/preferences/client";
 import type { TranslationKey } from "@/lib/i18n/translations";
@@ -740,9 +739,7 @@ export function LiveScoringApp() {
             </div>
           </details> : null}
         </div>
-        <div className="mt-2 sm:mt-3">
-          {isControllerReadOnly ? <ControllerReadOnlyNotice /> : <SyncStatusPanel kind="standard" localId={currentLocalId} state={state} />}
-        </div>
+        {isControllerReadOnly ? <div className="mt-2 sm:mt-3"><ControllerReadOnlyNotice /></div> : null}
         {!isControllerReadOnly ? <div className="mt-4 hidden sm:block">
           <div className="action-grid">
             <Link className="btn-outline-primary" href="/finish">{t("finishTournament")}</Link>
@@ -973,9 +970,7 @@ function PoolPlayLiveView({
         <p className="mt-1 text-sm font-bold text-[var(--muted)]">
           Puljespil · {state.poolPlay.initialStage.participants.length} deltagere · {state.poolPlay.initialStage.pools.length} puljer
         </p>
-        <div className="mt-3">
-          {isControllerReadOnly ? <ControllerReadOnlyNotice /> : <SyncStatusPanel kind="standard" localId={createStandardShadowSaveLocalId(state)} state={state} />}
-        </div>
+        {isControllerReadOnly ? <div className="mt-3"><ControllerReadOnlyNotice /></div> : null}
         {!isControllerReadOnly ? <div className="mt-4 action-grid">
           <Link className="btn-outline-primary" href="/finish">Afslut turnering</Link>
         </div> : null}

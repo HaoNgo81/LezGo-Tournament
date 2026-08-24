@@ -87,9 +87,10 @@ describe("STEP 25I-C1-B main page account UI", () => {
     expect(createButton).toHaveClass("text-[var(--primary-strong)]");
     expect(createButton).not.toHaveClass("bg-[var(--primary)]");
     expect(screen.getByRole("link", { name: /Ny turnering/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Turneringsskabeloner/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /^Turneringer/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Åbn turnering fra anden enhed/i })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Turneringsskabeloner/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Åbn turnering fra anden enhed/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/TV|Livescore|QR|Scoreindtastning/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /^Indstillinger/i })).not.toBeInTheDocument();
 
     fireEvent.click(loginButton);

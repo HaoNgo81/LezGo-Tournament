@@ -25,7 +25,6 @@ import {
   type CloudTournamentAuthority,
 } from "@/lib/tournament-setup";
 import { StandingsTable } from "@/components/tournament/standings-table";
-import { ResultSharePanel } from "@/components/tournament/result-share-panel";
 import { useAppTranslation } from "@/lib/preferences/client";
 import type { TranslationKey } from "@/lib/i18n/translations";
 import { useHasHydrated } from "@/hooks/use-has-hydrated";
@@ -253,8 +252,6 @@ export function FinishTournamentApp() {
         </div>
         {message ? <p className="rounded-md bg-yellow-50 p-3 font-bold text-yellow-900">{message}</p> : null}
       </section>
-
-      <ResultSharePanel state={state} />
 
       {poolSummary ? <PoolPlayFinishSummary summary={poolSummary} /> : (
         <section className="grid gap-3">

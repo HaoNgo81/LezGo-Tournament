@@ -1,12 +1,12 @@
 import { AppShell } from "@/components/layout/app-shell";
-import { RemoteTournamentApp } from "@/components/tournament/remote-tournament-app";
+import { DisabledFeaturePage } from "@/components/layout/disabled-feature-page";
 
 export default async function RemoteHandoffPage({ params }: { params: Promise<{ reference: string }> }) {
-  const { reference } = await params;
+  await params;
 
   return (
-    <AppShell title="openRemoteTournament" subtitle="openRemoteTournamentDescription">
-      <RemoteTournamentApp initialHandoffReference={reference} />
+    <AppShell title="LEZGO PADEL" subtitle="Denne funktion er ikke længere tilgængelig.">
+      <DisabledFeaturePage />
     </AppShell>
   );
 }

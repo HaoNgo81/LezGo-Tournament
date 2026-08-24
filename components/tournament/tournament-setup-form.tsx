@@ -38,7 +38,6 @@ import {
   type TeamVsTeamTeamCount,
 } from "@/lib/team-vs-team";
 import { createDefaultTournamentSettings, loadTournamentSettings } from "@/lib/tournament-settings";
-import { findTournamentTemplate } from "@/lib/tournament-templates";
 
 const formatOptions = tournamentTypes.filter((type) => type !== "Puljespil" && type !== "Team vs. Team") as TournamentSetupFormat[];
 
@@ -72,7 +71,6 @@ export function TournamentSetupForm() {
   const router = useRouter();
   const initialSettings = useMemo(() => createDefaultTournamentSettings(), []);
   const initialScoringMode = getInitialScoringMode(initialSettings.scoringMode);
-  const appliedTemplateId = useRef<string | null>(null);
   const formDirtyRef = useRef(false);
   const nameRef = useRef("Americano");
   const formatTapGesture = useRef<FormatTapGesture | null>(null);
@@ -110,29 +108,8 @@ export function TournamentSetupForm() {
   const scoringChoice = getScoringChoice(scoringMode, fixedScoreRule);
 
   useEffect(() => {
-    const template = getInitialTemplate();
-
-    if (!template || appliedTemplateId.current === template.id) {
-      return;
-    }
-
-    appliedTemplateId.current = template.id;
-    nameRef.current = template.title;
-    setName(template.title);
-    setFormat(template.format);
-    setScoringMode(template.scoringMode);
-    setFixedScoreRule(template.fixedScoreRule ?? "target");
-    setFixedScorePoints(String(template.fixedScorePoints ?? 21));
-    setTimeLimitMinutes(String(template.timeLimitMinutes ?? initialSettings.timeLimitMinutes));
-    setCourts(String(template.courts));
-    setRounds(String(template.rounds));
-    setRankingMode(template.rankingMode);
-    setError("");
-  }, [initialSettings.timeLimitMinutes]);
-
-  useEffect(() => {
     const timer = window.setTimeout(() => {
-      if (formDirtyRef.current || getInitialTemplateId()) {
+      if (formDirtyRef.current) {
         return;
       }
 
@@ -223,7 +200,7 @@ export function TournamentSetupForm() {
         fixedScoreRule,
         fixedScorePoints: parsePositiveIntegerInput(fixedScorePoints, "Antal scorepoint"),
         timeLimitMinutes: parsePositiveIntegerInput(timeLimitMinutes, "Spilletid"),
-        firstRoundOrder: getInitialTemplate()?.firstRoundOrder ?? "random",
+        firstRoundOrder: "random",
         rankingMode,
       });
 
@@ -894,19 +871,6 @@ function TeamEditor({ team, teamNumber, playersPerTeam, onChange }: { team: Team
       </label>
     </article>
   );
-}
-
-function getInitialTemplate() {
-  const templateId = getInitialTemplateId();
-  return templateId ? findTournamentTemplate(templateId) : null;
-}
-
-function getInitialTemplateId() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  return new URLSearchParams(window.location.search).get("template");
 }
 
 function createDefaultTeams(count: 8, playersPerTeam: 8): TeamVsTeamTeam[] {

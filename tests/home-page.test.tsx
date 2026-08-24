@@ -36,12 +36,10 @@ describe("HomePage i18n", () => {
     expect(screen.getByText("Fast tournament management for phone and tablet.")).toBeInTheDocument();
     expect(screen.getByText("New tournament")).toBeInTheDocument();
     expect(screen.getByText("Choose format, settings and players.")).toBeInTheDocument();
-    expect(screen.getByText("Tournament templates")).toBeInTheDocument();
-    expect(screen.getByText("Create, edit, delete or start from a template.")).toBeInTheDocument();
     expect(screen.getByText("Tournaments")).toBeInTheDocument();
     expect(screen.getByText("Active, upcoming, completed and previous tournaments.")).toBeInTheDocument();
-    expect(screen.getByText("Open tournament from another device")).toBeInTheDocument();
-    expect(screen.getByText("Enter the tournament code and 4-digit access code for score entry.")).toBeInTheDocument();
+    expect(screen.queryByText("Tournament templates")).not.toBeInTheDocument();
+    expect(screen.queryByText("Open tournament from another device")).not.toBeInTheDocument();
     expect(screen.queryByText("Settings")).not.toBeInTheDocument();
     expect(screen.queryByText("Only the essential options.")).not.toBeInTheDocument();
 

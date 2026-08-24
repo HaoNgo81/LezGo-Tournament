@@ -35,13 +35,15 @@ describe("LiveScoringApp score sheet", () => {
     expect(screen.getByRole("textbox", { name: "Hold B scorepoint" })).toBeRequired();
   });
 
-  it("shows standings heading, unified remote sharing and a bottom next button", async () => {
+  it("shows standings heading, controller actions and no remote sharing controls", async () => {
     saveActiveTournament(createMockLiveTournamentState());
     render(<LiveScoringApp />);
 
     expect(await screen.findByRole("heading", { name: "Stilling" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Sync status")).toHaveTextContent("Kun gemt lokalt");
-    expect(screen.getByText("Del / vis på anden enhed")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Sync status")).not.toBeInTheDocument();
+    expect(screen.queryByText("Del / vis på anden enhed")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "TV / Livescore" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Scoreindtastning" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "TV / Mirror" })).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Næste" })).toHaveLength(2);
   });
@@ -216,8 +218,8 @@ describe("LiveScoringApp score sheet", () => {
     expect(await screen.findByText("Mexicano test")).toBeInTheDocument();
     expect(await screen.findByLabelText("More actions")).toBeInTheDocument();
     expect(await screen.findByText("Saved")).toBeInTheDocument();
-    expect(await screen.findByRole("button", { name: "Activate sharing" })).toBeInTheDocument();
-    expect(screen.getByText("Share")).toHaveClass("sm:hidden");
+    expect(screen.queryByRole("button", { name: "Activate sharing" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Share")).not.toBeInTheDocument();
   });
 
   it("uses the compact /live standings header without duplicate live score or sort label", async () => {
@@ -1089,13 +1091,12 @@ describe("LiveScoringApp score sheet", () => {
     expect(await screen.findByText("Mock Americano")).toBeInTheDocument();
     expect(screen.queryByTestId("controller-read-only-notice")).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Indtast score" })).toHaveLength(localState.rounds[0].matches.length);
-    expect(screen.getByRole("button", { name: "Aktivér deling" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Aktivér deling" })).not.toBeInTheDocument();
   });
 
-  it("starts organizer polling after sharing is activated on an already mounted local tournament", async () => {
-    delete process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE;
+  it("keeps organizer polling for synced cloud tournaments without exposing sharing controls", async () => {
     const localState = createTournamentFromSetup({
-      name: "Mounted sharing sync",
+      name: "Mounted cloud sync",
       format: "Mexicano",
       playerText: sixteenPlayerText,
       femalePlayerText: "",
@@ -1108,6 +1109,7 @@ describe("LiveScoringApp score sheet", () => {
       firstRoundOrder: "manual",
       rankingMode: "matchPointsFirst",
     });
+    const localId = createStandardShadowSaveLocalId(localState);
     const remoteState = saveMatchResult(localState, {
       matchId: localState.rounds[0].matches[0].id,
       teamAPoints: 19,
@@ -1141,20 +1143,24 @@ describe("LiveScoringApp score sheet", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     saveActiveTournament(localState);
+    saveShadowMetadata(localId, {
+      kind: "standard",
+      lastLocalSaveAt: "2026-08-13T12:00:00.000Z",
+      lastShadowSaveVersion: "2026-08-13T12:00:00.000Z",
+      lastSuccessfulShadowSaveAt: "2026-08-13T12:00:00.000Z",
+      organizerToken: "STEP_24C_ORGANIZER_TOKEN",
+      status: "synced",
+      supabaseTournamentId: "00000000-0000-4000-8000-000000000242",
+    });
     render(<LiveScoringApp />);
 
-    expect(await screen.findByText("Mounted sharing sync")).toBeInTheDocument();
-    expect(screen.getByLabelText("Sync status")).toHaveTextContent("Kun gemt lokalt");
+    expect(await screen.findByText("Mounted cloud sync")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Sync status")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Scoreindtastning" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "TV / Livescore" })).not.toBeInTheDocument();
 
-    process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE = "1";
-    fireEvent.click(screen.getByRole("button", { name: "Aktivér deling" }));
-
-    await waitFor(() => expect(screen.getByRole("button", { name: "Scoreindtastning" })).toBeInTheDocument());
     await waitFor(() => expectLiveCourtScore("19", "5"), { timeout: 3500 });
 
-    expect(fetchMock).toHaveBeenCalledWith("/api/supabase/shadow-save", expect.objectContaining({
-      method: "POST",
-    }));
     expect(fetchMock).toHaveBeenCalledWith("/api/supabase/organizer-tournament/read", expect.objectContaining({
       cache: "no-store",
       method: "POST",

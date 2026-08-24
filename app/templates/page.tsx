@@ -1,10 +1,10 @@
-﻿import { AppShell } from "@/components/layout/app-shell";
-import { TemplatesApp } from "@/components/tournament/templates-app";
+import { AppShell } from "@/components/layout/app-shell";
+import { DisabledFeaturePage } from "@/components/layout/disabled-feature-page";
 
 export default function TemplatesPage() {
   return (
-    <AppShell title="Turneringsskabeloner" subtitle="Opret, rediger, slet og start fra skabelon." primaryAction={null}>
-      <TemplatesApp />
+    <AppShell title="LEZGO PADEL" subtitle="Denne funktion er ikke længere tilgængelig." primaryAction={null}>
+      <DisabledFeaturePage />
     </AppShell>
   );
 }

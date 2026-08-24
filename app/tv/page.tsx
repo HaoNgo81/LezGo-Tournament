@@ -1,5 +1,10 @@
-import { TvTournamentApp } from "@/components/tournament/tv-tournament-app";
+import { AppShell } from "@/components/layout/app-shell";
+import { DisabledFeaturePage } from "@/components/layout/disabled-feature-page";
 
 export default function TvPage() {
-  return <TvTournamentApp />;
+  return (
+    <AppShell title="LEZGO PADEL" subtitle="Denne funktion er ikke længere tilgængelig." primaryAction={null}>
+      <DisabledFeaturePage />
+    </AppShell>
+  );
 }

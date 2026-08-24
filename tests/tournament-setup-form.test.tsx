@@ -3,7 +3,6 @@ import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TournamentSetupForm } from "../components/tournament/tournament-setup-form";
 import { saveTournamentSettings } from "../lib/tournament-settings";
-import { saveTournamentTemplate } from "../lib/tournament-templates";
 
 const { push } = vi.hoisted(() => ({ push: vi.fn() }));
 
@@ -513,30 +512,16 @@ describe("tournament setup form", () => {
     expect(screen.getByRole("textbox", { name: "Mænd" })).toHaveValue("");
   });
 
-  it("applies tournament template values from the start link", async () => {
-    saveTournamentTemplate(
-      {
-        title: "Chopstick",
-        format: "Fast Makker Mexicano",
-        scoringMode: "Fast antal point",
-        fixedScoreRule: "target",
-        fixedScorePoints: 6,
-        courts: 4,
-        rounds: 20,
-        firstRoundOrder: "random",
-        rankingMode: "matchPointsFirst",
-      },
-      "chopstick",
-    );
+  it("ignores legacy tournament template links in the simplified setup flow", async () => {
     window.history.pushState({}, "", "/new-tournament?template=chopstick");
 
     render(<TournamentSetupForm />);
 
-    expect(await screen.findByDisplayValue("Chopstick")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Fast Makker Mexicano" })).toHaveClass("tournament-format-button-selected");
-    expect(screen.getByRole("spinbutton", { name: "Baner" })).toHaveValue(4);
-    expect(screen.getByRole("spinbutton", { name: "Runder" })).toHaveValue(20);
-    expect(screen.getByRole("spinbutton", { name: "Antal scorepoint" })).toHaveValue(6);
+    expect(await screen.findByDisplayValue("Americano")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Americano" })).toHaveClass("tournament-format-button-selected");
+    expect(screen.getByRole("spinbutton", { name: "Baner" })).toHaveValue(2);
+    expect(screen.getByRole("spinbutton", { name: "Runder" })).toHaveValue(2);
+    expect(screen.getByRole("spinbutton", { name: "Antal scorepoint" })).toHaveValue(21);
     expect(screen.queryByRole("combobox", { name: "Runde 1" })).not.toBeInTheDocument();
   });
 });
