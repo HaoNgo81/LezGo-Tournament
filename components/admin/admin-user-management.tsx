@@ -24,7 +24,7 @@ export function AdminUserManagement({ users: initialUsers, currentUserId }: Admi
   const { language } = useAppTranslation();
   const copy = language === "en" ? englishCopy : danishCopy;
   const [users, setUsers] = useState(initialUsers);
-  const [selectedUserId, setSelectedUserId] = useState(initialUsers[0]?.userId ?? "");
+  const [selectedUserId, setSelectedUserId] = useState("");
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");

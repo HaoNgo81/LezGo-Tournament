@@ -22,7 +22,27 @@ describe("STEP 25I-C1-C7 admin user management UI", () => {
     expect(screen.getAllByText("@admin_one").length).toBeGreaterThan(0);
     expect(screen.getAllByText("admin@example.com").length).toBeGreaterThan(0);
     expect(screen.getByText("Eksisterende koder, hashes og tokens vises aldrig.")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.queryByText(/password|service-role/i)).not.toBeInTheDocument();
+  });
+
+  it("does not auto-open a user detail modal until an admin selects a user", () => {
+    render(<AdminUserManagement users={users} currentUserId={users[0].userId} />);
+
+    expect(screen.getByText("Brugerstyring")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    const row = screen.getAllByTestId("admin-user-row").find((candidate) => within(candidate).queryByText("User One"));
+    expect(row).toBeTruthy();
+    fireEvent.click(within(row as HTMLElement).getByRole("button", { name: "Administrer" }));
+
+    const detail = screen.getByRole("dialog");
+    expect(within(detail).getByRole("heading", { name: "User One" })).toBeInTheDocument();
+
+    fireEvent.click(within(detail).getByRole("button", { name: "Luk" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByText("Brugerstyring")).toBeInTheDocument();
   });
 
   it("filters users by search and status without horizontal-only table dependency", () => {

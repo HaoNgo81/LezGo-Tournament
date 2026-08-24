@@ -65,13 +65,24 @@ describe("FinishTournamentApp pool play", () => {
     expect(screen.getByText(/Americano · 8 spillere · 2 runder/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Runde 1" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Runde 2" })).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getAllByTestId("finished-history-match-card")).toHaveLength(2);
-    expect(screen.getByText("21 - 15")).toBeInTheDocument();
+    const firstRoundCards = screen.getAllByTestId("finished-history-match-card");
+    expect(firstRoundCards).toHaveLength(2);
+    expect(firstRoundCards[0]).toHaveAttribute("data-card-structure", "unified-court-card");
+    expect(within(firstRoundCards[0]).getByRole("heading", { name: "Bane 1" })).toBeInTheDocument();
+    expect(within(firstRoundCards[0]).getByText("Afsluttet")).toBeInTheDocument();
+    expect(within(firstRoundCards[0]).getByTestId("finished-history-court-left-player-1")).toHaveTextContent("Alle 1");
+    expect(within(firstRoundCards[0]).getByTestId("finished-history-court-left-player-2")).toHaveTextContent("Alle 2");
+    expect(within(firstRoundCards[0]).getByTestId("finished-history-court-vs")).toHaveTextContent("VS");
+    expect(within(firstRoundCards[0]).getByTestId("finished-history-court-left-score")).toHaveTextContent("21");
+    expect(within(firstRoundCards[0]).getByTestId("finished-history-court-score-separator")).toHaveTextContent("-");
+    expect(within(firstRoundCards[0]).getByTestId("finished-history-court-right-score")).toHaveTextContent("15");
 
     fireEvent.click(screen.getByRole("button", { name: "Runde 2" }));
 
     expect(screen.getByRole("button", { name: "Runde 2" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByText("18 - 21")).toBeInTheDocument();
+    const secondRoundCard = screen.getAllByTestId("finished-history-match-card")[0];
+    expect(within(secondRoundCard).getByTestId("finished-history-court-left-score")).toHaveTextContent("18");
+    expect(within(secondRoundCard).getByTestId("finished-history-court-right-score")).toHaveTextContent("21");
     expect(window.localStorage.getItem("lezgo.activeTournament.v1")).toBe(before);
     expect(screen.queryByRole("link", { name: "Rediger score" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Indtast score" })).not.toBeInTheDocument();
@@ -95,12 +106,19 @@ describe("FinishTournamentApp pool play", () => {
 
     expect(await screen.findByRole("heading", { name })).toBeInTheDocument();
     const history = screen.getByTestId("finished-round-history");
-    expect(within(history).getByText(expectedTeamText)).toBeInTheDocument();
-    expect(within(history).getByText("21 - 15")).toBeInTheDocument();
+    for (const playerName of expectedTeamText.split(" + ")) {
+      expect(within(history).getAllByText(playerName).length).toBeGreaterThan(0);
+    }
+    const firstRoundCard = within(history).getAllByTestId("finished-history-match-card")[0];
+    expect(firstRoundCard).toHaveAttribute("data-card-structure", "unified-court-card");
+    expect(within(firstRoundCard).getByTestId("finished-history-court-left-score")).toHaveTextContent("21");
+    expect(within(firstRoundCard).getByTestId("finished-history-court-right-score")).toHaveTextContent("15");
 
     fireEvent.click(within(history).getByRole("button", { name: "Runde 2" }));
 
-    expect(within(history).getByText("18 - 21")).toBeInTheDocument();
+    const secondRoundCard = within(history).getAllByTestId("finished-history-match-card")[0];
+    expect(within(secondRoundCard).getByTestId("finished-history-court-left-score")).toHaveTextContent("18");
+    expect(within(secondRoundCard).getByTestId("finished-history-court-right-score")).toHaveTextContent("21");
   });
 
   it("shows a controlled fallback when older completed history lacks detailed rounds", async () => {

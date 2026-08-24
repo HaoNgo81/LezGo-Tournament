@@ -26,6 +26,7 @@ import {
   type CloudTournamentAuthority,
 } from "@/lib/tournament-setup";
 import { StandingsTable } from "@/components/tournament/standings-table";
+import { UnifiedCourtCard } from "@/components/tournament/unified-court-card";
 import { useAppTranslation } from "@/lib/preferences/client";
 import type { TranslationKey } from "@/lib/i18n/translations";
 import { useHasHydrated } from "@/hooks/use-has-hydrated";
@@ -349,16 +350,21 @@ function RoundHistory({
 
 function HistoryMatchCard({ match, result, state, t }: { match: TournamentMatch; result?: MatchResult; state: LiveTournamentState; t: (key: TranslationKey) => string }) {
   return (
-    <article className="app-card grid gap-3 p-4" data-testid="finished-history-match-card">
-      <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{t("court")} {match.courtNumber}</p>
-      <div className="grid gap-2">
-        <p className="font-bold">{formatHistoryTeam(match.teamA.playerIds, state)}</p>
-        <p className="rounded-md bg-[var(--primary-soft)] px-3 py-2 text-center text-2xl font-black text-[var(--primary-strong)]">
-          {result ? formatHistoryScore(result) : "-"}
-        </p>
-        <p className="font-bold">{formatHistoryTeam(match.teamB.playerIds, state)}</p>
-      </div>
-    </article>
+    <UnifiedCourtCard
+      articleProps={{ "aria-label": `${t("court")} ${match.courtNumber} ${t("completed").toLocaleLowerCase("da")}` }}
+      className="text-left"
+      court={`${t("court")} ${match.courtNumber}`}
+      density="standard"
+      leftPlayers={formatHistoryTeamPlayers(match.teamA.playerIds, state)}
+      leftScore={result?.teamAPoints}
+      rightPlayers={formatHistoryTeamPlayers(match.teamB.playerIds, state)}
+      rightScore={result?.teamBPoints}
+      status={formatHistoryStatus(result, t)}
+      testId="finished-history-match-card"
+      testIdPrefix="finished-history-court"
+      tone="completed"
+      unsavedLabel={result ? undefined : "-"}
+    />
   );
 }
 
@@ -410,13 +416,16 @@ function getFirstHistoryRoundNumber(state: LiveTournamentState): number {
   return getHistoryRounds(state)[0]?.roundNumber ?? 1;
 }
 
-function formatHistoryTeam(playerIds: readonly string[], state: LiveTournamentState): string {
-  return playerIds.map((playerId) => getPlayerName(state.players, playerId)).join(" + ");
+function formatHistoryTeamPlayers(playerIds: readonly string[], state: LiveTournamentState): string[] {
+  return playerIds.map((playerId) => getPlayerName(state.players, playerId));
 }
 
-function formatHistoryScore(result: MatchResult): string {
-  const baseScore = `${result.teamAPoints} - ${result.teamBPoints}`;
-  return result.tieBreakWinner ? `${baseScore} (MTB: ${result.tieBreakWinner === "teamA" ? "hold A" : "hold B"})` : baseScore;
+function formatHistoryStatus(result: MatchResult | undefined, t: (key: TranslationKey) => string): string {
+  if (!result?.tieBreakWinner) {
+    return t("completed");
+  }
+
+  return `${t("completed")} · MTB ${result.tieBreakWinner === "teamA" ? "A" : "B"}`;
 }
 
 function formatFinishedTournamentSummary(state: LiveTournamentState, t: (key: TranslationKey) => string): string {
