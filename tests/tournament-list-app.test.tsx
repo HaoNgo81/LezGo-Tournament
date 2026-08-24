@@ -45,6 +45,29 @@ describe("TournamentListApp pool play", () => {
     expect(screen.getByText(/Afsluttet .* 16 spillere/)).toBeInTheDocument();
   });
 
+  it("opens a completed tournament from Se slutstilling as the selected read-only result state", async () => {
+    const completedTournament = saveCompletedTournament(finishTournament(createStandardTournament("Se slutstilling test"), "2026-08-04T18:00:00.000Z"));
+
+    render(<TournamentListApp />);
+
+    const card = (await screen.findByText("Se slutstilling test")).closest("article");
+
+    if (!card) {
+      throw new Error("Missing completed tournament card.");
+    }
+
+    const finalLink = within(card).getByRole("link", { name: "Se slutstilling" });
+    expect(finalLink).toHaveAttribute("href", "/finish");
+
+    finalLink.click();
+
+    expect(loadActiveTournament()).toMatchObject({
+      status: "finished",
+      finishedAt: completedTournament.finishedAt,
+      tournamentName: "Se slutstilling test",
+    });
+  });
+
   it("classifies a finished tournament only under completed even when a stale active copy exists", async () => {
     const tournament = createStandardTournament("FIX 6");
     saveActiveTournament(tournament);

@@ -1,8 +1,9 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FinishTournamentApp } from "../components/tournament/finish-tournament-app";
-import { advanceLivePoolPlayState, createMockLiveTournamentState, finishTournament, saveNextPoolPhaseResult } from "../lib/live-scoring";
-import { createStandardShadowSaveLocalId, createPoolTournamentFromSetup, loadActiveTournament, loadShadowSaveMetadata, markActiveCloudTournamentAuthority, saveActiveTournament, saveActiveTournamentFromRemoteSync } from "../lib/tournament-setup";
+import { advanceLivePoolPlayState, createMockLiveTournamentState, finishTournament, goToNextRound, saveMatchResult, saveNextPoolPhaseResult, type LiveTournamentState } from "../lib/live-scoring";
+import { createStandardShadowSaveLocalId, createPoolTournamentFromSetup, createTournamentFromSetup, loadActiveTournament, loadShadowSaveMetadata, markActiveCloudTournamentAuthority, saveActiveTournament, saveActiveTournamentFromRemoteSync } from "../lib/tournament-setup";
+import type { TournamentSetupFormat } from "../lib/tournament-setup";
 
 describe("FinishTournamentApp pool play", () => {
   afterEach(() => {
@@ -49,6 +50,70 @@ describe("FinishTournamentApp pool play", () => {
     expect(screen.queryByRole("button", { name: "Del resultat" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Kopier link" })).not.toBeInTheDocument();
     expect(screen.queryByRole("img", { name: "QR-kode til offentligt slutresultat" })).not.toBeInTheDocument();
+  });
+
+  it("opens a completed tournament as a read-only final standings and round history page", async () => {
+    const finishedState = createFinishedHistoryTournament("Americano", "Historik Americano");
+    saveActiveTournament(finishedState);
+    const before = window.localStorage.getItem("lezgo.activeTournament.v1");
+
+    render(<FinishTournamentApp />);
+
+    expect(await screen.findByRole("heading", { name: "Historik Americano" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Slutstilling" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Kampresultater" })).toBeInTheDocument();
+    expect(screen.getByText(/Americano · 8 spillere · 2 runder/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Runde 1" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Runde 2" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getAllByTestId("finished-history-match-card")).toHaveLength(2);
+    expect(screen.getByText("21 - 15")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Runde 2" }));
+
+    expect(screen.getByRole("button", { name: "Runde 2" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("18 - 21")).toBeInTheDocument();
+    expect(window.localStorage.getItem("lezgo.activeTournament.v1")).toBe(before);
+    expect(screen.queryByRole("link", { name: "Rediger score" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Indtast score" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Afslut turnering" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Næste" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Forrige" })).not.toBeInTheDocument();
+    expect(screen.queryByText("TV / Livescore")).not.toBeInTheDocument();
+    expect(screen.queryByText("Scoreindtastning")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["Americano", "Historik Americano", "Alle 1 + Alle 2"],
+    ["Fast Makker Americano", "Historik Fast Makker Americano", "Alle 1 + Alle 2"],
+    ["Mixed Americano", "Historik Mixed Americano", "Mand 1 + Kvinde 1"],
+    ["Mexicano", "Historik Mexicano", "Alle 1 + Alle 3"],
+    ["Fast Makker Mexicano", "Historik Fast Makker Mexicano", "Alle 1 + Alle 2"],
+  ] as const)("renders saved historical matches for %s", async (format, name, expectedTeamText) => {
+    saveActiveTournament(createFinishedHistoryTournament(format, name));
+
+    render(<FinishTournamentApp />);
+
+    expect(await screen.findByRole("heading", { name })).toBeInTheDocument();
+    const history = screen.getByTestId("finished-round-history");
+    expect(within(history).getByText(expectedTeamText)).toBeInTheDocument();
+    expect(within(history).getByText("21 - 15")).toBeInTheDocument();
+
+    fireEvent.click(within(history).getByRole("button", { name: "Runde 2" }));
+
+    expect(within(history).getByText("18 - 21")).toBeInTheDocument();
+  });
+
+  it("shows a controlled fallback when older completed history lacks detailed rounds", async () => {
+    const finishedState = {
+      ...finishTournament(createMockLiveTournamentState(), "2026-08-19T18:30:00.000Z"),
+      results: [],
+    };
+    saveActiveTournament(finishedState);
+
+    render(<FinishTournamentApp />);
+
+    expect(await screen.findByRole("heading", { name: "Kampresultater" })).toBeInTheDocument();
+    expect(screen.getByText("Detaljerede kampresultater er ikke tilgængelige for denne turnering.")).toBeInTheDocument();
   });
 
   it("rejects stale finish before marking the former controller tournament complete", async () => {
@@ -164,7 +229,7 @@ describe("FinishTournamentApp pool play", () => {
       status: "synced",
       lastShadowSaveVersion: "2026-08-23T12:46:00.000Z",
     });
-    expect(screen.getByRole("button", { name: "Afsluttet" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Afsluttet" })).not.toBeInTheDocument();
   });
 
   it("blocks rapid duplicate finish clicks while the first finish write is pending", async () => {
@@ -266,6 +331,39 @@ function createCompletedInitialPoolTournament() {
   }
 
   return state;
+}
+
+function createFinishedHistoryTournament(format: TournamentSetupFormat, name: string): LiveTournamentState {
+  const playerText = format === "Mixed Americano"
+    ? ""
+    : ["Alle 1", "Alle 2", "Alle 3", "Alle 4", "Alle 5", "Alle 6", "Alle 7", "Alle 8"].join("\n");
+  const femalePlayerText = format === "Mixed Americano" ? ["Kvinde 1", "Kvinde 2", "Kvinde 3", "Kvinde 4"].join("\n") : "";
+  const malePlayerText = format === "Mixed Americano" ? ["Mand 1", "Mand 2", "Mand 3", "Mand 4"].join("\n") : "";
+  const initialState = createTournamentFromSetup({
+    name,
+    format,
+    playerText,
+    femalePlayerText,
+    malePlayerText,
+    courts: 2,
+    rounds: 2,
+    scoringMode: "Fri scoring",
+    firstRoundOrder: "manual",
+    rankingMode: "matchPointsFirst",
+  });
+  const firstRoundScored = initialState.rounds[0].matches.reduce((currentState, match, index) => saveMatchResult(currentState, {
+    matchId: match.id,
+    teamAPoints: index === 0 ? 21 : 17,
+    teamBPoints: index === 0 ? 15 : 19,
+  }), initialState);
+  const secondRoundState = goToNextRound(firstRoundScored);
+  const secondRoundScored = secondRoundState.rounds[1].matches.reduce((currentState, match, index) => saveMatchResult(currentState, {
+    matchId: match.id,
+    teamAPoints: index === 0 ? 18 : 20,
+    teamBPoints: index === 0 ? 21 : 16,
+  }), secondRoundState);
+
+  return finishTournament(secondRoundScored, "2026-08-24T13:00:00.000Z");
 }
 
 function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void; reject: (reason?: unknown) => void } {

@@ -119,6 +119,8 @@ export type TranslationKey =
   | "matches"
   | "matchesInActiveRound"
   | "matchPoints"
+  | "matchResults"
+  | "matchHistoryUnavailable"
   | "midnight"
   | "mostMatchPoints"
   | "mostScorePoints"
@@ -453,6 +455,8 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     matches: "Kampe",
     matchesInActiveRound: "Kampe i aktiv runde",
     matchPoints: "Matchpoint",
+    matchResults: "Kampresultater",
+    matchHistoryUnavailable: "Detaljerede kampresultater er ikke tilgængelige for denne turnering.",
     midnight: "Midnight",
     mostMatchPoints: "Flest matchpoint",
     mostScorePoints: "Flest scorepoint",
@@ -785,6 +789,8 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     matches: "Matches",
     matchesInActiveRound: "Matches in active round",
     matchPoints: "Match points",
+    matchResults: "Match results",
+    matchHistoryUnavailable: "Detailed match results are not available for this tournament.",
     midnight: "Midnight",
     mostMatchPoints: "Most match points",
     mostScorePoints: "Most score points",

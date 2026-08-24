@@ -7,6 +7,7 @@ import {
   createMockLiveTournamentState,
   createPoolPlaySummary,
   finishTournament,
+  getPlayerName,
   type PoolPlaySummary,
   type LiveTournamentState,
 } from "@/lib/live-scoring";
@@ -28,6 +29,7 @@ import { StandingsTable } from "@/components/tournament/standings-table";
 import { useAppTranslation } from "@/lib/preferences/client";
 import type { TranslationKey } from "@/lib/i18n/translations";
 import { useHasHydrated } from "@/hooks/use-has-hydrated";
+import type { MatchResult, TournamentMatch, TournamentRound } from "@/lib/tournament-engine";
 
 const rankingModeLabels = {
   matchPointsFirst: "mostMatchPoints",
@@ -50,6 +52,7 @@ export function FinishTournamentApp() {
   const [state, setState] = useState<LiveTournamentState>(() => createMockLiveTournamentState());
   const [cloudAuthority, setCloudAuthority] = useState<CloudTournamentAuthority | null>(null);
   const [message, setMessage] = useState("");
+  const [selectedHistoryRoundNumber, setSelectedHistoryRoundNumber] = useState(1);
   const finishInFlightRef = useRef(false);
   const hasHydrated = useHasHydrated();
   const standings = useMemo(() => calculateLiveStandings(state), [state]);
@@ -65,6 +68,7 @@ export function FinishTournamentApp() {
       const loadedState = loadActiveTournament() ?? createMockLiveTournamentState();
       const localId = createStandardShadowSaveLocalId(loadedState);
       setState(loadedState);
+      setSelectedHistoryRoundNumber(getFirstHistoryRoundNumber(loadedState));
       setCloudAuthority(loadActiveCloudTournamentAuthority("standard", localId));
     }, 0);
 
@@ -91,6 +95,7 @@ export function FinishTournamentApp() {
 
       saveCompletedTournament(finishedState);
       setState(finishedState);
+      setSelectedHistoryRoundNumber(getFirstHistoryRoundNumber(finishedState));
     } finally {
       finishInFlightRef.current = false;
     }
@@ -237,9 +242,12 @@ export function FinishTournamentApp() {
         <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{isFinished ? t("completedTournament") : t("finishTournament")}</p>
         <h2 className="text-2xl font-black">{state.tournamentName}</h2>
         <p className="text-sm font-bold text-[var(--muted)]">
-          {t("finalStandings")} sorteres efter {t(rankingModeLabels[state.rankingMode] as TranslationKey).toLocaleLowerCase("da")}.
+          {formatFinishedTournamentSummary(state, t)}
         </p>
-        <div className="action-grid">
+        {!isFinished ? <p className="text-sm font-bold text-[var(--muted)]">
+          {t("finalStandings")} sorteres efter {t(rankingModeLabels[state.rankingMode] as TranslationKey).toLocaleLowerCase("da")}.
+        </p> : null}
+        {!isFinished ? <div className="action-grid">
           <Link className="btn-secondary min-h-14 text-lg" href="/live">
             {t("editScore")}
           </Link>
@@ -249,18 +257,209 @@ export function FinishTournamentApp() {
           <button className="min-h-14 rounded-md bg-red-600 px-5 text-lg font-black text-white disabled:bg-gray-300" type="button" disabled={isFinished || cloudAuthority?.canManage === false} onClick={() => void handleFinish()}>
             {isFinished ? t("completed") : t("finishTournament")}
           </button>
-        </div>
+        </div> : (
+          <button className="btn-outline-primary min-h-12 justify-self-start px-4 text-base" type="button" onClick={handleDownloadPdf}>
+            Download PDF
+          </button>
+        )}
         {message ? <p className="rounded-md bg-yellow-50 p-3 font-bold text-yellow-900">{message}</p> : null}
       </section>
 
       {poolSummary ? <PoolPlayFinishSummary summary={poolSummary} /> : (
-        <section className="grid gap-3">
-          <h2 className="text-xl font-black">{t("finalStandings")}</h2>
-          <StandingsTable standings={standings} />
-        </section>
+        <>
+          <section className="grid gap-3">
+            <h2 className="text-xl font-black uppercase">{t("finalStandings")}</h2>
+            <StandingsTable standings={standings} />
+          </section>
+          {isFinished ? (
+            <RoundHistory
+              selectedRoundNumber={selectedHistoryRoundNumber}
+              state={state}
+              t={t}
+              onSelectRound={setSelectedHistoryRoundNumber}
+            />
+          ) : null}
+        </>
       )}
     </div>
   );
+}
+
+function RoundHistory({
+  onSelectRound,
+  selectedRoundNumber,
+  state,
+  t,
+}: {
+  onSelectRound: (roundNumber: number) => void;
+  selectedRoundNumber: number;
+  state: LiveTournamentState;
+  t: (key: TranslationKey) => string;
+}) {
+  const historyRounds = getHistoryRounds(state);
+  const resultByMatchId = new Map(state.results.map((result) => [result.matchId, result]));
+
+  if (!historyRounds.length) {
+    return (
+      <section className="grid gap-3" data-testid="finished-round-history">
+        <h2 className="text-xl font-black uppercase">{t("matchResults")}</h2>
+        <p className="app-card p-4 font-bold text-[var(--muted)]">{t("matchHistoryUnavailable")}</p>
+      </section>
+    );
+  }
+
+  const selectedRound = historyRounds.find((round) => round.roundNumber === selectedRoundNumber) ?? historyRounds[0];
+
+  return (
+    <section className="grid gap-3" data-testid="finished-round-history">
+      <div>
+        <h2 className="text-xl font-black uppercase">{t("matchResults")}</h2>
+        <div className="-mx-1 mt-3 flex gap-2 overflow-x-auto px-1 pb-2" aria-label={t("round")}>
+          {historyRounds.map((round) => (
+            <button
+              key={round.roundNumber}
+              aria-pressed={selectedRound.roundNumber === round.roundNumber}
+              className={selectedRound.roundNumber === round.roundNumber ? "btn-primary min-h-11 shrink-0 px-4 text-sm" : "btn-secondary min-h-11 shrink-0 px-4 text-sm"}
+              type="button"
+              onClick={() => onSelectRound(round.roundNumber)}
+            >
+              {t("round")} {round.roundNumber}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <section className="grid gap-3" aria-label={`${t("round")} ${selectedRound.roundNumber}`}>
+        <h3 className="text-lg font-black">{t("round")} {selectedRound.roundNumber}</h3>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {selectedRound.matches.map((match) => (
+            <HistoryMatchCard
+              key={match.id}
+              match={match}
+              result={resultByMatchId.get(match.id)}
+              state={state}
+              t={t}
+            />
+          ))}
+        </div>
+      </section>
+    </section>
+  );
+}
+
+function HistoryMatchCard({ match, result, state, t }: { match: TournamentMatch; result?: MatchResult; state: LiveTournamentState; t: (key: TranslationKey) => string }) {
+  return (
+    <article className="app-card grid gap-3 p-4" data-testid="finished-history-match-card">
+      <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{t("court")} {match.courtNumber}</p>
+      <div className="grid gap-2">
+        <p className="font-bold">{formatHistoryTeam(match.teamA.playerIds, state)}</p>
+        <p className="rounded-md bg-[var(--primary-soft)] px-3 py-2 text-center text-2xl font-black text-[var(--primary-strong)]">
+          {result ? formatHistoryScore(result) : "-"}
+        </p>
+        <p className="font-bold">{formatHistoryTeam(match.teamB.playerIds, state)}</p>
+      </div>
+    </article>
+  );
+}
+
+function getHistoryRounds(state: LiveTournamentState): TournamentRound[] {
+  if (!Array.isArray(state.rounds) || !Array.isArray(state.results)) {
+    return [];
+  }
+
+  const resultByMatchId = new Set(state.results.filter(isHistoryResult).map((result) => result.matchId));
+
+  return state.rounds
+    .filter(isHistoryRound)
+    .map((round) => ({
+      ...round,
+      matches: round.matches.filter((match) => resultByMatchId.has(match.id)),
+    }))
+    .filter((round) => round.matches.length > 0);
+}
+
+function isHistoryRound(value: unknown): value is TournamentRound {
+  const round = value as { roundNumber?: unknown; matches?: unknown };
+  return Boolean(round)
+    && typeof round === "object"
+    && typeof round.roundNumber === "number"
+    && Array.isArray(round.matches)
+    && round.matches.every(isHistoryMatch);
+}
+
+function isHistoryMatch(value: unknown): value is TournamentMatch {
+  const match = value as { id?: unknown; courtNumber?: unknown; teamA?: { playerIds?: unknown }; teamB?: { playerIds?: unknown } };
+  return Boolean(match)
+    && typeof match === "object"
+    && typeof match.id === "string"
+    && typeof match.courtNumber === "number"
+    && Array.isArray(match.teamA?.playerIds)
+    && Array.isArray(match.teamB?.playerIds);
+}
+
+function isHistoryResult(value: unknown): value is MatchResult {
+  const result = value as { matchId?: unknown; teamAPoints?: unknown; teamBPoints?: unknown };
+  return Boolean(result)
+    && typeof result === "object"
+    && typeof result.matchId === "string"
+    && typeof result.teamAPoints === "number"
+    && typeof result.teamBPoints === "number";
+}
+
+function getFirstHistoryRoundNumber(state: LiveTournamentState): number {
+  return getHistoryRounds(state)[0]?.roundNumber ?? 1;
+}
+
+function formatHistoryTeam(playerIds: readonly string[], state: LiveTournamentState): string {
+  return playerIds.map((playerId) => getPlayerName(state.players, playerId)).join(" + ");
+}
+
+function formatHistoryScore(result: MatchResult): string {
+  const baseScore = `${result.teamAPoints} - ${result.teamBPoints}`;
+  return result.tieBreakWinner ? `${baseScore} (MTB: ${result.tieBreakWinner === "teamA" ? "hold A" : "hold B"})` : baseScore;
+}
+
+function formatFinishedTournamentSummary(state: LiveTournamentState, t: (key: TranslationKey) => string): string {
+  const summaryParts = [
+    formatTournamentType(state.format, t),
+    formatParticipantCount(state, t),
+    `${state.configuredRounds ?? state.rounds.length} ${t("rounds").toLowerCase()}`,
+  ];
+
+  if (state.finishedAt) {
+    summaryParts.push(formatDate(state.finishedAt));
+  }
+
+  return summaryParts.join(" · ");
+}
+
+function formatTournamentType(format: LiveTournamentState["format"], t: (key: TranslationKey) => string): string {
+  switch (format) {
+    case "americano":
+      return t("formatAmericano");
+    case "mexicano":
+      return t("formatMexicano");
+    case "mixed-americano":
+      return t("formatMixedAmericano");
+    case "fixed-partner-americano":
+      return t("fixedPartnerAmericano");
+    case "fixed-partner-mexicano":
+      return t("fixedPartnerMexicano");
+    case "pool-play":
+      return t("formatPoolPlay");
+  }
+}
+
+function formatParticipantCount(state: LiveTournamentState, t: (key: TranslationKey) => string): string {
+  if (state.format === "fixed-partner-americano" || state.format === "fixed-partner-mexicano") {
+    return `${state.players.length / 2} ${t("teams").toLowerCase()}`;
+  }
+
+  return `${state.players.length} ${t("players").toLowerCase()}`;
+}
+
+function formatDate(value: string): string {
+  return new Intl.DateTimeFormat("da-DK", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
 }
 
 function PoolPlayFinishSummary({ summary }: { summary: PoolPlaySummary }) {
