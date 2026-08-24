@@ -67,14 +67,9 @@ describe("LiveScoringApp score sheet", () => {
     const dialog = await screen.findByRole("dialog", { name: "Screen Mirroring" });
     expect(within(dialog).getByText("Vis LEZGO-turneringen på dit TV.")).toBeInTheDocument();
     expect(within(dialog).getByText("Direkte TV-søgning er ikke tilgængelig i webversionen.")).toBeInTheDocument();
-    expect(within(dialog).getByText("Desktop / Chrome")).toBeInTheDocument();
-    expect(within(dialog).getByText(/Brug Cast i Chrome og vælg dit TV/)).toBeInTheDocument();
     expect(within(dialog).getByText("Windows")).toBeInTheDocument();
-    expect(within(dialog).getByText(/Tryk Win \+ K/)).toBeInTheDocument();
-    expect(within(dialog).getByText("Apple")).toBeInTheDocument();
-    expect(within(dialog).getByText(/Skærmspejling\/AirPlay/)).toBeInTheDocument();
-    expect(within(dialog).getByText("Mobil / tablet")).toBeInTheDocument();
-    expect(within(dialog).getByText(/indbyggede Cast\/Skærmspejling/)).toBeInTheDocument();
+    expect(within(dialog).getByText("Tryk Win + K og vælg dit TV.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Andre enheder")).toBeInTheDocument();
     expect(screen.queryByText("Screen Mirroring aktiv")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Stop Screen Mirroring" })).not.toBeInTheDocument();
 
@@ -115,7 +110,7 @@ describe("LiveScoringApp score sheet", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Screen Mirroring" }));
 
     const dialog = await screen.findByRole("dialog", { name: "Screen Mirroring" });
-    expect(within(dialog).getByText(/LEZGO styrer ikke TV'et direkte/)).toBeInTheDocument();
+    expect(within(dialog).getByText("Direkte TV-søgning er ikke tilgængelig i webversionen.")).toBeInTheDocument();
     expect(screen.queryByText("Screen Mirroring understøttes ikke direkte på denne enhed. Brug enhedens indbyggede skærmspejling eller casting.")).not.toBeInTheDocument();
   });
 
@@ -187,8 +182,9 @@ describe("LiveScoringApp score sheet", () => {
     expect(await screen.findByText("Mexicano test")).toBeInTheDocument();
 
     const header = screen.getByTestId("live-compact-mobile-header");
-    expect(header).toHaveClass("p-3", "sm:p-5");
+    expect(header).toHaveClass("p-3", "sm:px-4", "sm:py-3");
     expect(within(header).getByText("16 spillere · 5 runder")).toBeInTheDocument();
+    expect(within(header).getByRole("button", { name: "Screen Mirroring" })).toBeInTheDocument();
 
     const summary = screen.getByTestId("live-mobile-round-summary");
     expect(summary).toHaveClass("grid-cols-3", "sm:contents");

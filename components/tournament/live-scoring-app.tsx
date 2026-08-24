@@ -723,16 +723,16 @@ export function LiveScoringApp() {
 
   return (
     <div className="grid gap-3 sm:gap-5" data-testid="live-layout">
-      <div className="app-card p-3 sm:p-5" data-testid="live-compact-mobile-header">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-[0.72rem] font-bold uppercase text-[var(--primary-strong)] sm:text-sm">{state.status === "finished" ? t("completedTournament") : t("activeTournament")}</p>
-            <h2 className="mt-0.5 text-xl font-black leading-tight sm:mt-1 sm:text-2xl">{state.tournamentName}</h2>
-            <p className="mt-0.5 text-xs font-bold text-[var(--muted)] sm:mt-1 sm:text-sm">{state.players.length} {t("players").toLowerCase()} · {state.configuredRounds ?? state.rounds.length} {t("rounds").toLowerCase()}</p>
+      <div className="app-card p-3 sm:px-4 sm:py-3" data-testid="live-compact-mobile-header">
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+          <div className="min-w-0">
+            <p className="text-[0.72rem] font-bold uppercase leading-none text-[var(--primary-strong)] sm:text-xs">{state.status === "finished" ? t("completedTournament") : t("activeTournament")}</p>
+            <h2 className="mt-1 text-xl font-black leading-tight sm:text-2xl">{state.tournamentName}</h2>
+            <p className="mt-0.5 text-xs font-bold text-[var(--muted)] sm:text-sm">{state.players.length} {t("players").toLowerCase()} · {state.configuredRounds ?? state.rounds.length} {t("rounds").toLowerCase()}</p>
           </div>
+          {!isControllerReadOnly ? <ScreenMirroringControl /> : null}
         </div>
         {isControllerReadOnly ? <div className="mt-2 sm:mt-3"><ControllerReadOnlyNotice /></div> : null}
-        {!isControllerReadOnly ? <div className="mt-3 flex justify-start sm:justify-end"><ScreenMirroringControl /></div> : null}
       </div>
 
       <div className="grid gap-2 sm:gap-3 sm:grid-cols-[repeat(4,minmax(0,1fr))_minmax(220px,1.2fr)]">
@@ -889,14 +889,44 @@ function ScreenMirroringControl() {
   );
 }
 
+type ScreenMirroringPlatform = "chromeDesktop" | "windows" | "apple" | "mobile" | "generic";
+
+const screenMirroringGuidance: Record<ScreenMirroringPlatform, { title: string; body: string }> = {
+  chromeDesktop: {
+    title: "Chrome / desktop",
+    body: "Brug Cast i Chrome og vælg dit TV.",
+  },
+  windows: {
+    title: "Windows",
+    body: "Tryk Win + K og vælg dit TV.",
+  },
+  apple: {
+    title: "Apple",
+    body: "Brug Skærmspejling/AirPlay og vælg dit TV.",
+  },
+  mobile: {
+    title: "Mobil / tablet",
+    body: "Brug telefonens eller tablettens indbyggede Cast/Skærmspejling.",
+  },
+  generic: {
+    title: "Denne enhed",
+    body: "Brug browserens eller enhedens indbyggede Cast/Skærmspejling og vælg dit TV.",
+  },
+};
+
 function ScreenMirroringDialog({ onClose }: { onClose: () => void }) {
+  const platform = getScreenMirroringPlatform();
+  const primaryGuidance = screenMirroringGuidance[platform];
+  const extraGuidance = (Object.entries(screenMirroringGuidance) as Array<[ScreenMirroringPlatform, { title: string; body: string }]>)
+    .filter(([key]) => key !== platform && key !== "generic");
+
   return (
     <div className="fixed inset-0 z-50 grid place-items-end bg-black/35 p-0 sm:place-items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="screen-mirroring-heading">
-      <div className="grid max-h-[92svh] w-full max-w-xl gap-4 overflow-y-auto overflow-x-hidden rounded-t-md border border-[var(--line)] bg-[var(--card)] p-4 text-[var(--foreground)] shadow-2xl sm:rounded-md sm:p-5">
+      <div className="grid max-h-[92svh] w-full max-w-lg gap-3 overflow-y-auto overflow-x-hidden rounded-t-md border border-[var(--line)] bg-[var(--card)] p-4 text-[var(--foreground)] shadow-2xl sm:rounded-md sm:p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-black uppercase text-[var(--primary-strong)]">Skærmspejling</p>
-            <h2 id="screen-mirroring-heading" className="text-2xl font-black leading-tight sm:text-3xl">Screen Mirroring</h2>
+            <h2 id="screen-mirroring-heading" className="text-2xl font-black leading-tight">Screen Mirroring</h2>
             <p className="mt-1 text-sm font-bold text-[var(--muted)]">Vis LEZGO-turneringen på dit TV.</p>
           </div>
           <button className="btn-secondary min-h-9 px-3 text-sm" type="button" onClick={onClose}>
@@ -909,31 +939,58 @@ function ScreenMirroringDialog({ onClose }: { onClose: () => void }) {
           <p className="mt-1 text-sm font-bold text-[var(--muted)]">Brug browserens eller enhedens indbyggede skærmvalg for at vise den samme controller-skærm på TV-skærmen.</p>
         </div>
 
-        <div className="grid gap-3">
-          <ScreenMirroringStep title="Desktop / Chrome" body="Brug Cast i Chrome og vælg dit TV. Vælg den aktuelle fane, så TV-skærmen viser samme LEZGO-skærm som controlleren." />
-          <ScreenMirroringStep title="Windows" body="Tryk Win + K og vælg en trådløs skærm." />
-          <ScreenMirroringStep title="Apple" body="Brug Skærmspejling/AirPlay og vælg dit TV." />
-          <ScreenMirroringStep title="Mobil / tablet" body="Brug telefonens eller tablettens indbyggede Cast/Skærmspejling." />
-        </div>
+        <ScreenMirroringStep title={primaryGuidance.title} body={primaryGuidance.body} emphasis />
 
         <details className="rounded-md border border-[var(--line)] bg-[var(--primary-soft)]/40 p-3">
-          <summary className="cursor-pointer text-sm font-black text-[var(--primary-strong)]">Sådan gør du</summary>
-          <p className="mt-2 text-sm font-bold text-[var(--muted)]">
-            LEZGO styrer ikke TV&apos;et direkte. Start skærmspejling eller casting på din enhed, og behold denne turnering åben på controlleren.
-          </p>
+          <summary className="cursor-pointer text-sm font-black text-[var(--primary-strong)]">Andre enheder</summary>
+          <div className="mt-3 grid gap-2">
+            {extraGuidance.map(([key, guidance]) => (
+              <ScreenMirroringStep key={key} title={guidance.title} body={guidance.body} />
+            ))}
+          </div>
         </details>
       </div>
     </div>
   );
 }
 
-function ScreenMirroringStep({ title, body }: { title: string; body: string }) {
+function ScreenMirroringStep({ title, body, emphasis = false }: { title: string; body: string; emphasis?: boolean }) {
   return (
-    <section className="rounded-md border border-[var(--line)] bg-white/70 p-3">
+    <section className={`rounded-md border p-3 ${emphasis ? "border-[var(--primary)] bg-white" : "border-[var(--line)] bg-white/70"}`}>
       <h3 className="text-sm font-black text-[var(--foreground)]">{title}</h3>
-      <p className="mt-1 text-sm font-bold text-[var(--muted)]">{body}</p>
+      <p className={`mt-1 text-sm font-bold ${emphasis ? "text-[var(--foreground)]" : "text-[var(--muted)]"}`}>{body}</p>
     </section>
   );
+}
+
+function getScreenMirroringPlatform(): ScreenMirroringPlatform {
+  if (typeof navigator === "undefined") {
+    return "generic";
+  }
+
+  const nav = navigator as Navigator & { userAgentData?: { platform?: string } };
+  const userAgent = nav.userAgent.toLowerCase();
+  const platform = nav.platform.toLowerCase();
+  const userAgentDataPlatform = typeof nav.userAgentData?.platform === "string" ? nav.userAgentData.platform.toLowerCase() : "";
+  const platformText = `${userAgent} ${platform} ${userAgentDataPlatform}`;
+
+  if (/iphone|ipad|ipod|macintosh|mac os/.test(platformText)) {
+    return "apple";
+  }
+
+  if (/android|mobile|tablet/.test(platformText)) {
+    return "mobile";
+  }
+
+  if (/windows|win32|win64/.test(platformText)) {
+    return "windows";
+  }
+
+  if (/chrome|chromium|crios|edg\//.test(platformText)) {
+    return "chromeDesktop";
+  }
+
+  return "generic";
 }
 
 function DisplayIcon() {
@@ -1022,17 +1079,23 @@ function PoolPlayLiveView({
 
   return (
     <div className="grid gap-5">
-      <div className="app-card p-4 sm:p-5">
-        <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">Aktiv turnering</p>
-        <h2 className="mt-1 text-2xl font-black">{state.tournamentName}</h2>
-        <p className="mt-1 text-sm font-bold text-[var(--muted)]">
-          Puljespil · {state.poolPlay.initialStage.participants.length} deltagere · {state.poolPlay.initialStage.pools.length} puljer
-        </p>
+      <div className="app-card p-3 sm:px-4 sm:py-3">
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+          <div className="min-w-0">
+            <p className="text-[0.72rem] font-bold uppercase leading-none text-[var(--primary-strong)] sm:text-xs">Aktiv turnering</p>
+            <h2 className="mt-1 text-xl font-black leading-tight sm:text-2xl">{state.tournamentName}</h2>
+            <p className="mt-0.5 text-xs font-bold text-[var(--muted)] sm:text-sm">
+              Puljespil · {state.poolPlay.initialStage.participants.length} deltagere · {state.poolPlay.initialStage.pools.length} puljer
+            </p>
+          </div>
+          {!isControllerReadOnly ? (
+            <div className="grid gap-2 sm:grid-flow-col sm:items-center">
+              <Link className="btn-outline-primary min-h-10 whitespace-nowrap px-3 text-sm" href="/finish">Afslut turnering</Link>
+              <ScreenMirroringControl />
+            </div>
+          ) : null}
+        </div>
         {isControllerReadOnly ? <div className="mt-3"><ControllerReadOnlyNotice /></div> : null}
-        {!isControllerReadOnly ? <div className="mt-4 action-grid">
-          <Link className="btn-outline-primary" href="/finish">Afslut turnering</Link>
-          <ScreenMirroringControl />
-        </div> : null}
       </div>
 
       <div className="grid gap-3 sm:grid-cols-4">
