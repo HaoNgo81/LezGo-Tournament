@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FocusEvent, typ
 import { MatchCards } from "@/components/tournament/match-cards";
 import { Section } from "@/components/ui/section";
 import { UnifiedCourtCard, splitCourtTeamName } from "@/components/tournament/unified-court-card";
-import { createReadOnlyTournamentView, createTeamVsTeamReadOnlyView, type ReadOnlyMatchCard, type ReadOnlyTournamentView } from "@/lib/read-only-views";
+import { createReadOnlyTournamentView, createTeamVsTeamReadOnlyView, type ReadOnlyMatchCard, type ReadOnlyTournamentView, type TeamVsTeamReadOnlyView } from "@/lib/read-only-views";
 import type { LiveTournamentState } from "@/lib/live-scoring";
 import type { TeamVsTeamTournamentState } from "@/lib/tournament-setup";
 import { calculateFixedTotalScore } from "@/lib/tournament-setup/scoring";
@@ -1069,7 +1069,11 @@ function RemoteStandardScoreboardView({
   syncStatus: RemoteSyncStatus;
 }) {
   const { t } = useAppTranslation();
-  const view = useMemo(() => createReadOnlyTournamentView(state), [state]);
+  const view = useMemo(() => createSafeStandardReadOnlyView(state), [state]);
+
+  if (!view) {
+    return <RemoteInvalidTournamentState onClose={onClose} onRefresh={onRefresh} isLoading={isLoading} />;
+  }
 
   if (view.poolPlay) {
     const primaryMatches = view.poolPlay.finalMatches.length ? view.poolPlay.finalMatches : view.poolPlay.nextPhaseMatches;
@@ -1131,7 +1135,12 @@ function RemoteTeamVsTeamScoreboardView({
   syncStatus: RemoteSyncStatus;
 }) {
   const { t } = useAppTranslation();
-  const view = useMemo(() => createTeamVsTeamReadOnlyView(state), [state]);
+  const view = useMemo(() => createSafeTeamVsTeamReadOnlyView(state), [state]);
+
+  if (!view) {
+    return <RemoteInvalidTournamentState onClose={onClose} onRefresh={onRefresh} isLoading={isLoading} />;
+  }
+
   const standings = view.standings.map((standing) => ({
     id: standing.teamId,
     rank: standing.rank,
@@ -1375,7 +1384,11 @@ function RemoteScoreboardStandings({ density, standings }: { density: Scoreboard
 }
 
 function RemoteStandardView({ canEditScore = false, isTvMode, onEditScore, state }: { canEditScore?: boolean; isTvMode: boolean; onEditScore?: (match: ReadOnlyMatchCard) => void; state: LiveTournamentState }) {
-  const view = useMemo(() => createReadOnlyTournamentView(state), [state]);
+  const view = useMemo(() => createSafeStandardReadOnlyView(state), [state]);
+
+  if (!view) {
+    return <RemoteInvalidTournamentState />;
+  }
 
   if (view.poolPlay) {
     return <RemotePoolPlayView view={view} poolPlay={view.poolPlay} isTvMode={isTvMode} />;
@@ -1481,7 +1494,11 @@ function RemotePoolPlayView({ isTvMode, view, poolPlay }: { isTvMode: boolean; v
 
 function RemoteTeamVsTeamView({ isTvMode, state }: { isTvMode: boolean; state: TeamVsTeamTournamentState }) {
   const { t } = useAppTranslation();
-  const view = useMemo(() => createTeamVsTeamReadOnlyView(state), [state]);
+  const view = useMemo(() => createSafeTeamVsTeamReadOnlyView(state), [state]);
+
+  if (!view) {
+    return <RemoteInvalidTournamentState />;
+  }
 
   return (
     <div className={`grid gap-5 ${isTvMode ? "text-[clamp(1rem,1.1vw,1.4rem)]" : ""}`}>
@@ -1522,6 +1539,54 @@ function RemoteTeamVsTeamView({ isTvMode, state }: { isTvMode: boolean; state: T
         </Section>
       )}
     </div>
+  );
+}
+
+function createSafeStandardReadOnlyView(state: LiveTournamentState): ReadOnlyTournamentView | null {
+  try {
+    return createReadOnlyTournamentView(state);
+  } catch {
+    return null;
+  }
+}
+
+function createSafeTeamVsTeamReadOnlyView(state: TeamVsTeamTournamentState): TeamVsTeamReadOnlyView | null {
+  try {
+    return createTeamVsTeamReadOnlyView(state);
+  } catch {
+    return null;
+  }
+}
+
+function RemoteInvalidTournamentState({
+  isLoading = false,
+  onClose,
+  onRefresh,
+}: {
+  isLoading?: boolean;
+  onClose?: () => void;
+  onRefresh?: () => void;
+}) {
+  return (
+    <section className="app-card mx-auto grid w-full max-w-2xl gap-4 p-5 text-center sm:p-8" data-testid="remote-invalid-state">
+      <div>
+        <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">Livevisning</p>
+        <h2 className="mt-1 text-2xl font-black">Livevisning kunne ikke indlæses.</h2>
+        <p className="mt-2 font-bold text-[var(--muted)]">Turneringen kunne ikke vises fra den modtagne live-tilstand.</p>
+      </div>
+      <div className="mx-auto flex w-full max-w-md flex-wrap justify-center gap-2">
+        {onRefresh ? (
+          <button className="btn-primary min-h-12" type="button" disabled={isLoading} onClick={onRefresh}>
+            {isLoading ? "Indlæser..." : "Prøv igen"}
+          </button>
+        ) : null}
+        {onClose ? (
+          <button className="btn-secondary min-h-12" type="button" onClick={onClose}>
+            Ny forbindelse
+          </button>
+        ) : null}
+      </div>
+    </section>
   );
 }
 

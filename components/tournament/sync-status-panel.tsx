@@ -24,7 +24,6 @@ interface AccessProvisionState {
 interface HandoffProvisionState {
   handoffUrl: string;
   expiresAt: string;
-  qrCode: QrCodeMatrix;
 }
 
 export function SyncStatusPanel({
@@ -67,7 +66,7 @@ export function SyncStatusPanel({
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   const scoreEntryUrl = origin && accessState?.tournamentCode ? createRemoteUrl(origin, { code: accessState.tournamentCode }) : "";
   const tvHandoffUrl = handoffState?.handoffUrl ? withRemoteDisplayMode(handoffState.handoffUrl, "scoreboard") : "";
-  const tvQrCode = tvHandoffUrl ? createQrCodeMatrix(tvHandoffUrl) : null;
+  const tvQrCode = tvHandoffUrl ? createQrCodeMatrixSafe(tvHandoffUrl) : null;
   const shouldShowCompactDetail = status === "error" || status === "conflict" || Boolean(accessMessage);
 
   function handleRetry() {
@@ -143,7 +142,6 @@ export function SyncStatusPanel({
       setHandoffState({
         handoffUrl: body.handoffUrl,
         expiresAt: body.expiresAt,
-        qrCode: createQrCodeMatrix(body.handoffUrl),
       });
       setAccessMessage(t("remoteQrReady"));
     } catch {
@@ -284,7 +282,7 @@ export function SyncStatusPanel({
           </div>
         </div>
       ) : null}
-      {handoffState && tvQrCode ? (
+      {handoffState ? (
         <div className="mt-3 grid gap-3 border-t border-current/20 pt-3 text-xs">
           <div>
             <p className="font-black">{t("remoteTvLiveScore")}</p>
@@ -292,7 +290,13 @@ export function SyncStatusPanel({
             <p className="mt-1 opacity-80">{t("remoteQrValidTenMinutes")}</p>
           </div>
           <div className="grid gap-3 md:grid-cols-[minmax(180px,260px)_1fr] md:items-center">
-            <QrSvg modules={tvQrCode.modules} size={tvQrCode.size} label={t("remoteQrAlt")} />
+            {tvQrCode ? (
+              <QrSvg modules={tvQrCode.modules} size={tvQrCode.size} label={t("remoteQrAlt")} />
+            ) : (
+              <div className="rounded-md border border-current/20 bg-white/60 p-3 font-black text-yellow-900" data-testid="remote-tv-qr-fallback">
+                QR kunne ikke vises. Brug linket nedenfor.
+              </div>
+            )}
             <div className="grid gap-2">
               <p className="font-black">{t("remoteQrExpiresAt")}: {formatSyncTime(handoffState.expiresAt)}</p>
               <input className="min-h-12 rounded-md border border-current/20 bg-white/70 p-3 font-mono text-xs" readOnly value={tvHandoffUrl} />
@@ -336,6 +340,14 @@ function QrSvg({ modules, size, label }: { modules: boolean[][]; size: number; l
       )}
     </svg>
   );
+}
+
+function createQrCodeMatrixSafe(value: string): QrCodeMatrix | null {
+  try {
+    return createQrCodeMatrix(value);
+  } catch {
+    return null;
+  }
 }
 
 function getStatusCopy(status: ShadowSaveMetadata["status"] | "local-only"): { label: string; className: string } {

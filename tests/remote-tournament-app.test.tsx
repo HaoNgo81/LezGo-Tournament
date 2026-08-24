@@ -986,6 +986,71 @@ describe("STEP 13 remote read-only UI", () => {
     expect(screen.queryByText("STEP_13_TEST_SECRET_TOKEN")).not.toBeInTheDocument();
   });
 
+  it("opens the actual TV/Livescore button handoff target as canonical read-only scoreboard", async () => {
+    const controllerState = createMockLiveTournamentState();
+    const remoteState = scoreMockState("STEP_25U_FIX4 TV Button", 19, 5);
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        handoffUrl: "https://lezgotournament.vercel.app/remote/handoff/STEP_25U_FIX4_REFERENCE_WITH_ENTROPY_1234567890",
+        expiresAt: "2026-08-13T12:10:00.000Z",
+      }), { status: 200 }))
+      .mockResolvedValueOnce(createReadResponse("standard", remoteState, "2026-08-13T12:00:00.000Z", {
+        remoteSessionToken: "STEP_25U_FIX4_READ_ONLY_SESSION",
+        remoteSessionExpiresAt: "2099-01-01T00:00:00.000Z",
+      }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    window.localStorage.setItem("lezgo.shadowSaveMetadata.v1", JSON.stringify({
+      "mock americano-americano": {
+        localId: "mock americano-americano",
+        kind: "standard",
+        status: "synced",
+        supabaseTournamentId: "00000000-0000-4000-8000-0000000025u4",
+        organizerToken: "ORGANIZER_TOKEN",
+      },
+    }));
+
+    render(<SyncStatusPanel kind="standard" localId="mock americano-americano" state={controllerState} />);
+    fireEvent.click(screen.getByRole("button", { name: "TV / Livescore" }));
+
+    const handoffInput = await screen.findByDisplayValue("https://lezgotournament.vercel.app/remote/handoff/STEP_25U_FIX4_REFERENCE_WITH_ENTROPY_1234567890?display=scoreboard") as HTMLInputElement;
+    const handoffUrl = new URL(handoffInput.value);
+    expect(handoffUrl.origin).toBe("https://lezgotournament.vercel.app");
+    expect(handoffUrl.pathname).toBe("/remote/handoff/STEP_25U_FIX4_REFERENCE_WITH_ENTROPY_1234567890");
+    expect(handoffUrl.searchParams.get("display")).toBe("scoreboard");
+
+    cleanup();
+    window.history.pushState({}, "", `${handoffUrl.pathname}${handoffUrl.search}`);
+    render(<RemoteTournamentApp initialHandoffReference="STEP_25U_FIX4_REFERENCE_WITH_ENTROPY_1234567890" />);
+
+    expect(await screen.findByTestId("scoreboard-dashboard")).toBeInTheDocument();
+    expect(screen.getByText(/STEP_25U_FIX4 TV Button/)).toBeInTheDocument();
+    expectScoreboardCourtScore("19", "5");
+    expect(screen.queryByRole("button", { name: "Rediger score" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Indtast score" })).not.toBeInTheDocument();
+    expect(loadActiveTournament()).toBeNull();
+  });
+
+  it("fails closed when a TV/Livescore handoff returns stale or incomplete live state", async () => {
+    const brokenRemoteState = {
+      ...createMockLiveTournamentState(),
+      tournamentName: "STEP_25U_FIX4 Broken TV State",
+      activeRoundNumber: 99,
+      rounds: createMockLiveTournamentState().rounds.slice(0, 1),
+    } as LiveTournamentState;
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(createReadResponse("standard", brokenRemoteState, "2026-08-13T12:00:00.000Z", {
+      remoteSessionToken: "STEP_25U_FIX4_BROKEN_READ_ONLY_SESSION",
+      remoteSessionExpiresAt: "2099-01-01T00:00:00.000Z",
+    })));
+
+    window.history.pushState({}, "", "/remote/handoff/STEP_25U_FIX4_BROKEN_REFERENCE_WITH_ENTROPY_1234567890?display=scoreboard");
+    render(<RemoteTournamentApp initialHandoffReference="STEP_25U_FIX4_BROKEN_REFERENCE_WITH_ENTROPY_1234567890" />);
+
+    expect(await screen.findByTestId("remote-invalid-state")).toHaveTextContent("Livevisning kunne ikke indlæses.");
+    expect(screen.queryByText("This page couldn't load")).not.toBeInTheDocument();
+  });
+
   it("auto-opens a handoff URL as remote read-only without changing localStorage", async () => {
     const localState = createMockLiveTournamentState();
     const remoteState = scoreMockState("STEP_14_TEST QR Remote");
