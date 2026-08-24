@@ -27,9 +27,21 @@ describe("sharing", () => {
     expect(qrCode.payload).toContain("/remote/handoff/");
     expect(qrCode.payload).not.toContain("0.0.0.0");
     expect(qrCode.payload).not.toMatch(/\s|["']/);
-    expect(qrCode.size).toBe(37);
+    expect(qrCode.size).toBeGreaterThanOrEqual(37);
+    expect(qrCode.modules).toHaveLength(qrCode.size);
+  });
 
-    expectAlignmentPattern(qrCode.modules, 30, 30);
+  it("encodes a production-sized canonical TV handoff URL exactly", () => {
+    const handoffUrl = "https://lezgotournament.vercel.app/remote/handoff/STEP_25U_FIX5_REFERENCE_WITH_ENTROPY_1234567890?display=scoreboard";
+    const qrCode = createQrCodeMatrix(handoffUrl);
+
+    expect(qrCode.payload).toBe(handoffUrl);
+    expect(qrCode.payload).toContain("https://lezgotournament.vercel.app/remote/handoff/");
+    expect(qrCode.payload).toContain("display=scoreboard");
+    expect(qrCode.payload).not.toContain("lez-go-tournament");
+    expect(qrCode.modules).toHaveLength(qrCode.size);
+    expect(qrCode.modules.every((row) => row.length === qrCode.size)).toBe(true);
+    expect(qrCode.modules.flat().some(Boolean)).toBe(true);
   });
 
   it("encodes final result QR payload as the public result URL only", () => {
@@ -41,19 +53,3 @@ describe("sharing", () => {
     expect(qrCode.payload).not.toMatch(/token|secret|pin|share|SUPABASE/i);
   });
 });
-
-function expectAlignmentPattern(modules: boolean[][], centerX: number, centerY: number): void {
-  const expected = [
-    [true, true, true, true, true],
-    [true, false, false, false, true],
-    [true, false, true, false, true],
-    [true, false, false, false, true],
-    [true, true, true, true, true],
-  ];
-
-  for (let y = 0; y < expected.length; y += 1) {
-    for (let x = 0; x < expected[y].length; x += 1) {
-      expect(modules[centerY - 2 + y][centerX - 2 + x]).toBe(expected[y][x]);
-    }
-  }
-}

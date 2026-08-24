@@ -1019,6 +1019,8 @@ describe("STEP 13 remote read-only UI", () => {
     expect(handoffUrl.origin).toBe("https://lezgotournament.vercel.app");
     expect(handoffUrl.pathname).toBe("/remote/handoff/STEP_25U_FIX4_REFERENCE_WITH_ENTROPY_1234567890");
     expect(handoffUrl.searchParams.get("display")).toBe("scoreboard");
+    expect(screen.getByRole("img", { name: "QR-kode til skrivebeskyttet turnering" })).toBeInTheDocument();
+    expect(screen.queryByText("QR kunne ikke vises. Brug linket nedenfor.")).not.toBeInTheDocument();
 
     cleanup();
     window.history.pushState({}, "", `${handoffUrl.pathname}${handoffUrl.search}`);
@@ -1030,6 +1032,33 @@ describe("STEP 13 remote read-only UI", () => {
     expect(screen.queryByRole("button", { name: "Rediger score" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Indtast score" })).not.toBeInTheDocument();
     expect(loadActiveTournament()).toBeNull();
+  });
+
+  it("keeps the copyable TV/Livescore handoff link if QR encoding unexpectedly fails", async () => {
+    const state = createMockLiveTournamentState();
+    const tooLongReference = "X".repeat(4000);
+    const handoffUrl = `https://lezgotournament.vercel.app/remote/handoff/${tooLongReference}`;
+    window.localStorage.setItem("lezgo.shadowSaveMetadata.v1", JSON.stringify({
+      "mock americano-americano": {
+        localId: "mock americano-americano",
+        kind: "standard",
+        status: "synced",
+        supabaseTournamentId: "00000000-0000-4000-8000-0000000025f5",
+        organizerToken: "ORGANIZER_TOKEN",
+      },
+    }));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      ok: true,
+      handoffUrl,
+      expiresAt: "2026-08-13T12:10:00.000Z",
+    }), { status: 200 })));
+
+    render(<SyncStatusPanel kind="standard" localId="mock americano-americano" state={state} />);
+    fireEvent.click(screen.getByRole("button", { name: "TV / Livescore" }));
+
+    expect(await screen.findByText("QR kunne ikke vises. Brug linket nedenfor.")).toBeInTheDocument();
+    expect(screen.getByDisplayValue(`${handoffUrl}?display=scoreboard`)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Kopier link" })).toBeInTheDocument();
   });
 
   it("fails closed when a TV/Livescore handoff returns stale or incomplete live state", async () => {
