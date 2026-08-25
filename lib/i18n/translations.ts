@@ -93,7 +93,6 @@ export type TranslationKey =
   | "close"
   | "completedTournament"
   | "copyLink"
-  | "createTemplate"
   | "court"
   | "courts"
   | "dark"
@@ -101,7 +100,6 @@ export type TranslationKey =
   | "draws"
   | "edit"
   | "editScore"
-  | "editTemplate"
   | "delete"
   | "enterScore"
   | "finishTournament"
@@ -163,15 +161,11 @@ export type TranslationKey =
   | "finalPlacements"
   | "homeNewTournamentDescription"
   | "homeSettingsDescription"
-  | "homeTemplatesDescription"
-  | "homeTemplatesTitle"
   | "homeTournamentsDescription"
   | "hybridLezgo"
   | "loadingSettings"
-  | "loadingTemplates"
   | "loadingTournament"
   | "loadingTournaments"
-  | "loadingShare"
   | "logout"
   | "resumeTimer"
   | "savedInRound"
@@ -181,104 +175,17 @@ export type TranslationKey =
   | "noActiveTournaments"
   | "noCompletedTournaments"
   | "openLive"
-  | "openRemoteTournament"
-  | "openRemoteTournamentDescription"
-  | "openQr"
   | "openTeamMatch"
-  | "openTvScreen"
   | "ocean"
   | "ownerScoreConflictMessage"
   | "ownerTournamentConflictMessage"
   | "review"
   | "retry"
-  | "remoteAccessDenied"
-  | "remoteAccessHelp"
-  | "remoteAccessInfo"
-  | "remoteAccessOnlyInitialToken"
-  | "remoteAccessReady"
-  | "remoteAccessRevoked"
-  | "remoteActivateSharing"
-  | "remoteAutomaticAdvance"
-  | "remoteAutoSyncError"
-  | "remoteCloseView"
-  | "remoteCodeCopied"
-  | "remoteCopy"
-  | "remoteConnectionExpired"
-  | "remoteCurrentMatches"
-  | "remoteFetchError"
-  | "remoteFullscreen"
-  | "remoteGenerateNewQr"
-  | "remoteGenerateNewAccessCode"
-  | "remoteHandoffDenied"
-  | "remoteHandoffExpired"
-  | "remoteHandoffLinkCopied"
-  | "remoteHandoffOpening"
-  | "remoteHideToken"
-  | "remoteLatestLoaded"
-  | "remoteLoadingTournament"
-  | "remoteNewConnection"
-  | "remoteNoSavedLineup"
   | "remoteNotSaved"
-  | "remoteNextMatch"
-  | "remoteNextMatches"
-  | "remoteNextPhase"
-  | "remotePausedPlayers"
-  | "remotePoolStandings"
-  | "remotePlacementTiebreak"
-  | "remoteQrFuture"
-  | "remoteQrAlt"
-  | "remoteQrExpiresAt"
-  | "remoteQrHelp"
-  | "remoteQrReady"
-  | "remoteQrValidTenMinutes"
-  | "remoteReadOnlyBanner"
-  | "remoteReadOnlyHelp"
-  | "remoteReadOnlyShort"
   | "remoteControlledByOtherUser"
   | "remoteControlledByOtherUserHelp"
-  | "remoteScoreEntryBanner"
-  | "remoteScoreEntryShort"
-  | "remoteScoreEntryAccess"
-  | "remoteScoreEntryLink"
-  | "remoteScoreEntryWarning"
-  | "remoteScoreAutomatic"
-  | "remoteScoreConflictError"
-  | "remoteScoreNetworkError"
-  | "remoteScoreSave"
-  | "remoteScoreSaveError"
   | "remoteScoreSaving"
-  | "remoteRefresh"
-  | "remoteShareToken"
-  | "remoteShareTokenCopied"
-  | "remoteShareUnifiedHelp"
-  | "remoteSharingNotEnabled"
-  | "remoteShowToken"
-  | "remoteSessionDenied"
-  | "remoteSessionExpired"
-  | "remoteScoreboardMode"
-  | "remoteStandardMode"
-  | "remoteSyncConnecting"
-  | "remoteSyncError"
-  | "remoteSyncLastChecked"
-  | "remoteSyncLastUpdated"
-  | "remoteSyncLive"
-  | "remoteSyncNextRetry"
-  | "remoteSyncOffline"
-  | "remoteSyncReconnecting"
-  | "remoteSyncRestoring"
-  | "remoteSyncStatus"
   | "remoteTopStandings"
-  | "remoteTokenOnlyShownOnce"
-  | "remoteTournamentCode"
-  | "remoteTournamentOpened"
-  | "remoteTeamsAndCaptains"
-  | "remoteTvMode"
-  | "remoteTvLiveScore"
-  | "remoteTvReadOnlyHelp"
-  | "remoteUnifiedShareTitle"
-  | "remoteOrganizerSyncRequired"
-  | "remoteRevokeAccess"
-  | "remoteViewOnAnotherDevice"
   | "resultFinalResult"
   | "resultCompletedReadOnly"
   | "resultGroup"
@@ -303,9 +210,6 @@ export type TranslationKey =
   | "settingsDescription"
   | "standardsForNewTournaments"
   | "startTournament"
-  | "startTemplate"
-  | "templates"
-  | "templatesDescription"
   | "team"
   | "teams"
   | "timeLimitMinutes"
@@ -316,8 +220,6 @@ export type TranslationKey =
   | "tournamentsDescription"
   | "tournamentFormat"
   | "tournamentSettings"
-  | "shareTournament"
-  | "shareShort"
   | "startTimer"
   | "stopTimer"
   | "surface"
@@ -329,9 +231,6 @@ export type TranslationKey =
   | "timerReset"
   | "timerStartsAfterCountdown"
   | "timerStoppedCanResume"
-  | "tvMirror"
-  | "tvShort"
-  | "accessShort"
   | "wins";
 
 export const translations: Record<AppLanguage, Record<TranslationKey, string>> = {
@@ -428,7 +327,6 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     close: "Luk",
     completedTournament: "Afsluttet turnering",
     copyLink: "Kopier link",
-    createTemplate: "Opret skabelon",
     court: "Bane",
     courts: "Baner",
     dark: "Mørk",
@@ -436,7 +334,6 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     draws: "Uafgjort",
     edit: "Rediger",
     editScore: "Rediger score",
-    editTemplate: "Rediger skabelon",
     delete: "Slet",
     enterScore: "Indtast score",
     finishTournament: "Afslut turnering",
@@ -499,14 +396,10 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     finalPlacements: "Slutplaceringer",
     homeNewTournamentDescription: "Vælg format, indstillinger og spillere.",
     homeSettingsDescription: "Kun de nødvendige valg.",
-    homeTemplatesDescription: "Opret, rediger, slet eller start fra skabelon.",
-    homeTemplatesTitle: "Turneringsskabeloner",
     homeTournamentsDescription: "Aktive, kommende, afsluttede og tidligere.",
     loadingSettings: "Indlæser indstillinger...",
-    loadingTemplates: "Indlæser skabeloner...",
     loadingTournament: "Indlæser turnering...",
     loadingTournaments: "Indlæser turneringer...",
-    loadingShare: "Indlæser deling...",
     logout: "Log ud",
     resumeTimer: "Fortsæt ur",
     savedInRound: "Gemt i runden",
@@ -516,104 +409,17 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     noActiveTournaments: "Ingen aktive turneringer.",
     noCompletedTournaments: "Ingen afsluttede turneringer endnu.",
     openLive: "Åbn live",
-    openRemoteTournament: "Åbn turnering fra anden enhed",
-    openRemoteTournamentDescription: "Indtast turneringskode og 4-cifret adgangskode for scoreindtastning.",
-    openQr: "Åbn QR",
     openTeamMatch: "Åbn holdkamp",
-    openTvScreen: "Åbn TV-skærm",
     ocean: "Ocean",
     ownerScoreConflictMessage: "Scoren er blevet ændret på en anden enhed. Den nyeste score er indlæst.",
     ownerTournamentConflictMessage: "Turneringen blev ændret på en anden enhed. De nyeste data er hentet. Prøv igen.",
     review: "Gennemse",
     retry: "Prøv igen",
-    remoteAccessDenied: "Turneringen kunne ikke åbnes. Kontrollér kode og adgangskode.",
-    remoteAccessHelp: "Indtast koden og adgangskoden fra en turnering, der allerede er delt fra en anden enhed.",
-    remoteAccessInfo: "Adgang til anden enhed",
-    remoteAccessOnlyInitialToken: "Adgangskoden vises kun, når adgangen oprettes. Gem den sikkert uden for appen.",
-    remoteAccessReady: "Adgang oprettet.",
-    remoteAccessRevoked: "Remote scoreadgang er lukket.",
-    remoteActivateSharing: "Aktivér deling",
-    remoteAutomaticAdvance: "Automatisk videre",
-    remoteAutoSyncError: "Live-opdatering kunne ikke hente nyeste version. Seneste viste turnering er bevaret.",
-    remoteCloseView: "Luk visning",
-    remoteCodeCopied: "Turneringskode kopieret.",
-    remoteCopy: "Kopiér",
-    remoteConnectionExpired: "TV-forbindelsen er udløbet eller ikke længere gyldig.",
-    remoteCurrentMatches: "Kampe",
-    remoteFetchError: "Forbindelsen kunne ikke opdateres. Seneste viste turnering er bevaret.",
-    remoteFullscreen: "Fuld skærm",
-    remoteGenerateNewQr: "Generér ny QR-kode",
-    remoteGenerateNewAccessCode: "Generér ny adgangskode",
-    remoteHandoffDenied: "QR-linket kunne ikke åbnes. Bed turneringslederen om at generere en ny QR-kode.",
-    remoteHandoffExpired: "QR-koden er udløbet. Bed turneringslederen om at generere en ny.",
-    remoteHandoffLinkCopied: "QR-link kopieret.",
-    remoteHandoffOpening: "Åbner skrivebeskyttet turnering...",
-    remoteHideToken: "Skjul",
-    remoteLatestLoaded: "Seneste version er hentet.",
-    remoteLoadingTournament: "Henter turnering...",
-    remoteNewConnection: "Ny forbindelse",
-    remoteNoSavedLineup: "Opstilling er ikke gemt endnu.",
     remoteNotSaved: "Ikke gemt",
-    remoteNextMatch: "Næste kamp",
-    remoteNextMatches: "Næste kampe",
-    remoteNextPhase: "Næste fase",
-    remotePausedPlayers: "Pause",
-    remotePoolStandings: "Puljestillinger",
-    remotePlacementTiebreak: "Tiebreak om placering",
-    remoteQrAlt: "QR-kode til skrivebeskyttet turnering",
-    remoteQrExpiresAt: "Udløber",
-    remoteQrFuture: "QR-handoff kan senere bruge samme kode og en sikker engangsreference uden at gemme adgangskoden i databasen.",
-    remoteQrHelp: "Scan QR-koden med en anden enhed for at åbne turneringen.",
-    remoteQrReady: "QR-kode klar.",
-    remoteQrValidTenMinutes: "QR-linket er gyldigt i cirka 10 minutter og kan bruges igen indtil udløb.",
-    remoteReadOnlyBanner: "Visning fra anden enhed - skrivebeskyttet",
-    remoteReadOnlyHelp: "Du kan se live score og stilling, men denne visning kan ikke gemme, redigere eller overskrive lokale turneringer.",
-    remoteReadOnlyShort: "Skrivebeskyttet",
     remoteControlledByOtherUser: "Du har ikke længere styring af denne turnering.",
     remoteControlledByOtherUserHelp: "Du kan stadig se turneringen, men du kan ikke længere ændre den.",
-    remoteScoreEntryBanner: "Visning fra anden enhed - scoreindtastning aktiv",
-    remoteScoreEntryShort: "Score aktiv",
-    remoteScoreEntryAccess: "Scoreindtastning",
-    remoteScoreEntryLink: "Link til scoreindtastning",
-    remoteScoreEntryWarning: "Del kun denne kode med personer, der må ændre kampresultater.",
-    remoteScoreAutomatic: "Automatisk",
-    remoteScoreConflictError: "Resultatet er blevet ændret fra en anden enhed. Hent seneste version og prøv igen.",
-    remoteScoreNetworkError: "Forbindelsen blev afbrudt. Prøv igen.",
-    remoteScoreSave: "Gem score",
-    remoteScoreSaveError: "Kunne ikke gemme score. Prøv igen.",
     remoteScoreSaving: "Gemmer...",
-    remoteRefresh: "Opdater",
-    remoteShareToken: "Adgangskode",
-    remoteShareTokenCopied: "Adgangskode kopieret.",
-    remoteShareUnifiedHelp: "Opret scoreindtastning til en telefon/tablet eller en skrivebeskyttet TV/livescore-visning.",
-    remoteSharingNotEnabled: "Supabase-deling er ikke slået til i dette miljø.",
-    remoteShowToken: "Vis",
-    remoteSessionDenied: "Remote-sessionen er ikke længere gyldig. Generér en ny QR-kode eller åbn en ny forbindelse.",
-    remoteSessionExpired: "Remote-sessionen er udløbet. Generér en ny QR-kode eller åbn en ny forbindelse.",
-    remoteScoreboardMode: "Scoreboard-visning",
-    remoteStandardMode: "Standardvisning",
-    remoteSyncConnecting: "Forbinder",
-    remoteSyncError: "Fejl",
-    remoteSyncLastChecked: "Senest tjekket",
-    remoteSyncLastUpdated: "Senest opdateret",
-    remoteSyncLive: "Live",
-    remoteSyncNextRetry: "Næste forsøg",
-    remoteSyncOffline: "Offline",
-    remoteSyncReconnecting: "Forbinder igen",
-    remoteSyncRestoring: "Genopretter forbindelse...",
-    remoteSyncStatus: "Live-sync status",
     remoteTopStandings: "Stilling",
-    remoteTokenOnlyShownOnce: "Adgangskoden kunne ikke vises igen. Opret en ny adgang senere, hvis den er væk.",
-    remoteTournamentCode: "Turneringskode",
-    remoteTournamentOpened: "Turnering åbnet.",
-    remoteTeamsAndCaptains: "Hold og kaptajner",
-    remoteTvMode: "TV-visning",
-    remoteTvLiveScore: "TV / Livescore",
-    remoteTvReadOnlyHelp: "Scan QR-koden på TV/tablet for at åbne en skrivebeskyttet livescore-visning.",
-    remoteUnifiedShareTitle: "Del / vis på anden enhed",
-    remoteOrganizerSyncRequired: "Gem/synkroniser turneringen fra hovedenheden, før adgang kan oprettes.",
-    remoteRevokeAccess: "Luk scoreadgang",
-    remoteViewOnAnotherDevice: "Vis på anden enhed",
     resultFinalResult: "Slutresultat",
     resultCompletedReadOnly: "Turneringen er afsluttet · Skrivebeskyttet",
     resultGroup: "Gruppe",
@@ -638,9 +444,6 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     settingsDescription: "Standarder, der bruges automatisk ved nye turneringer.",
     standardsForNewTournaments: "Standarder for nye turneringer",
     startTournament: "Start turnering",
-    startTemplate: "Start",
-    templates: "Skabeloner",
-    templatesDescription: "Opret, rediger, slet og start fra skabelon.",
     team: "Hold",
     teams: "Hold",
     timeLimitMinutes: "Spilletid (minutter)",
@@ -651,8 +454,6 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     tournamentsDescription: "Aktive og afsluttede turneringer gemmes lokalt.",
     tournamentFormat: "Turneringsform",
     tournamentSettings: "Turneringsindstillinger",
-    shareTournament: "Del turnering",
-    shareShort: "Del",
     startTimer: "Start ur",
     stopTimer: "Stop ur",
     surface: "Kortbaggrund",
@@ -664,9 +465,6 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     timerReset: "Nulstil ur",
     timerStartsAfterCountdown: "15 sekunders nedtælling før uret starter.",
     timerStoppedCanResume: "Uret er stoppet og fortsætter fra den viste tid.",
-    tvMirror: "TV / Mirror",
-    tvShort: "TV",
-    accessShort: "Adgang",
     wins: "Sejre",
   },
   en: {
@@ -762,7 +560,6 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     close: "Close",
     completedTournament: "Completed tournament",
     copyLink: "Copy link",
-    createTemplate: "Create template",
     court: "Court",
     courts: "Courts",
     dark: "Dark",
@@ -770,7 +567,6 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     draws: "Draws",
     edit: "Edit",
     editScore: "Edit score",
-    editTemplate: "Edit template",
     delete: "Delete",
     enterScore: "Enter score",
     finishTournament: "Finish tournament",
@@ -833,14 +629,10 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     finalPlacements: "Final placements",
     homeNewTournamentDescription: "Choose format, settings and players.",
     homeSettingsDescription: "Only the essential options.",
-    homeTemplatesDescription: "Create, edit, delete or start from a template.",
-    homeTemplatesTitle: "Tournament templates",
     homeTournamentsDescription: "Active, upcoming, completed and previous tournaments.",
     loadingSettings: "Loading settings...",
-    loadingTemplates: "Loading templates...",
     loadingTournament: "Loading tournament...",
     loadingTournaments: "Loading tournaments...",
-    loadingShare: "Loading sharing...",
     logout: "Log out",
     resumeTimer: "Resume timer",
     savedInRound: "Saved this round",
@@ -850,104 +642,17 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     noActiveTournaments: "No active tournaments.",
     noCompletedTournaments: "No completed tournaments yet.",
     openLive: "Open live",
-    openRemoteTournament: "Open tournament from another device",
-    openRemoteTournamentDescription: "Enter the tournament code and 4-digit access code for score entry.",
-    openQr: "Open QR",
     openTeamMatch: "Open team match",
-    openTvScreen: "Open TV screen",
     ocean: "Ocean",
     ownerScoreConflictMessage: "The score was changed on another device. The latest score has been loaded.",
     ownerTournamentConflictMessage: "The tournament was changed on another device. The latest data has been loaded. Please try again.",
     review: "Review",
     retry: "Try again",
-    remoteAccessDenied: "The tournament could not be opened. Check the code and access code.",
-    remoteAccessHelp: "Enter the code and 4-digit access code from a tournament already shared from another device.",
-    remoteAccessInfo: "Access for another device",
-    remoteAccessOnlyInitialToken: "The access code is only shown when access is created. Store it safely outside the app.",
-    remoteAccessReady: "Access created.",
-    remoteAccessRevoked: "Remote score access has been closed.",
-    remoteActivateSharing: "Activate sharing",
-    remoteAutomaticAdvance: "Automatic advance",
-    remoteAutoSyncError: "Live sync could not fetch the latest version. The last shown tournament is kept.",
-    remoteCloseView: "Close view",
-    remoteCodeCopied: "Tournament code copied.",
-    remoteCopy: "Copy",
-    remoteConnectionExpired: "The TV connection has expired or is no longer valid.",
-    remoteCurrentMatches: "Matches",
-    remoteFetchError: "The connection could not refresh. The last shown tournament is kept.",
-    remoteFullscreen: "Fullscreen",
-    remoteGenerateNewQr: "Generate new QR code",
-    remoteGenerateNewAccessCode: "Generate new access code",
-    remoteHandoffDenied: "The QR link could not be opened. Ask the tournament organizer to generate a new QR code.",
-    remoteHandoffExpired: "This QR code has expired. Ask the tournament organizer to generate a new one.",
-    remoteHandoffLinkCopied: "QR link copied.",
-    remoteHandoffOpening: "Opening read-only tournament...",
-    remoteHideToken: "Hide",
-    remoteLatestLoaded: "Latest version loaded.",
-    remoteLoadingTournament: "Loading tournament...",
-    remoteNewConnection: "New connection",
-    remoteNoSavedLineup: "Lineup has not been saved yet.",
     remoteNotSaved: "Not saved",
-    remoteNextMatch: "Next match",
-    remoteNextMatches: "Next matches",
-    remoteNextPhase: "Next phase",
-    remotePausedPlayers: "Pause",
-    remotePoolStandings: "Pool standings",
-    remotePlacementTiebreak: "Placement tiebreak",
-    remoteQrAlt: "QR code for read-only tournament",
-    remoteQrExpiresAt: "Expires",
-    remoteQrFuture: "A later QR handoff can use the same code and a secure one-time reference without storing the access code in the database.",
-    remoteQrHelp: "Scan the QR code with another device to open the tournament.",
-    remoteQrReady: "QR code ready.",
-    remoteQrValidTenMinutes: "The QR link is valid for about 10 minutes and can be reused until it expires.",
-    remoteReadOnlyBanner: "Opened from another device - read only",
-    remoteReadOnlyHelp: "You can view live score and standings, but this view cannot save, edit or overwrite local tournaments.",
-    remoteReadOnlyShort: "Read only",
     remoteControlledByOtherUser: "This tournament is now controlled by another user.",
     remoteControlledByOtherUserHelp: "You can still view the tournament, but you can no longer change it.",
-    remoteScoreEntryBanner: "Opened from another device - score entry active",
-    remoteScoreEntryShort: "Score active",
-    remoteScoreEntryAccess: "Score entry",
-    remoteScoreEntryLink: "Score entry link",
-    remoteScoreEntryWarning: "Only share this code with people who may change match scores.",
-    remoteScoreAutomatic: "Automatic",
-    remoteScoreConflictError: "The result was changed from another device. Load the latest version and try again.",
-    remoteScoreNetworkError: "The connection was interrupted. Try again.",
-    remoteScoreSave: "Save score",
-    remoteScoreSaveError: "Could not save score. Try again.",
     remoteScoreSaving: "Saving...",
-    remoteRefresh: "Refresh",
-    remoteShareToken: "Access code",
-    remoteShareTokenCopied: "Access code copied.",
-    remoteShareUnifiedHelp: "Create score entry for a phone/tablet or a read-only TV/live score view.",
-    remoteSharingNotEnabled: "Supabase sharing is not enabled in this environment.",
-    remoteShowToken: "Show",
-    remoteSessionDenied: "The remote session is no longer valid. Generate a new QR code or open a new connection.",
-    remoteSessionExpired: "The remote session has expired. Generate a new QR code or open a new connection.",
-    remoteScoreboardMode: "Scoreboard View",
-    remoteStandardMode: "Standard view",
-    remoteSyncConnecting: "Connecting",
-    remoteSyncError: "Error",
-    remoteSyncLastChecked: "Last checked",
-    remoteSyncLastUpdated: "Last updated",
-    remoteSyncLive: "Live",
-    remoteSyncNextRetry: "Next retry",
-    remoteSyncOffline: "Offline",
-    remoteSyncReconnecting: "Reconnecting",
-    remoteSyncRestoring: "Reconnecting...",
-    remoteSyncStatus: "Live sync status",
     remoteTopStandings: "Standings",
-    remoteTokenOnlyShownOnce: "The access code cannot be shown again. Create new access later if it is lost.",
-    remoteTournamentCode: "Tournament code",
-    remoteTournamentOpened: "Tournament opened.",
-    remoteTeamsAndCaptains: "Teams and captains",
-    remoteTvMode: "TV View",
-    remoteTvLiveScore: "TV / Live score",
-    remoteTvReadOnlyHelp: "Scan the QR code on a TV/tablet to open a read-only live score view.",
-    remoteUnifiedShareTitle: "Share / show on another device",
-    remoteOrganizerSyncRequired: "Save/sync the tournament from the main device before creating access.",
-    remoteRevokeAccess: "Close score access",
-    remoteViewOnAnotherDevice: "View on another device",
     resultFinalResult: "Final result",
     resultCompletedReadOnly: "Tournament completed · Read only",
     resultGroup: "Group",
@@ -972,9 +677,6 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     settingsDescription: "Defaults used automatically for new tournaments.",
     standardsForNewTournaments: "Defaults for new tournaments",
     startTournament: "Start tournament",
-    startTemplate: "Start",
-    templates: "Templates",
-    templatesDescription: "Create, edit, delete and start from templates.",
     team: "Team",
     teams: "Teams",
     timeLimitMinutes: "Playing time (minutes)",
@@ -985,8 +687,6 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     tournamentsDescription: "Active and completed tournaments are saved locally.",
     tournamentFormat: "Tournament format",
     tournamentSettings: "Tournament settings",
-    shareTournament: "Share tournament",
-    shareShort: "Share",
     startTimer: "Start timer",
     stopTimer: "Stop timer",
     surface: "Card background",
@@ -998,9 +698,6 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     timerReset: "Reset timer",
     timerStartsAfterCountdown: "15 second countdown before the timer starts.",
     timerStoppedCanResume: "The timer is paused and will continue from the shown time.",
-    tvMirror: "TV / Mirror",
-    tvShort: "TV",
-    accessShort: "Access",
     wins: "Wins",
   },
 };

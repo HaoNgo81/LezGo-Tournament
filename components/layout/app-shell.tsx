@@ -58,16 +58,12 @@ function translateKnownShellText(text: string, t: (key: TranslationKey) => strin
     "Indstillinger": "settings",
     "Ny turnering": "newTournamentTitle",
     "Opret en turnering med format, spillere, baner, runder og stillingssortering.": "newTournamentDescription",
-    "Opret, rediger, slet og start fra skabelon.": "templatesDescription",
     "Standarder, der bruges automatisk ved nye turneringer.": "settingsDescription",
-    "Turneringsskabeloner": "homeTemplatesTitle",
     "Turneringer": "tournaments",
     "Aktive og afsluttede turneringer gemmes lokalt.": "tournamentsDescription",
     "Live turnering": "liveTournamentTitle",
     "En skærm til runde, kampe, scoring og stilling.": "liveTournamentDescription",
     "Nulstil kode": "accountResetCodeTitle",
-    "openRemoteTournament": "openRemoteTournament",
-    "openRemoteTournamentDescription": "openRemoteTournamentDescription",
   };
 
   return knownTexts[text] ? t(knownTexts[text]) : text;
