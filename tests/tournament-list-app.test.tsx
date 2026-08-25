@@ -201,6 +201,44 @@ describe("TournamentListApp pool play", () => {
     expect(await screen.findByText("User A visible")).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByText("User B hidden")).not.toBeInTheDocument());
   });
+
+  it("shows the tournament list shell immediately while the owned cloud list is loading", async () => {
+    const ownTournament = createStandardTournament("Fast local own tournament");
+    saveActiveTournament(ownTournament);
+    markOwnedStandardTournament(ownTournament, "00000000-0000-4000-8000-000000000401", "active");
+    let resolveTournamentList: (response: Response) => void = () => undefined;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = input.toString();
+
+      if (url === "/api/auth/me") {
+        throw new Error("/tournaments should not wait for /api/auth/me before loading owned tournaments.");
+      }
+
+      if (url === "/api/account/tournaments") {
+        return await new Promise<Response>((resolve) => {
+          resolveTournamentList = resolve;
+        });
+      }
+
+      return Response.json({ ok: false }, { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TournamentListApp />);
+
+    const activeSection = await screen.findByRole("heading", { name: "Aktive" });
+    expect(activeSection).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Afsluttet" })).toBeInTheDocument();
+    expect(screen.getAllByText("Indlæser turneringer...")).toHaveLength(2);
+    expect(screen.queryByText("Fast local own tournament")).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith("/api/account/tournaments", { cache: "no-store" });
+
+    resolveTournamentList(Response.json({ ok: true, tournaments: accountTournamentRows }));
+
+    expect(await screen.findByText("Fast local own tournament")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });
 
 interface AccountTournamentRow {

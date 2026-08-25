@@ -33,7 +33,6 @@ import { getTeamVsTeamCaptainName } from "@/lib/team-vs-team";
 import { useAppTranslation } from "@/lib/preferences/client";
 import type { TranslationKey } from "@/lib/i18n/translations";
 import { useHasHydrated } from "@/hooks/use-has-hydrated";
-import type { Account } from "@/components/auth/account-panel";
 
 interface AccountTournament {
   id: string;
@@ -85,7 +84,6 @@ export function TournamentListApp({ accountRevision = 0 }: { accountRevision?: n
   const router = useRouter();
   const hasHydrated = useHasHydrated();
   const [accountStatus, setAccountStatus] = useState<"loading" | "anonymous" | "authenticated">("loading");
-  const [account, setAccount] = useState<Account | null>(null);
   const [cloudTournaments, setCloudTournaments] = useState<AccountTournament[]>([]);
   const [activeTournament, setActiveTournament] = useState<LiveTournamentState | null>(null);
   const [activeTournamentList, setActiveTournamentList] = useState<LiveTournamentState[]>([]);
@@ -138,37 +136,24 @@ export function TournamentListApp({ accountRevision = 0 }: { accountRevision?: n
 
     async function loadPrivateTournaments() {
       try {
-        const accountResponse = await fetch("/api/auth/me", { cache: "no-store" });
-        const accountBody = await accountResponse.json() as { ok?: boolean; account?: Account };
-
-        if (!accountResponse.ok || !accountBody.ok || !accountBody.account) {
-          throw new Error("Authentication required.");
-        }
-
         const tournamentResponse = await fetch("/api/account/tournaments", { cache: "no-store" });
         const tournamentBody = await tournamentResponse.json() as { ok?: boolean; tournaments?: AccountTournament[] };
-        const nextCloudTournaments = tournamentResponse.ok && tournamentBody.ok && Array.isArray(tournamentBody.tournaments)
-          ? tournamentBody.tournaments
-          : [];
+
+        if (!tournamentResponse.ok || !tournamentBody.ok || !Array.isArray(tournamentBody.tournaments)) {
+          throw new Error("Authentication required.");
+        }
 
         if (isDisposed) {
           return;
         }
 
-        setAccount(accountBody.account);
-        setCloudTournaments(nextCloudTournaments);
-        setActiveTournament(loadActiveTournament());
-        setActiveTournamentList(loadActiveTournaments());
-        setActiveTeamVsTeamTournament(loadActiveTeamVsTeamTournament());
-        setCompletedTournaments(loadCompletedTournaments());
-        setCompletedTeamVsTeamTournaments(loadCompletedTeamVsTeamTournaments());
+        setCloudTournaments(tournamentBody.tournaments);
         setAccountStatus("authenticated");
       } catch {
         if (isDisposed) {
           return;
         }
 
-        setAccount(null);
         setCloudTournaments([]);
         setActiveTournament(null);
         setActiveTournamentList([]);
@@ -180,6 +165,11 @@ export function TournamentListApp({ accountRevision = 0 }: { accountRevision?: n
     }
 
     const timeoutId = window.setTimeout(() => {
+      setActiveTournament(loadActiveTournament());
+      setActiveTournamentList(loadActiveTournaments());
+      setActiveTeamVsTeamTournament(loadActiveTeamVsTeamTournament());
+      setCompletedTournaments(loadCompletedTournaments());
+      setCompletedTeamVsTeamTournaments(loadCompletedTeamVsTeamTournaments());
       void loadPrivateTournaments();
     }, 0);
 
@@ -189,11 +179,24 @@ export function TournamentListApp({ accountRevision = 0 }: { accountRevision?: n
     };
   }, [accountRevision, hasHydrated]);
 
-  if (!hasHydrated || accountStatus === "loading") {
+  if (!hasHydrated) {
     return <p className="app-card p-4 font-bold text-[var(--muted)]">{t("loadingTournaments")}</p>;
   }
 
-  if (accountStatus === "anonymous" || !account) {
+  if (accountStatus === "loading") {
+    return (
+      <div className="grid gap-5">
+        <Section title={t("active")}>
+          <EmptyState text={t("loadingTournaments")} />
+        </Section>
+        <Section title={t("completed")}>
+          <EmptyState text={t("loadingTournaments")} />
+        </Section>
+      </div>
+    );
+  }
+
+  if (accountStatus === "anonymous") {
     return (
       <div className="grid gap-5">
         <p className="app-card p-4 font-bold text-[var(--muted)]">{t("tournamentsLoginRequired")}</p>

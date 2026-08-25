@@ -133,13 +133,16 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
 
     async function loadAccount() {
       try {
-        const response = await fetch("/api/auth/me", { cache: "no-store" });
+        const accountRequest = fetch("/api/auth/me", { cache: "no-store" });
+        const tournamentsRequest = loadOwnTournaments();
+        const response = await accountRequest;
         const body = await response.json() as { ok?: boolean; account?: Account };
 
         if (!isDisposed && response.ok && body.ok && body.account) {
           setSignedInAccount(body.account);
-          void loadOwnTournaments();
         }
+
+        await tournamentsRequest;
       } catch {
         // Anonymous users simply see the credential login form.
       }
