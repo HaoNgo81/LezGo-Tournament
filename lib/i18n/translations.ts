@@ -145,6 +145,7 @@ export type TranslationKey =
   | "numberOfScorePoints"
   | "oneNamePerLine"
   | "players"
+  | "playerField"
   | "playByTime"
   | "playToScorePoints"
   | "position"
@@ -249,7 +250,9 @@ export type TranslationKey =
   | "timerReset"
   | "timerStartsAfterCountdown"
   | "timerStoppedCanResume"
-  | "wins";
+  | "wins"
+  | "women"
+  | "men";
 
 export const translations: Record<AppLanguage, Record<TranslationKey, string>> = {
   da: {
@@ -398,6 +401,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     numberOfScorePoints: "Antal scorepoint",
     oneNamePerLine: "Et navn pr. linje",
     players: "Spillere",
+    playerField: "Spiller",
     playByTime: "Spil på tid",
     playToScorePoints: "Spil til antal scorepoint",
     position: "Placering",
@@ -502,6 +506,8 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     timerStartsAfterCountdown: "15 sekunders nedtælling før uret starter.",
     timerStoppedCanResume: "Uret er stoppet og fortsætter fra den viste tid.",
     wins: "Sejre",
+    women: "Kvinder",
+    men: "Mænd",
   },
   en: {
     activeTournament: "Active tournament",
@@ -649,6 +655,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     numberOfScorePoints: "Number of score points",
     oneNamePerLine: "One name per line",
     players: "Players",
+    playerField: "Player",
     playByTime: "Play by time",
     playToScorePoints: "Play to score points",
     position: "Position",
@@ -753,6 +760,8 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     timerStartsAfterCountdown: "15 second countdown before the timer starts.",
     timerStoppedCanResume: "The timer is paused and will continue from the shown time.",
     wins: "Wins",
+    women: "Women",
+    men: "Men",
   },
 };
 

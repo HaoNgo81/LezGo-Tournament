@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TournamentSetupForm } from "../components/tournament/tournament-setup-form";
+import { loadActiveTournament } from "../lib/tournament-setup";
 import { saveTournamentSettings } from "../lib/tournament-settings";
 
 const { push } = vi.hoisted(() => ({ push: vi.fn() }));
@@ -32,7 +33,8 @@ describe("tournament setup form", () => {
     render(<TournamentSetupForm />);
 
     expect(screen.getByRole("textbox", { name: "Navn" })).toHaveValue("Americano");
-    expect(screen.getByRole("textbox", { name: "Spillere, Et navn pr. linje" })).toHaveValue("");
+    expect(screen.getAllByRole("textbox", { name: /^Spiller \d+$/ })).toHaveLength(8);
+    expect(screen.getByRole("textbox", { name: "Spiller 1" })).toHaveValue("");
     expect(screen.getByRole("button", { name: "Americano" })).toHaveAttribute("aria-pressed", "true");
 
     fireEvent.click(screen.getByRole("button", { name: "Fast Makker Americano" }));
@@ -228,9 +230,7 @@ describe("tournament setup form", () => {
     fireEvent.change(screen.getByRole("spinbutton", { name: "Baner" }), { target: { value: "2" } });
     fireEvent.change(screen.getByRole("spinbutton", { name: "Runder" }), { target: { value: "3" } });
     fireEvent.change(screen.getByRole("combobox", { name: "Sorter stilling efter" }), { target: { value: "partiPointsFirst" } });
-    fireEvent.change(screen.getByRole("textbox", { name: "Spillere, Et navn pr. linje" }), {
-      target: { value: "Hao\nMartin\nRonnie\nSimon\nTuan\nJohnnie\nKlaus\nLindon" },
-    });
+    fillIndividualPlayerFields(["Hao", "Martin", "Ronnie", "Simon", "Tuan", "Johnnie", "Klaus", "Lindon"]);
     fireEvent.scroll(window, { target: { scrollY: 300 } });
     fireEvent.blur(screen.getByRole("textbox", { name: "Navn" }));
     fireEvent.focus(screen.getByRole("textbox", { name: "Navn" }));
@@ -247,7 +247,8 @@ describe("tournament setup form", () => {
     expect(screen.getByRole("spinbutton", { name: "Baner" })).toHaveValue(2);
     expect(screen.getByRole("spinbutton", { name: "Runder" })).toHaveValue(3);
     expect(screen.getByRole("combobox", { name: "Sorter stilling efter" })).toHaveValue("partiPointsFirst");
-    expect(screen.getByRole("textbox", { name: "Spillere, Et navn pr. linje" })).toHaveValue("Hao\nMartin\nRonnie\nSimon\nTuan\nJohnnie\nKlaus\nLindon");
+    expect(screen.getByRole("textbox", { name: "Spiller 1" })).toHaveValue("Hao");
+    expect(screen.getByRole("textbox", { name: "Spiller 8" })).toHaveValue("Lindon");
   });
 
   it("shows the three user-facing scoring choices and dynamic fields", () => {
@@ -333,9 +334,7 @@ describe("tournament setup form", () => {
     tapFormat("Mexicano");
     fireEvent.change(screen.getByRole("textbox", { name: "Navn" }), { target: { value: "RESET TEST" } });
     fireEvent.change(screen.getByRole("combobox", { name: "Scoring" }), { target: { value: "timed" } });
-    fireEvent.change(screen.getByRole("textbox", { name: "Spillere, Et navn pr. linje" }), {
-      target: { value: "Hao\nMartin\nRonnie\nSimon\nTuan\nJohnnie\nKlaus\nLindon" },
-    });
+    fillIndividualPlayerFields(["Hao", "Martin", "Ronnie", "Simon", "Tuan", "Johnnie", "Klaus", "Lindon"]);
 
     const courtsInput = getNumberInput("Baner");
     const roundsInput = getNumberInput("Runder");
@@ -350,7 +349,8 @@ describe("tournament setup form", () => {
     expect(screen.queryByRole("spinbutton", { name: "Antal scorepoint" })).not.toBeInTheDocument();
     expect(courtsInput.value).toBe("3");
     expect(roundsInput.value).toBe("10");
-    expect(screen.getByRole("textbox", { name: "Spillere, Et navn pr. linje" })).toHaveValue("Hao\nMartin\nRonnie\nSimon\nTuan\nJohnnie\nKlaus\nLindon");
+    expect(screen.getByRole("textbox", { name: "Spiller 1" })).toHaveValue("Hao");
+    expect(screen.getByRole("textbox", { name: "Spiller 8" })).toHaveValue("Lindon");
 
     dragFormat("Americano", 40);
     expectSelectedFormat("Mexicano");
@@ -408,7 +408,8 @@ describe("tournament setup form", () => {
     expect(screen.getByRole("spinbutton", { name: "Courts" })).toBeInTheDocument();
     expect(screen.getByRole("spinbutton", { name: "Rounds" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "3. Players" })).toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: "Players, One name per line" })).toHaveAttribute("placeholder", "One name per line");
+    expect(screen.getAllByRole("textbox", { name: /^Player \d+$/ })).toHaveLength(8);
+    expect(screen.getByRole("textbox", { name: "Player 1" })).toHaveAttribute("placeholder", "Player 1");
     expect(screen.getByRole("heading", { name: "4. Review" })).toBeInTheDocument();
     expect(screen.getByText("Fixed score:")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "5. Start tournament" })).toBeInTheDocument();
@@ -431,9 +432,7 @@ describe("tournament setup form", () => {
     render(<TournamentSetupForm />);
 
     fireEvent.change(screen.getByRole("textbox", { name: "Navn" }), { target: { value: "USER OWNERSHIP TEST" } });
-    fireEvent.change(screen.getByRole("textbox", { name: "Spillere, Et navn pr. linje" }), {
-      target: { value: "Hao\nMartin\nRonnie\nSimon" },
-    });
+    fillIndividualPlayerFields(["Hao", "Martin", "Ronnie", "Simon"]);
     fireEvent.click(screen.getByRole("button", { name: "Start turnering" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/supabase/shadow-save", expect.objectContaining({
@@ -487,9 +486,7 @@ describe("tournament setup form", () => {
     render(<TournamentSetupForm />);
 
     fireEvent.change(screen.getByRole("textbox", { name: "Navn" }), { target: { value: "lezgotakeovertest turnering" } });
-    fireEvent.change(screen.getByRole("textbox", { name: "Spillere, Et navn pr. linje" }), {
-      target: { value: "Hao\nMartin\nRonnie\nSimon" },
-    });
+    fillIndividualPlayerFields(["Hao", "Martin", "Ronnie", "Simon"]);
     fireEvent.click(screen.getByRole("button", { name: "Start turnering" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/supabase/shadow-save", expect.objectContaining({
@@ -526,9 +523,7 @@ describe("tournament setup form", () => {
     render(<TournamentSetupForm />);
 
     fireEvent.change(screen.getByRole("textbox", { name: "Navn" }), { target: { value: "FIX3 TEST" } });
-    fireEvent.change(screen.getByRole("textbox", { name: "Spillere, Et navn pr. linje" }), {
-      target: { value: "Hao\nMartin\nRonnie\nSimon" },
-    });
+    fillIndividualPlayerFields(["Hao", "Martin", "Ronnie", "Simon"]);
     fireEvent.click(screen.getByRole("button", { name: "Start turnering" }));
 
     await screen.findByText("Turneringen blev gemt lokalt, men kunne ikke synkroniseres til skyen. Prøv igen.");
@@ -556,8 +551,73 @@ describe("tournament setup form", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Mixed Americano" }));
 
-    expect(screen.getByRole("textbox", { name: "Kvinder" })).toHaveValue("");
-    expect(screen.getByRole("textbox", { name: "Mænd" })).toHaveValue("");
+    expect(screen.getAllByRole("textbox", { name: /^Kvinder Spiller \d+$/ })).toHaveLength(4);
+    expect(screen.getAllByRole("textbox", { name: /^Mænd Spiller \d+$/ })).toHaveLength(4);
+    expect(screen.getByRole("textbox", { name: "Kvinder Spiller 1" })).toHaveValue("");
+    expect(screen.getByRole("textbox", { name: "Mænd Spiller 1" })).toHaveValue("");
+  });
+
+  it("renders separate Americano player fields and preserves player order in the tournament payload", async () => {
+    render(<TournamentSetupForm />);
+
+    fillIndividualPlayerFields(["Anna", "Peter", "Mads", "Louise", "Ægir", "Østen", "Åse", "Minh"]);
+    fireEvent.click(screen.getByRole("button", { name: "Start turnering" }));
+
+    expect(loadActiveTournament()?.players.map((player) => player.name)).toEqual(["Anna", "Peter", "Mads", "Louise", "Ægir", "Østen", "Åse", "Minh"]);
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/live"));
+  });
+
+  it("renders separate Mexicano player fields with dynamic count from courts", () => {
+    render(<TournamentSetupForm />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Mexicano" }));
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Baner" }), { target: { value: "4" } });
+
+    expect(screen.getAllByRole("textbox", { name: /^Spiller \d+$/ })).toHaveLength(16);
+    fillIndividualPlayerFields(Array.from({ length: 16 }, (_, index) => `Mexicano ${index + 1}`));
+    fireEvent.click(screen.getByRole("button", { name: "Start turnering" }));
+
+    expect(loadActiveTournament()?.format).toBe("mexicano");
+    expect(loadActiveTournament()?.players.map((player) => player.name)).toEqual(Array.from({ length: 16 }, (_, index) => `Mexicano ${index + 1}`));
+  });
+
+  it("renders separate Mixed Americano women and men fields while preserving gender groups", () => {
+    render(<TournamentSetupForm />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Mixed Americano" }));
+    fillMixedPlayerFields("Kvinder", ["Anna", "Louise", "Maja", "Åse"]);
+    fillMixedPlayerFields("Mænd", ["Hao", "Minh", "Søren", "Đức"]);
+    fireEvent.click(screen.getByRole("button", { name: "Start turnering" }));
+
+    const players = loadActiveTournament()?.players ?? [];
+    expect(players.map((player) => player.name)).toEqual(["Anna", "Louise", "Maja", "Åse", "Hao", "Minh", "Søren", "Đức"]);
+    expect(players.filter((player) => player.gender === "female")).toHaveLength(4);
+    expect(players.filter((player) => player.gender === "male")).toHaveLength(4);
+  });
+
+  it("localizes individual player labels in English and keeps fixed partner pair entry unchanged", () => {
+    saveTournamentSettings({
+      language: "en",
+      scoringMode: "Fast antal point",
+      courts: 2,
+      rounds: 2,
+      rankingMode: "matchPointsFirst",
+      timeLimitMinutes: 15,
+      alarmSound: "standard",
+    });
+
+    render(<TournamentSetupForm />);
+
+    expect(screen.getAllByRole("textbox", { name: /^Player \d+$/ })).toHaveLength(8);
+    expect(screen.getByRole("textbox", { name: "Player 1" })).toHaveAttribute("placeholder", "Player 1");
+
+    fireEvent.click(screen.getByRole("button", { name: "Mixed Americano" }));
+    expect(screen.getAllByRole("textbox", { name: /^Women Player \d+$/ })).toHaveLength(4);
+    expect(screen.getAllByRole("textbox", { name: /^Men Player \d+$/ })).toHaveLength(4);
+
+    fireEvent.click(screen.getByRole("button", { name: "Fixed Partner Americano" }));
+    expect(screen.getByRole("textbox", { name: "Par 1, spiller 1" })).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Player 1" })).not.toBeInTheDocument();
   });
 
   it("ignores legacy tournament template links in the simplified setup flow", async () => {
@@ -580,6 +640,18 @@ function getFormatButton(formatName: string): HTMLElement {
 
 function getNumberInput(label: string): HTMLInputElement {
   return screen.getByRole("spinbutton", { name: label }) as HTMLInputElement;
+}
+
+function fillIndividualPlayerFields(names: string[]): void {
+  names.forEach((name, index) => {
+    fireEvent.change(screen.getByRole("textbox", { name: `Spiller ${index + 1}` }), { target: { value: name } });
+  });
+}
+
+function fillMixedPlayerFields(groupLabel: string, names: string[]): void {
+  names.forEach((name, index) => {
+    fireEvent.change(screen.getByRole("textbox", { name: `${groupLabel} Spiller ${index + 1}` }), { target: { value: name } });
+  });
 }
 
 function tapFormat(formatName: string): void {

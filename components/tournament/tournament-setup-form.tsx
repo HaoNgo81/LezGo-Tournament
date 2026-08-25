@@ -106,6 +106,11 @@ export function TournamentSetupForm() {
   const fixedPartnerPairs = getFixedPartnerPairs(playerText);
   const teamRounds = playersPerTeam === 4 ? 3 : 2;
   const scoringChoice = getScoringChoice(scoringMode, fixedScoreRule);
+  const configuredCourtCount = getConfiguredCourtCount(courts);
+  const individualPlayerFieldCount = getIndividualPlayerFieldCount(playerText, configuredCourtCount * 4);
+  const mixedGenderFieldCount = configuredCourtCount * 2;
+  const femalePlayerFieldCount = getIndividualPlayerFieldCount(femalePlayerText, mixedGenderFieldCount);
+  const malePlayerFieldCount = getIndividualPlayerFieldCount(malePlayerText, mixedGenderFieldCount);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -375,6 +380,21 @@ export function TournamentSetupForm() {
     const names = getFixedPartnerPlayerNames(playerText);
     names[pairIndex * 2 + playerIndex] = playerName;
     setPlayerText(names.join("\n"));
+  }
+
+  function updatePlayerTextField(playerIndex: number, playerName: string) {
+    markFormDirty();
+    setPlayerText(updatePlayerTextAtIndex(playerText, playerIndex, playerName));
+  }
+
+  function updateFemalePlayerTextField(playerIndex: number, playerName: string) {
+    markFormDirty();
+    setFemalePlayerText(updatePlayerTextAtIndex(femalePlayerText, playerIndex, playerName));
+  }
+
+  function updateMalePlayerTextField(playerIndex: number, playerName: string) {
+    markFormDirty();
+    setMalePlayerText(updatePlayerTextAtIndex(malePlayerText, playerIndex, playerName));
   }
 
   function addFixedPartnerPair() {
@@ -726,30 +746,24 @@ export function TournamentSetupForm() {
         <Section title={`3. ${participantSectionTitle(format, poolParticipantType, t)}`}>
           {format === "Mixed Americano" ? (
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className="grid gap-2 text-lg font-bold">
-                Kvinder
-                <textarea
-                  className="field-control min-h-64 resize-y text-xl leading-8"
-                  placeholder={t("oneNamePerLine")}
-                  value={femalePlayerText}
-                  onChange={(event) => {
-                    markFormDirty();
-                    setFemalePlayerText(event.target.value);
-                  }}
-                />
-              </label>
-              <label className="grid gap-2 text-lg font-bold">
-                Mænd
-                <textarea
-                  className="field-control min-h-64 resize-y text-xl leading-8"
-                  placeholder={t("oneNamePerLine")}
-                  value={malePlayerText}
-                  onChange={(event) => {
-                    markFormDirty();
-                    setMalePlayerText(event.target.value);
-                  }}
-                />
-              </label>
+              <PlayerNameFields
+                ariaGroupLabel={t("women")}
+                fieldCount={femalePlayerFieldCount}
+                legend={t("women")}
+                onChange={updateFemalePlayerTextField}
+                playerText={femalePlayerText}
+                t={t}
+                testId="mixed-women-player-fields"
+              />
+              <PlayerNameFields
+                ariaGroupLabel={t("men")}
+                fieldCount={malePlayerFieldCount}
+                legend={t("men")}
+                onChange={updateMalePlayerTextField}
+                playerText={malePlayerText}
+                t={t}
+                testId="mixed-men-player-fields"
+              />
             </div>
           ) : isFixedPartner ? (
             <div className="grid gap-3">
@@ -780,15 +794,12 @@ export function TournamentSetupForm() {
               <button className="min-h-12 rounded-md border border-[var(--line)] bg-white px-4 font-black" type="button" onClick={addFixedPartnerPair}>Tilføj par</button>
             </div>
           ) : (
-            <textarea
-              className="field-control min-h-64 resize-y text-xl leading-8"
-              placeholder={t("oneNamePerLine")}
-              value={playerText}
-              onChange={(event) => {
-                markFormDirty();
-                setPlayerText(event.target.value);
-              }}
-              aria-label={`${participantTextareaLabel(format, poolParticipantType, t)}, ${t("oneNamePerLine")}`}
+            <PlayerNameFields
+              fieldCount={individualPlayerFieldCount}
+              onChange={updatePlayerTextField}
+              playerText={playerText}
+              t={t}
+              testId="individual-player-fields"
             />
           )}
         </Section>
@@ -832,6 +843,52 @@ function assertInitialCloudShadowSave(metadata: ShadowSaveMetadata | null): void
   }
 
   throw new Error("Turneringen blev gemt lokalt, men kunne ikke synkroniseres til skyen. Prøv igen.");
+}
+
+function PlayerNameFields({
+  ariaGroupLabel,
+  fieldCount,
+  legend,
+  onChange,
+  playerText,
+  t,
+  testId,
+}: {
+  ariaGroupLabel?: string;
+  fieldCount: number;
+  legend?: string;
+  onChange: (playerIndex: number, playerName: string) => void;
+  playerText: string;
+  t: (key: TranslationKey) => string;
+  testId: string;
+}) {
+  const names = getPlayerTextLines(playerText);
+  const fields = Array.from({ length: fieldCount }, (_, index) => names[index] ?? "");
+
+  return (
+    <fieldset className="app-card grid gap-3 p-4 sm:p-5" data-testid={testId}>
+      {legend ? <legend className="mb-1 text-lg font-black">{legend}</legend> : null}
+      <div className="grid gap-3 sm:grid-cols-2" data-testid={`${testId}-grid`}>
+        {fields.map((playerName, index) => {
+          const label = `${t("playerField")} ${index + 1}`;
+          const ariaLabel = ariaGroupLabel ? `${ariaGroupLabel} ${label}` : label;
+
+          return (
+            <label key={`${testId}-${index}`} className="grid gap-2 text-base font-bold">
+              {label}
+              <input
+                aria-label={ariaLabel}
+                className="field-control"
+                placeholder={label}
+                value={playerName}
+                onChange={(event) => onChange(index, event.target.value)}
+              />
+            </label>
+          );
+        })}
+      </div>
+    </fieldset>
+  );
 }
 
 function TeamEditor({ team, teamNumber, playersPerTeam, onChange }: { team: TeamVsTeamTeam; teamNumber: number; playersPerTeam: TeamVsTeamPlayersPerTeam; onChange: (team: TeamVsTeamTeam) => void }) {
@@ -964,6 +1021,34 @@ function getFormatDescription(format: TournamentSetupFormat, t: (key: Translatio
 
 function countLines(text: string): number {
   return text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).length;
+}
+
+function getConfiguredCourtCount(courts: string): number {
+  const normalizedCourts = normalizeIntegerInputValue(courts);
+  const courtCount = Number(normalizedCourts);
+  return Number.isInteger(courtCount) && courtCount > 0 ? courtCount : 1;
+}
+
+function getPlayerTextLines(text: string): string[] {
+  return text.split(/\r?\n/);
+}
+
+function getIndividualPlayerFieldCount(text: string, minimumFieldCount: number): number {
+  const names = getPlayerTextLines(text);
+  const minimum = Math.max(4, minimumFieldCount);
+  const allVisibleFieldsAreFilled = names.length >= minimum && names.every((name) => name.trim());
+  return Math.max(minimum, names.length + (allVisibleFieldsAreFilled ? 1 : 0));
+}
+
+function updatePlayerTextAtIndex(text: string, playerIndex: number, playerName: string): string {
+  const names = getPlayerTextLines(text);
+
+  while (names.length <= playerIndex) {
+    names.push("");
+  }
+
+  names[playerIndex] = playerName;
+  return names.join("\n");
 }
 
 function getFixedPartnerPlayerNames(text: string): string[] {
