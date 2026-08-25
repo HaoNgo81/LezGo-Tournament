@@ -810,13 +810,13 @@ describe("STEP 25I-C1-B main page account UI", () => {
     expect(within(dialog).getByText("Test Person")).toBeInTheDocument();
     expect(within(dialog).getByText("@TestUser")).toBeInTheDocument();
     expect(within(dialog).getByText("example@example.com")).toBeInTheDocument();
-    expect(within(dialog).getByText("Du har endnu ingen turneringer.")).toBeInTheDocument();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Opret ny turnering" }));
-    expect(navigationMocks.push).toHaveBeenCalledWith("/new-tournament");
+    expect(within(dialog).queryByText("Mine turneringer")).not.toBeInTheDocument();
+    expect(within(dialog).queryByTestId("account-tournament-list")).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Opret ny turnering" })).not.toBeInTheDocument();
     expect(within(dialog).queryByText("example")).not.toBeInTheDocument();
   });
 
-  it("shows display name or username, own tournament list and logout for signed-in users", async () => {
+  it("shows display name or username and logout for signed-in users without fetching account tournaments", async () => {
     let isLoggedIn = true;
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
@@ -838,21 +838,6 @@ describe("STEP 25I-C1-B main page account UI", () => {
         }), { status: 200 });
       }
 
-      if (url === "/api/account/tournaments") {
-        return new Response(JSON.stringify({
-          ok: true,
-          tournaments: [{
-            id: "00000000-0000-4000-8000-000000000101",
-            name: "Cloud Cup",
-            format: "mexicano",
-            status: "active",
-            updatedAt: "2026-08-20T10:00:00.000Z",
-            canManage: true,
-            managementState: "controller",
-          }],
-        }), { status: 200 });
-      }
-
       if (url === "/api/auth/logout") {
         isLoggedIn = false;
         return new Response(JSON.stringify({ ok: true }), { status: 200 });
@@ -870,20 +855,25 @@ describe("STEP 25I-C1-B main page account UI", () => {
     fireEvent.click(screen.getByTestId("main-account-control"));
 
     const dialog = await screen.findByTestId("main-account-dialog");
-    expect(await within(dialog).findByText("Mine turneringer")).toBeInTheDocument();
-    expect(within(dialog).getByText("Cloud Cup")).toBeInTheDocument();
-    expect(within(dialog).getByText("Du styrer")).toBeInTheDocument();
-    expect(within(dialog).getByText("Aktiv · Mexicano")).toBeInTheDocument();
-    expect(within(dialog).getByText(/Sidst opdateret:/)).toBeInTheDocument();
+    expect(within(dialog).getByText("Logget ind")).toBeInTheDocument();
+    expect(within(dialog).getByText("Owner")).toBeInTheDocument();
+    expect(within(dialog).getByText("@owner")).toBeInTheDocument();
+    expect(within(dialog).getByText("owner@example.com")).toBeInTheDocument();
+    expect(within(dialog).getByText("Sikkerhed")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Mine turneringer")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("Cloud Cup")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("Du styrer")).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Åbn turnering" })).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some((call) => String(call[0]) === "/api/account/tournaments")).toBe(false);
     fireEvent.click(within(dialog).getByRole("button", { name: "Log ud" }));
 
     await waitFor(() => expect(screen.getByTestId("main-account-control")).toHaveTextContent("Log ind"));
     expect(screen.getByTestId("main-account-create-control")).toHaveTextContent("Opret bruger");
   });
 
-  it("shows compact account tournament states for controlled read-only completed and long-name tournaments", async () => {
-    const longName = "Meget lang turneringstitel som stadig skal kunne bryde pænt uden vandret overflow på mobil";
-    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+  it("keeps the signed-in Account panel focused on identity and security in English", async () => {
+    window.localStorage.setItem("lezgo.tournamentSettings.v1", JSON.stringify({ language: "en" }));
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
 
       if (url === "/api/auth/me") {
@@ -899,70 +889,9 @@ describe("STEP 25I-C1-B main page account UI", () => {
         }), { status: 200 });
       }
 
-      if (url === "/api/account/tournaments") {
-        return new Response(JSON.stringify({
-          ok: true,
-          tournaments: [
-            {
-              id: "00000000-0000-4000-8000-000000000201",
-              name: "Controller Cup",
-              format: "fixed-partner-americano",
-              status: "active",
-              updatedAt: "2026-08-20T10:00:00.000Z",
-              canManage: true,
-              managementState: "controller",
-            },
-            {
-              id: "00000000-0000-4000-8000-000000000202",
-              name: "Transferred Cup",
-              format: "mexicano",
-              status: "active",
-              updatedAt: "2026-08-20T11:00:00.000Z",
-              canManage: false,
-              managementState: "readOnly",
-            },
-            {
-              id: "00000000-0000-4000-8000-000000000203",
-              name: longName,
-              format: "mixed-americano",
-              status: "finished",
-              updatedAt: "2026-08-20T12:00:00.000Z",
-              canManage: true,
-              managementState: "completed",
-            },
-            {
-              id: "00000000-0000-4000-8000-000000000204",
-              name: "Draft Cup",
-              format: "pool-play",
-              status: "setup",
-              updatedAt: "2026-08-20T13:00:00.000Z",
-              canManage: true,
-              managementState: "controller",
-            },
-            {
-              id: "00000000-0000-4000-8000-000000000205",
-              name: "Fifth Cup",
-              format: "fixed-partner-mexicano",
-              status: "active",
-              updatedAt: "2026-08-20T14:00:00.000Z",
-              canManage: true,
-              managementState: "controller",
-            },
-            {
-              id: "00000000-0000-4000-8000-000000000206",
-              name: "Sixth Cup",
-              format: "americano",
-              status: "active",
-              updatedAt: "2026-08-20T15:00:00.000Z",
-              canManage: true,
-              managementState: "controller",
-            },
-          ],
-        }), { status: 200 });
-      }
-
       return new Response(JSON.stringify({ ok: false }), { status: 404 });
-    }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
 
     render(<HomePage />);
 
@@ -970,37 +899,18 @@ describe("STEP 25I-C1-B main page account UI", () => {
     fireEvent.click(screen.getByTestId("main-account-control"));
 
     const dialog = await screen.findByTestId("main-account-dialog");
-    const list = await within(dialog).findByTestId("account-tournament-list");
-    const cards = within(list).getAllByTestId("account-tournament-card");
-
-    expect(cards).toHaveLength(6);
-    expect(list).toHaveClass("max-h-[42dvh]", "overflow-y-auto");
-    expect(cards.map((card) => within(card).getByRole("button").textContent)).toEqual([
-      "Åbn turnering",
-      "Åbn turnering",
-      "Åbn turnering",
-      "Åbn turnering",
-      "Åbn turnering",
-      "Se slutstilling",
-    ]);
-    expect(cards.map((card) => within(card).getByText(/Cup|turneringstitel/).textContent)).toEqual([
-      "Sixth Cup",
-      "Fifth Cup",
-      "Draft Cup",
-      "Controller Cup",
-      "Transferred Cup",
-      longName,
-    ]);
-    expect(within(dialog).getByText("Controller Cup")).toBeInTheDocument();
-    expect(within(dialog).getByText("Transferred Cup")).toBeInTheDocument();
-    expect(within(dialog).getByText(longName)).toHaveClass("break-words");
-    expect(within(dialog).getAllByText("Du styrer").length).toBeGreaterThanOrEqual(1);
-    expect(within(dialog).getByText("Kun visning")).toBeInTheDocument();
-    expect(within(dialog).getByText("Afsluttet")).toBeInTheDocument();
-    expect(within(dialog).getByText("Aktiv · Fast Makker Americano")).toBeInTheDocument();
-    expect(within(dialog).getByText("Aktiv · Mexicano")).toBeInTheDocument();
-    expect(within(dialog).getByText("Afsluttet · Mixed Americano")).toBeInTheDocument();
-    expect(within(dialog).getByText("Kladde · Puljespil")).toBeInTheDocument();
+    expect(within(dialog).getByText("Signed in")).toBeInTheDocument();
+    expect(within(dialog).getByText("Owner")).toBeInTheDocument();
+    expect(within(dialog).getByText("@owner")).toBeInTheDocument();
+    expect(within(dialog).getByText("owner@example.com")).toBeInTheDocument();
+    expect(within(dialog).getByText("Security")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Change code" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Log out other devices" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Log out" })).toBeInTheDocument();
+    expect(within(dialog).queryByText("My tournaments")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("You control")).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Open tournament" })).not.toBeInTheDocument();
     expect(within(dialog).queryByText(/owner_user_id|controller_user_id|created_by_user_id|Supabase|RLS|RPC|score_version/i)).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some((call) => String(call[0]) === "/api/account/tournaments")).toBe(false);
   });
 });

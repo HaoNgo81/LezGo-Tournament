@@ -1,12 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useAppTranslation } from "@/lib/preferences/client";
-import { createStandardShadowSaveLocalId, createTeamVsTeamShadowSaveLocalId, markActiveCloudTournamentAuthority, markCloudTournamentRestored, saveActiveTeamVsTeamTournamentFromRemoteSync, saveActiveTournamentFromRemoteSync, type TeamVsTeamTournamentState } from "@/lib/tournament-setup";
-import type { LiveTournamentState } from "@/lib/live-scoring";
-import { loadVerifiedLocalAccountTournamentSummaries } from "@/lib/account/local-tournament-cache";
 
 export interface Account {
   userId: string;
@@ -16,51 +12,7 @@ export interface Account {
   role: "admin" | "user";
 }
 
-interface AccountTournament {
-  id: string;
-  name: string;
-  format: string;
-  status: string;
-  updatedAt?: string;
-  canManage?: boolean;
-  managementState?: "controller" | "readOnly" | "completed";
-}
-
 export type AccountView = "login" | "create" | "forgot" | "reset" | "verify";
-type CloudTournamentOpenResponse =
-  | {
-      ok: true;
-      kind: "standard";
-      state: LiveTournamentState;
-      tournamentId: string;
-      updatedAt?: string;
-      legacyLocalId?: string;
-      organizerToken?: string;
-      canManage?: boolean;
-      canRead?: boolean;
-      createdByUserId?: string | null;
-      controllerUserId?: string | null;
-      ownerUserId?: string | null;
-      matchScoreVersions?: Record<string, number>;
-    }
-  | {
-      ok: true;
-      kind: "team-vs-team";
-      state: TeamVsTeamTournamentState;
-      tournamentId: string;
-      updatedAt?: string;
-      legacyLocalId?: string;
-      organizerToken?: string;
-      canManage?: boolean;
-      canRead?: boolean;
-      createdByUserId?: string | null;
-      controllerUserId?: string | null;
-      ownerUserId?: string | null;
-    }
-  | {
-      ok?: false;
-      error?: string;
-    };
 
 interface AccountPanelProps {
   framed?: boolean;
@@ -71,7 +23,6 @@ interface AccountPanelProps {
 }
 
 export function AccountPanel({ framed = true, initialAccount, initialView = "login", initialMessage = "", onAccountChange }: AccountPanelProps) {
-  const router = useRouter();
   const { t } = useAppTranslation();
   const [account, setAccount] = useState<Account | null>(null);
   const [view, setView] = useState<AccountView>(initialView);
@@ -92,10 +43,6 @@ export function AccountPanel({ framed = true, initialAccount, initialView = "log
   const [message, setMessage] = useState(initialMessage);
   const [isLoading, setIsLoading] = useState(false);
   const recoveryRequestInFlight = useRef(false);
-  const [openingTournamentId, setOpeningTournamentId] = useState<string | null>(null);
-  const [tournaments, setTournaments] = useState<AccountTournament[]>([]);
-  const [isTournamentListLoading, setIsTournamentListLoading] = useState(false);
-  const sortedTournaments = useMemo(() => [...tournaments].sort(compareAccountTournaments), [tournaments]);
 
   const setSignedInAccount = useCallback(function setSignedInAccount(nextAccount: Account | null) {
     setAccount(nextAccount);
@@ -110,33 +57,9 @@ export function AccountPanel({ framed = true, initialAccount, initialView = "log
     }
   }, [onAccountChange]);
 
-  const loadOwnTournaments = useCallback(async function loadOwnTournaments(userId?: string) {
-    if (userId) {
-      setTournaments(loadVerifiedLocalAccountTournamentSummaries(userId));
-    }
-
-    setIsTournamentListLoading(true);
-
-    try {
-      const response = await fetch("/api/account/tournaments", { cache: "no-store" });
-      const body = await response.json() as { ok?: boolean; tournaments?: AccountTournament[] };
-
-      if (response.ok && body.ok && body.tournaments) {
-        setTournaments(body.tournaments);
-      } else {
-        setTournaments([]);
-      }
-    } catch {
-      setTournaments([]);
-    } finally {
-      setIsTournamentListLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
     if (initialAccount) {
       setSignedInAccount(initialAccount);
-      setTournaments(loadVerifiedLocalAccountTournamentSummaries(initialAccount.userId));
     }
   }, [initialAccount, setSignedInAccount]);
 
@@ -153,21 +76,16 @@ export function AccountPanel({ framed = true, initialAccount, initialView = "log
 
     async function loadAccount() {
       if (initialAccount) {
-        void loadOwnTournaments(initialAccount.userId);
         return;
       }
 
       try {
-        const accountRequest = fetch("/api/auth/me", { cache: "no-store" });
-        const tournamentsRequest = loadOwnTournaments();
-        const response = await accountRequest;
+        const response = await fetch("/api/auth/me", { cache: "no-store" });
         const body = await response.json() as { ok?: boolean; account?: Account };
 
         if (!isDisposed && response.ok && body.ok && body.account) {
           setSignedInAccount(body.account);
         }
-
-        await tournamentsRequest;
       } catch {
         // Anonymous users simply see the credential login form.
       }
@@ -178,7 +96,7 @@ export function AccountPanel({ framed = true, initialAccount, initialView = "log
     return () => {
       isDisposed = true;
     };
-  }, [initialAccount, loadOwnTournaments, setSignedInAccount]);
+  }, [initialAccount, setSignedInAccount]);
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -202,7 +120,6 @@ export function AccountPanel({ framed = true, initialAccount, initialView = "log
       setSignedInAccount(body.account);
       setLoginCode("");
       setMessage(body.rememberDenied ? t("accountLoginAdminNotRemembered") : t("accountLoggedIn"));
-      void loadOwnTournaments(body.account.userId);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t("accountLoginError"));
     } finally {
@@ -377,7 +294,6 @@ export function AccountPanel({ framed = true, initialAccount, initialView = "log
     try {
       await fetch("/api/auth/logout", { method: "POST" });
       setSignedInAccount(null);
-      setTournaments([]);
       setLoginCode("");
       setRememberLogin(false);
       setCurrentCode("");
@@ -386,76 +302,6 @@ export function AccountPanel({ framed = true, initialAccount, initialView = "log
       setMessage(t("accountLoggedOut"));
     } finally {
       setIsLoading(false);
-    }
-  }
-
-  async function handleOpenTournament(tournamentId: string) {
-    setOpeningTournamentId(tournamentId);
-    setMessage("");
-
-    try {
-      const response = await fetch(`/api/account/tournaments/${encodeURIComponent(tournamentId)}`, { cache: "no-store" });
-      const body = await response.json() as CloudTournamentOpenResponse;
-
-      if (!response.ok || !body.ok) {
-        throw new Error("error" in body && body.error ? body.error : t("accountTournamentOpenError"));
-      }
-
-      if (body.kind === "standard") {
-        const localId = createStandardShadowSaveLocalId(body.state);
-        saveActiveTournamentFromRemoteSync(body.state);
-        markCloudTournamentRestored({
-          localId,
-          legacyLocalId: body.legacyLocalId,
-          kind: "standard",
-          tournamentId: body.tournamentId,
-          updatedAt: body.updatedAt,
-          organizerToken: body.organizerToken,
-          canManage: body.canManage,
-          matchScoreVersions: body.matchScoreVersions,
-        });
-        markActiveCloudTournamentAuthority({
-          source: "server",
-          kind: "standard",
-          localId,
-          tournamentId: body.tournamentId,
-          canRead: body.canRead ?? true,
-          canManage: body.canManage === true,
-          createdByUserId: body.createdByUserId,
-          controllerUserId: body.controllerUserId,
-          ownerUserId: body.ownerUserId,
-        });
-        router.push(body.state.status === "finished" ? "/finish" : "/live");
-        return;
-      }
-
-      const localId = createTeamVsTeamShadowSaveLocalId(body.state);
-      saveActiveTeamVsTeamTournamentFromRemoteSync(body.state);
-      markCloudTournamentRestored({
-        localId,
-        legacyLocalId: body.legacyLocalId,
-        kind: "team-vs-team",
-        tournamentId: body.tournamentId,
-        updatedAt: body.updatedAt,
-        organizerToken: body.organizerToken,
-        canManage: body.canManage,
-      });
-      markActiveCloudTournamentAuthority({
-        source: "server",
-        kind: "team-vs-team",
-        localId,
-        tournamentId: body.tournamentId,
-        canRead: body.canRead ?? true,
-        canManage: body.canManage === true,
-        createdByUserId: body.createdByUserId,
-        controllerUserId: body.controllerUserId,
-        ownerUserId: body.ownerUserId,
-      });
-      router.push("/team-vs-team");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : t("accountTournamentOpenError"));
-    } finally {
-      setOpeningTournamentId(null);
     }
   }
 
@@ -479,43 +325,6 @@ export function AccountPanel({ framed = true, initialAccount, initialView = "log
               </Link>
             </div>
           ) : null}
-        </div>
-        <div className="rounded-md border border-[var(--line)] bg-white/70 p-3">
-          <p className="text-sm font-black uppercase tracking-wide text-[var(--primary-strong)]">{t("accountOwnTournaments")}</p>
-          {sortedTournaments.length ? (
-            <ul className="mt-2 grid max-h-[42dvh] gap-2 overflow-y-auto pr-1 text-sm font-bold" data-testid="account-tournament-list">
-              {sortedTournaments.map((tournament) => (
-                <li key={tournament.id} className="grid min-w-0 gap-2 rounded-md border border-[var(--line)] bg-white/80 p-3" data-testid="account-tournament-card">
-                  <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <span className="block break-words text-base font-black text-[var(--foreground)]">{tournament.name}</span>
-                      <span className="mt-1 block text-xs font-black uppercase tracking-wide text-[var(--muted)]">{formatTournamentSummary(tournament)}</span>
-                    </div>
-                    <span className={`rounded-md border px-2 py-1 text-xs font-black ${getManagementBadgeClassName(tournament)}`}>
-                      {getManagementLabel(tournament)}
-                    </span>
-                  </div>
-                  {tournament.updatedAt ? (
-                    <span className="text-xs font-bold text-[var(--muted)]">{t("accountTournamentUpdated")} {formatUpdatedAt(tournament.updatedAt)}</span>
-                  ) : null}
-                  <button className="btn-secondary min-h-10 text-sm" type="button" disabled={openingTournamentId === tournament.id || isLoading} onClick={() => void handleOpenTournament(tournament.id)}>
-                    {openingTournamentId === tournament.id ? t("loadingTournament") : getTournamentActionLabel(tournament)}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : isTournamentListLoading ? (
-            <div className="mt-2 grid gap-3 rounded-md border border-dashed border-[var(--line)] bg-white/60 p-3">
-              <p className="text-sm font-bold text-[var(--muted)]">{t("loadingTournaments")}</p>
-            </div>
-          ) : (
-            <div className="mt-2 grid gap-3 rounded-md border border-dashed border-[var(--line)] bg-white/60 p-3">
-              <p className="text-sm font-bold text-[var(--muted)]">{t("accountNoOwnTournaments")}</p>
-              <button className="btn-secondary min-h-10 text-sm" type="button" onClick={() => router.push("/new-tournament")}>
-                {t("accountCreateTournament")}
-              </button>
-            </div>
-          )}
         </div>
         {view === "reset" ? (
           <form className="grid gap-3 rounded-md border border-[var(--line)] bg-white/70 p-3" onSubmit={handleChangeCode}>
@@ -664,129 +473,6 @@ export function AccountPanel({ framed = true, initialAccount, initialView = "log
       </button>
     );
   }
-
-  function formatTournamentSummary(tournament: AccountTournament): string {
-    return `${getTournamentStatusLabel(tournament.status)} · ${getTournamentFormatLabel(tournament.format)}`;
-  }
-
-  function getManagementLabel(tournament: AccountTournament): string {
-    if (tournament.managementState === "completed" || tournament.status === "finished") {
-      return t("accountTournamentCompleted");
-    }
-
-    if (tournament.managementState === "readOnly" || tournament.canManage === false) {
-      return t("accountTournamentReadOnly");
-    }
-
-    return t("accountTournamentController");
-  }
-
-  function getTournamentActionLabel(tournament: AccountTournament): string {
-    if (tournament.managementState === "completed" || tournament.status === "finished") {
-      return t("seeFinalStandings");
-    }
-
-    return t("accountOpenTournament");
-  }
-
-  function getManagementBadgeClassName(tournament: AccountTournament): string {
-    if (tournament.managementState === "completed" || tournament.status === "finished") {
-      return "border-[var(--line)] bg-[var(--background)] text-[var(--muted)]";
-    }
-
-    if (tournament.managementState === "readOnly" || tournament.canManage === false) {
-      return "border-[var(--line)] bg-[var(--background)] text-[var(--muted)]";
-    }
-
-    return "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary-strong)]";
-  }
-
-  function getTournamentStatusLabel(status: string): string {
-    if (status === "setup") {
-      return t("accountTournamentStatusSetup");
-    }
-
-    if (status === "finished") {
-      return t("accountTournamentStatusFinished");
-    }
-
-    return t("accountTournamentStatusActive");
-  }
-
-  function getTournamentFormatLabel(format: string): string {
-    if (format === "americano") {
-      return t("formatAmericano");
-    }
-
-    if (format === "mexicano") {
-      return t("formatMexicano");
-    }
-
-    if (format === "mixed-americano") {
-      return t("formatMixedAmericano");
-    }
-
-    if (format === "fixed-partner-americano") {
-      return t("fixedPartnerAmericano");
-    }
-
-    if (format === "fixed-partner-mexicano") {
-      return t("fixedPartnerMexicano");
-    }
-
-    if (format === "pool-play") {
-      return t("formatPoolPlay");
-    }
-
-    return format;
-  }
-
-  function formatUpdatedAt(value: string): string {
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-      return value;
-    }
-
-    return new Intl.DateTimeFormat(undefined, {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(date);
-  }
-}
-
-function compareAccountTournaments(left: AccountTournament, right: AccountTournament): number {
-  const groupDifference = getAccountTournamentSortGroup(left) - getAccountTournamentSortGroup(right);
-
-  if (groupDifference !== 0) {
-    return groupDifference;
-  }
-
-  return getUpdatedAtTime(right.updatedAt) - getUpdatedAtTime(left.updatedAt);
-}
-
-function getAccountTournamentSortGroup(tournament: AccountTournament): number {
-  if (tournament.managementState === "completed" || tournament.status === "finished") {
-    return 2;
-  }
-
-  if (tournament.managementState === "readOnly" || tournament.canManage === false) {
-    return 1;
-  }
-
-  return 0;
-}
-
-function getUpdatedAtTime(value: string | undefined): number {
-  if (!value) {
-    return 0;
-  }
-
-  const time = new Date(value).getTime();
-  return Number.isNaN(time) ? 0 : time;
 }
 
 function CodeField({ label, value, onChange, showCode }: { label: string; value: string; onChange: (value: string) => void; showCode: boolean }) {
