@@ -1,4 +1,4 @@
-import { readAccountFromAccessToken, AuthError } from "@/lib/auth";
+import { assertAuthUserIdIsActive, readVerifiedAuthUserIdFromAccessToken, AuthError } from "@/lib/auth";
 import { canListOwnCreatedAccountTournament, canManageAccountTournament } from "@/lib/account/tournament-authority";
 import { readAuthAccessCookie } from "@/lib/auth/cookies";
 import { createSupabaseRestClient } from "@/lib/supabase/rest-client";
@@ -17,23 +17,33 @@ interface TournamentListRow {
 }
 
 export async function GET(): Promise<Response> {
+  const requestStartedAt = Date.now();
+
   try {
-    const account = await readAccountFromAccessToken(await readAuthAccessCookie());
-    const encodedUserId = encodeURIComponent(account.userId);
-    const rows = await createSupabaseRestClient().select<TournamentListRow>(
+    const authStartedAt = Date.now();
+    const userId = await readVerifiedAuthUserIdFromAccessToken(await readAuthAccessCookie());
+    const authDuration = Date.now() - authStartedAt;
+    const encodedUserId = encodeURIComponent(userId);
+    const client = createSupabaseRestClient();
+    const dataStartedAt = Date.now();
+    const activeAccountCheck = assertAuthUserIdIsActive(userId);
+    const tournamentRows = client.select<TournamentListRow>(
       "tournaments",
       `or=(created_by_user_id.eq.${encodedUserId},owner_user_id.eq.${encodedUserId})&select=id,name,format,status,updated_at,owner_user_id,created_by_user_id,controller_user_id&order=updated_at.desc`,
     );
+    const [rows] = await Promise.all([tournamentRows, activeAccountCheck]);
+    const dataDuration = Date.now() - dataStartedAt;
 
     return Response.json({
       ok: true,
       tournaments: rows
-        .filter((row) => canListOwnCreatedAccountTournament(row, account.userId))
-        .map((row) => toAccountTournamentListItem(row, account.userId))
+        .filter((row) => canListOwnCreatedAccountTournament(row, userId))
+        .map((row) => toAccountTournamentListItem(row, userId))
         .sort(compareAccountTournamentListItems),
     }, {
       headers: {
         "Cache-Control": "no-store, max-age=0",
+        "Server-Timing": formatServerTiming(authDuration, dataDuration, Date.now() - requestStartedAt),
       },
     });
   } catch (error) {
@@ -90,4 +100,12 @@ function getUpdatedAtTime(value: string | undefined): number {
 
   const time = new Date(value).getTime();
   return Number.isNaN(time) ? 0 : time;
+}
+
+function formatServerTiming(authDuration: number, dataDuration: number, totalDuration: number): string {
+  return [
+    `auth;dur=${Math.max(0, authDuration)}`,
+    `active_data;dur=${Math.max(0, dataDuration)}`,
+    `total;dur=${Math.max(0, totalDuration)}`,
+  ].join(", ");
 }

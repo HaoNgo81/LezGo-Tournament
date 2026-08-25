@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAppTranslation } from "@/lib/preferences/client";
 import { createStandardShadowSaveLocalId, createTeamVsTeamShadowSaveLocalId, markActiveCloudTournamentAuthority, markCloudTournamentRestored, saveActiveTeamVsTeamTournamentFromRemoteSync, saveActiveTournamentFromRemoteSync, type TeamVsTeamTournamentState } from "@/lib/tournament-setup";
 import type { LiveTournamentState } from "@/lib/live-scoring";
+import { loadVerifiedLocalAccountTournamentSummaries } from "@/lib/account/local-tournament-cache";
 
 export interface Account {
   userId: string;
@@ -63,12 +64,13 @@ type CloudTournamentOpenResponse =
 
 interface AccountPanelProps {
   framed?: boolean;
+  initialAccount?: Account | null;
   initialView?: AccountView;
   initialMessage?: string;
   onAccountChange?: (account: Account | null) => void;
 }
 
-export function AccountPanel({ framed = true, initialView = "login", initialMessage = "", onAccountChange }: AccountPanelProps) {
+export function AccountPanel({ framed = true, initialAccount, initialView = "login", initialMessage = "", onAccountChange }: AccountPanelProps) {
   const router = useRouter();
   const { t } = useAppTranslation();
   const [account, setAccount] = useState<Account | null>(null);
@@ -92,28 +94,8 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
   const recoveryRequestInFlight = useRef(false);
   const [openingTournamentId, setOpeningTournamentId] = useState<string | null>(null);
   const [tournaments, setTournaments] = useState<AccountTournament[]>([]);
+  const [isTournamentListLoading, setIsTournamentListLoading] = useState(false);
   const sortedTournaments = useMemo(() => [...tournaments].sort(compareAccountTournaments), [tournaments]);
-
-  const loadOwnTournaments = useCallback(async function loadOwnTournaments() {
-    try {
-      const response = await fetch("/api/account/tournaments", { cache: "no-store" });
-      const body = await response.json() as { ok?: boolean; tournaments?: AccountTournament[] };
-
-      if (response.ok && body.ok && body.tournaments) {
-        setTournaments(body.tournaments);
-      }
-    } catch {
-      setTournaments([]);
-    }
-  }, []);
-
-  useEffect(() => {
-    setView(initialView);
-  }, [initialView]);
-
-  useEffect(() => {
-    setMessage(initialMessage);
-  }, [initialMessage]);
 
   const setSignedInAccount = useCallback(function setSignedInAccount(nextAccount: Account | null) {
     setAccount(nextAccount);
@@ -128,10 +110,53 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
     }
   }, [onAccountChange]);
 
+  const loadOwnTournaments = useCallback(async function loadOwnTournaments(userId?: string) {
+    if (userId) {
+      setTournaments(loadVerifiedLocalAccountTournamentSummaries(userId));
+    }
+
+    setIsTournamentListLoading(true);
+
+    try {
+      const response = await fetch("/api/account/tournaments", { cache: "no-store" });
+      const body = await response.json() as { ok?: boolean; tournaments?: AccountTournament[] };
+
+      if (response.ok && body.ok && body.tournaments) {
+        setTournaments(body.tournaments);
+      } else {
+        setTournaments([]);
+      }
+    } catch {
+      setTournaments([]);
+    } finally {
+      setIsTournamentListLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (initialAccount) {
+      setSignedInAccount(initialAccount);
+      setTournaments(loadVerifiedLocalAccountTournamentSummaries(initialAccount.userId));
+    }
+  }, [initialAccount, setSignedInAccount]);
+
+  useEffect(() => {
+    setView(initialView);
+  }, [initialView]);
+
+  useEffect(() => {
+    setMessage(initialMessage);
+  }, [initialMessage]);
+
   useEffect(() => {
     let isDisposed = false;
 
     async function loadAccount() {
+      if (initialAccount) {
+        void loadOwnTournaments(initialAccount.userId);
+        return;
+      }
+
       try {
         const accountRequest = fetch("/api/auth/me", { cache: "no-store" });
         const tournamentsRequest = loadOwnTournaments();
@@ -153,7 +178,7 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
     return () => {
       isDisposed = true;
     };
-  }, [loadOwnTournaments, setSignedInAccount]);
+  }, [initialAccount, loadOwnTournaments, setSignedInAccount]);
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -177,7 +202,7 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
       setSignedInAccount(body.account);
       setLoginCode("");
       setMessage(body.rememberDenied ? t("accountLoginAdminNotRemembered") : t("accountLoggedIn"));
-      void loadOwnTournaments();
+      void loadOwnTournaments(body.account.userId);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t("accountLoginError"));
     } finally {
@@ -479,6 +504,10 @@ export function AccountPanel({ framed = true, initialView = "login", initialMess
                 </li>
               ))}
             </ul>
+          ) : isTournamentListLoading ? (
+            <div className="mt-2 grid gap-3 rounded-md border border-dashed border-[var(--line)] bg-white/60 p-3">
+              <p className="text-sm font-bold text-[var(--muted)]">{t("loadingTournaments")}</p>
+            </div>
           ) : (
             <div className="mt-2 grid gap-3 rounded-md border border-dashed border-[var(--line)] bg-white/60 p-3">
               <p className="text-sm font-bold text-[var(--muted)]">{t("accountNoOwnTournaments")}</p>

@@ -32,9 +32,16 @@ export function AccountAccess({ onAccountChange }: AccountAccessProps) {
         if (!isDisposed && response.ok && body.ok && body.account) {
           setAccount(body.account);
           onAccountChange?.(body.account);
+        } else if (!isDisposed) {
+          setAccount(null);
+          onAccountChange?.(null);
         }
       } catch {
         // Signed-out users keep the compact login entry point.
+        if (!isDisposed) {
+          setAccount(null);
+          onAccountChange?.(null);
+        }
       }
     }
 
@@ -110,7 +117,7 @@ export function AccountAccess({ onAccountChange }: AccountAccessProps) {
             </button>
           </div>
           <div className="min-h-0 overflow-y-auto px-4 pb-4 sm:px-5 sm:pb-5" data-testid="main-account-dialog-scroll">
-            <AccountPanel framed={false} initialView={dialogView} initialMessage={dialogMessage} onAccountChange={handlePanelAccountChange} />
+            <AccountPanel framed={false} initialAccount={account} initialView={dialogView} initialMessage={dialogMessage} onAccountChange={handlePanelAccountChange} />
           </div>
         </div>
       </div>

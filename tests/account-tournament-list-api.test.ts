@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const authMocks = vi.hoisted(() => ({
   readAuthAccessCookie: vi.fn(),
-  readAccountFromAccessToken: vi.fn(),
+  readVerifiedAuthUserIdFromAccessToken: vi.fn(),
+  assertAuthUserIdIsActive: vi.fn(),
 }));
 
 const restClientMocks = vi.hoisted(() => ({
@@ -19,7 +20,8 @@ vi.mock("@/lib/auth", async (importOriginal) => {
 
   return {
     ...actual,
-    readAccountFromAccessToken: authMocks.readAccountFromAccessToken,
+    readVerifiedAuthUserIdFromAccessToken: authMocks.readVerifiedAuthUserIdFromAccessToken,
+    assertAuthUserIdIsActive: authMocks.assertAuthUserIdIsActive,
   };
 });
 
@@ -40,15 +42,12 @@ const otherUserId = "00000000-0000-4000-8000-0000000000b2";
 describe("STEP 25Y-D2 private account tournament list API", () => {
   beforeEach(() => {
     authMocks.readAuthAccessCookie.mockReset();
-    authMocks.readAccountFromAccessToken.mockReset();
+    authMocks.readVerifiedAuthUserIdFromAccessToken.mockReset();
+    authMocks.assertAuthUserIdIsActive.mockReset();
     restClientMocks.select.mockReset();
     authMocks.readAuthAccessCookie.mockResolvedValue("auth-cookie-token");
-    authMocks.readAccountFromAccessToken.mockResolvedValue({
-      userId,
-      email: "owner@example.com",
-      displayName: "Owner",
-      role: "user",
-    });
+    authMocks.readVerifiedAuthUserIdFromAccessToken.mockResolvedValue(userId);
+    authMocks.assertAuthUserIdIsActive.mockResolvedValue(undefined);
   });
 
   it("lists creator and legacy owner tournaments without leaking controller-only or unrelated rows", async () => {
@@ -135,6 +134,45 @@ describe("STEP 25Y-D2 private account tournament list API", () => {
       "completed",
     ]);
     expect(body.tournaments[0].id).toBe(createTournamentRow("New controller", userId, userId, userId).id);
+  });
+
+  it("starts the active-account check and tournament metadata query in parallel after token verification", async () => {
+    const events: string[] = [];
+    let resolveActiveCheck: () => void = () => undefined;
+    let resolveTournamentRows: (rows: ReturnType<typeof createTournamentRow>[]) => void = () => undefined;
+
+    authMocks.assertAuthUserIdIsActive.mockImplementation(async () => {
+      events.push("active-started");
+      await new Promise<void>((resolve) => {
+        resolveActiveCheck = resolve;
+      });
+      events.push("active-resolved");
+    });
+    restClientMocks.select.mockImplementation(async () => {
+      events.push("rows-started");
+      return await new Promise<ReturnType<typeof createTournamentRow>[]>((resolve) => {
+        resolveTournamentRows = resolve;
+      });
+    });
+
+    const responsePromise = listAccountTournaments();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(events).toEqual(["active-started", "rows-started"]);
+
+    resolveTournamentRows([createTournamentRow("Parallel Cup", userId, userId, userId)]);
+    await Promise.resolve();
+    expect(events).toEqual(["active-started", "rows-started"]);
+
+    resolveActiveCheck();
+
+    const response = await responsePromise;
+    const body = await response.json() as { tournaments: Array<{ name: string }> };
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("server-timing")).toContain("active_data");
+    expect(body.tournaments.map((tournament) => tournament.name)).toEqual(["Parallel Cup"]);
   });
 });
 

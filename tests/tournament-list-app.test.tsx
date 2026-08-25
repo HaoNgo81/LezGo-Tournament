@@ -2,7 +2,7 @@ import { cleanup, render, screen, waitFor, within } from "@testing-library/react
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TournamentListApp } from "../components/tournament/tournament-list-app";
 import { advanceLivePoolPlayState, finishTournament, saveNextPoolPhaseResult } from "../lib/live-scoring";
-import { createPoolTournamentFromSetup, createStandardShadowSaveLocalId, createTournamentFromSetup, loadActiveTournament, markCloudTournamentRestored, saveActiveTournament, saveCompletedTournament, type CompletedTournament } from "../lib/tournament-setup";
+import { createPoolTournamentFromSetup, createStandardShadowSaveLocalId, createTournamentFromSetup, loadActiveTournament, markActiveCloudTournamentAuthority, markCloudTournamentRestored, saveActiveTournament, saveCompletedTournament, type CompletedTournament } from "../lib/tournament-setup";
 
 const sixteenPlayerText = Array.from({ length: 16 }, (_, index) => `Spiller ${index + 1}`).join("\n");
 const routerPush = vi.fn();
@@ -42,6 +42,7 @@ describe("TournamentListApp pool play", () => {
   afterEach(() => {
     cleanup();
     window.localStorage.clear();
+    window.sessionStorage.clear();
     vi.unstubAllGlobals();
   });
 
@@ -239,6 +240,98 @@ describe("TournamentListApp pool play", () => {
     expect(await screen.findByText("Fast local own tournament")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it("renders a server-verified local active tournament while the cloud list reconciles in the background", async () => {
+    const ownTournament = createStandardTournament("Verified local active");
+    saveActiveTournament(ownTournament);
+    markOwnedStandardTournament(ownTournament, "00000000-0000-4000-8000-000000000411", "active");
+    markLocalAuthority(ownTournament, "00000000-0000-4000-8000-000000000411", "00000000-0000-4000-8000-0000000000a1", true);
+    let resolveTournamentList: (response: Response) => void = () => undefined;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (input.toString() === "/api/account/tournaments") {
+        return await new Promise<Response>((resolve) => {
+          resolveTournamentList = resolve;
+        });
+      }
+
+      return Response.json({ ok: false }, { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TournamentListApp account={{
+      userId: "00000000-0000-4000-8000-0000000000a1",
+      email: "owner@example.com",
+      displayName: "Owner",
+      role: "user",
+    }} />);
+
+    expect(await screen.findByText("Verified local active")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith("/api/account/tournaments", { cache: "no-store" });
+
+    resolveTournamentList(Response.json({ ok: true, tournaments: accountTournamentRows }));
+
+    expect(await screen.findByText("Verified local active")).toBeInTheDocument();
+  });
+
+  it("renders a server-verified local completed tournament while the cloud list reconciles in the background", async () => {
+    const completed = saveCompletedTournament(finishTournament(createStandardTournament("Verified local completed"), "2026-08-24T12:00:00.000Z"));
+    markOwnedCompletedTournament(completed, "00000000-0000-4000-8000-000000000412");
+    markLocalAuthority(completed.state, "00000000-0000-4000-8000-000000000412", "00000000-0000-4000-8000-0000000000a1", true);
+    let resolveTournamentList: (response: Response) => void = () => undefined;
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      if (input.toString() === "/api/account/tournaments") {
+        return await new Promise<Response>((resolve) => {
+          resolveTournamentList = resolve;
+        });
+      }
+
+      return Response.json({ ok: false }, { status: 404 });
+    }));
+
+    render(<TournamentListApp account={{
+      userId: "00000000-0000-4000-8000-0000000000a1",
+      email: "owner@example.com",
+      displayName: "Owner",
+      role: "user",
+    }} />);
+
+    expect(await screen.findByText("Verified local completed")).toBeInTheDocument();
+
+    resolveTournamentList(Response.json({ ok: true, tournaments: accountTournamentRows }));
+
+    expect(await screen.findByText("Verified local completed")).toBeInTheDocument();
+  });
+
+  it("does not render local cache early when the verified account does not match local ownership authority", async () => {
+    const otherTournament = createStandardTournament("Other account cached tournament");
+    saveActiveTournament(otherTournament);
+    markOwnedStandardTournament(otherTournament, "00000000-0000-4000-8000-000000000421", "active");
+    markLocalAuthority(otherTournament, "00000000-0000-4000-8000-000000000421", "00000000-0000-4000-8000-0000000000b2", true);
+    let resolveTournamentList: (response: Response) => void = () => undefined;
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      if (input.toString() === "/api/account/tournaments") {
+        return await new Promise<Response>((resolve) => {
+          resolveTournamentList = resolve;
+        });
+      }
+
+      return Response.json({ ok: false }, { status: 404 });
+    }));
+
+    render(<TournamentListApp account={{
+      userId: "00000000-0000-4000-8000-0000000000a1",
+      email: "owner@example.com",
+      displayName: "Owner",
+      role: "user",
+    }} />);
+
+    expect(await screen.findByRole("heading", { name: "Aktive" })).toBeInTheDocument();
+    expect(screen.queryByText("Other account cached tournament")).not.toBeInTheDocument();
+
+    resolveTournamentList(Response.json({ ok: true, tournaments: [] }));
+
+    await waitFor(() => expect(screen.queryByText("Other account cached tournament")).not.toBeInTheDocument());
+  });
 });
 
 interface AccountTournamentRow {
@@ -271,6 +364,20 @@ function markOwnedStandardTournament(tournament: ReturnType<typeof createStandar
 
 function markOwnedCompletedTournament(completedTournament: CompletedTournament, tournamentId: string) {
   markOwnedStandardTournament(completedTournament.state, tournamentId, "finished");
+}
+
+function markLocalAuthority(tournament: ReturnType<typeof createStandardTournament> | ReturnType<typeof createPoolTournament>, tournamentId: string, userId: string, canManage: boolean) {
+  markActiveCloudTournamentAuthority({
+    source: "server",
+    kind: "standard",
+    localId: createStandardShadowSaveLocalId(tournament),
+    tournamentId,
+    canRead: true,
+    canManage,
+    createdByUserId: userId,
+    controllerUserId: canManage ? userId : "00000000-0000-4000-8000-00000000ad01",
+    ownerUserId: userId,
+  });
 }
 
 function createPoolTournament(name: string) {

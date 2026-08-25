@@ -33,6 +33,8 @@ import { getTeamVsTeamCaptainName } from "@/lib/team-vs-team";
 import { useAppTranslation } from "@/lib/preferences/client";
 import type { TranslationKey } from "@/lib/i18n/translations";
 import { useHasHydrated } from "@/hooks/use-has-hydrated";
+import type { Account } from "@/components/auth/account-panel";
+import { getVerifiedLocalStandardTournamentId, getVerifiedLocalTeamVsTeamTournamentId } from "@/lib/account/local-tournament-cache";
 
 interface AccountTournament {
   id: string;
@@ -79,7 +81,7 @@ type CloudTournamentOpenResponse =
       error?: string;
     };
 
-export function TournamentListApp({ accountRevision = 0 }: { accountRevision?: number }) {
+export function TournamentListApp({ account, accountRevision = 0 }: { account?: Account | null; accountRevision?: number }) {
   const { t } = useAppTranslation();
   const router = useRouter();
   const hasHydrated = useHasHydrated();
@@ -91,7 +93,56 @@ export function TournamentListApp({ accountRevision = 0 }: { accountRevision?: n
   const [completedTournaments, setCompletedTournaments] = useState<CompletedTournament[]>([]);
   const [completedTeamVsTeamTournaments, setCompletedTeamVsTeamTournaments] = useState<CompletedTeamVsTeamTournament[]>([]);
   const [openingCloudTournamentId, setOpeningCloudTournamentId] = useState<string | null>(null);
-  const ownedCloudTournamentIds = useMemo(() => new Set(cloudTournaments.map((tournament) => tournament.id)), [cloudTournaments]);
+  const accountUserId = account?.userId ?? null;
+  const ownedCloudTournamentIds = useMemo(() => {
+    const ids = new Set(cloudTournaments.map((tournament) => tournament.id));
+
+    if (!accountUserId) {
+      return ids;
+    }
+
+    for (const tournament of activeTournamentList) {
+      const tournamentId = getVerifiedLocalStandardTournamentId(tournament, accountUserId);
+
+      if (tournamentId) {
+        ids.add(tournamentId);
+      }
+    }
+
+    if (activeTournament) {
+      const tournamentId = getVerifiedLocalStandardTournamentId(activeTournament, accountUserId);
+
+      if (tournamentId) {
+        ids.add(tournamentId);
+      }
+    }
+
+    if (activeTeamVsTeamTournament) {
+      const tournamentId = getVerifiedLocalTeamVsTeamTournamentId(activeTeamVsTeamTournament, accountUserId);
+
+      if (tournamentId) {
+        ids.add(tournamentId);
+      }
+    }
+
+    for (const tournament of completedTournaments) {
+      const tournamentId = getVerifiedLocalStandardTournamentId(tournament.state, accountUserId);
+
+      if (tournamentId) {
+        ids.add(tournamentId);
+      }
+    }
+
+    for (const tournament of completedTeamVsTeamTournaments) {
+      const tournamentId = getVerifiedLocalTeamVsTeamTournamentId(tournament.state, accountUserId);
+
+      if (tournamentId) {
+        ids.add(tournamentId);
+      }
+    }
+
+    return ids;
+  }, [accountUserId, activeTeamVsTeamTournament, activeTournament, activeTournamentList, cloudTournaments, completedTeamVsTeamTournaments, completedTournaments]);
   const activeTournaments = useMemo(() => {
     const candidates = activeTournamentList.length
       ? activeTournamentList
@@ -183,7 +234,10 @@ export function TournamentListApp({ accountRevision = 0 }: { accountRevision?: n
     return <p className="app-card p-4 font-bold text-[var(--muted)]">{t("loadingTournaments")}</p>;
   }
 
-  if (accountStatus === "loading") {
+  const canRenderVerifiedLocalCache = Boolean(accountUserId);
+  const isReconcilingAccountTournaments = accountStatus === "loading";
+
+  if (isReconcilingAccountTournaments && !canRenderVerifiedLocalCache) {
     return (
       <div className="grid gap-5">
         <Section title={t("active")}>
@@ -327,7 +381,7 @@ export function TournamentListApp({ accountRevision = 0 }: { accountRevision?: n
             />
           ))}
           {activeTeamVsTeamTournaments.length ? activeTeamVsTeamTournaments.map((tournament) => <TeamVsTeamCard key={tournament.name} tournament={tournament} t={t} />) : null}
-          {!activeTournaments.length && !cloudOnlyActiveTournaments.length && !activeTeamVsTeamTournaments.length ? <EmptyState text={t("noActiveTournaments")} /> : null}
+          {!activeTournaments.length && !cloudOnlyActiveTournaments.length && !activeTeamVsTeamTournaments.length ? <EmptyState text={isReconcilingAccountTournaments ? t("loadingTournaments") : t("noActiveTournaments")} /> : null}
         </div>
       </Section>
 
@@ -368,7 +422,7 @@ export function TournamentListApp({ accountRevision = 0 }: { accountRevision?: n
               </div>
             </article>
           ))}
-          {!completedVisibleTournaments.length && !cloudOnlyCompletedTournaments.length && !completedVisibleTeamVsTeamTournaments.length ? <EmptyState text={t("noCompletedTournaments")} /> : null}
+          {!completedVisibleTournaments.length && !cloudOnlyCompletedTournaments.length && !completedVisibleTeamVsTeamTournaments.length ? <EmptyState text={isReconcilingAccountTournaments ? t("loadingTournaments") : t("noCompletedTournaments")} /> : null}
         </div>
       </Section>
     </div>

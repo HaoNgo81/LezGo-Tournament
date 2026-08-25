@@ -178,6 +178,18 @@ export async function readAccountFromAccessToken(accessToken: string | undefined
   return readProfileForAuthUser(authUser, client ?? createSupabaseRestClient());
 }
 
+export async function readVerifiedAuthUserIdFromAccessToken(accessToken: string | undefined): Promise<string> {
+  if (!accessToken) {
+    throw new AuthError();
+  }
+
+  return (await readSupabaseAuthUser(accessToken)).id;
+}
+
+export async function assertAuthUserIdIsActive(userId: string): Promise<void> {
+  await assertAuthUserIsActive(userId);
+}
+
 export async function readOptionalAccountFromAccessToken(accessToken: string | undefined, client?: SupabaseRestClient): Promise<AuthenticatedAccount | null> {
   try {
     return await readAccountFromAccessToken(accessToken, client);

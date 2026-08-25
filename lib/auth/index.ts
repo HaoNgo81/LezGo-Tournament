@@ -7,6 +7,8 @@ export {
   hashUserIdForLog,
   logoutOtherSupabaseSessions,
   readAccountFromAccessToken,
+  readVerifiedAuthUserIdFromAccessToken,
+  assertAuthUserIdIsActive,
   readOptionalAccountFromAccessToken,
   refreshAuthenticatedSession,
   requestEmailOtp,
