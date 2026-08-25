@@ -12,6 +12,7 @@ vi.mock("next/navigation", () => ({
 describe("SettingsApp", () => {
   afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
     push.mockClear();
     window.localStorage.clear();
     document.documentElement.removeAttribute("style");
@@ -28,6 +29,42 @@ describe("SettingsApp", () => {
 
     await waitFor(() => expect(loadTournamentSettings().language).toBe("en"));
     expect(document.documentElement.lang).toBe("en");
+  });
+
+  it("starts directly with tournament defaults and does not render the duplicated Account section", async () => {
+    const fetchMock = vi.fn(async () => Response.json({ ok: false }, { status: 500 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<SettingsApp />);
+
+    expect(await screen.findByRole("heading", { name: "Standarder for nye turneringer" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Konto" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("account-panel")).not.toBeInTheDocument();
+    expect(screen.queryByText("Logget ind")).not.toBeInTheDocument();
+    expect(screen.queryByText("Sikkerhed")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Scoring")).toBeInTheDocument();
+    expect(screen.getByLabelText("Sorter stilling efter")).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("starts with English tournament defaults without Account UI when English is selected", async () => {
+    const fetchMock = vi.fn(async () => Response.json({ ok: false }, { status: 500 }));
+    vi.stubGlobal("fetch", fetchMock);
+    window.localStorage.setItem("lezgo.tournamentSettings.v1", JSON.stringify({
+      ...loadTournamentSettings(),
+      language: "en",
+    }));
+
+    render(<SettingsApp />);
+
+    expect(await screen.findByRole("heading", { name: "Defaults for new tournaments" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Account" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("account-panel")).not.toBeInTheDocument();
+    expect(screen.queryByText("Signed in")).not.toBeInTheDocument();
+    expect(screen.queryByText("Security")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Scoring")).toBeInTheDocument();
+    expect(screen.getByLabelText("Sort standings by")).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("previews and saves a custom primary theme color", async () => {

@@ -2,7 +2,6 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { Section } from "@/components/ui/section";
-import { AccountPanel } from "@/components/auth/account-panel";
 import { normalizeLanguage, translate, type AppLanguage } from "@/lib/i18n/translations";
 import { notifyPreferencesChanged } from "@/lib/preferences/client";
 import { applyTheme, createDefaultTheme, getThemeForPreset, type AppTheme, type ThemePreset } from "@/lib/theme/theme";
@@ -101,10 +100,6 @@ export function SettingsApp() {
 
   return (
     <div className="grid gap-5">
-      <Section title={t("account")}>
-        <AccountPanel />
-      </Section>
-
       <form className="grid gap-5" onSubmit={handleSubmit}>
         <Section title={t("standardsForNewTournaments")}>
           <div className="app-card grid gap-3 p-4 sm:p-5">
