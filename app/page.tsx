@@ -21,6 +21,7 @@ export default function HomePage() {
         <LargeAction href="/tournaments" title={t("tournaments")} description={t("homeTournamentsDescription")} icon=">" />
         {isAdmin ? <LargeAction href="/settings" title={t("settings")} description={t("homeSettingsDescription")} icon="*" /> : null}
       </nav>
+      <p className="mt-2 text-center text-xs font-bold uppercase tracking-normal text-[var(--muted)]">UPDATE TEST D3</p>
     </AppShell>
   );
 }
