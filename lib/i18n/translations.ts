@@ -150,6 +150,8 @@ export type TranslationKey =
   | "position"
   | "previous"
   | "primaryButtonColor"
+  | "pwaUpdateReadyBody"
+  | "pwaUpdateReadyTitle"
   | "rankingSort"
   | "ready"
   | "resetTheme"
@@ -401,6 +403,8 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     position: "Placering",
     previous: "Forrige",
     primaryButtonColor: "Primær knapfarve",
+    pwaUpdateReadyBody: "LEZGO er blevet opdateret. Den nye version aktiveres, når det er sikkert.",
+    pwaUpdateReadyTitle: "Ny version klar",
     rankingSort: "Sorter stilling efter",
     ready: "Klar",
     resetTheme: "Nulstil tema",
@@ -650,6 +654,8 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     position: "Position",
     previous: "Previous",
     primaryButtonColor: "Primary button color",
+    pwaUpdateReadyBody: "LEZGO has been updated. The new version will activate when it is safe.",
+    pwaUpdateReadyTitle: "New version ready",
     rankingSort: "Sort standings by",
     ready: "Ready",
     resetTheme: "Reset theme",

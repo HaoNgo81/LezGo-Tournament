@@ -1,6 +1,6 @@
-const CACHE_NAME = "lezgo-padel-v4";
+const CACHE_NAME = "lezgo-padel-v5";
 const SCOPE_PATH = new URL(self.registration.scope).pathname.replace(/\/$/, "");
-const APP_SHELL_ROUTES = ["/", "/new-tournament", "/tournaments", "/templates"];
+const APP_SHELL_ROUTES = ["/", "/new-tournament", "/tournaments", "/live", "/finish"];
 const APP_SHELL = APP_SHELL_ROUTES.map((route) => `${SCOPE_PATH}${route}`);
 const LOCAL_HOST_PATTERNS = [
   /^localhost$/,
@@ -31,6 +31,12 @@ if (IS_LOCAL_OR_LAN) {
     event.respondWith(fetch(event.request));
   });
 } else {
+  self.addEventListener("message", (event) => {
+    if (event.data?.type === "LEZGO_SKIP_WAITING") {
+      event.waitUntil(self.skipWaiting());
+    }
+  });
+
   self.addEventListener("install", (event) => {
     event.waitUntil(
       caches.open(CACHE_NAME)

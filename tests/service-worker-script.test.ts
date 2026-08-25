@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { Script } from "node:vm";
 import { describe, expect, it, vi } from "vitest";
 
-type ServiceWorkerHandler = (event: { request?: Request; respondWith?: (promise: Promise<unknown>) => void; waitUntil?: (promise: Promise<unknown>) => void }) => void;
+type ServiceWorkerHandler = (event: { data?: unknown; request?: Request; respondWith?: (promise: Promise<unknown>) => void; waitUntil?: (promise: Promise<unknown>) => void }) => void;
 
 function runServiceWorkerScript(hostname: string) {
   const handlers = new Map<string, ServiceWorkerHandler>();
@@ -20,7 +20,7 @@ function runServiceWorkerScript(hostname: string) {
     URL,
     caches: {
       delete: cacheDelete,
-        keys: vi.fn().mockResolvedValue(["lezgo-padel-v1", "lezgo-padel-v2", "lezgo-padel-v3", "lezgo-padel-v4"]),
+        keys: vi.fn().mockResolvedValue(["lezgo-padel-v1", "lezgo-padel-v2", "lezgo-padel-v3", "lezgo-padel-v4", "lezgo-padel-v5"]),
       match: vi.fn().mockResolvedValue(new Response("cached")),
       open: cacheOpen,
     },
@@ -62,6 +62,7 @@ describe("service worker script", () => {
     expect(serviceWorker.cacheDelete).toHaveBeenCalledWith("lezgo-padel-v2");
     expect(serviceWorker.cacheDelete).toHaveBeenCalledWith("lezgo-padel-v3");
     expect(serviceWorker.cacheDelete).toHaveBeenCalledWith("lezgo-padel-v4");
+    expect(serviceWorker.cacheDelete).toHaveBeenCalledWith("lezgo-padel-v5");
     expect(serviceWorker.claim).toHaveBeenCalled();
     expect(serviceWorker.unregister).toHaveBeenCalled();
     expect(serviceWorker.cacheOpen).not.toHaveBeenCalled();
@@ -77,15 +78,29 @@ describe("service worker script", () => {
     await Promise.all(installPromises);
     await Promise.all(activatePromises);
 
-    expect(serviceWorker.cacheOpen).toHaveBeenCalledWith("lezgo-padel-v4");
-    expect(serviceWorker.cacheAddAll).toHaveBeenCalledWith(["/", "/new-tournament", "/tournaments", "/templates"]);
+    expect(serviceWorker.cacheOpen).toHaveBeenCalledWith("lezgo-padel-v5");
+    expect(serviceWorker.cacheAddAll).toHaveBeenCalledWith(["/", "/new-tournament", "/tournaments", "/live", "/finish"]);
     expect(serviceWorker.skipWaiting).toHaveBeenCalled();
     expect(serviceWorker.cacheDelete).toHaveBeenCalledWith("lezgo-padel-v1");
     expect(serviceWorker.cacheDelete).toHaveBeenCalledWith("lezgo-padel-v2");
     expect(serviceWorker.cacheDelete).toHaveBeenCalledWith("lezgo-padel-v3");
-    expect(serviceWorker.cacheDelete).not.toHaveBeenCalledWith("lezgo-padel-v4");
+    expect(serviceWorker.cacheDelete).toHaveBeenCalledWith("lezgo-padel-v4");
+    expect(serviceWorker.cacheDelete).not.toHaveBeenCalledWith("lezgo-padel-v5");
     expect(serviceWorker.claim).toHaveBeenCalled();
     expect(serviceWorker.unregister).not.toHaveBeenCalled();
+  });
+
+  it("accepts a controlled update message and activates the waiting worker", async () => {
+    const serviceWorker = runServiceWorkerScript("lezgotournament.vercel.app");
+    const messagePromises: Promise<unknown>[] = [];
+
+    serviceWorker.handlers.get("message")?.({
+      data: { type: "LEZGO_SKIP_WAITING" },
+      waitUntil: (promise) => messagePromises.push(promise),
+    });
+    await Promise.all(messagePromises);
+
+    expect(serviceWorker.skipWaiting).toHaveBeenCalled();
   });
 
   it("does not serve stale Next.js static chunks from the app-shell cache", async () => {
