@@ -6,6 +6,7 @@ import QrPage from "../app/qr/page";
 import SharePage from "../app/share/page";
 import TemplatesPage from "../app/templates/page";
 import TvPage from "../app/tv/page";
+import { expectDisabledLegacyFeaturePage } from "./helpers/current-product-regression";
 
 describe("STEP 25V disabled sharing/template routes", () => {
   afterEach(() => {
@@ -14,13 +15,13 @@ describe("STEP 25V disabled sharing/template routes", () => {
 
   it("shows a controlled disabled state for legacy remote entry points", async () => {
     render(<RemotePage />);
-    expect(screen.getByTestId("disabled-feature-page")).toHaveTextContent("Denne funktion er ikke længere tilgængelig.");
+    expectDisabledLegacyFeaturePage();
     expect(screen.queryByLabelText("Turneringskode")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Adgangskode")).not.toBeInTheDocument();
 
     cleanup();
     render(await RemoteHandoffPage({ params: Promise.resolve({ reference: "OLD_HANDOFF_REFERENCE" }) }));
-    expect(screen.getByTestId("disabled-feature-page")).toHaveTextContent("Denne funktion er ikke længere tilgængelig.");
+    expectDisabledLegacyFeaturePage();
     expect(screen.queryByText(/skrivebeskyttet turnering/i)).not.toBeInTheDocument();
   });
 
@@ -28,10 +29,7 @@ describe("STEP 25V disabled sharing/template routes", () => {
     for (const Page of [QrPage, SharePage, TemplatesPage, TvPage]) {
       cleanup();
       render(<Page />);
-      expect(screen.getByTestId("disabled-feature-page")).toHaveTextContent("Denne funktion er ikke længere tilgængelig.");
-      expect(screen.getByRole("link", { name: "Ny turnering" })).toHaveAttribute("href", "/new-tournament");
-      expect(screen.getByRole("link", { name: "Turneringer" })).toHaveAttribute("href", "/tournaments");
-      expect(screen.queryByText(/QR-kode klar|TV \/ Livescore|Scoreindtastning|Turneringsskabeloner|Del \/ vis på anden enhed/i)).not.toBeInTheDocument();
+      expectDisabledLegacyFeaturePage();
     }
   });
 });

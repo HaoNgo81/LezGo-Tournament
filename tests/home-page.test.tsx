@@ -1,7 +1,8 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import HomePage from "../app/page";
 import { saveTournamentSettings } from "../lib/tournament-settings";
+import { cleanupBrowserRegressionState, expectRemovedLegacyFeaturesAbsent } from "./helpers/current-product-regression";
 
 const navigationMocks = vi.hoisted(() => ({
   replace: vi.fn(),
@@ -13,10 +14,8 @@ vi.mock("next/navigation", () => ({
 
 describe("HomePage i18n", () => {
   afterEach(() => {
-    cleanup();
     navigationMocks.replace.mockReset();
-    window.localStorage.clear();
-    document.documentElement.lang = "da";
+    cleanupBrowserRegressionState();
   });
 
   it("uses English system text when English is selected", async () => {
@@ -38,13 +37,11 @@ describe("HomePage i18n", () => {
     expect(screen.getByText("Choose format, settings and players.")).toBeInTheDocument();
     expect(screen.getByText("Tournaments")).toBeInTheDocument();
     expect(screen.getByText("Active, upcoming, completed and previous tournaments.")).toBeInTheDocument();
-    expect(screen.queryByText("Tournament templates")).not.toBeInTheDocument();
-    expect(screen.queryByText("Open tournament from another device")).not.toBeInTheDocument();
+    expectRemovedLegacyFeaturesAbsent();
     expect(screen.queryByText("Settings")).not.toBeInTheDocument();
     expect(screen.queryByText("Only the essential options.")).not.toBeInTheDocument();
 
     expect(screen.queryByText("Ny turnering")).not.toBeInTheDocument();
-    expect(screen.queryByText("Turneringsskabeloner")).not.toBeInTheDocument();
     expect(screen.queryByText("Indstillinger")).not.toBeInTheDocument();
     expect(screen.queryByText("Hurtig turneringsstyring til telefon og tablet.")).not.toBeInTheDocument();
     expect(screen.queryByText("Vælg format, indstillinger og spillere.")).not.toBeInTheDocument();

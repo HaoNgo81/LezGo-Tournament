@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import HomePage from "../app/page";
 import { createMockLiveTournamentState } from "../lib/live-scoring";
 import { createStandardShadowSaveLocalId, loadActiveCloudTournamentAuthority, loadActiveTournament, markActiveCloudTournamentAuthority, saveActiveTournament } from "../lib/tournament-setup";
+import { clearBrowserRegressionState, expectRemovedLegacyFeaturesAbsent, mockLoggedOutAccountFetch } from "./helpers/current-product-regression";
 
 const navigationMocks = vi.hoisted(() => ({
   push: vi.fn(),
@@ -36,14 +37,11 @@ describe("STEP 25I-C1-B main page account UI", () => {
     vi.restoreAllMocks();
     navigationMocks.push.mockReset();
     navigationMocks.replace.mockReset();
-    window.localStorage.clear();
-    window.sessionStorage.clear();
-    document.documentElement.lang = "da";
-    window.history.pushState(null, "", "/");
+    clearBrowserRegressionState();
   });
 
   it("routes a Supabase recovery hash from the homepage into the reset-code UI without keeping tokens visible", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: false }), { status: 401 })));
+    mockLoggedOutAccountFetch();
     window.history.pushState(null, "", "/#access_token=homepage-recovery-token&refresh_token=homepage-refresh-token&type=recovery");
 
     render(<HomePage />);
@@ -56,7 +54,7 @@ describe("STEP 25I-C1-B main page account UI", () => {
   });
 
   it("does not enter reset mode for a normal homepage visit", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: false }), { status: 401 })));
+    mockLoggedOutAccountFetch();
 
     render(<HomePage />);
 
@@ -66,7 +64,7 @@ describe("STEP 25I-C1-B main page account UI", () => {
   });
 
   it("shows compact logged-out account actions on the main page without removing existing cards", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: false }), { status: 401 })));
+    mockLoggedOutAccountFetch();
 
     render(<HomePage />);
 
@@ -91,9 +89,7 @@ describe("STEP 25I-C1-B main page account UI", () => {
     expect(screen.getByRole("link", { name: /Ny turnering/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /^Turneringer/i })).toBeInTheDocument();
     expect(screen.getByText("UPDATE TEST D3")).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /Turneringsskabeloner/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /Åbn turnering fra anden enhed/i })).not.toBeInTheDocument();
-    expect(screen.queryByText(/TV|Livescore|QR|Scoreindtastning/i)).not.toBeInTheDocument();
+    expectRemovedLegacyFeaturesAbsent();
     expect(screen.queryByRole("link", { name: /^Indstillinger/i })).not.toBeInTheDocument();
 
     fireEvent.click(loginButton);
@@ -108,7 +104,7 @@ describe("STEP 25I-C1-B main page account UI", () => {
   });
 
   it("changes language from the premium top bar through the existing preferences system", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: false }), { status: 401 })));
+    mockLoggedOutAccountFetch();
 
     render(<HomePage />);
 
@@ -121,7 +117,7 @@ describe("STEP 25I-C1-B main page account UI", () => {
   });
 
   it("opens the create-user state directly from the header create action", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: false }), { status: 401 })));
+    mockLoggedOutAccountFetch();
 
     render(<HomePage />);
     fireEvent.click(await screen.findByTestId("main-account-create-control"));

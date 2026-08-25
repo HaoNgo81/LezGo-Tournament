@@ -2,6 +2,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AdminDashboard } from "../components/admin/admin-dashboard";
 import type { ManagedAccountUser } from "../lib/admin/users";
+import { expectAdminTournamentManagementAbsent } from "./helpers/current-product-regression";
 
 describe("STEP 25Y-B-FIX2 admin tournament tab removal", () => {
   afterEach(() => {
@@ -14,9 +15,7 @@ describe("STEP 25Y-B-FIX2 admin tournament tab removal", () => {
 
     expect(screen.getByText("Brugere")).toBeInTheDocument();
     expect(screen.getByTestId("admin-user-management")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Turneringer" })).not.toBeInTheDocument();
-    expect(screen.queryByTestId("admin-tournament-management")).not.toBeInTheDocument();
-    expect(screen.queryByText("TURNERINGSSTYRING")).not.toBeInTheDocument();
+    expectAdminTournamentManagementAbsent();
   });
 
   it("keeps user administration visible and usable from the admin overview", () => {
