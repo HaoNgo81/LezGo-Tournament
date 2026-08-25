@@ -1,7 +1,7 @@
 import { createOrganizerToken, createStandardTournamentRepository, createTeamVsTeamTournamentRepository, readOwnedMatchScoreVersions } from "@/lib/database";
 import { AuthError, readAccountFromAccessToken } from "@/lib/auth";
 import { readAuthAccessCookie } from "@/lib/auth/cookies";
-import { canManageAccountTournament, canReadAccountTournament } from "@/lib/account/tournament-authority";
+import { canListOwnCreatedAccountTournament, canManageAccountTournament } from "@/lib/account/tournament-authority";
 import { createSupabaseRestClient, SupabaseRestClientError } from "@/lib/supabase/rest-client";
 
 export const dynamic = "force-dynamic";
@@ -42,7 +42,7 @@ export async function GET(_request: Request, context: RouteContext): Promise<Res
       return Response.json({ ok: false, error: "Tournament was not found." }, { status: 404 });
     }
 
-    if (!canReadAccountTournament(tournament, account.userId) && account.role !== "admin") {
+    if (!canListOwnCreatedAccountTournament(tournament, account.userId) && account.role !== "admin") {
       return Response.json({ ok: false, error: "Tournament access was denied." }, { status: 403 });
     }
 

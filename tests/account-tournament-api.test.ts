@@ -143,6 +143,25 @@ describe("STEP 25I-B1 owner cloud tournament open API", () => {
     expect(databaseMocks.readStandard).not.toHaveBeenCalled();
   });
 
+  it("blocks a normal controller-only user from opening another creator's private tournament directly", async () => {
+    authMocks.readAccountFromAccessToken.mockResolvedValue(createAccount("00000000-0000-4000-8000-0000000000b2"));
+    restClientMocks.select.mockResolvedValue([{
+      id: "00000000-0000-4000-8000-000000000105",
+      format: "americano",
+      legacy_local_id: "controller-only-americano",
+      owner_user_id: "00000000-0000-4000-8000-0000000000a1",
+      created_by_user_id: "00000000-0000-4000-8000-0000000000a1",
+      controller_user_id: "00000000-0000-4000-8000-0000000000b2",
+      team_competition_mode: null,
+      updated_at: "2026-08-19T10:00:00.000Z",
+    }]);
+
+    const response = await openOwnedTournament(new Request("http://localhost/api/account/tournaments/00000000-0000-4000-8000-000000000105"), createRouteContext("00000000-0000-4000-8000-000000000105"));
+
+    expect(response.status).toBe(403);
+    expect(databaseMocks.readStandard).not.toHaveBeenCalled();
+  });
+
   it("blocks anonymous owned tournament opens before reading private rows", async () => {
     authMocks.readAccountFromAccessToken.mockRejectedValue(new AuthError());
 

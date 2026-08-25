@@ -1,5 +1,5 @@
 import { readAccountFromAccessToken, AuthError } from "@/lib/auth";
-import { canManageAccountTournament, canReadAccountTournament } from "@/lib/account/tournament-authority";
+import { canListOwnCreatedAccountTournament, canManageAccountTournament } from "@/lib/account/tournament-authority";
 import { readAuthAccessCookie } from "@/lib/auth/cookies";
 import { createSupabaseRestClient } from "@/lib/supabase/rest-client";
 
@@ -19,15 +19,16 @@ interface TournamentListRow {
 export async function GET(): Promise<Response> {
   try {
     const account = await readAccountFromAccessToken(await readAuthAccessCookie());
+    const encodedUserId = encodeURIComponent(account.userId);
     const rows = await createSupabaseRestClient().select<TournamentListRow>(
       "tournaments",
-      `or=(created_by_user_id.eq.${encodeURIComponent(account.userId)},controller_user_id.eq.${encodeURIComponent(account.userId)},owner_user_id.eq.${encodeURIComponent(account.userId)})&select=id,name,format,status,updated_at,owner_user_id,created_by_user_id,controller_user_id&order=updated_at.desc`,
+      `or=(created_by_user_id.eq.${encodedUserId},owner_user_id.eq.${encodedUserId})&select=id,name,format,status,updated_at,owner_user_id,created_by_user_id,controller_user_id&order=updated_at.desc`,
     );
 
     return Response.json({
       ok: true,
       tournaments: rows
-        .filter((row) => canReadAccountTournament(row, account.userId))
+        .filter((row) => canListOwnCreatedAccountTournament(row, account.userId))
         .map((row) => toAccountTournamentListItem(row, account.userId))
         .sort(compareAccountTournamentListItems),
     }, {

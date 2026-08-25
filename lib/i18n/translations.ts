@@ -233,6 +233,7 @@ export type TranslationKey =
   | "totalScorePointsCount"
   | "tournaments"
   | "tournamentsDescription"
+  | "tournamentsLoginRequired"
   | "tournamentFormat"
   | "tournamentSettings"
   | "startTimer"
@@ -482,6 +483,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     totalScorePointsCount: "Samlet antal scorepoint",
     tournaments: "Turneringer",
     tournamentsDescription: "Aktive og afsluttede turneringer gemmes lokalt.",
+    tournamentsLoginRequired: "Log ind for at se dine turneringer.",
     tournamentFormat: "Turneringsform",
     tournamentSettings: "Turneringsindstillinger",
     startTimer: "Start ur",
@@ -730,6 +732,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     totalScorePointsCount: "Total score points",
     tournaments: "Tournaments",
     tournamentsDescription: "Active and completed tournaments are saved locally.",
+    tournamentsLoginRequired: "Log in to view your tournaments.",
     tournamentFormat: "Tournament format",
     tournamentSettings: "Tournament settings",
     startTimer: "Start timer",

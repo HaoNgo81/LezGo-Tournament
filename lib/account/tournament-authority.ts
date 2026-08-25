@@ -10,7 +10,11 @@ export function canReadAccountTournament(tournament: AccountTournamentAuthorityR
     || (!tournament.controller_user_id && tournament.owner_user_id === userId);
 }
 
+export function canListOwnCreatedAccountTournament(tournament: AccountTournamentAuthorityRow, userId: string): boolean {
+  return tournament.created_by_user_id === userId
+    || (!tournament.created_by_user_id && tournament.owner_user_id === userId);
+}
+
 export function canManageAccountTournament(tournament: AccountTournamentAuthorityRow, userId: string): boolean {
   return (tournament.controller_user_id ?? tournament.owner_user_id) === userId;
 }
-

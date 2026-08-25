@@ -37,7 +37,7 @@ import { GET as listAccountTournaments } from "../app/api/account/tournaments/ro
 const userId = "00000000-0000-4000-8000-0000000000a1";
 const otherUserId = "00000000-0000-4000-8000-0000000000b2";
 
-describe("STEP 25I-C1-C8A account tournament controller list API", () => {
+describe("STEP 25Y-D2 private account tournament list API", () => {
   beforeEach(() => {
     authMocks.readAuthAccessCookie.mockReset();
     authMocks.readAccountFromAccessToken.mockReset();
@@ -51,10 +51,10 @@ describe("STEP 25I-C1-C8A account tournament controller list API", () => {
     });
   });
 
-  it("lists creator, controller and legacy owner tournaments without leaking unrelated rows", async () => {
+  it("lists creator and legacy owner tournaments without leaking controller-only or unrelated rows", async () => {
     restClientMocks.select.mockResolvedValue([
       createTournamentRow("Creator visible", userId, userId, otherUserId),
-      createTournamentRow("Controller visible", otherUserId, otherUserId, userId),
+      createTournamentRow("Controller hidden", otherUserId, otherUserId, userId),
       createTournamentRow("Legacy visible", userId, null, null),
       createTournamentRow("Unrelated", otherUserId, otherUserId, otherUserId),
     ]);
@@ -64,24 +64,21 @@ describe("STEP 25I-C1-C8A account tournament controller list API", () => {
 
     expect(response.status).toBe(200);
     expect(body.tournaments.map((tournament) => tournament.name)).toEqual([
-      "Controller visible",
       "Legacy visible",
       "Creator visible",
     ]);
     expect(body.tournaments.map((tournament) => tournament.managementState)).toEqual([
       "controller",
-      "controller",
       "readOnly",
     ]);
     expect(body.tournaments.map((tournament) => tournament.canManage)).toEqual([
-      true,
       true,
       false,
     ]);
     expect(body.tournaments[0].updatedAt).toBe("2026-08-20T10:00:00.000Z");
     expect(restClientMocks.select).toHaveBeenCalledWith(
       "tournaments",
-      expect.stringContaining("created_by_user_id.eq."),
+      expect.not.stringContaining("controller_user_id.eq."),
     );
   });
 
