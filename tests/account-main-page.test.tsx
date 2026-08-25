@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import HomePage from "../app/page";
+import { explicitLogoutStorageKey } from "../lib/auth/client-logout";
 import { createMockLiveTournamentState } from "../lib/live-scoring";
 import { createStandardShadowSaveLocalId, loadActiveCloudTournamentAuthority, loadActiveTournament, markActiveCloudTournamentAuthority, saveActiveTournament } from "../lib/tournament-setup";
 import { clearBrowserRegressionState, expectRemovedLegacyFeaturesAbsent, mockLoggedOutAccountFetch } from "./helpers/current-product-regression";
@@ -34,6 +35,7 @@ function expectUsableAccountModalShell(dialog: HTMLElement) {
 describe("STEP 25I-C1-B main page account UI", () => {
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
     vi.restoreAllMocks();
     navigationMocks.push.mockReset();
     navigationMocks.replace.mockReset();
@@ -912,5 +914,187 @@ describe("STEP 25I-C1-B main page account UI", () => {
     expect(within(dialog).queryByRole("button", { name: "Open tournament" })).not.toBeInTheDocument();
     expect(within(dialog).queryByText(/owner_user_id|controller_user_id|created_by_user_id|Supabase|RLS|RPC|score_version/i)).not.toBeInTheDocument();
     expect(fetchMock.mock.calls.some((call) => String(call[0]) === "/api/account/tournaments")).toBe(false);
+  });
+
+  it("closes Account immediately on USER logout and prevents delayed automatic re-login", async () => {
+    let serverLoggedOut = false;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === "/api/auth/me") {
+        return new Response(JSON.stringify(serverLoggedOut
+          ? { ok: false }
+          : {
+              ok: true,
+              account: {
+                userId: "00000000-0000-4000-8000-00000000c1b1",
+                email: "hao@example.com",
+                displayName: "Hao",
+                username: "hao",
+                role: "user",
+              },
+            }), { status: serverLoggedOut ? 401 : 200 });
+      }
+
+      if (url === "/api/auth/logout") {
+        serverLoggedOut = true;
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<HomePage />);
+
+    await waitFor(() => expect(screen.getByTestId("main-account-control")).toHaveTextContent("Hao"));
+    fireEvent.click(screen.getByTestId("main-account-control"));
+    const dialog = await screen.findByTestId("main-account-dialog");
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Log ud" }));
+
+    await waitFor(() => expect(screen.queryByTestId("main-account-dialog")).not.toBeInTheDocument());
+    expect(screen.getByTestId("main-account-control")).toHaveTextContent("Log ind");
+    expect(screen.getByTestId("main-account-create-control")).toHaveTextContent("Opret bruger");
+    expect(window.localStorage.getItem(explicitLogoutStorageKey)).toBe("1");
+    expect(fetchMock).toHaveBeenCalledWith("/api/auth/logout", expect.objectContaining({ method: "POST" }));
+
+    vi.useFakeTimers();
+    await vi.advanceTimersByTimeAsync(12_000);
+    vi.useRealTimers();
+    window.dispatchEvent(new Event("focus"));
+    document.dispatchEvent(new Event("visibilitychange"));
+    window.dispatchEvent(new StorageEvent("storage", { key: explicitLogoutStorageKey, newValue: "1" }));
+    await Promise.resolve();
+
+    expect(screen.getByTestId("main-account-control")).toHaveTextContent("Log ind");
+    expect(screen.queryByTestId("main-account-dialog")).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/auth/me")).toHaveLength(1);
+  });
+
+  it("keeps ADMIN logout immediate and does not reopen Admin state automatically", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === "/api/auth/me") {
+        return new Response(JSON.stringify({
+          ok: true,
+          account: {
+            userId: "00000000-0000-4000-8000-00000000ad01",
+            email: "admin@example.com",
+            displayName: "Admin User",
+            username: "admin",
+            role: "admin",
+          },
+        }), { status: 200 });
+      }
+
+      if (url === "/api/auth/logout") {
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<HomePage />);
+
+    await waitFor(() => expect(screen.getByTestId("main-account-control")).toHaveTextContent("Admin User"));
+    expect(screen.getByRole("link", { name: /^Indstillinger/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("main-account-control"));
+    const dialog = await screen.findByTestId("main-account-dialog");
+    expect(within(dialog).getByText("ADMIN")).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Log ud" }));
+
+    await waitFor(() => expect(screen.queryByTestId("main-account-dialog")).not.toBeInTheDocument());
+    expect(screen.getByTestId("main-account-control")).toHaveTextContent("Log ind");
+    expect(screen.queryByRole("link", { name: /^Indstillinger/i })).not.toBeInTheDocument();
+
+    vi.useFakeTimers();
+    await vi.advanceTimersByTimeAsync(12_000);
+    vi.useRealTimers();
+    window.dispatchEvent(new Event("focus"));
+    document.dispatchEvent(new Event("visibilitychange"));
+
+    expect(screen.getByTestId("main-account-control")).toHaveTextContent("Log ind");
+    expect(screen.queryByText("Beskyttet område for systemadministration")).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/auth/me")).toHaveLength(1);
+  });
+
+  it("does not bootstrap a remembered session after reload when explicit logout is marked", async () => {
+    window.localStorage.setItem(explicitLogoutStorageKey, "1");
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === "/api/auth/logout") {
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      }
+
+      if (url === "/api/auth/me") {
+        return new Response(JSON.stringify({
+          ok: true,
+          remembered: true,
+          account: {
+            userId: "00000000-0000-4000-8000-00000000c1b1",
+            email: "hao@example.com",
+            displayName: "Hao",
+            username: "hao",
+            role: "user",
+          },
+        }), { status: 200 });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<HomePage />);
+
+    await waitFor(() => expect(screen.getByTestId("main-account-control")).toHaveTextContent("Log ind"));
+    expect(fetchMock).toHaveBeenCalledWith("/api/auth/logout", expect.objectContaining({ method: "POST" }));
+    expect(fetchMock.mock.calls.some((call) => String(call[0]) === "/api/auth/me")).toBe(false);
+    expect(screen.queryByText("Hao")).not.toBeInTheDocument();
+  });
+
+  it("allows an explicit login after logout and clears the logout marker", async () => {
+    window.localStorage.setItem(explicitLogoutStorageKey, "1");
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === "/api/auth/logout") {
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      }
+
+      if (url === "/api/auth/credentials/login") {
+        expect(JSON.parse(String(init?.body))).toEqual({ identifier: "hao", code: "abc123", remember: false });
+        return new Response(JSON.stringify({
+          ok: true,
+          account: {
+            userId: "00000000-0000-4000-8000-00000000c1b1",
+            email: "hao@example.com",
+            displayName: "Hao",
+            username: "hao",
+            role: "user",
+          },
+        }), { status: 200 });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<HomePage />);
+
+    await waitFor(() => expect(screen.getByTestId("main-account-control")).toHaveTextContent("Log ind"));
+    fireEvent.click(screen.getByTestId("main-account-control"));
+    const dialog = await screen.findByTestId("main-account-dialog");
+    fireEvent.change(within(dialog).getByLabelText("Email eller brugernavn"), { target: { value: "hao" } });
+    fireEvent.change(within(dialog).getByLabelText("6-tegns kode"), { target: { value: "abc123" } });
+    fireEvent.submit(within(dialog).getByRole("button", { name: "Log ind" }).closest("form") as HTMLFormElement);
+
+    await waitFor(() => expect(screen.getByTestId("main-account-control")).toHaveTextContent("Hao"));
+    expect(window.localStorage.getItem(explicitLogoutStorageKey)).toBeNull();
+    expect(window.sessionStorage.getItem(explicitLogoutStorageKey)).toBeNull();
   });
 });

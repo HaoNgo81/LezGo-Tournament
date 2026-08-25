@@ -5,6 +5,7 @@ export {
   authRefreshCookieName,
   getSupabaseAuthConfig,
   hashUserIdForLog,
+  logoutCurrentSupabaseSession,
   logoutOtherSupabaseSessions,
   readAccountFromAccessToken,
   readVerifiedAuthUserIdFromAccessToken,

@@ -119,6 +119,10 @@ function serializeCookie(name: string, value: string, options: { httpOnly: boole
 
   if (typeof options.maxAge === "number") {
     parts.splice(2, 0, `Max-Age=${options.maxAge}`);
+
+    if (options.maxAge === 0) {
+      parts.splice(3, 0, "Expires=Thu, 01 Jan 1970 00:00:00 GMT");
+    }
   }
 
   if (options.httpOnly) {

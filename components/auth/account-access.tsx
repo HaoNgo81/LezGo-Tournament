@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AccountPanel, type Account, type AccountView } from "./account-panel";
+import { explicitLogoutStorageKey, hasExplicitLogoutMarker } from "@/lib/auth/client-logout";
 import { notifyPreferencesChanged, useAppTranslation } from "@/lib/preferences/client";
 import { loadTournamentSettings, saveTournamentSettings } from "@/lib/tournament-settings";
 import type { AppLanguage } from "@/lib/i18n/translations";
@@ -25,9 +26,24 @@ export function AccountAccess({ onAccountChange }: AccountAccessProps) {
     let isDisposed = false;
 
     async function loadAccount() {
+      if (hasExplicitLogoutMarker()) {
+        setAccount(null);
+        onAccountChange?.(null);
+        void fetch("/api/auth/logout", { method: "POST", cache: "no-store" }).catch(() => undefined);
+        return;
+      }
+
       try {
         const response = await fetch("/api/auth/me", { cache: "no-store" });
         const body = await response.json() as { ok?: boolean; account?: Account };
+
+        if (hasExplicitLogoutMarker()) {
+          if (!isDisposed) {
+            setAccount(null);
+            onAccountChange?.(null);
+          }
+          return;
+        }
 
         if (!isDisposed && response.ok && body.ok && body.account) {
           setAccount(body.account);
@@ -49,6 +65,24 @@ export function AccountAccess({ onAccountChange }: AccountAccessProps) {
 
     return () => {
       isDisposed = true;
+    };
+  }, [onAccountChange]);
+
+  useEffect(() => {
+    const handleExplicitLogoutStorage = (event: StorageEvent) => {
+      if (event.key !== explicitLogoutStorageKey || event.newValue !== "1") {
+        return;
+      }
+
+      setIsOpen(false);
+      setAccount(null);
+      onAccountChange?.(null);
+    };
+
+    window.addEventListener("storage", handleExplicitLogoutStorage);
+
+    return () => {
+      window.removeEventListener("storage", handleExplicitLogoutStorage);
     };
   }, [onAccountChange]);
 
@@ -88,7 +122,7 @@ export function AccountAccess({ onAccountChange }: AccountAccessProps) {
 
   const label = account ? account.displayName || account.username || t("account") : t("accountLogin");
   const handlePanelAccountChange = useCallback((nextAccount: Account | null) => {
-    if (isOpen && !account && nextAccount) {
+    if (isOpen && ((!account && nextAccount) || (account && !nextAccount))) {
       setIsOpen(false);
     }
 

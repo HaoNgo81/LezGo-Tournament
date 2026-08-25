@@ -9,6 +9,7 @@ const cookieMocks = vi.hoisted(() => ({
 
 const authRouteMocks = vi.hoisted(() => ({
   changeOwnLoginCode: vi.fn(),
+  logoutCurrentSupabaseSession: vi.fn(),
   readAccountFromAccessToken: vi.fn(),
   refreshAuthenticatedSession: vi.fn(),
 }));
@@ -27,6 +28,7 @@ vi.mock("@/lib/auth", async (importOriginal) => {
   return {
     ...actual,
     changeOwnLoginCode: authRouteMocks.changeOwnLoginCode,
+    logoutCurrentSupabaseSession: authRouteMocks.logoutCurrentSupabaseSession,
     readAccountFromAccessToken: authRouteMocks.readAccountFromAccessToken,
     refreshAuthenticatedSession: authRouteMocks.refreshAuthenticatedSession,
   };
@@ -41,6 +43,7 @@ describe("STEP 25I-C1-C7-FIX1 remember login policy", () => {
   beforeEach(() => {
     cookieMocks.values.clear();
     authRouteMocks.changeOwnLoginCode.mockReset();
+    authRouteMocks.logoutCurrentSupabaseSession.mockReset();
     authRouteMocks.readAccountFromAccessToken.mockReset();
     authRouteMocks.refreshAuthenticatedSession.mockReset();
   });
@@ -97,6 +100,29 @@ describe("STEP 25I-C1-C7-FIX1 remember login policy", () => {
     expect(setCookies).toContain("lezgo_auth_access=; Path=/; Max-Age=0");
     expect(setCookies).toContain("lezgo_auth_refresh=; Path=/; Max-Age=0");
     expect(setCookies).toContain("lezgo_auth_remember=; Path=/; Max-Age=0");
+    expect(setCookies).toContain("Expires=Thu, 01 Jan 1970 00:00:00 GMT");
+  });
+
+  it("revokes the current provider session and clears all auth cookies on explicit logout", async () => {
+    const { POST } = await import("../app/api/auth/logout/route");
+    cookieMocks.values.set("lezgo_auth_access", "current-access-token");
+    cookieMocks.values.set("lezgo_auth_refresh", "current-refresh-token");
+    authRouteMocks.logoutCurrentSupabaseSession.mockResolvedValue(undefined);
+
+    const response = await POST();
+    const body = await response.json() as { ok?: boolean };
+    const setCookies = response.headers.getSetCookie().join("\n");
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({ ok: true });
+    expect(authRouteMocks.logoutCurrentSupabaseSession).toHaveBeenCalledWith({
+      accessToken: "current-access-token",
+      refreshToken: "current-refresh-token",
+    });
+    expect(setCookies).toContain("lezgo_auth_access=; Path=/; Max-Age=0");
+    expect(setCookies).toContain("lezgo_auth_refresh=; Path=/; Max-Age=0");
+    expect(setCookies).toContain("lezgo_auth_remember=; Path=/; Max-Age=0");
+    expect(response.headers.get("Cache-Control")).toBe("no-store, max-age=0");
   });
 
   it("refreshes a remembered verified active USER session through the existing Supabase session mechanism", async () => {

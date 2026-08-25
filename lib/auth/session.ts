@@ -217,6 +217,53 @@ export async function logoutOtherSupabaseSessions(accessToken: string | undefine
   }
 }
 
+export async function logoutCurrentSupabaseSession(input: { accessToken?: string; refreshToken?: string }): Promise<void> {
+  const accessToken = input.accessToken ?? await refreshAccessTokenForLogout(input.refreshToken);
+
+  if (!accessToken) {
+    return;
+  }
+
+  await logoutSupabaseSessionWithAccessToken(accessToken, "local");
+}
+
+async function refreshAccessTokenForLogout(refreshToken: string | undefined): Promise<string | undefined> {
+  if (!refreshToken) {
+    return undefined;
+  }
+
+  const config = getSupabaseAuthConfig();
+  const response = await fetch(`${config.url}/auth/v1/token?grant_type=refresh_token`, {
+    method: "POST",
+    headers: getAuthHeaders(config.anonKey),
+    body: JSON.stringify({
+      refresh_token: refreshToken,
+    }),
+  });
+  const body = await parseJson(response);
+
+  if (!response.ok || !isVerifyResponse(body)) {
+    return undefined;
+  }
+
+  return body.access_token;
+}
+
+async function logoutSupabaseSessionWithAccessToken(accessToken: string, scope: "local" | "others"): Promise<void> {
+  const config = getSupabaseAuthConfig();
+  const response = await fetch(`${config.url}/auth/v1/logout?scope=${scope}`, {
+    method: "POST",
+    headers: {
+      apikey: config.anonKey,
+      authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new AuthError("Session could not be logged out.", response.status || 401);
+  }
+}
+
 export async function assertAdminAccount(accessToken: string | undefined, client?: SupabaseRestClient): Promise<AuthenticatedAccount> {
   const account = await readAccountFromAccessToken(accessToken, client);
 

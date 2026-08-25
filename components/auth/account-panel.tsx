@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
+import { clearExplicitLogout, hasExplicitLogoutMarker, markExplicitLogout } from "@/lib/auth/client-logout";
 import { useAppTranslation } from "@/lib/preferences/client";
 
 export interface Account {
@@ -79,11 +80,16 @@ export function AccountPanel({ framed = true, initialAccount, initialView = "log
         return;
       }
 
+      if (hasExplicitLogoutMarker()) {
+        setSignedInAccount(null);
+        return;
+      }
+
       try {
         const response = await fetch("/api/auth/me", { cache: "no-store" });
         const body = await response.json() as { ok?: boolean; account?: Account };
 
-        if (!isDisposed && response.ok && body.ok && body.account) {
+        if (!isDisposed && response.ok && body.ok && body.account && !hasExplicitLogoutMarker()) {
           setSignedInAccount(body.account);
         }
       } catch {
@@ -117,6 +123,7 @@ export function AccountPanel({ framed = true, initialAccount, initialView = "log
         }));
       }
 
+      clearExplicitLogout();
       setSignedInAccount(body.account);
       setLoginCode("");
       setMessage(body.rememberDenied ? t("accountLoginAdminNotRemembered") : t("accountLoggedIn"));
@@ -288,18 +295,20 @@ export function AccountPanel({ framed = true, initialAccount, initialView = "log
   }
 
   async function handleLogout() {
+    markExplicitLogout();
+    setSignedInAccount(null);
+    setLoginCode("");
+    setRememberLogin(false);
+    setCurrentCode("");
+    setNewCode("");
+    setRepeatNewCode("");
+    setMessage(t("accountLoggedOut"));
     setIsLoading(true);
-    setMessage("");
 
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
-      setSignedInAccount(null);
-      setLoginCode("");
-      setRememberLogin(false);
-      setCurrentCode("");
-      setNewCode("");
-      setRepeatNewCode("");
-      setMessage(t("accountLoggedOut"));
+      await fetch("/api/auth/logout", { method: "POST", cache: "no-store", keepalive: true });
+    } catch {
+      // The explicit logout marker blocks automatic session restore if the network request is delayed or interrupted.
     } finally {
       setIsLoading(false);
     }
