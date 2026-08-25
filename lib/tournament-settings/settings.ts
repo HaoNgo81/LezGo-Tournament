@@ -1,4 +1,5 @@
 import type { StandingsRankingMode } from "../tournament-engine";
+import { safeLocalStorageGetItem, safeLocalStorageRemoveItem, safeLocalStorageSetItem } from "../browser-storage";
 import { normalizeLanguage, type AppLanguage } from "../i18n/translations";
 import { createDefaultTheme, normalizeTheme, type AppTheme } from "../theme/theme";
 import type { ScoringMode } from "../tournament-setup";
@@ -35,7 +36,7 @@ export function loadTournamentSettings(): TournamentSettings {
     return createDefaultTournamentSettings();
   }
 
-  const savedSettings = window.localStorage.getItem(settingsStorageKey);
+  const savedSettings = safeLocalStorageGetItem(settingsStorageKey);
 
   if (!savedSettings) {
     const defaults = createDefaultTournamentSettings();
@@ -46,7 +47,7 @@ export function loadTournamentSettings(): TournamentSettings {
   try {
     return normalizeTournamentSettings(JSON.parse(savedSettings) as Partial<TournamentSettings>);
   } catch {
-    window.localStorage.removeItem(settingsStorageKey);
+    safeLocalStorageRemoveItem(settingsStorageKey);
     return createDefaultTournamentSettings();
   }
 }
@@ -55,7 +56,7 @@ export function saveTournamentSettings(input: Partial<TournamentSettings>): Tour
   const settings = normalizeTournamentSettings(input);
 
   if (typeof window !== "undefined") {
-    window.localStorage.setItem(settingsStorageKey, JSON.stringify(settings));
+    safeLocalStorageSetItem(settingsStorageKey, JSON.stringify(settings));
   }
 
   return settings;

@@ -1,4 +1,5 @@
 import type { LiveTournamentState } from "../live-scoring";
+import { safeLocalStorageGetItem, safeLocalStorageRemoveItem, safeLocalStorageSetItem } from "../browser-storage";
 import type { TeamVsTeamTournamentState } from "./team-vs-team-setup";
 
 export type ShadowSaveKind = "standard" | "team-vs-team";
@@ -148,7 +149,7 @@ export function clearShadowSaveMetadata(): void {
     return;
   }
 
-  window.localStorage.removeItem(metadataStorageKey);
+  safeLocalStorageRemoveItem(metadataStorageKey);
   inFlightLocalIds.clear();
 }
 
@@ -328,8 +329,9 @@ function saveShadowSaveMetadata(metadata: ShadowSaveMetadata): void {
 
   const metadataMap = loadShadowSaveMetadataMap();
   metadataMap[metadata.localId] = metadata;
-  window.localStorage.setItem(metadataStorageKey, JSON.stringify(metadataMap));
-  window.dispatchEvent(new CustomEvent(shadowSaveMetadataChangedEvent, { detail: metadata }));
+  if (safeLocalStorageSetItem(metadataStorageKey, JSON.stringify(metadataMap))) {
+    window.dispatchEvent(new CustomEvent(shadowSaveMetadataChangedEvent, { detail: metadata }));
+  }
 }
 
 function loadShadowSaveMetadataMap(): Record<string, ShadowSaveMetadata> {
@@ -337,7 +339,7 @@ function loadShadowSaveMetadataMap(): Record<string, ShadowSaveMetadata> {
     return {};
   }
 
-  const savedMetadata = window.localStorage.getItem(metadataStorageKey);
+  const savedMetadata = safeLocalStorageGetItem(metadataStorageKey);
 
   if (!savedMetadata) {
     return {};
@@ -346,7 +348,7 @@ function loadShadowSaveMetadataMap(): Record<string, ShadowSaveMetadata> {
   try {
     return JSON.parse(savedMetadata) as Record<string, ShadowSaveMetadata>;
   } catch {
-    window.localStorage.removeItem(metadataStorageKey);
+    safeLocalStorageRemoveItem(metadataStorageKey);
     return {};
   }
 }

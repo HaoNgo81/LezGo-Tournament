@@ -1,3 +1,4 @@
+import { safeSessionStorageGetItem, safeSessionStorageRemoveItem, safeSessionStorageSetItem } from "../browser-storage";
 import type { ShadowSaveKind } from "./shadow-save";
 
 const activeCloudAuthorityStorageKey = "lezgo.activeCloudTournamentAuthority.v1";
@@ -19,7 +20,7 @@ export function markActiveCloudTournamentAuthority(authority: CloudTournamentAut
     return;
   }
 
-  window.sessionStorage.setItem(activeCloudAuthorityStorageKey, JSON.stringify(authority));
+  safeSessionStorageSetItem(activeCloudAuthorityStorageKey, JSON.stringify(authority));
 }
 
 export function loadActiveCloudTournamentAuthority(kind: ShadowSaveKind, localId: string): CloudTournamentAuthority | null {
@@ -27,7 +28,7 @@ export function loadActiveCloudTournamentAuthority(kind: ShadowSaveKind, localId
     return null;
   }
 
-  const rawAuthority = window.sessionStorage.getItem(activeCloudAuthorityStorageKey);
+  const rawAuthority = safeSessionStorageGetItem(activeCloudAuthorityStorageKey);
 
   if (!rawAuthority) {
     return null;
@@ -46,7 +47,7 @@ export function loadActiveCloudTournamentAuthority(kind: ShadowSaveKind, localId
       return authority;
     }
   } catch {
-    window.sessionStorage.removeItem(activeCloudAuthorityStorageKey);
+    safeSessionStorageRemoveItem(activeCloudAuthorityStorageKey);
   }
 
   return null;

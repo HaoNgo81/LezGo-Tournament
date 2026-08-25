@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createMockLiveTournamentState, finishTournament } from "../lib/live-scoring";
 import {
   deleteCompletedTeamVsTeamTournament,
@@ -17,9 +17,14 @@ import {
   selectActiveTournament,
   saveCompletedTeamVsTeamTournament,
   saveCompletedTournament,
+  markActiveCloudTournamentAuthority,
+  loadActiveCloudTournamentAuthority,
   createTournamentFromSetup,
 } from "../lib/tournament-setup";
 import type { LiveTournamentState } from "../lib/live-scoring";
+
+const originalLocalStorage = window.localStorage;
+const originalSessionStorage = window.sessionStorage;
 
 const finishedTeamVsTeamState = {
   name: "Klubkamp",
@@ -51,6 +56,18 @@ const finishedTeamVsTeamState = {
 describe("tournament storage", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    window.sessionStorage.clear();
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, "localStorage", {
+      value: originalLocalStorage,
+      configurable: true,
+    });
+    Object.defineProperty(window, "sessionStorage", {
+      value: originalSessionStorage,
+      configurable: true,
+    });
   });
 
   it("stores completed tournaments with finished state", () => {
@@ -262,6 +279,79 @@ describe("tournament storage", () => {
 
     expect(loadActiveTournament()?.tournamentName).toBe("Fallback aktiv");
     expect(window.localStorage.getItem("lezgo.activeTournament.v1")).toBeNull();
+  });
+
+  it("does not crash or clear valid active state when localStorage.setItem throws a quota error", () => {
+    const existingState = {
+      ...createMockLiveTournamentState(),
+      tournamentName: "Before quota failure",
+    };
+    const backingStorage = createMemoryStorage({
+      "lezgo.activeTournament.v1": JSON.stringify(existingState),
+      "lezgo.activeTeamVsTeam.v1": JSON.stringify({ name: "Do not clear if primary save fails" }),
+    }, {
+      setItem: () => {
+        throw new DOMException("Quota exceeded.", "QuotaExceededError");
+      },
+    });
+
+    replaceWindowStorage("localStorage", backingStorage);
+
+    expect(() => saveActiveTournament({ ...existingState, tournamentName: "After quota failure" })).not.toThrow();
+    expect(loadActiveTournament()?.tournamentName).toBe("Before quota failure");
+    expect(window.localStorage.getItem("lezgo.activeTeamVsTeam.v1")).not.toBeNull();
+  });
+
+  it("does not crash when localStorage.setItem throws SecurityError", () => {
+    replaceWindowStorage("localStorage", createMemoryStorage({}, {
+      setItem: () => {
+        throw new DOMException("Storage blocked.", "SecurityError");
+      },
+    }));
+
+    expect(() => saveActiveTournament(createMockLiveTournamentState())).not.toThrow();
+    expect(() => loadActiveTournament()).not.toThrow();
+  });
+
+  it("does not crash when localStorage is unavailable", () => {
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      get() {
+        throw new DOMException("Storage unavailable.", "SecurityError");
+      },
+    });
+
+    expect(() => saveActiveTournament(createMockLiveTournamentState())).not.toThrow();
+    expect(loadActiveTournament()).toBeNull();
+    expect(loadCompletedTournaments()).toEqual([]);
+  });
+
+  it("does not crash when sessionStorage rejects active cloud authority writes", () => {
+    replaceWindowStorage("sessionStorage", createMemoryStorage({}, {
+      setItem: () => {
+        throw new DOMException("Session storage blocked.", "SecurityError");
+      },
+    }));
+
+    expect(() => markActiveCloudTournamentAuthority({
+      source: "server",
+      kind: "standard",
+      localId: "session-failure-americano",
+      tournamentId: "tournament-1",
+      canRead: true,
+      canManage: true,
+    })).not.toThrow();
+    expect(loadActiveCloudTournamentAuthority("standard", "session-failure-americano")).toBeNull();
+  });
+
+  it("continues to recover safely when storage is cleared during a session", () => {
+    saveActiveTournament(createMockLiveTournamentState());
+
+    window.localStorage.clear();
+
+    expect(loadActiveTournament()).toBeNull();
+    expect(() => saveActiveTournament({ ...createMockLiveTournamentState(), tournamentName: "After cleared storage" })).not.toThrow();
+    expect(loadActiveTournament()?.tournamentName).toBe("After cleared storage");
   });
 
   it("drops stale selected standard tournament state when the active round is missing", () => {
@@ -579,4 +669,33 @@ function getLongestSameCourtStreak(sequence: number[]): number {
   }
 
   return longestStreak;
+}
+
+function replaceWindowStorage(area: "localStorage" | "sessionStorage", storage: Storage): void {
+  Object.defineProperty(window, area, {
+    value: storage,
+    configurable: true,
+  });
+}
+
+function createMemoryStorage(
+  initialValues: Record<string, string> = {},
+  overrides: Partial<Pick<Storage, "getItem" | "setItem" | "removeItem" | "clear">> = {},
+): Storage {
+  const values = new Map(Object.entries(initialValues));
+
+  return {
+    get length() {
+      return values.size;
+    },
+    clear: overrides.clear ?? (() => values.clear()),
+    getItem: overrides.getItem ?? ((key: string) => values.get(key) ?? null),
+    key: (index: number) => Array.from(values.keys())[index] ?? null,
+    removeItem: overrides.removeItem ?? ((key: string) => {
+      values.delete(key);
+    }),
+    setItem: overrides.setItem ?? ((key: string, value: string) => {
+      values.set(key, value);
+    }),
+  };
 }

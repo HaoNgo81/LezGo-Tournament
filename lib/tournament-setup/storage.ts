@@ -1,4 +1,5 @@
 import type { LiveTournamentState } from "../live-scoring";
+import { safeLocalStorageGetItem, safeLocalStorageRemoveItem, safeLocalStorageSetItem } from "../browser-storage";
 import { rebalanceFixedPartnerAmericanoCourts, rebalanceMixedAmericanoCourts } from "../tournament-engine";
 import { getTeamVsTeamMaxRounds, teamVsTeamPlayerOptions, type TeamVsTeamMatchFormat, type TeamVsTeamMatchResult, type TeamVsTeamPlayersPerTeam, type TeamVsTeamRoundResult, type TeamVsTeamSetResult } from "../team-vs-team";
 import type { TeamVsTeamTournamentState } from "./team-vs-team-setup";
@@ -25,8 +26,13 @@ export interface CompletedTeamVsTeamTournament {
 
 export function saveActiveTournament(state: LiveTournamentState): void {
   const tournamentId = createActiveTournamentId(state);
-  window.localStorage.setItem(activeTournamentStorageKey, JSON.stringify(state));
-  window.localStorage.removeItem(activeTeamVsTeamStorageKey);
+  const selectedTournamentSaved = safeLocalStorageSetItem(activeTournamentStorageKey, JSON.stringify(state));
+
+  if (!selectedTournamentSaved) {
+    return;
+  }
+
+  safeLocalStorageRemoveItem(activeTeamVsTeamStorageKey);
 
   if (state.status !== "active") {
     removeActiveTournamentFromList(tournamentId);
@@ -34,15 +40,20 @@ export function saveActiveTournament(state: LiveTournamentState): void {
   }
 
   const activeTournaments = loadActiveTournaments().filter((tournament) => createActiveTournamentId(tournament) !== tournamentId);
-  window.localStorage.setItem(activeTournamentsStorageKey, JSON.stringify([state, ...activeTournaments].slice(0, maxActiveTournaments)));
+  safeLocalStorageSetItem(activeTournamentsStorageKey, JSON.stringify([state, ...activeTournaments].slice(0, maxActiveTournaments)));
   markLocalShadowSave(tournamentId, "standard");
   queueStandardTournamentShadowSave(tournamentId, state);
 }
 
 export function saveActiveTournamentFromRemoteSync(state: LiveTournamentState): void {
   const tournamentId = createActiveTournamentId(state);
-  window.localStorage.setItem(activeTournamentStorageKey, JSON.stringify(state));
-  window.localStorage.removeItem(activeTeamVsTeamStorageKey);
+  const selectedTournamentSaved = safeLocalStorageSetItem(activeTournamentStorageKey, JSON.stringify(state));
+
+  if (!selectedTournamentSaved) {
+    return;
+  }
+
+  safeLocalStorageRemoveItem(activeTeamVsTeamStorageKey);
 
   if (state.status !== "active") {
     removeActiveTournamentFromList(tournamentId);
@@ -50,7 +61,7 @@ export function saveActiveTournamentFromRemoteSync(state: LiveTournamentState): 
   }
 
   const activeTournaments = loadActiveTournaments().filter((tournament) => createActiveTournamentId(tournament) !== tournamentId);
-  window.localStorage.setItem(activeTournamentsStorageKey, JSON.stringify([state, ...activeTournaments].slice(0, maxActiveTournaments)));
+  safeLocalStorageSetItem(activeTournamentsStorageKey, JSON.stringify([state, ...activeTournaments].slice(0, maxActiveTournaments)));
 }
 
 export function loadActiveTournament(): LiveTournamentState | null {
@@ -58,7 +69,7 @@ export function loadActiveTournament(): LiveTournamentState | null {
     return null;
   }
 
-  const savedState = window.localStorage.getItem(activeTournamentStorageKey);
+  const savedState = safeLocalStorageGetItem(activeTournamentStorageKey);
 
   if (!savedState) {
     return loadActiveTournaments()[0] ?? null;
@@ -68,7 +79,7 @@ export function loadActiveTournament(): LiveTournamentState | null {
     const parsedState = JSON.parse(savedState) as unknown;
 
     if (!isLoadableStandardTournamentState(parsedState)) {
-      window.localStorage.removeItem(activeTournamentStorageKey);
+      safeLocalStorageRemoveItem(activeTournamentStorageKey);
       return loadActiveTournaments()[0] ?? null;
     }
 
@@ -76,13 +87,13 @@ export function loadActiveTournament(): LiveTournamentState | null {
     const completedTournament = normalizedState.status === "active" ? findCompletedTournamentByActiveId(createActiveTournamentId(normalizedState)) : null;
 
     if (completedTournament) {
-      window.localStorage.setItem(activeTournamentStorageKey, JSON.stringify(completedTournament.state));
+      safeLocalStorageSetItem(activeTournamentStorageKey, JSON.stringify(completedTournament.state));
       return completedTournament.state;
     }
 
     return normalizedState;
   } catch {
-    window.localStorage.removeItem(activeTournamentStorageKey);
+    safeLocalStorageRemoveItem(activeTournamentStorageKey);
     return null;
   }
 }
@@ -92,7 +103,7 @@ export function loadActiveTournaments(): LiveTournamentState[] {
     return [];
   }
 
-  const savedTournaments = window.localStorage.getItem(activeTournamentsStorageKey);
+  const savedTournaments = safeLocalStorageGetItem(activeTournamentsStorageKey);
 
   if (!savedTournaments) {
     const selectedTournament = loadSelectedActiveTournament();
@@ -103,7 +114,7 @@ export function loadActiveTournaments(): LiveTournamentState[] {
     const parsedTournaments = JSON.parse(savedTournaments) as unknown;
 
     if (!Array.isArray(parsedTournaments)) {
-      window.localStorage.removeItem(activeTournamentsStorageKey);
+      safeLocalStorageRemoveItem(activeTournamentsStorageKey);
       return [];
     }
 
@@ -115,7 +126,7 @@ export function loadActiveTournaments(): LiveTournamentState[] {
       .filter((state) => state.status === "active" && !completedActiveIds.has(createActiveTournamentId(state)))
       .slice(0, maxActiveTournaments);
   } catch {
-    window.localStorage.removeItem(activeTournamentsStorageKey);
+    safeLocalStorageRemoveItem(activeTournamentsStorageKey);
     return [];
   }
 }
@@ -127,8 +138,11 @@ export function selectActiveTournament(id: string): LiveTournamentState | null {
     return null;
   }
 
-  window.localStorage.setItem(activeTournamentStorageKey, JSON.stringify(tournament));
-  window.localStorage.removeItem(activeTeamVsTeamStorageKey);
+  if (!safeLocalStorageSetItem(activeTournamentStorageKey, JSON.stringify(tournament))) {
+    return null;
+  }
+
+  safeLocalStorageRemoveItem(activeTeamVsTeamStorageKey);
   return tournament;
 }
 
@@ -180,7 +194,11 @@ export function saveCompletedTournament(state: LiveTournamentState): CompletedTo
   };
   const completedTournaments = loadCompletedTournaments().filter((tournament) => tournament.id !== completedTournament.id);
 
-  window.localStorage.setItem(completedTournamentsStorageKey, JSON.stringify([completedTournament, ...completedTournaments]));
+  const completedTournamentSaved = safeLocalStorageSetItem(completedTournamentsStorageKey, JSON.stringify([completedTournament, ...completedTournaments]));
+
+  if (!completedTournamentSaved) {
+    return completedTournament;
+  }
   replaceSelectedActiveTournamentIfSameId(createActiveTournamentId(completedTournament.state), completedTournament.state);
   removeActiveTournamentFromList(createActiveTournamentId(completedTournament.state));
 
@@ -220,7 +238,7 @@ export function reopenCompletedTournament(id: string): LiveTournamentState | nul
 export function deleteCompletedTournament(id: string): CompletedTournament[] {
   const completedTournaments = loadCompletedTournaments().filter((tournament) => tournament.id !== id);
 
-  window.localStorage.setItem(completedTournamentsStorageKey, JSON.stringify(completedTournaments));
+  safeLocalStorageSetItem(completedTournamentsStorageKey, JSON.stringify(completedTournaments));
 
   return completedTournaments;
 }
@@ -230,7 +248,7 @@ export function loadCompletedTournaments(): CompletedTournament[] {
     return [];
   }
 
-  const savedTournaments = window.localStorage.getItem(completedTournamentsStorageKey);
+  const savedTournaments = safeLocalStorageGetItem(completedTournamentsStorageKey);
 
   if (!savedTournaments) {
     return [];
@@ -242,7 +260,7 @@ export function loadCompletedTournaments(): CompletedTournament[] {
       state: normalizeActiveTournamentState(tournament.state),
     }));
   } catch {
-    window.localStorage.removeItem(completedTournamentsStorageKey);
+    safeLocalStorageRemoveItem(completedTournamentsStorageKey);
     return [];
   }
 }
@@ -365,7 +383,7 @@ function normalizeStandardTournamentCourts(state: LiveTournamentState): LiveTour
 }
 
 function loadSelectedActiveTournament(): LiveTournamentState | null {
-  const savedState = window.localStorage.getItem(activeTournamentStorageKey);
+  const savedState = safeLocalStorageGetItem(activeTournamentStorageKey);
 
   if (!savedState) {
     return null;
@@ -375,13 +393,13 @@ function loadSelectedActiveTournament(): LiveTournamentState | null {
     const parsedState = JSON.parse(savedState) as unknown;
 
     if (!isLoadableStandardTournamentState(parsedState)) {
-      window.localStorage.removeItem(activeTournamentStorageKey);
+      safeLocalStorageRemoveItem(activeTournamentStorageKey);
       return null;
     }
 
     return normalizeActiveTournamentState(parsedState);
   } catch {
-    window.localStorage.removeItem(activeTournamentStorageKey);
+    safeLocalStorageRemoveItem(activeTournamentStorageKey);
     return null;
   }
 }
@@ -523,7 +541,7 @@ function createActiveTournamentId(state: LiveTournamentState): string {
 }
 
 function removeActiveTournamentFromList(tournamentId: string): void {
-  const savedTournaments = window.localStorage.getItem(activeTournamentsStorageKey);
+  const savedTournaments = safeLocalStorageGetItem(activeTournamentsStorageKey);
 
   if (!savedTournaments) {
     return;
@@ -533,7 +551,7 @@ function removeActiveTournamentFromList(tournamentId: string): void {
     const parsedTournaments = JSON.parse(savedTournaments) as unknown;
 
     if (!Array.isArray(parsedTournaments)) {
-      window.localStorage.removeItem(activeTournamentsStorageKey);
+      safeLocalStorageRemoveItem(activeTournamentsStorageKey);
       return;
     }
 
@@ -543,14 +561,14 @@ function removeActiveTournamentFromList(tournamentId: string): void {
       .filter((state) => state.status === "active" && createActiveTournamentId(state) !== tournamentId)
       .slice(0, maxActiveTournaments);
 
-    window.localStorage.setItem(activeTournamentsStorageKey, JSON.stringify(activeTournaments));
+    safeLocalStorageSetItem(activeTournamentsStorageKey, JSON.stringify(activeTournaments));
   } catch {
-    window.localStorage.removeItem(activeTournamentsStorageKey);
+    safeLocalStorageRemoveItem(activeTournamentsStorageKey);
   }
 }
 
 function replaceSelectedActiveTournamentIfSameId(tournamentId: string, state: LiveTournamentState): void {
-  const savedState = window.localStorage.getItem(activeTournamentStorageKey);
+  const savedState = safeLocalStorageGetItem(activeTournamentStorageKey);
 
   if (!savedState) {
     return;
@@ -560,10 +578,10 @@ function replaceSelectedActiveTournamentIfSameId(tournamentId: string, state: Li
     const parsedState = JSON.parse(savedState) as unknown;
 
     if (isLoadableStandardTournamentState(parsedState) && createActiveTournamentId(normalizeActiveTournamentState(parsedState)) === tournamentId) {
-      window.localStorage.setItem(activeTournamentStorageKey, JSON.stringify(state));
+      safeLocalStorageSetItem(activeTournamentStorageKey, JSON.stringify(state));
     }
   } catch {
-    window.localStorage.removeItem(activeTournamentStorageKey);
+    safeLocalStorageRemoveItem(activeTournamentStorageKey);
   }
 }
 
