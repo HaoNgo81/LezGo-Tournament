@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "../components/layout/app-shell";
 import { LiveScoringApp } from "../components/tournament/live-scoring-app";
 import { advanceLivePoolPlayState, createMockLiveTournamentState, goToNextRound, saveMatchResult, saveNextPoolPhaseResult } from "../lib/live-scoring";
+import { notifyPreferencesChanged } from "../lib/preferences/client";
+import { saveTournamentSettings } from "../lib/tournament-settings";
 import { createPoolTournamentFromSetup, createStandardShadowSaveLocalId, createTournamentFromSetup, loadActiveTournament, loadShadowSaveMetadata, markActiveCloudTournamentAuthority, saveActiveTournament, saveActiveTournamentFromRemoteSync, type TournamentSetupFormat } from "../lib/tournament-setup";
 
 const sixteenPlayerText = Array.from({ length: 16 }, (_, index) => `Spiller ${index + 1}`).join("\n");
@@ -81,6 +83,76 @@ describe("LiveScoringApp score sheet", () => {
       activeRoundNumber: state.activeRoundNumber,
       status: state.status,
     });
+  });
+
+  it("localizes Screen Mirroring guidance in Danish", async () => {
+    saveTournamentSettings(createTestSettings("da"));
+    saveActiveTournament(createMockLiveTournamentState());
+
+    render(<LiveScoringApp />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Screen Mirroring" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Screen Mirroring" });
+    expect(within(dialog).getByText("SCREEN MIRRORING")).toBeInTheDocument();
+    expect(within(dialog).getByText("Vis LEZGO-turneringen på dit TV.")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Luk" })).toBeInTheDocument();
+    expect(within(dialog).getByText("Direkte TV-søgning er ikke tilgængelig i webversionen.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Brug browserens eller enhedens indbyggede skærmvalg for at vise den samme controller-skærm på TV-skærmen.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Windows")).toBeInTheDocument();
+    expect(within(dialog).getByText("Tryk Win + K og vælg dit TV.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Andre enheder")).toBeInTheDocument();
+  });
+
+  it("localizes Screen Mirroring guidance and expanded other-device copy in English", async () => {
+    saveTournamentSettings(createTestSettings("en"));
+    saveActiveTournament(createMockLiveTournamentState());
+
+    render(<LiveScoringApp />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Screen Mirroring" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Screen Mirroring" });
+    expect(within(dialog).getByText("SCREEN MIRRORING")).toBeInTheDocument();
+    expect(within(dialog).getByText("Show the LEZGO tournament on your TV.")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Close" })).toBeInTheDocument();
+    expect(within(dialog).getByText("Direct TV discovery is not available in the web version.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Use your browser's or device's built-in screen sharing options to show the same controller screen on your TV.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Windows")).toBeInTheDocument();
+    expect(within(dialog).getByText("Press Win + K and select your TV.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Other devices")).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByText("Other devices"));
+
+    expect(within(dialog).getByText("Chrome / desktop")).toBeInTheDocument();
+    expect(within(dialog).getByText("Use Cast in Chrome and select your TV.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Apple")).toBeInTheDocument();
+    expect(within(dialog).getByText("Use Screen Mirroring/AirPlay and select your TV.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Mobile / tablet")).toBeInTheDocument();
+    expect(within(dialog).getByText("Use your phone's or tablet's built-in Cast/Screen Mirroring.")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Skærmspejling")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("Vis LEZGO-turneringen på dit TV.")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("Direkte TV-søgning er ikke tilgængelig i webversionen.")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("Tryk Win + K og vælg dit TV.")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("Andre enheder")).not.toBeInTheDocument();
+  });
+
+  it("updates open Screen Mirroring copy when the app language changes", async () => {
+    saveTournamentSettings(createTestSettings("da"));
+    saveActiveTournament(createMockLiveTournamentState());
+
+    render(<LiveScoringApp />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Screen Mirroring" }));
+    const dialog = await screen.findByRole("dialog", { name: "Screen Mirroring" });
+    expect(within(dialog).getByText("Vis LEZGO-turneringen på dit TV.")).toBeInTheDocument();
+
+    saveTournamentSettings(createTestSettings("en"));
+    notifyPreferencesChanged();
+
+    expect(await within(dialog).findByText("Show the LEZGO tournament on your TV.")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Vis LEZGO-turneringen på dit TV.")).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Close" })).toBeInTheDocument();
   });
 
   it("does not call browser capture APIs for Screen Mirroring guidance", async () => {
@@ -1493,6 +1565,18 @@ describe("LiveScoringApp score sheet", () => {
     expect(screen.getAllByText("Iben / Liam").length).toBeGreaterThan(0);
   });
 });
+
+function createTestSettings(language: "da" | "en") {
+  return {
+    language,
+    scoringMode: "Fast antal point" as const,
+    courts: 2,
+    rounds: 2,
+    rankingMode: "matchPointsFirst" as const,
+    timeLimitMinutes: 15,
+    alarmSound: "standard" as const,
+  };
+}
 
 function createStandardTournament(format: TournamentSetupFormat, overrides: Partial<Parameters<typeof createTournamentFromSetup>[0]> = {}) {
   return createTournamentFromSetup({

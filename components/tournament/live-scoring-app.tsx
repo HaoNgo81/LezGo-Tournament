@@ -876,13 +876,14 @@ function ControllerReadOnlyNotice() {
 }
 
 function ScreenMirroringControl() {
+  const { t } = useAppTranslation();
   const [isOpen, setIsOpen] = useState(false);
 
   return (
     <div className="grid justify-items-stretch gap-2 sm:justify-items-end" data-testid="screen-mirroring-control">
       <button className="btn-outline-primary min-h-10 whitespace-nowrap px-3 text-sm" type="button" onClick={() => setIsOpen(true)}>
         <DisplayIcon />
-        Screen Mirroring
+        {t("screenMirroring")}
       </button>
       {isOpen ? <ScreenMirroringDialog onClose={() => setIsOpen(false)} /> : null}
     </div>
@@ -891,33 +892,34 @@ function ScreenMirroringControl() {
 
 type ScreenMirroringPlatform = "chromeDesktop" | "windows" | "apple" | "mobile" | "generic";
 
-const screenMirroringGuidance: Record<ScreenMirroringPlatform, { title: string; body: string }> = {
+const screenMirroringGuidance: Record<ScreenMirroringPlatform, { title: TranslationKey; body: TranslationKey }> = {
   chromeDesktop: {
-    title: "Chrome / desktop",
-    body: "Brug Cast i Chrome og vælg dit TV.",
+    title: "screenMirroringChromeDesktopTitle",
+    body: "screenMirroringChromeDesktopBody",
   },
   windows: {
-    title: "Windows",
-    body: "Tryk Win + K og vælg dit TV.",
+    title: "screenMirroringWindowsTitle",
+    body: "screenMirroringWindowsBody",
   },
   apple: {
-    title: "Apple",
-    body: "Brug Skærmspejling/AirPlay og vælg dit TV.",
+    title: "screenMirroringAppleTitle",
+    body: "screenMirroringAppleBody",
   },
   mobile: {
-    title: "Mobil / tablet",
-    body: "Brug telefonens eller tablettens indbyggede Cast/Skærmspejling.",
+    title: "screenMirroringMobileTitle",
+    body: "screenMirroringMobileBody",
   },
   generic: {
-    title: "Denne enhed",
-    body: "Brug browserens eller enhedens indbyggede Cast/Skærmspejling og vælg dit TV.",
+    title: "screenMirroringGenericTitle",
+    body: "screenMirroringGenericBody",
   },
 };
 
 function ScreenMirroringDialog({ onClose }: { onClose: () => void }) {
+  const { t } = useAppTranslation();
   const platform = getScreenMirroringPlatform();
   const primaryGuidance = screenMirroringGuidance[platform];
-  const extraGuidance = (Object.entries(screenMirroringGuidance) as Array<[ScreenMirroringPlatform, { title: string; body: string }]>)
+  const extraGuidance = (Object.entries(screenMirroringGuidance) as Array<[ScreenMirroringPlatform, { title: TranslationKey; body: TranslationKey }]>)
     .filter(([key]) => key !== platform && key !== "generic");
 
   return (
@@ -925,27 +927,27 @@ function ScreenMirroringDialog({ onClose }: { onClose: () => void }) {
       <div className="grid max-h-[92svh] w-full max-w-lg gap-3 overflow-y-auto overflow-x-hidden rounded-t-md border border-[var(--line)] bg-[var(--card)] p-4 text-[var(--foreground)] shadow-2xl sm:rounded-md sm:p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs font-black uppercase text-[var(--primary-strong)]">Skærmspejling</p>
-            <h2 id="screen-mirroring-heading" className="text-2xl font-black leading-tight">Screen Mirroring</h2>
-            <p className="mt-1 text-sm font-bold text-[var(--muted)]">Vis LEZGO-turneringen på dit TV.</p>
+            <p className="text-xs font-black uppercase text-[var(--primary-strong)]">{t("screenMirroring").toLocaleUpperCase()}</p>
+            <h2 id="screen-mirroring-heading" className="text-2xl font-black leading-tight">{t("screenMirroring")}</h2>
+            <p className="mt-1 text-sm font-bold text-[var(--muted)]">{t("screenMirroringSubtitle")}</p>
           </div>
           <button className="btn-secondary min-h-9 px-3 text-sm" type="button" onClick={onClose}>
-            Luk
+            {t("close")}
           </button>
         </div>
 
         <div className="rounded-md border border-[var(--primary)] bg-[var(--primary-soft)]/50 p-3">
-          <p className="text-sm font-black text-[var(--primary-strong)]">Direkte TV-søgning er ikke tilgængelig i webversionen.</p>
-          <p className="mt-1 text-sm font-bold text-[var(--muted)]">Brug browserens eller enhedens indbyggede skærmvalg for at vise den samme controller-skærm på TV-skærmen.</p>
+          <p className="text-sm font-black text-[var(--primary-strong)]">{t("screenMirroringDirectUnavailableTitle")}</p>
+          <p className="mt-1 text-sm font-bold text-[var(--muted)]">{t("screenMirroringDirectUnavailableBody")}</p>
         </div>
 
-        <ScreenMirroringStep title={primaryGuidance.title} body={primaryGuidance.body} emphasis />
+        <ScreenMirroringStep title={t(primaryGuidance.title)} body={t(primaryGuidance.body)} emphasis />
 
         <details className="rounded-md border border-[var(--line)] bg-[var(--primary-soft)]/40 p-3">
-          <summary className="cursor-pointer text-sm font-black text-[var(--primary-strong)]">Andre enheder</summary>
+          <summary className="cursor-pointer text-sm font-black text-[var(--primary-strong)]">{t("screenMirroringOtherDevices")}</summary>
           <div className="mt-3 grid gap-2">
             {extraGuidance.map(([key, guidance]) => (
-              <ScreenMirroringStep key={key} title={guidance.title} body={guidance.body} />
+              <ScreenMirroringStep key={key} title={t(guidance.title)} body={t(guidance.body)} />
             ))}
           </div>
         </details>

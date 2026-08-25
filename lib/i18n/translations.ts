@@ -113,6 +113,21 @@ export type TranslationKey =
   | "lezgo"
   | "light"
   | "liveScore"
+  | "screenMirroring"
+  | "screenMirroringAppleBody"
+  | "screenMirroringAppleTitle"
+  | "screenMirroringChromeDesktopBody"
+  | "screenMirroringChromeDesktopTitle"
+  | "screenMirroringDirectUnavailableBody"
+  | "screenMirroringDirectUnavailableTitle"
+  | "screenMirroringGenericBody"
+  | "screenMirroringGenericTitle"
+  | "screenMirroringMobileBody"
+  | "screenMirroringMobileTitle"
+  | "screenMirroringOtherDevices"
+  | "screenMirroringSubtitle"
+  | "screenMirroringWindowsBody"
+  | "screenMirroringWindowsTitle"
   | "losses"
   | "matches"
   | "matchesInActiveRound"
@@ -348,6 +363,21 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     light: "Lys",
     hybridLezgo: "HYBRID LEZGO",
     liveScore: "Live score",
+    screenMirroring: "Screen Mirroring",
+    screenMirroringAppleBody: "Brug Skærmspejling/AirPlay og vælg dit TV.",
+    screenMirroringAppleTitle: "Apple",
+    screenMirroringChromeDesktopBody: "Brug Cast i Chrome og vælg dit TV.",
+    screenMirroringChromeDesktopTitle: "Chrome / desktop",
+    screenMirroringDirectUnavailableBody: "Brug browserens eller enhedens indbyggede skærmvalg for at vise den samme controller-skærm på TV-skærmen.",
+    screenMirroringDirectUnavailableTitle: "Direkte TV-søgning er ikke tilgængelig i webversionen.",
+    screenMirroringGenericBody: "Brug browserens eller enhedens indbyggede Cast/Skærmspejling og vælg dit TV.",
+    screenMirroringGenericTitle: "Denne enhed",
+    screenMirroringMobileBody: "Brug telefonens eller tablettens indbyggede Cast/Skærmspejling.",
+    screenMirroringMobileTitle: "Mobil / tablet",
+    screenMirroringOtherDevices: "Andre enheder",
+    screenMirroringSubtitle: "Vis LEZGO-turneringen på dit TV.",
+    screenMirroringWindowsBody: "Tryk Win + K og vælg dit TV.",
+    screenMirroringWindowsTitle: "Windows",
     losses: "Tab",
     matches: "Kampe",
     matchesInActiveRound: "Kampe i aktiv runde",
@@ -581,6 +611,21 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     light: "Light",
     hybridLezgo: "HYBRID LEZGO",
     liveScore: "Live score",
+    screenMirroring: "Screen Mirroring",
+    screenMirroringAppleBody: "Use Screen Mirroring/AirPlay and select your TV.",
+    screenMirroringAppleTitle: "Apple",
+    screenMirroringChromeDesktopBody: "Use Cast in Chrome and select your TV.",
+    screenMirroringChromeDesktopTitle: "Chrome / desktop",
+    screenMirroringDirectUnavailableBody: "Use your browser's or device's built-in screen sharing options to show the same controller screen on your TV.",
+    screenMirroringDirectUnavailableTitle: "Direct TV discovery is not available in the web version.",
+    screenMirroringGenericBody: "Use your browser's or device's built-in Cast/Screen Mirroring and select your TV.",
+    screenMirroringGenericTitle: "This device",
+    screenMirroringMobileBody: "Use your phone's or tablet's built-in Cast/Screen Mirroring.",
+    screenMirroringMobileTitle: "Mobile / tablet",
+    screenMirroringOtherDevices: "Other devices",
+    screenMirroringSubtitle: "Show the LEZGO tournament on your TV.",
+    screenMirroringWindowsBody: "Press Win + K and select your TV.",
+    screenMirroringWindowsTitle: "Windows",
     losses: "Losses",
     matches: "Matches",
     matchesInActiveRound: "Matches in active round",
