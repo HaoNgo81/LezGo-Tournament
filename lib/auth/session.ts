@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { createSupabaseRestClient, SupabaseRestClientError, type SupabaseRestClient } from "@/lib/supabase/rest-client";
 import { isSupabaseAdminAuthUserDeactivated, readSupabaseAdminAuthUser, SupabaseAuthAdminError } from "./auth-admin";
+import { toPublicCredentialEmail } from "./internal-credential-email";
 
 export type AccountRole = "admin" | "user";
 
@@ -49,7 +50,6 @@ interface ProfileRow {
 
 export const authAccessCookieName = "lezgo_auth_access";
 export const authRefreshCookieName = "lezgo_auth_refresh";
-const internalCredentialEmailDomain = "users.lezgotournament.internal";
 
 export function getSupabaseAuthConfig() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
@@ -444,11 +444,6 @@ function normalizeEmail(value: string): string {
   }
 
   return email;
-}
-
-function toPublicCredentialEmail(value: string | null | undefined): string {
-  const email = value ?? "";
-  return email.toLocaleLowerCase("en").endsWith(`@${internalCredentialEmailDomain}`) ? "" : email;
 }
 
 function sanitizeDisplayName(value: string): string {

@@ -2,6 +2,11 @@ import { createHmac } from "node:crypto";
 import { createSupabaseRestClient, type SupabaseRestClient } from "@/lib/supabase/rest-client";
 import { assertSupabaseServerConfig } from "@/lib/supabase/server";
 import { deleteSupabaseAdminAuthUser, isSupabaseAdminAuthUserDeactivated, readSupabaseAdminAuthUser, type SupabaseAdminAuthUser } from "./auth-admin";
+import {
+  createInternalCredentialEmailFromNormalizedUsername,
+  isInternalCredentialEmail,
+  toPublicCredentialEmail,
+} from "./internal-credential-email";
 import { assertAuthRateLimit } from "./rate-limit";
 import {
   AuthError,
@@ -17,7 +22,8 @@ export const usernameOnlyRecoveryMessage = "This account does not have email rec
 const invalidRecoveryLinkMessage = "The link is invalid or expired.";
 const unverifiedEmailMessage = "Email is not verified.";
 const stalePendingAccountMs = 24 * 60 * 60 * 1000;
-const internalCredentialEmailDomain = "users.lezgotournament.internal";
+
+export { isInternalCredentialEmail, toPublicCredentialEmail } from "./internal-credential-email";
 
 interface CredentialProfileRow {
   user_id: string;
@@ -78,15 +84,7 @@ export function normalizeCredentialEmail(value: string): string {
 }
 
 export function createInternalCredentialEmail(username: string): string {
-  return `${normalizeUsername(username)}@${internalCredentialEmailDomain}`;
-}
-
-export function isInternalCredentialEmail(value: string | null | undefined): boolean {
-  return typeof value === "string" && value.toLocaleLowerCase("en").endsWith(`@${internalCredentialEmailDomain}`);
-}
-
-export function toPublicCredentialEmail(value: string | null | undefined): string {
-  return isInternalCredentialEmail(value) ? "" : value ?? "";
+  return createInternalCredentialEmailFromNormalizedUsername(normalizeUsername(username));
 }
 
 export async function createCredentialAccount(input: {
