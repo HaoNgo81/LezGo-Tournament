@@ -49,6 +49,7 @@ interface ProfileRow {
 
 export const authAccessCookieName = "lezgo_auth_access";
 export const authRefreshCookieName = "lezgo_auth_refresh";
+const internalCredentialEmailDomain = "users.lezgotournament.internal";
 
 export function getSupabaseAuthConfig() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
@@ -306,7 +307,7 @@ export async function upsertAndReadProfile(input: { userId: string; email: strin
 
       return {
         userId: input.userId,
-        email,
+        email: toPublicCredentialEmail(email),
         displayName: updated?.display_name ?? displayName,
         username: updated?.username ?? username ?? existingProfile.username ?? undefined,
         role: updated?.role ?? existingProfile.role,
@@ -315,7 +316,7 @@ export async function upsertAndReadProfile(input: { userId: string; email: strin
 
     return {
       userId: input.userId,
-      email,
+      email: toPublicCredentialEmail(email),
       displayName: existingProfile.display_name || displayName,
       username: existingProfile.username ?? undefined,
       role: existingProfile.role,
@@ -346,7 +347,7 @@ export async function upsertAndReadProfile(input: { userId: string; email: strin
 
   return {
     userId: input.userId,
-    email,
+    email: toPublicCredentialEmail(email),
     displayName: profile.display_name || displayName,
     username: profile.username ?? undefined,
     role: profile.role,
@@ -428,7 +429,7 @@ async function readProfileForAuthUser(authUser: { id: string; email: string; dis
 
   return {
     userId: authUser.id,
-    email: authUser.email,
+    email: toPublicCredentialEmail(profile.email ?? authUser.email),
     displayName: profile.display_name || authUser.displayName || authUser.email.split("@")[0],
     username: profile.username ?? undefined,
     role: profile.role,
@@ -443,6 +444,11 @@ function normalizeEmail(value: string): string {
   }
 
   return email;
+}
+
+function toPublicCredentialEmail(value: string | null | undefined): string {
+  const email = value ?? "";
+  return email.toLocaleLowerCase("en").endsWith(`@${internalCredentialEmailDomain}`) ? "" : email;
 }
 
 function sanitizeDisplayName(value: string): string {

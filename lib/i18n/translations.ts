@@ -28,6 +28,7 @@ export type TranslationKey =
   | "accountForgotCode"
   | "accountForgotCodeHelp"
   | "accountGenericRecovery"
+  | "accountUsernameOnlyRecovery"
   | "accountHideCode"
   | "accountIdentifier"
   | "accountLogin"
@@ -282,8 +283,9 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountEmailVerificationFailed: "E-mailen kunne ikke bekræftes. Prøv linket igen, eller send en ny mail.",
     accountEmailVerifiedMessage: "E-mail bekræftet. Din konto er nu aktiveret. Du kan logge ind.",
     accountForgotCode: "Glemt kode",
-    accountForgotCodeHelp: "Indtast den email, der er tilknyttet din konto.",
+    accountForgotCodeHelp: "Indtast den email eller det brugernavn, der er tilknyttet din konto.",
     accountGenericRecovery: "Hvis e-mailadressen er registreret, har vi sendt instruktioner til at oprette en ny kode.",
+    accountUsernameOnlyRecovery: "Denne konto har ikke e-mailgendannelse. Kontakt en administrator for at nulstille koden.",
     accountHideCode: "Skjul kode",
     accountIdentifier: "Email eller brugernavn",
     accountLogin: "Log ind",
@@ -537,8 +539,9 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountEmailVerificationFailed: "The email could not be verified. Try the link again or send a new email.",
     accountEmailVerifiedMessage: "Email verified. Your account is now active. You can log in.",
     accountForgotCode: "Forgot code",
-    accountForgotCodeHelp: "Enter the email linked to your account.",
+    accountForgotCodeHelp: "Enter the email or username linked to your account.",
     accountGenericRecovery: "If the email address is registered, we have sent instructions for creating a new code.",
+    accountUsernameOnlyRecovery: "This account does not have email recovery. Ask an administrator to reset the code.",
     accountHideCode: "Hide code",
     accountIdentifier: "Email or username",
     accountLogin: "Log in",

@@ -26,6 +26,72 @@ describe("STEP 25I-C1-C7 admin user management UI", () => {
     expect(screen.queryByText(/password|service-role/i)).not.toBeInTheDocument();
   });
 
+  it("opens Create User and submits username and code without email", async () => {
+    const createdUser: ManagedAccountUser = {
+      userId: "00000000-0000-4000-8000-00000000b002",
+      displayName: "Desk Player",
+      username: "desk_player",
+      email: "",
+      role: "user",
+      emailVerified: false,
+      status: "active",
+      createdAt: "2026-08-20T10:00:00.000Z",
+      lastSignInAt: undefined,
+      adminNote: "Front desk",
+    };
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      expect(JSON.parse(String(init?.body))).toEqual({
+        username: "Desk_Player",
+        code: "A1B2C3",
+        displayName: "Desk Player",
+        note: "Front desk",
+      });
+      return new Response(JSON.stringify({ ok: true, user: createdUser }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<AdminUserManagement users={users} currentUserId={users[0].userId} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Opret bruger" }));
+
+    const panel = screen.getByTestId("admin-create-user-panel");
+    expect(within(panel).getByText("Opret en USER-konto med brugernavn og 6-tegns kode. E-mail er ikke påkrævet.")).toBeInTheDocument();
+    expect(within(panel).queryByLabelText("E-mail")).not.toBeInTheDocument();
+
+    fireEvent.change(within(panel).getByLabelText("Brugernavn"), { target: { value: "Desk_Player" } });
+    fireEvent.change(within(panel).getByLabelText("Kode"), { target: { value: "a1b2c3" } });
+    fireEvent.change(within(panel).getByLabelText("Navn (valgfrit)"), { target: { value: "Desk Player" } });
+    fireEvent.change(within(panel).getByLabelText("Intern note (valgfrit)"), { target: { value: "Front desk" } });
+    fireEvent.click(within(panel).getByRole("button", { name: "Opret bruger" }));
+
+    await screen.findByText("Brugeren er oprettet som USER.");
+    expect(fetchMock).toHaveBeenCalledWith("/api/admin/users", expect.objectContaining({ method: "POST" }));
+    expect(screen.getAllByText("Desk Player").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("@desk_player").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/users\.lezgotournament\.internal/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/A1B2C3|users\.lezgotournament\.internal/i)).not.toBeInTheDocument();
+  });
+
+  it("shows username-only users in the Admin list without a fake email", () => {
+    render(<AdminUserManagement users={[...users, {
+      userId: "00000000-0000-4000-8000-00000000b002",
+      displayName: "Desk Player",
+      username: "desk_player",
+      email: "",
+      role: "user",
+      emailVerified: false,
+      status: "active",
+      createdAt: "2026-08-20T10:00:00.000Z",
+      lastSignInAt: undefined,
+      adminNote: "",
+    }]} currentUserId={users[0].userId} />);
+
+    const row = screen.getAllByTestId("admin-user-row").find((candidate) => within(candidate).queryByText("Desk Player"));
+    expect(row).toBeTruthy();
+    expect(within(row as HTMLElement).getByText("@desk_player")).toBeInTheDocument();
+    expect(within(row as HTMLElement).getAllByText("-").length).toBeGreaterThan(0);
+    expect(within(row as HTMLElement).queryByText(/users\.lezgotournament\.internal/i)).not.toBeInTheDocument();
+  });
+
   it("does not auto-open a user detail modal until an admin selects a user", () => {
     render(<AdminUserManagement users={users} currentUserId={users[0].userId} />);
 

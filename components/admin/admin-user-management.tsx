@@ -31,6 +31,7 @@ export function AdminUserManagement({ users: initialUsers, currentUserId }: Admi
   const [busyAction, setBusyAction] = useState("");
   const [message, setMessage] = useState("");
   const [generatedCode, setGeneratedCode] = useState("");
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
 
   const selectedUser = selectedUserId ? users.find((user) => user.userId === selectedUserId) : undefined;
 
@@ -54,6 +55,11 @@ export function AdminUserManagement({ users: initialUsers, currentUserId }: Admi
   const replaceUser = (updatedUser: ManagedAccountUser) => {
     setUsers((current) => current.map((user) => user.userId === updatedUser.userId ? updatedUser : user));
     setSelectedUserId(updatedUser.userId);
+  };
+
+  const addUser = (createdUser: ManagedAccountUser) => {
+    setUsers((current) => sortUsersForDisplay([createdUser, ...current]));
+    setSelectedUserId(createdUser.userId);
   };
 
   const postUserAction = async (user: ManagedAccountUser, suffix: string, body: Record<string, unknown>, fallback: string): Promise<AdminActionResponse> => {
@@ -152,6 +158,27 @@ export function AdminUserManagement({ users: initialUsers, currentUserId }: Admi
     }
   };
 
+  const handleCreateUser = async (values: CreateUserFormValues) => {
+    await runUserAction("create-user", async () => {
+      const response = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(values),
+      });
+      const result = await response.json() as AdminActionResponse;
+
+      if (!response.ok || !result.ok || !result.user) {
+        throw new Error(result.error || copy.createUserError);
+      }
+
+      addUser(result.user);
+      setIsCreatingUser(false);
+      setMessage(copy.userCreated);
+    });
+  };
+
   return (
     <section className="mx-auto grid w-full max-w-6xl gap-4" data-testid="admin-user-management">
       <div className="app-card grid gap-3 p-4 sm:p-5">
@@ -186,8 +213,11 @@ export function AdminUserManagement({ users: initialUsers, currentUserId }: Admi
 
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-black text-[var(--muted)]">
           <span>{copy.showing(visibleUsers.length, users.length)}</span>
-          <span>{copy.noCredentialMaterial}</span>
+          <button className="btn-primary min-h-11 px-4 py-2 text-sm" type="button" onClick={() => setIsCreatingUser((value) => !value)}>
+            {isCreatingUser ? copy.cancel : copy.createUser}
+          </button>
         </div>
+        <p className="text-sm font-black text-[var(--muted)]">{copy.noCredentialMaterial}</p>
         {message ? <p className="rounded-md border border-[var(--primary)] bg-[var(--primary-soft)]/45 px-3 py-2 text-sm font-black text-[var(--primary-strong)]" role="status">{message}</p> : null}
         {generatedCode ? (
           <p className="rounded-md border border-amber-400 bg-amber-50 px-3 py-2 text-sm font-black text-amber-900" role="status">
@@ -195,6 +225,8 @@ export function AdminUserManagement({ users: initialUsers, currentUserId }: Admi
           </p>
         ) : null}
       </div>
+
+      {isCreatingUser ? <CreateUserPanel busy={busyAction === "create-user"} copy={copy} onCreate={handleCreateUser} /> : null}
 
       <div className="grid gap-3">
         <div className="grid gap-3">
@@ -213,7 +245,7 @@ export function AdminUserManagement({ users: initialUsers, currentUserId }: Admi
                   </div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm font-bold text-[var(--muted)]">
                     <span>{user.username ? `@${user.username}` : copy.noUsername}</span>
-                    <span className="break-all sm:break-normal">{user.email || "-"}</span>
+                    <span className="break-all sm:break-normal">{formatEmailForDisplay(user.email)}</span>
                   </div>
                   <dl className="grid gap-2 text-xs font-black uppercase text-[var(--muted)] sm:grid-cols-2">
                     <CompactInfo label={copy.created} value={formatDate(user.createdAt)} />
@@ -257,6 +289,55 @@ interface UserDetailsFormValues {
   email: string;
 }
 
+interface CreateUserFormValues {
+  username: string;
+  code: string;
+  displayName: string;
+  note: string;
+}
+
+function CreateUserPanel(props: {
+  busy: boolean;
+  copy: typeof danishCopy;
+  onCreate: (values: CreateUserFormValues) => Promise<void>;
+}) {
+  const [username, setUsername] = useState("");
+  const [code, setCode] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [note, setNote] = useState("");
+
+  return (
+    <section className="grid gap-3 rounded-md border border-[var(--line)] bg-[var(--surface)] p-4 shadow-lg sm:p-5" data-testid="admin-create-user-panel">
+      <div>
+        <h3 className="text-lg font-black">{props.copy.createUser}</h3>
+        <p className="mt-1 text-sm font-bold text-[var(--muted)]">{props.copy.createUserDescription}</p>
+      </div>
+      <form className="grid gap-3" onSubmit={(event) => {
+        event.preventDefault();
+        void props.onCreate({ username, code, displayName, note });
+      }}>
+        <div className="grid gap-3 md:grid-cols-3">
+          <TextField label={props.copy.usernameRequired} value={username} onChange={setUsername} />
+          <TextField label={props.copy.initialCode} value={code} onChange={(value) => setCode(value.toLocaleUpperCase("en"))} maxLength={6} />
+          <TextField label={props.copy.nameOptional} value={displayName} onChange={setDisplayName} />
+        </div>
+        <label className="grid gap-1 text-sm font-black">
+          {props.copy.noteOptional}
+          <textarea
+            className="field-control min-h-24 resize-y"
+            maxLength={1000}
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+          />
+        </label>
+        <button className="btn-primary min-h-11 w-full px-4 py-2 text-sm sm:w-fit" type="submit" disabled={props.busy}>
+          {props.busy ? props.copy.saving : props.copy.createUser}
+        </button>
+      </form>
+    </section>
+  );
+}
+
 function UserDetailPanel(props: {
   copy: typeof danishCopy;
   user: ManagedAccountUser;
@@ -291,7 +372,7 @@ function UserDetailPanel(props: {
           <div className="min-w-0">
             <p className="text-xs font-black uppercase text-[var(--primary-strong)]">{props.copy.detail}</p>
             <h3 className="mt-1 break-words text-2xl font-black">{props.user.displayName}</h3>
-            <p className="break-words text-sm font-bold text-[var(--muted)]">{props.user.email}</p>
+            <p className="break-words text-sm font-bold text-[var(--muted)]">{formatEmailForDisplay(props.user.email)}</p>
           </div>
           <button className="btn-secondary min-h-10 px-4 py-2 text-sm" type="button" onClick={props.onClose}>
             {props.copy.close}
@@ -303,7 +384,7 @@ function UserDetailPanel(props: {
             <dl className="grid gap-2 text-sm font-bold sm:grid-cols-2">
               <InfoRow label={props.copy.name} value={props.user.displayName} />
               <InfoRow label={props.copy.username} value={props.user.username ? `@${props.user.username}` : props.copy.noUsername} />
-              <InfoRow label={props.copy.email} value={props.user.email || "-"} />
+              <InfoRow label={props.copy.email} value={formatEmailForDisplay(props.user.email)} />
               <InfoRow label={props.copy.emailStatus} value={props.user.emailVerified ? props.copy.verified : props.copy.unverified} />
               <InfoRow label={props.copy.role} value={props.user.role.toUpperCase()} />
               <InfoRow label={props.copy.status} value={props.user.status === "active" ? props.copy.active : props.copy.deactivated} />
@@ -469,6 +550,24 @@ function formatDate(value: string | undefined): string {
   return Number.isNaN(date.getTime()) ? "-" : new Intl.DateTimeFormat("da-DK", { dateStyle: "short", timeStyle: "short" }).format(date);
 }
 
+function formatEmailForDisplay(value: string): string {
+  return value.trim() || "-";
+}
+
+function sortUsersForDisplay(users: ManagedAccountUser[]): ManagedAccountUser[] {
+  return [...users].sort((left, right) => {
+    if (left.role !== right.role) {
+      return left.role === "admin" ? -1 : 1;
+    }
+
+    if (left.status !== right.status) {
+      return left.status === "active" ? -1 : 1;
+    }
+
+    return left.displayName.localeCompare(right.displayName, "da");
+  });
+}
+
 const danishCopy = {
   title: "Brugerstyring",
   description: "Administrer brugere, detaljer, interne noter, roller, status og kode-reset.",
@@ -501,6 +600,13 @@ const danishCopy = {
   open: "Åbn",
   manage: "Administrer",
   close: "Luk",
+  cancel: "Annuller",
+  createUser: "Opret bruger",
+  createUserDescription: "Opret en USER-konto med brugernavn og 6-tegns kode. E-mail er ikke påkrævet.",
+  usernameRequired: "Brugernavn",
+  initialCode: "Kode",
+  nameOptional: "Navn (valgfrit)",
+  noteOptional: "Intern note (valgfrit)",
   verified: "Bekræftet",
   unverified: "Ikke bekræftet",
   active: "Aktiv",
@@ -523,6 +629,7 @@ const danishCopy = {
   detailsError: "Brugeroplysninger kunne ikke gemmes.",
   noteError: "Noten kunne ikke gemmes.",
   resetCodeError: "Koden kunne ikke nulstilles.",
+  createUserError: "Brugeren kunne ikke oprettes.",
   genericError: "Handlingen kunne ikke gennemføres.",
   promoted: "Brugeren er nu ADMIN.",
   demoted: "Brugeren er nu USER.",
@@ -533,6 +640,7 @@ const danishCopy = {
   manualCodeSaved: "Ny 6-tegns kode er gemt.",
   generatedCodeReady: "Ny genereret kode er gemt. Vis den sikkert til brugeren nu.",
   generatedCodeLabel: "Genereret kode",
+  userCreated: "Brugeren er oprettet som USER.",
 };
 
 const englishCopy: typeof danishCopy = {
@@ -567,6 +675,13 @@ const englishCopy: typeof danishCopy = {
   open: "Open",
   manage: "Manage",
   close: "Close",
+  cancel: "Cancel",
+  createUser: "Create user",
+  createUserDescription: "Create a USER account with username and 6-character code. Email is not required.",
+  usernameRequired: "Username",
+  initialCode: "Code",
+  nameOptional: "Name (optional)",
+  noteOptional: "Internal note (optional)",
   verified: "Verified",
   unverified: "Not verified",
   active: "Active",
@@ -589,6 +704,7 @@ const englishCopy: typeof danishCopy = {
   detailsError: "User details could not be saved.",
   noteError: "The note could not be saved.",
   resetCodeError: "The code could not be reset.",
+  createUserError: "The user could not be created.",
   genericError: "The action could not be completed.",
   promoted: "The user is now ADMIN.",
   demoted: "The user is now USER.",
@@ -599,4 +715,5 @@ const englishCopy: typeof danishCopy = {
   manualCodeSaved: "New 6-character code saved.",
   generatedCodeReady: "New generated code saved. Share it securely with the user now.",
   generatedCodeLabel: "Generated code",
+  userCreated: "The user was created as USER.",
 };

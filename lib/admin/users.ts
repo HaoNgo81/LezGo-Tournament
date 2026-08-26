@@ -1,6 +1,7 @@
 import { randomInt } from "node:crypto";
 import { AuthError, type AccountRole, type AuthenticatedAccount } from "@/lib/auth";
 import {
+  createSupabaseAdminAuthUser,
   isSupabaseAdminAuthUserDeactivated,
   isSupabaseAdminAuthUserVerified,
   readSupabaseAdminAuthUser,
@@ -8,7 +9,7 @@ import {
   updateSupabaseAdminAuthUserCredentials,
   type SupabaseAdminAuthUser,
 } from "@/lib/auth/auth-admin";
-import { normalizeCredentialEmail, normalizeLoginCode, normalizeUsername, toSupabaseCredentialPassword } from "@/lib/auth/credentials";
+import { createInternalCredentialEmail, isInternalCredentialEmail, normalizeCredentialEmail, normalizeLoginCode, normalizeUsername, toPublicCredentialEmail, toSupabaseCredentialPassword } from "@/lib/auth/credentials";
 import { createSupabaseRestClient, type SupabaseRestClient } from "@/lib/supabase/rest-client";
 
 export type ManagedAccountStatus = "active" | "deactivated";
@@ -44,6 +45,7 @@ interface AdminUserServiceOptions {
   readAuthUser?: (userId: string) => Promise<SupabaseAdminAuthUser | null>;
   updateAuthBan?: (userId: string, banDuration: string) => Promise<SupabaseAdminAuthUser>;
   updateAuthCredentials?: (userId: string, values: { email?: string; password?: string; user_metadata?: Record<string, unknown> }) => Promise<SupabaseAdminAuthUser>;
+  createAuthUser?: (values: { email: string; password: string; email_confirm?: boolean; user_metadata?: Record<string, unknown> }) => Promise<SupabaseAdminAuthUser>;
   generateCode?: () => string;
 }
 
@@ -57,6 +59,63 @@ interface AdminUserNoteRow {
 const deactivateBanDuration = "876000h";
 const reactivateBanDuration = "none";
 const lastAdminMessage = "Der skal altid være mindst én administrator.";
+
+export async function createManagedUsernameOnlyAccount(input: {
+  actor: AuthenticatedAccount;
+  username: string;
+  code: string;
+  displayName?: string;
+  note?: string;
+}, options: AdminUserServiceOptions = {}): Promise<ManagedAccountUser> {
+  assertAdminActor(input.actor);
+  const username = normalizeUsername(input.username);
+  const code = normalizeLoginCode(input.code);
+  const displayName = sanitizeDisplayName(input.displayName?.trim() ? input.displayName : username);
+  const note = input.note === undefined ? "" : sanitizeAdminNote(input.note);
+  const internalEmail = createInternalCredentialEmail(username);
+  const client = options.client ?? createSupabaseRestClient();
+  const createAuthUser = options.createAuthUser ?? createSupabaseAdminAuthUser;
+  const readAuthUser = options.readAuthUser ?? readSupabaseAdminAuthUser;
+
+  await assertUniqueProfileValue(client, "username_normalized", username, "", "Username is not available.");
+  await assertUniqueProfileValue(client, "email_normalized", internalEmail, "", "Username is not available.");
+
+  const authUser = await createAuthUser({
+    email: internalEmail,
+    password: toSupabaseCredentialPassword(internalEmail, code),
+    email_confirm: true,
+    user_metadata: {
+      display_name: displayName,
+      name: displayName,
+      username,
+      account_type: "username_only",
+    },
+  });
+
+  await persistProfileForAdminCreatedUser(client, {
+    user_id: authUser.id,
+    display_name: displayName,
+    role: "user",
+    username,
+    username_normalized: username,
+    email: internalEmail,
+    email_normalized: internalEmail,
+  });
+
+  if (note) {
+    await client.insert<AdminUserNoteRow>("admin_user_notes", {
+      user_id: authUser.id,
+      note,
+      updated_by_user_id: input.actor.userId,
+    }, { onConflict: "user_id" });
+  }
+
+  return toManagedAccountUser(
+    await readRequiredProfile(authUser.id, client),
+    await readAuthUser(authUser.id) ?? authUser,
+    note,
+  );
+}
 
 export async function listManagedAccountUsers(actor: AuthenticatedAccount, options: AdminUserServiceOptions = {}): Promise<ManagedAccountUser[]> {
   assertAdminActor(actor);
@@ -138,7 +197,6 @@ export async function updateManagedAccountDetails(input: {
 
   const displayName = sanitizeDisplayName(input.displayName);
   const username = normalizeUsername(input.username);
-  const email = normalizeCredentialEmail(input.email);
   const client = options.client ?? createSupabaseRestClient();
   const updateAuthCredentials = options.updateAuthCredentials ?? updateSupabaseAdminAuthUserCredentials;
   const target = await readProfile(input.targetUserId, client);
@@ -146,6 +204,10 @@ export async function updateManagedAccountDetails(input: {
   if (!target) {
     throw new AuthError("User was not found.", 404);
   }
+
+  const email = input.email.trim()
+    ? normalizeCredentialEmail(input.email)
+    : isInternalCredentialEmail(target.email) ? target.email ?? "" : normalizeCredentialEmail(input.email);
 
   await assertUniqueProfileValue(client, "username_normalized", username, target.user_id, "Username is not available.");
   await assertUniqueProfileValue(client, "email_normalized", email, target.user_id, "Email is already used.");
@@ -284,15 +346,51 @@ function toManagedAccountUser(profile: AdminProfileRow, authUser: SupabaseAdminA
     userId: profile.user_id,
     displayName: profile.display_name || profile.username || email.split("@")[0] || "Ukendt bruger",
     username: profile.username ?? undefined,
-    email,
+    email: toPublicCredentialEmail(email),
     role: profile.role,
-    emailVerified: Boolean(authUser && isSupabaseAdminAuthUserVerified(authUser)),
+    emailVerified: Boolean(authUser && isSupabaseAdminAuthUserVerified(authUser) && !isInternalCredentialEmail(email)),
     status: authUser && !isSupabaseAdminAuthUserDeactivated(authUser) ? "active" : "deactivated",
     createdAt: profile.created_at ?? parseAuthString(authUser?.created_at),
     updatedAt: profile.updated_at ?? undefined,
     lastSignInAt: parseAuthString(authUser?.last_sign_in_at),
     adminNote,
   };
+}
+
+async function persistProfileForAdminCreatedUser(client: SupabaseRestClient, profile: AdminProfileRow): Promise<void> {
+  const existing = await readProfile(profile.user_id, client);
+
+  if (existing) {
+    await client.update<AdminProfileRow>("profiles", `user_id=eq.${encodeURIComponent(profile.user_id)}`, {
+      display_name: profile.display_name,
+      role: profile.role,
+      username: profile.username,
+      username_normalized: profile.username_normalized,
+      email: profile.email,
+      email_normalized: profile.email_normalized,
+    });
+    return;
+  }
+
+  await client.insert<AdminProfileRow>("profiles", {
+    user_id: profile.user_id,
+    display_name: profile.display_name,
+    role: profile.role,
+    username: profile.username,
+    username_normalized: profile.username_normalized,
+    email: profile.email,
+    email_normalized: profile.email_normalized,
+  });
+}
+
+async function readRequiredProfile(userId: string, client: SupabaseRestClient): Promise<AdminProfileRow> {
+  const profile = await readProfile(userId, client);
+
+  if (!profile) {
+    throw new AuthError("User was not found.", 404);
+  }
+
+  return profile;
 }
 
 function compareManagedUsers(a: ManagedAccountUser, b: ManagedAccountUser): number {

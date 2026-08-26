@@ -179,7 +179,7 @@ describe("STEP 25I-C1-B main page account UI", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Glemt kode?" }));
 
     expectUsableAccountModalShell(dialog);
-    expect(within(dialog).getByText("Indtast den email, der er tilknyttet din konto.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Indtast den email eller det brugernavn, der er tilknyttet din konto.")).toBeInTheDocument();
     expect(screen.getByTestId("main-account-dialog-scroll")).toContainElement(within(dialog).getByRole("button", { name: "Send instruktioner" }));
   });
 
@@ -670,9 +670,9 @@ describe("STEP 25I-C1-B main page account UI", () => {
     fireEvent.click(await screen.findByTestId("main-account-control"));
     const dialog = await screen.findByTestId("main-account-dialog");
     fireEvent.click(within(dialog).getByRole("button", { name: "Glemt kode?" }));
-    expect(within(dialog).getByText("Indtast den email, der er tilknyttet din konto.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Indtast den email eller det brugernavn, der er tilknyttet din konto.")).toBeInTheDocument();
     expectUsableAccountModalShell(dialog);
-    fireEvent.change(within(dialog).getByLabelText("E-mail"), { target: { value: "ukendt@example.com" } });
+    fireEvent.change(within(dialog).getByLabelText("Email eller brugernavn"), { target: { value: "ukendt@example.com" } });
     fireEvent.submit(within(dialog).getByRole("button", { name: "Send instruktioner" }).closest("form") as HTMLFormElement);
 
     await screen.findByText("Hvis e-mailadressen er registreret, har vi sendt instruktioner til at oprette en ny kode.");
@@ -702,7 +702,7 @@ describe("STEP 25I-C1-B main page account UI", () => {
     fireEvent.click(await screen.findByTestId("main-account-control"));
     const dialog = await screen.findByTestId("main-account-dialog");
     fireEvent.click(within(dialog).getByRole("button", { name: "Glemt kode?" }));
-    fireEvent.change(within(dialog).getByLabelText("E-mail"), { target: { value: "user@example.com" } });
+    fireEvent.change(within(dialog).getByLabelText("Email eller brugernavn"), { target: { value: "user@example.com" } });
 
     const form = within(dialog).getByRole("button", { name: "Send instruktioner" }).closest("form") as HTMLFormElement;
     fireEvent.submit(form);

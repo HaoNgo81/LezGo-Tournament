@@ -64,6 +64,28 @@ export async function updateSupabaseAdminAuthUserCredentials(userId: string, val
   return updateSupabaseAdminAuthUser(userId, values, "Account credentials could not be updated.");
 }
 
+export async function createSupabaseAdminAuthUser(values: {
+  email: string;
+  password: string;
+  email_confirm?: boolean;
+  user_metadata?: Record<string, unknown>;
+}): Promise<SupabaseAdminAuthUser> {
+  const config = getSupabaseAdminAuthConfig();
+  const response = await fetch(`${config.url}/auth/v1/admin/users`, {
+    method: "POST",
+    headers: getAdminAuthHeaders(config),
+    body: JSON.stringify(values),
+  });
+  const body = await parseJson(response);
+  const user = getAuthUserFromBody(body);
+
+  if (!response.ok || !user) {
+    throw new SupabaseAuthAdminError("Account could not be created.", response.status || 500);
+  }
+
+  return user;
+}
+
 async function updateSupabaseAdminAuthUser(
   userId: string,
   values: Record<string, unknown>,

@@ -392,6 +392,67 @@ describe("STEP 25I-C1-A credential foundation", () => {
     expect(requestBodies[0].password).not.toBe("ABC123");
   });
 
+  it("authenticates username-only accounts with username and code without exposing the internal identity", async () => {
+    configureAuthEnv();
+    const userId = "00000000-0000-4000-8000-000000000971";
+    const client = createCredentialProfileClient({
+      usernameProfiles: [{
+        user_id: userId,
+        display_name: "Desk Player",
+        role: "user",
+        username: "desk_player",
+        email: "desk_player@users.lezgotournament.internal",
+      }],
+    });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+
+      if (url.endsWith("/auth/v1/token?grant_type=password")) {
+        const body = JSON.parse(String(init?.body)) as { email: string; password: string };
+        expect(body.email).toBe("desk_player@users.lezgotournament.internal");
+        expect(body.password).toMatch(/^LezGo1!/);
+        expect(body.password).not.toBe("ABC123");
+        return new Response(JSON.stringify({
+          access_token: "access-token",
+          refresh_token: "refresh-token",
+          expires_in: 3600,
+          user: {
+            id: userId,
+            email: "desk_player@users.lezgotournament.internal",
+            email_confirmed_at: "2026-08-20T10:00:00.000Z",
+            confirmed_at: "2026-08-20T10:00:00.000Z",
+            user_metadata: {
+              display_name: "Desk Player",
+            },
+          },
+        }), { status: 200 });
+      }
+
+      if (url.endsWith(`/auth/v1/admin/users/${userId}`)) {
+        return new Response(JSON.stringify({
+          id: userId,
+          email: "desk_player@users.lezgotournament.internal",
+          email_confirmed_at: "2026-08-20T10:00:00.000Z",
+          confirmed_at: "2026-08-20T10:00:00.000Z",
+        }), { status: 200 });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    const result = await loginWithCredential({ identifier: "Desk_Player", code: "abc123", client });
+
+    expect(result.account).toMatchObject({
+      userId,
+      displayName: "Desk Player",
+      username: "desk_player",
+      email: "",
+      role: "user",
+    });
+    expect(JSON.stringify(result.account)).not.toMatch(/users\.lezgotournament\.internal/i);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("preserves the stored profile name during credential login instead of deriving it from the email local-part", async () => {
     configureAuthEnv();
     const client = createCredentialProfileClient({
@@ -656,6 +717,35 @@ describe("STEP 25I-C1-A credential foundation", () => {
       category: "accepted",
     }));
     expect(JSON.stringify(logMock.mock.calls)).not.toMatch(/user@example.com|access_token|refresh_token|ABC123/i);
+  });
+
+  it("returns admin-reset guidance for username-only account recovery without sending email", async () => {
+    configureAuthEnv();
+    const userId = "00000000-0000-4000-8000-000000000972";
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+
+      if (url.includes("/rest/v1/profiles?")) {
+        return new Response(JSON.stringify([{
+          user_id: userId,
+          display_name: "Desk Player",
+          role: "user",
+          username: "desk_player",
+          email: "desk_player@users.lezgotournament.internal",
+        }]), { status: 200 });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    const result = await requestLoginCodeRecovery({
+      email: "Desk_Player",
+      redirectTo: "https://lezgotournament.vercel.app/auth/reset",
+    });
+
+    expect(result.message).toBe("This account does not have email recovery. Ask an administrator to reset the code.");
+    expect(fetchMock.mock.calls.some((call) => String(call[0]).endsWith("/auth/v1/recover"))).toBe(false);
+    expect(JSON.stringify(result)).not.toMatch(/users\.lezgotournament\.internal|user_id/i);
   });
 
   it("logs Supabase recovery throttling safely while preserving the generic recovery response", async () => {

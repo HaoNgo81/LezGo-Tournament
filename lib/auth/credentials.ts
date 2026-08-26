@@ -13,9 +13,11 @@ import {
 
 const genericLoginMessage = "Email/username or code is incorrect.";
 const genericRecoveryMessage = "If the email address is registered, we have sent instructions for creating a new code.";
+export const usernameOnlyRecoveryMessage = "This account does not have email recovery. Ask an administrator to reset the code.";
 const invalidRecoveryLinkMessage = "The link is invalid or expired.";
 const unverifiedEmailMessage = "Email is not verified.";
 const stalePendingAccountMs = 24 * 60 * 60 * 1000;
+const internalCredentialEmailDomain = "users.lezgotournament.internal";
 
 interface CredentialProfileRow {
   user_id: string;
@@ -73,6 +75,18 @@ export function normalizeCredentialEmail(value: string): string {
   }
 
   return email;
+}
+
+export function createInternalCredentialEmail(username: string): string {
+  return `${normalizeUsername(username)}@${internalCredentialEmailDomain}`;
+}
+
+export function isInternalCredentialEmail(value: string | null | undefined): boolean {
+  return typeof value === "string" && value.toLocaleLowerCase("en").endsWith(`@${internalCredentialEmailDomain}`);
+}
+
+export function toPublicCredentialEmail(value: string | null | undefined): string {
+  return isInternalCredentialEmail(value) ? "" : value ?? "";
 }
 
 export async function createCredentialAccount(input: {
@@ -223,17 +237,28 @@ export async function loginWithCredential(input: {
 }
 
 export async function requestLoginCodeRecovery(input: { email: string; redirectTo?: string; rateLimitKey?: string }): Promise<{ message: string }> {
-  const email = normalizeCredentialEmail(input.email);
+  const identifier = input.email.trim();
+  const lookupKey = identifier.toLocaleLowerCase("en");
 
   try {
-    assertAuthRateLimit("credential-recovery", `${input.rateLimitKey ?? "unknown"}:${email}`, { limit: 5, windowMs: 60 * 60 * 1000 });
+    assertAuthRateLimit("credential-recovery", `${input.rateLimitKey ?? "unknown"}:${lookupKey}`, { limit: 5, windowMs: 60 * 60 * 1000 });
   } catch (error) {
     logCredentialRecoveryDiagnostic("app_rate_limited", { status: 429, category: "app_recovery_rate_limit" });
     throw error;
   }
 
   const client = createSupabaseRestClient();
-  const profile = await readProfileByEmail(email, client);
+  const profile = identifier.includes("@")
+    ? await readProfileByEmail(normalizeCredentialEmail(identifier), client)
+    : await readProfileByUsername(normalizeUsername(identifier), client);
+
+  if (profile && isInternalCredentialEmail(profile.email)) {
+    return {
+      message: usernameOnlyRecoveryMessage,
+    };
+  }
+
+  const email = normalizeCredentialEmail(profile?.email ?? identifier);
   const authUser = profile ? await readSupabaseAdminAuthUser(profile.user_id) : null;
 
   if (!authUser || !isAuthUserEmailVerified(authUser)) {
@@ -834,7 +859,7 @@ function isUnverifiedAuthError(body: unknown): boolean {
 function profileToAccount(profile: CredentialProfileRow, fallbackEmail: string): AuthenticatedAccount {
   return {
     userId: profile.user_id,
-    email: profile.email ?? fallbackEmail,
+    email: toPublicCredentialEmail(profile.email ?? fallbackEmail),
     displayName: profile.display_name ?? profile.username ?? fallbackEmail.split("@")[0],
     username: profile.username ?? undefined,
     role: profile.role,

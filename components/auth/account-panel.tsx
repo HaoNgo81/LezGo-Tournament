@@ -193,9 +193,9 @@ export function AccountPanel({ framed = true, initialAccount, initialView = "log
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email: recoveryEmail }),
       });
-      await response.json() as { ok?: boolean; message?: string; error?: string };
+      const body = await response.json() as { ok?: boolean; message?: string; error?: string };
 
-      setMessage(t("accountGenericRecovery"));
+      setMessage(localizeRecoveryMessage(body.message, t));
     } catch {
       setMessage(t("accountGenericRecovery"));
     } finally {
@@ -324,7 +324,7 @@ export function AccountPanel({ framed = true, initialAccount, initialView = "log
             <p className="text-sm font-black uppercase tracking-wide text-[var(--primary-strong)]">{t("accountSignedIn")}</p>
             <p className="mt-1 text-xl font-black">{account.displayName || account.username || t("account")}</p>
             {account.username ? <p className="font-bold text-[var(--muted)]">@{account.username}</p> : null}
-            <p className="font-bold text-[var(--muted)]">{account.email}</p>
+            {account.email ? <p className="font-bold text-[var(--muted)]">{account.email}</p> : null}
           </div>
           {account.role === "admin" ? (
             <div className="flex flex-wrap gap-2">
@@ -460,8 +460,8 @@ export function AccountPanel({ framed = true, initialAccount, initialView = "log
             <p className="mt-1 font-bold text-[var(--muted)]">{t("accountForgotCodeHelp")}</p>
           </div>
           <label className="grid gap-2 text-base font-bold">
-            {t("accountEmail")}
-            <input className="field-control" value={recoveryEmail} onChange={(event) => setRecoveryEmail(event.target.value)} autoComplete="email" inputMode="email" type="email" />
+            {t("accountIdentifier")}
+            <input className="field-control" value={recoveryEmail} onChange={(event) => setRecoveryEmail(event.target.value)} autoComplete="username" inputMode="text" />
           </label>
           <button className="btn-primary min-h-12" type="submit" disabled={isLoading}>
             {isLoading ? t("loadingTournament") : t("accountSendInstructions")}
@@ -521,4 +521,12 @@ function localizeAuthError(message: string | undefined, fallback: string, option
   }
 
   return message;
+}
+
+function localizeRecoveryMessage(message: string | undefined, t: (key: "accountGenericRecovery" | "accountUsernameOnlyRecovery") => string): string {
+  if (message === "This account does not have email recovery. Ask an administrator to reset the code.") {
+    return t("accountUsernameOnlyRecovery");
+  }
+
+  return t("accountGenericRecovery");
 }

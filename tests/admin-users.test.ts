@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  createManagedUsernameOnlyAccount,
   listManagedAccountUsers,
   resetManagedAccountLoginCode,
   updateManagedAccountAdminNote,
@@ -48,6 +49,70 @@ describe("STEP 25I-C1-C7 admin user management service", () => {
     await expect(listManagedAccountUsers(createActor("user"), createAdminUserStore().options())).rejects.toMatchObject({
       status: 403,
     });
+  });
+
+  it("allows ADMIN to create a username-only USER without returning credential material", async () => {
+    const store = createAdminUserStore();
+    process.env.LEZGO_ACCOUNT_CREDENTIAL_SECRET = "test-credential-secret";
+
+    const created = await createManagedUsernameOnlyAccount({
+      actor: createActor("admin"),
+      username: "Player_One",
+      code: "A1B2C3",
+      displayName: "Player One",
+      note: "Desk signup",
+    }, store.options());
+
+    expect(created).toMatchObject({
+      displayName: "Player One",
+      username: "player_one",
+      email: "",
+      role: "user",
+      emailVerified: false,
+      status: "active",
+      adminNote: "Desk signup",
+    });
+    expect(store.profile(created.userId)).toMatchObject({
+      username_normalized: "player_one",
+      email: "player_one@users.lezgotournament.internal",
+      role: "user",
+    });
+    expect(store.createdAuthUsers).toHaveLength(1);
+    expect(store.createdAuthUsers[0]).toMatchObject({
+      email: "player_one@users.lezgotournament.internal",
+      email_confirm: true,
+      user_metadata: expect.objectContaining({
+        username: "player_one",
+        account_type: "username_only",
+      }),
+    });
+    expect(store.createdAuthUsers[0].password).toMatch(/^LezGo1!/);
+    expect(JSON.stringify(created)).not.toMatch(/A1B2C3|password|hash|token|service|users\.lezgotournament\.internal/i);
+  });
+
+  it("rejects non-admin, duplicate username and invalid code for username-only creation", async () => {
+    const store = createAdminUserStore();
+
+    await expect(createManagedUsernameOnlyAccount({
+      actor: createActor("user"),
+      username: "fresh_user",
+      code: "A1B2C3",
+    }, store.options())).rejects.toMatchObject({ status: 403 });
+
+    await expect(createManagedUsernameOnlyAccount({
+      actor: createActor("admin"),
+      username: "USER_ONE",
+      code: "A1B2C3",
+    }, store.options())).rejects.toMatchObject({
+      status: 409,
+      message: "Username is not available.",
+    });
+
+    await expect(createManagedUsernameOnlyAccount({
+      actor: createActor("admin"),
+      username: "fresh_user",
+      code: "",
+    }, store.options())).rejects.toMatchObject({ status: 400 });
   });
 
   it("allows trusted admin role changes while preserving last active admin protection", async () => {
@@ -209,6 +274,33 @@ describe("STEP 25I-C1-C7 admin user management service", () => {
     expect(JSON.stringify(generated.user)).not.toMatch(/Q2W3E4|hash|password|token|service/i);
   });
 
+  it("resets username-only account codes using the internal auth identity without exposing it", async () => {
+    const store = createAdminUserStore({
+      profiles: [adminProfile(), secondAdminProfile(), usernameOnlyProfile()],
+      authUsers: [authUser(adminId), authUser(secondAdminId), usernameOnlyAuthUser()],
+    });
+    process.env.LEZGO_ACCOUNT_CREDENTIAL_SECRET = "test-credential-secret";
+
+    const result = await resetManagedAccountLoginCode({
+      actor: createActor("admin"),
+      targetUserId: usernameOnlyUserId,
+      code: "N3W456",
+    }, store.options());
+
+    expect(result.user).toMatchObject({
+      username: "desk_user",
+      email: "",
+      role: "user",
+    });
+    expect(store.credentialUpdates.at(-1)).toMatchObject({
+      userId: usernameOnlyUserId,
+      values: {
+        password: expect.stringMatching(/^LezGo1!/),
+      },
+    });
+    expect(JSON.stringify(result)).not.toMatch(/N3W456|users\.lezgotournament\.internal|password|hash|token|service/i);
+  });
+
   it("rejects existing sessions for deactivated users at the trusted auth boundary", async () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://auth.example.supabase.co";
     process.env.SUPABASE_URL = "https://auth.example.supabase.co";
@@ -250,6 +342,7 @@ describe("STEP 25I-C1-C7 admin user management service", () => {
 const adminId = "00000000-0000-4000-8000-00000000a001";
 const secondAdminId = "00000000-0000-4000-8000-00000000a002";
 const userId = "00000000-0000-4000-8000-00000000b001";
+const usernameOnlyUserId = "00000000-0000-4000-8000-00000000b002";
 
 interface TestProfile {
   user_id: string;
@@ -279,6 +372,7 @@ function createAdminUserStore(input: { profiles?: TestProfile[]; authUsers?: Sup
   const notes = new Map<string, string>();
   const banDurations: { userId: string; banDuration: string }[] = [];
   const credentialUpdates: { userId: string; values: { email?: string; password?: string; user_metadata?: Record<string, unknown> } }[] = [];
+  const createdAuthUsers: Array<{ email: string; password: string; email_confirm?: boolean; user_metadata?: Record<string, unknown> }> = [];
   const client: SupabaseRestClient = {
     async rpc<T>(): Promise<T> {
       throw new Error("rpc is not used.");
@@ -312,11 +406,28 @@ function createAdminUserStore(input: { profiles?: TestProfile[]; authUsers?: Sup
       return (query.includes("role=eq.admin") ? rows.filter((profile) => profile.role === "admin") : rows) as T[];
     },
     async insert<T>(table: string, rows: Record<string, unknown> | Record<string, unknown>[]): Promise<T[]> {
+      const row = Array.isArray(rows) ? rows[0] : rows;
+
+      if (table === "profiles") {
+        const profile = {
+          user_id: String(row.user_id),
+          display_name: String(row.display_name ?? ""),
+          role: String(row.role ?? "user") as AccountRole,
+          username: typeof row.username === "string" ? row.username : null,
+          username_normalized: typeof row.username_normalized === "string" ? row.username_normalized : null,
+          email: typeof row.email === "string" ? row.email : null,
+          email_normalized: typeof row.email_normalized === "string" ? row.email_normalized : null,
+          created_at: "2026-08-20T10:00:00.000Z",
+          updated_at: "2026-08-20T10:00:00.000Z",
+        };
+        profiles.set(profile.user_id, profile);
+        return [profile] as T[];
+      }
+
       if (table !== "admin_user_notes") {
         throw new Error("insert is not used.");
       }
 
-      const row = Array.isArray(rows) ? rows[0] : rows;
       notes.set(String(row.user_id), String(row.note ?? ""));
       return [{ user_id: String(row.user_id), note: String(row.note ?? "") }] as T[];
     },
@@ -344,6 +455,7 @@ function createAdminUserStore(input: { profiles?: TestProfile[]; authUsers?: Sup
   return {
     banDurations,
     credentialUpdates,
+    createdAuthUsers,
     profile: (id: string) => profiles.get(id),
     note: (id: string) => notes.get(id),
     options: () => ({
@@ -370,8 +482,45 @@ function createAdminUserStore(input: { profiles?: TestProfile[]; authUsers?: Sup
         authUsers.set(id, updated);
         return updated;
       },
+      createAuthUser: async (values: { email: string; password: string; email_confirm?: boolean; user_metadata?: Record<string, unknown> }) => {
+        createdAuthUsers.push(values);
+        const id = usernameOnlyUserId;
+        const created = {
+          id,
+          email: values.email,
+          created_at: "2026-08-20T10:00:00.000Z",
+          email_confirmed_at: values.email_confirm ? "2026-08-20T10:00:00.000Z" : null,
+          confirmed_at: values.email_confirm ? "2026-08-20T10:00:00.000Z" : null,
+          user_metadata: values.user_metadata,
+        };
+        authUsers.set(id, created);
+        return created;
+      },
       generateCode: () => "Q2W3E4",
     }),
+  };
+}
+
+function usernameOnlyProfile(): TestProfile {
+  return {
+    user_id: usernameOnlyUserId,
+    display_name: "Desk User",
+    role: "user",
+    username: "desk_user",
+    username_normalized: "desk_user",
+    email: "desk_user@users.lezgotournament.internal",
+    email_normalized: "desk_user@users.lezgotournament.internal",
+    created_at: "2026-08-20T10:00:00.000Z",
+    updated_at: "2026-08-20T10:00:00.000Z",
+  };
+}
+
+function usernameOnlyAuthUser(): SupabaseAdminAuthUser {
+  return {
+    id: usernameOnlyUserId,
+    email: "desk_user@users.lezgotournament.internal",
+    email_confirmed_at: "2026-08-20T10:00:00.000Z",
+    confirmed_at: "2026-08-20T10:00:00.000Z",
   };
 }
 

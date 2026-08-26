@@ -7,6 +7,7 @@ const authMocks = vi.hoisted(() => ({
 }));
 
 const adminUserMocks = vi.hoisted(() => ({
+  createManagedUsernameOnlyAccount: vi.fn(),
   listManagedAccountUsers: vi.fn(),
   updateManagedAccountDetails: vi.fn(),
   updateManagedAccountAdminNote: vi.fn(),
@@ -22,6 +23,7 @@ vi.mock("@/lib/auth", async (importOriginal) => {
 });
 
 vi.mock("@/lib/admin/users", () => ({
+  createManagedUsernameOnlyAccount: adminUserMocks.createManagedUsernameOnlyAccount,
   listManagedAccountUsers: adminUserMocks.listManagedAccountUsers,
   updateManagedAccountDetails: adminUserMocks.updateManagedAccountDetails,
   updateManagedAccountAdminNote: adminUserMocks.updateManagedAccountAdminNote,
@@ -31,10 +33,59 @@ vi.mock("@/lib/admin/users", () => ({
 describe("STEP 25I-C1-C7 admin user API boundary", () => {
   beforeEach(() => {
     authMocks.assertFreshAdminAccountFromCookies.mockReset();
+    adminUserMocks.createManagedUsernameOnlyAccount.mockReset();
     adminUserMocks.listManagedAccountUsers.mockReset();
     adminUserMocks.updateManagedAccountDetails.mockReset();
     adminUserMocks.updateManagedAccountAdminNote.mockReset();
     adminUserMocks.resetManagedAccountLoginCode.mockReset();
+  });
+
+  it("routes ADMIN username-only user creation through a trusted service", async () => {
+    const { POST } = await import("../app/api/admin/users/route");
+    const admin = createAccount("admin");
+    const createdUser = {
+      ...managedUser,
+      userId: "00000000-0000-4000-8000-00000000b002",
+      displayName: "Player One",
+      username: "player_one",
+      email: "",
+      role: "user" as const,
+      emailVerified: false,
+    };
+    authMocks.assertFreshAdminAccountFromCookies.mockResolvedValue(admin);
+    adminUserMocks.createManagedUsernameOnlyAccount.mockResolvedValue(createdUser);
+
+    const response = await POST(jsonRequest({
+      username: "Player_One",
+      code: "A1B2C3",
+      displayName: "Player One",
+      note: "Created at desk.",
+    }));
+    const body = await response.json() as { ok: boolean; user: ManagedAccountUser };
+
+    expect(response.status).toBe(200);
+    expect(body.user).toEqual(createdUser);
+    expect(JSON.stringify(body)).not.toMatch(/A1B2C3|password|hash|token|service|users\.lezgotournament\.internal/i);
+    expect(adminUserMocks.createManagedUsernameOnlyAccount).toHaveBeenCalledWith({
+      actor: admin,
+      username: "Player_One",
+      code: "A1B2C3",
+      displayName: "Player One",
+      note: "Created at desk.",
+    });
+  });
+
+  it("rejects direct username-only user creation for non-admin callers", async () => {
+    const { AuthError } = await import("../lib/auth");
+    const { POST } = await import("../app/api/admin/users/route");
+    authMocks.assertFreshAdminAccountFromCookies.mockRejectedValue(new AuthError("Admin access was denied.", 403));
+
+    const response = await POST(jsonRequest({ username: "player_one", code: "A1B2C3" }));
+    const body = await response.json() as { error: string };
+
+    expect(response.status).toBe(403);
+    expect(body.error).toBe("Admin access was denied.");
+    expect(adminUserMocks.createManagedUsernameOnlyAccount).not.toHaveBeenCalled();
   });
 
   it("allows admins to list safe users", async () => {
