@@ -148,16 +148,16 @@ export function TournamentListApp({ account, accountRevision = 0 }: { account?: 
       ? activeTournamentList
       : activeTournament && activeTournament.status === "active" ? [activeTournament] : [];
 
-    return candidates.filter((tournament) => isOwnedStandardTournament(tournament, ownedCloudTournamentIds));
-  }, [activeTournament, activeTournamentList, ownedCloudTournamentIds]);
+    return candidates.filter((tournament) => isVisibleStandardTournament(tournament, ownedCloudTournamentIds, accountStatus === "anonymous"));
+  }, [accountStatus, activeTournament, activeTournamentList, ownedCloudTournamentIds]);
   const activeTeamVsTeamTournaments = useMemo(() => (
     activeTeamVsTeamTournament && activeTeamVsTeamTournament.status === "active" && isOwnedTeamVsTeamTournament(activeTeamVsTeamTournament, ownedCloudTournamentIds)
       ? [activeTeamVsTeamTournament]
       : []
   ), [activeTeamVsTeamTournament, ownedCloudTournamentIds]);
   const completedVisibleTournaments = useMemo(
-    () => completedTournaments.filter((tournament) => isOwnedStandardTournament(tournament.state, ownedCloudTournamentIds)),
-    [completedTournaments, ownedCloudTournamentIds],
+    () => completedTournaments.filter((tournament) => isVisibleStandardTournament(tournament.state, ownedCloudTournamentIds, accountStatus === "anonymous")),
+    [accountStatus, completedTournaments, ownedCloudTournamentIds],
   );
   const completedVisibleTeamVsTeamTournaments = useMemo(
     () => completedTeamVsTeamTournaments.filter((tournament) => isOwnedTeamVsTeamTournament(tournament.state, ownedCloudTournamentIds)),
@@ -206,11 +206,6 @@ export function TournamentListApp({ account, accountRevision = 0 }: { account?: 
         }
 
         setCloudTournaments([]);
-        setActiveTournament(null);
-        setActiveTournamentList([]);
-        setActiveTeamVsTeamTournament(null);
-        setCompletedTournaments([]);
-        setCompletedTeamVsTeamTournaments([]);
         setAccountStatus("anonymous");
       }
     }
@@ -255,10 +250,31 @@ export function TournamentListApp({ account, accountRevision = 0 }: { account?: 
       <div className="grid gap-5">
         <p className="app-card p-4 font-bold text-[var(--muted)]">{t("tournamentsLoginRequired")}</p>
         <Section title={t("active")}>
-          <EmptyState text={t("noActiveTournaments")} />
+          <div className="grid gap-3">
+            {activeTournaments.length ? activeTournaments.map((tournament) => (
+              <article key={tournament.tournamentName} className="app-card p-4 sm:p-5">
+                <h3 className="text-xl font-black">{tournament.tournamentName}</h3>
+                <p className="mt-1 font-bold text-[var(--muted)]">{formatLiveTournamentSummary(tournament, t)}</p>
+                <Link className="btn-outline-primary mt-4" href="/live" onClick={() => handleOpenActive(tournament)}>{t("openLive")}</Link>
+              </article>
+            )) : null}
+            {!activeTournaments.length ? <EmptyState text={t("noActiveTournaments")} /> : null}
+          </div>
         </Section>
         <Section title={t("completed")}>
-          <EmptyState text={t("noCompletedTournaments")} />
+          <div className="grid gap-3">
+            {completedVisibleTournaments.map((completedTournament) => (
+              <CompletedTournamentCard
+                key={completedTournament.id}
+                completedTournament={completedTournament}
+                t={t}
+                onDelete={handleDeleteFinished}
+                onOpen={handleOpenFinished}
+                onReopen={handleReopenFinished}
+              />
+            ))}
+            {!completedVisibleTournaments.length ? <EmptyState text={t("noCompletedTournaments")} /> : null}
+          </div>
         </Section>
       </div>
     );
@@ -604,9 +620,23 @@ function formatTournamentType(format: LiveTournamentState["format"], t: (key: Tr
   return labels[format];
 }
 
-function isOwnedStandardTournament(tournament: LiveTournamentState, ownedCloudTournamentIds: Set<string>): boolean {
+function isVisibleStandardTournament(tournament: LiveTournamentState, ownedCloudTournamentIds: Set<string>, includeLocalOnlyGuestTournaments: boolean): boolean {
+  const metadata = loadShadowSaveMetadata(createStandardShadowSaveLocalId(tournament));
+
+  if (includeLocalOnlyGuestTournaments && metadata?.status === "local-only" && !metadata.supabaseTournamentId && hasGuestCourtLimit(tournament)) {
+    return true;
+  }
+
   const supabaseTournamentId = getStandardSupabaseTournamentId(tournament);
   return Boolean(supabaseTournamentId && ownedCloudTournamentIds.has(supabaseTournamentId));
+}
+
+function hasGuestCourtLimit(tournament: LiveTournamentState): boolean {
+  if (tournament.poolPlay) {
+    return false;
+  }
+
+  return tournament.rounds.every((round) => round.matches.every((match) => match.courtNumber <= 2));
 }
 
 function isOwnedTeamVsTeamTournament(tournament: TeamVsTeamTournamentState, ownedCloudTournamentIds: Set<string>): boolean {

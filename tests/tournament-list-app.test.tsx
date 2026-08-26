@@ -2,7 +2,7 @@ import { cleanup, render, screen, waitFor, within } from "@testing-library/react
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TournamentListApp } from "../components/tournament/tournament-list-app";
 import { advanceLivePoolPlayState, finishTournament, saveNextPoolPhaseResult } from "../lib/live-scoring";
-import { createPoolTournamentFromSetup, createStandardShadowSaveLocalId, createTournamentFromSetup, loadActiveTournament, markActiveCloudTournamentAuthority, markCloudTournamentRestored, saveActiveTournament, saveCompletedTournament, type CompletedTournament } from "../lib/tournament-setup";
+import { createPoolTournamentFromSetup, createStandardShadowSaveLocalId, createTournamentFromSetup, loadActiveTournament, markActiveCloudTournamentAuthority, markCloudTournamentRestored, saveActiveTournament, saveActiveTournamentLocalOnly, saveCompletedTournament, type CompletedTournament } from "../lib/tournament-setup";
 
 const sixteenPlayerText = Array.from({ length: 16 }, (_, index) => `Spiller ${index + 1}`).join("\n");
 const routerPush = vi.fn();
@@ -183,6 +183,75 @@ describe("TournamentListApp pool play", () => {
     expect(await screen.findByText("Log ind for at se dine turneringer.")).toBeInTheDocument();
     expect(screen.queryByText("User A private active")).not.toBeInTheDocument();
     expect(screen.queryByText("User A private finished")).not.toBeInTheDocument();
+  });
+
+  it("shows a guest local-only active tournament after a full app remount", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ ok: false }, { status: 401 })));
+    saveActiveTournamentLocalOnly(createGuestTournament("Guest reopen active"));
+
+    const firstRender = render(<TournamentListApp />);
+
+    expect(await screen.findByText("Guest reopen active")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Åbn live" })).toHaveAttribute("href", "/live");
+
+    firstRender.unmount();
+    render(<TournamentListApp />);
+
+    expect(await screen.findByText("Guest reopen active")).toBeInTheDocument();
+  });
+
+  it("shows a guest local-only completed tournament after a full app remount", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ ok: false }, { status: 401 })));
+    const guestTournament = createGuestTournament("Guest reopen completed");
+    saveActiveTournamentLocalOnly(guestTournament);
+    saveCompletedTournament(finishTournament(guestTournament, "2026-08-26T12:00:00.000Z"));
+
+    const firstRender = render(<TournamentListApp />);
+
+    expect(await screen.findByText("Guest reopen completed")).toBeInTheDocument();
+    expect(screen.getByText(/Afsluttet .* 8 spillere/)).toBeInTheDocument();
+
+    firstRender.unmount();
+    render(<TournamentListApp />);
+
+    expect(await screen.findByText("Guest reopen completed")).toBeInTheDocument();
+  });
+
+  it("does not convert a guest local-only tournament into an account tournament after login", async () => {
+    const guestTournament = createGuestTournament("Guest stays local");
+    saveActiveTournamentLocalOnly(guestTournament);
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      if (input.toString() === "/api/account/tournaments") {
+        return Response.json({ ok: true, tournaments: [] });
+      }
+
+      return Response.json({ ok: false }, { status: 404 });
+    }));
+
+    render(<TournamentListApp account={{
+      userId: "00000000-0000-4000-8000-0000000000a1",
+      email: "owner@example.com",
+      displayName: "Owner",
+      role: "user",
+    }} />);
+
+    await screen.findByRole("heading", { name: "Aktive" });
+    await waitFor(() => expect(screen.queryByText("Guest stays local")).not.toBeInTheDocument());
+    expect(loadActiveTournament()?.tournamentName).toBe("Guest stays local");
+  });
+
+  it("returns to anonymous guest local state after logout without leaking account data", async () => {
+    const ownTournament = createStandardTournament("Account-only local cache");
+    const guestTournament = createGuestTournament("Guest visible after logout");
+    saveActiveTournament(ownTournament);
+    markOwnedStandardTournament(ownTournament, "00000000-0000-4000-8000-000000000501", "active");
+    saveActiveTournamentLocalOnly(guestTournament);
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ ok: false }, { status: 401 })));
+
+    render(<TournamentListApp />);
+
+    expect(await screen.findByText("Guest visible after logout")).toBeInTheDocument();
+    expect(screen.queryByText("Account-only local cache")).not.toBeInTheDocument();
   });
 
   it("hides stale local tournaments that are not in the authenticated user's owned cloud list", async () => {
@@ -414,6 +483,21 @@ function createStandardTournament(name = "Fast Makker Mexicano 16/4") {
     malePlayerText: "",
     courts: 4,
     rounds: 5,
+    scoringMode: "Fri scoring",
+    firstRoundOrder: "manual",
+    rankingMode: "matchPointsFirst",
+  });
+}
+
+function createGuestTournament(name: string) {
+  return createTournamentFromSetup({
+    name,
+    format: "Americano",
+    playerText: Array.from({ length: 8 }, (_, index) => `Guest ${index + 1}`).join("\n"),
+    femalePlayerText: "",
+    malePlayerText: "",
+    courts: 2,
+    rounds: 3,
     scoringMode: "Fri scoring",
     firstRoundOrder: "manual",
     rankingMode: "matchPointsFirst",
