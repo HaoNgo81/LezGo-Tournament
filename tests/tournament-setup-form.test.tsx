@@ -4,10 +4,11 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TournamentSetupForm } from "../components/tournament/tournament-setup-form";
-import { loadActiveTournament } from "../lib/tournament-setup";
+import { loadActiveTournament, loadAllShadowSaveMetadata } from "../lib/tournament-setup";
 import { saveTournamentSettings } from "../lib/tournament-settings";
 
 const { push } = vi.hoisted(() => ({ push: vi.fn() }));
+const originalShadowSaveFlag = process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE;
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push }),
@@ -17,6 +18,12 @@ describe("tournament setup form", () => {
   afterEach(() => {
     cleanup();
     vi.useRealTimers();
+    vi.unstubAllGlobals();
+    if (originalShadowSaveFlag === undefined) {
+      delete process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE;
+    } else {
+      process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE = originalShadowSaveFlag;
+    }
     window.localStorage.clear();
     window.history.pushState({}, "", "/");
     push.mockClear();
@@ -422,11 +429,108 @@ describe("tournament setup form", () => {
     expect(screen.queryByText("Start turnering")).not.toBeInTheDocument();
   });
 
+  it("lets an anonymous guest create a local-only tournament without cloud ownership", async () => {
+    const originalFlag = process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE;
+    const fetchMock = mockGuestAccountFetch();
+    process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE = "1";
+
+    render(<TournamentSetupForm />);
+
+    await screen.findByText("Som gæst kan du bruge op til 2 baner. Log ind for flere baner.");
+    fillIndividualPlayerFields(["Anna", "Peter", "Mads", "Louise", "Ægir", "Østen", "Åse", "Minh"]);
+    fireEvent.click(screen.getByRole("button", { name: "Start turnering" }));
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/live"));
+    expect(loadActiveTournament()?.players.map((player) => player.name)).toEqual(["Anna", "Peter", "Mads", "Louise", "Ægir", "Østen", "Åse", "Minh"]);
+    expect(fetchMock.mock.calls.some((call) => call[0] === "/api/supabase/shadow-save")).toBe(false);
+    expect(loadAllShadowSaveMetadata()).toEqual([expect.objectContaining({
+      kind: "standard",
+      status: "local-only",
+    })]);
+    expect(loadAllShadowSaveMetadata()[0]?.supabaseTournamentId).toBeUndefined();
+
+    if (originalFlag === undefined) {
+      delete process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE;
+    } else {
+      process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE = originalFlag;
+    }
+  });
+
+  it("keeps guest court selection capped at 2 courts", async () => {
+    mockGuestAccountFetch();
+
+    render(<TournamentSetupForm />);
+
+    await screen.findByText("Som gæst kan du bruge op til 2 baner. Log ind for flere baner.");
+    const courtsInput = screen.getByRole("spinbutton", { name: "Baner" });
+    expect(courtsInput).toHaveAttribute("max", "2");
+
+    fireEvent.change(courtsInput, { target: { value: "3" } });
+    expect(courtsInput).toHaveValue(2);
+  });
+
+  it("rejects a guest tournament with more than 2 courts at submit time", async () => {
+    const authResponse = createDeferred<Response>();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (input.toString() === "/api/auth/me") {
+        return await authResponse.promise;
+      }
+
+      return new Response(JSON.stringify({ ok: false, error: "Unexpected request." }), { status: 500 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TournamentSetupForm />);
+
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Baner" }), { target: { value: "3" } });
+    fillIndividualPlayerFields(Array.from({ length: 12 }, (_, index) => `Guest ${index + 1}`));
+    fireEvent.click(screen.getByRole("button", { name: "Start turnering" }));
+
+    authResponse.resolve(new Response(JSON.stringify({ ok: false }), { status: 401 }));
+
+    expect((await screen.findAllByText("Som gæst kan du bruge op til 2 baner. Log ind for flere baner.")).length).toBeGreaterThan(0);
+    expect(push).not.toHaveBeenCalled();
+    expect(loadActiveTournament()).toBeNull();
+    expect(fetchMock.mock.calls.some((call) => call[0] === "/api/supabase/shadow-save")).toBe(false);
+  });
+
+  it("keeps authenticated court selection uncapped by the guest limit", async () => {
+    const fetchMock = mockAuthenticatedAccountFetch(Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 })));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TournamentSetupForm />);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/auth/me", { cache: "no-store" }));
+    const courtsInput = screen.getByRole("spinbutton", { name: "Baner" });
+
+    expect(courtsInput).not.toHaveAttribute("max");
+    expect(screen.queryByText("Som gæst kan du bruge op til 2 baner. Log ind for flere baner.")).not.toBeInTheDocument();
+
+    fireEvent.change(courtsInput, { target: { value: "3" } });
+    expect(courtsInput).toHaveValue(3);
+  });
+
+  it.each([
+    "Americano",
+    "Mexicano",
+    "Mixed Americano",
+    "Fast Makker Americano",
+    "Fast Makker Mexicano",
+  ])("applies the guest 2-court cap to %s", async (formatName) => {
+    mockGuestAccountFetch();
+
+    render(<TournamentSetupForm />);
+
+    fireEvent.click(screen.getByRole("button", { name: formatName }));
+    await screen.findByText("Som gæst kan du bruge op til 2 baner. Log ind for flere baner.");
+    expect(screen.getByRole("spinbutton", { name: "Baner" })).toHaveAttribute("max", "2");
+  });
+
   it("waits for the initial cloud shadow-save before navigating to live", async () => {
     const originalFlag = process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE;
     process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE = "1";
     const deferred = createDeferred<Response>();
-    const fetchMock = vi.fn().mockReturnValue(deferred.promise);
+    const fetchMock = mockAuthenticatedAccountFetch(deferred.promise);
     vi.stubGlobal("fetch", fetchMock);
 
     render(<TournamentSetupForm />);
@@ -440,7 +544,8 @@ describe("tournament setup form", () => {
     })));
     expect(push).not.toHaveBeenCalled();
 
-    const payload = JSON.parse(fetchMock.mock.calls[0][1]?.body as string) as { legacyLocalId?: string; tournamentId?: string; state?: { tournamentName?: string } };
+    const shadowSaveCall = fetchMock.mock.calls.find((call) => call[0] === "/api/supabase/shadow-save");
+    const payload = JSON.parse(shadowSaveCall?.[1]?.body as string) as { legacyLocalId?: string; tournamentId?: string; state?: { tournamentName?: string } };
     expect(payload.tournamentId).toBeUndefined();
     expect(payload.legacyLocalId).toContain("user ownership test");
     expect(payload.state?.tournamentName).toBe("USER OWNERSHIP TEST");
@@ -465,13 +570,14 @@ describe("tournament setup form", () => {
   it("retries the initial ownership shadow-save when stale local metadata is terminal", async () => {
     const originalFlag = process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE;
     process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE = "1";
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+    const shadowSaveResponse = Promise.resolve(new Response(JSON.stringify({
       ok: true,
       saveMode: "insert",
       tournamentId: "00000000-0000-4000-8000-00000000025b",
       organizerToken: "STEP_25K_FIX2_ORGANIZER_TOKEN",
       updatedAt: "2026-08-21T13:00:00.000Z",
     }), { status: 200 }));
+    const fetchMock = mockAuthenticatedAccountFetch(shadowSaveResponse);
     vi.stubGlobal("fetch", fetchMock);
 
     window.localStorage.setItem("lezgo.shadowSaveMetadata.v1", JSON.stringify({
@@ -493,7 +599,8 @@ describe("tournament setup form", () => {
       method: "POST",
     })));
 
-    const payload = JSON.parse(fetchMock.mock.calls[0][1]?.body as string) as { legacyLocalId?: string; state?: { tournamentName?: string } };
+    const shadowSaveCall = fetchMock.mock.calls.find((call) => call[0] === "/api/supabase/shadow-save");
+    const payload = JSON.parse(shadowSaveCall?.[1]?.body as string) as { legacyLocalId?: string; state?: { tournamentName?: string } };
     expect(payload.legacyLocalId).toBe("lezgotakeovertest turnering-americano");
     expect(payload.state?.tournamentName).toBe("lezgotakeovertest turnering");
     await waitFor(() => expect(push).toHaveBeenCalledWith("/live"));
@@ -514,10 +621,11 @@ describe("tournament setup form", () => {
   it("blocks navigation when the initial cloud shadow-save does not create a Supabase tournament", async () => {
     const originalFlag = process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE;
     process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE = "1";
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+    const shadowSaveResponse = Promise.resolve(new Response(JSON.stringify({
       ok: false,
       error: "Shadow-save failed.",
     }), { status: 500 }));
+    const fetchMock = mockAuthenticatedAccountFetch(shadowSaveResponse);
     vi.stubGlobal("fetch", fetchMock);
 
     render(<TournamentSetupForm />);
@@ -563,11 +671,12 @@ describe("tournament setup form", () => {
     fillIndividualPlayerFields(["Anna", "Peter", "Mads", "Louise", "Ægir", "Østen", "Åse", "Minh"]);
     fireEvent.click(screen.getByRole("button", { name: "Start turnering" }));
 
-    expect(loadActiveTournament()?.players.map((player) => player.name)).toEqual(["Anna", "Peter", "Mads", "Louise", "Ægir", "Østen", "Åse", "Minh"]);
     await waitFor(() => expect(push).toHaveBeenCalledWith("/live"));
+    expect(loadActiveTournament()?.players.map((player) => player.name)).toEqual(["Anna", "Peter", "Mads", "Louise", "Ægir", "Østen", "Åse", "Minh"]);
   });
 
-  it("renders separate Mexicano player fields with dynamic count from courts", () => {
+  it("renders separate Mexicano player fields with dynamic count from courts", async () => {
+    vi.stubGlobal("fetch", mockAuthenticatedAccountFetch(Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 }))));
     render(<TournamentSetupForm />);
 
     fireEvent.click(screen.getByRole("button", { name: "Mexicano" }));
@@ -577,11 +686,12 @@ describe("tournament setup form", () => {
     fillIndividualPlayerFields(Array.from({ length: 16 }, (_, index) => `Mexicano ${index + 1}`));
     fireEvent.click(screen.getByRole("button", { name: "Start turnering" }));
 
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/live"));
     expect(loadActiveTournament()?.format).toBe("mexicano");
     expect(loadActiveTournament()?.players.map((player) => player.name)).toEqual(Array.from({ length: 16 }, (_, index) => `Mexicano ${index + 1}`));
   });
 
-  it("renders separate Mixed Americano women and men fields while preserving gender groups", () => {
+  it("renders separate Mixed Americano women and men fields while preserving gender groups", async () => {
     render(<TournamentSetupForm />);
 
     fireEvent.click(screen.getByRole("button", { name: "Mixed Americano" }));
@@ -589,6 +699,7 @@ describe("tournament setup form", () => {
     fillMixedPlayerFields("Mænd", ["Hao", "Minh", "Søren", "Đức"]);
     fireEvent.click(screen.getByRole("button", { name: "Start turnering" }));
 
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/live"));
     const players = loadActiveTournament()?.players ?? [];
     expect(players.map((player) => player.name)).toEqual(["Anna", "Louise", "Maja", "Åse", "Hao", "Minh", "Søren", "Đức"]);
     expect(players.filter((player) => player.gender === "female")).toHaveLength(4);
@@ -651,6 +762,46 @@ function fillIndividualPlayerFields(names: string[]): void {
 function fillMixedPlayerFields(groupLabel: string, names: string[]): void {
   names.forEach((name, index) => {
     fireEvent.change(screen.getByRole("textbox", { name: `${groupLabel} Spiller ${index + 1}` }), { target: { value: name } });
+  });
+}
+
+function mockGuestAccountFetch() {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+    void _init;
+
+    if (input.toString() === "/api/auth/me") {
+      return new Response(JSON.stringify({ ok: false }), { status: 401 });
+    }
+
+    return new Response(JSON.stringify({ ok: false, error: "Unexpected request." }), { status: 500 });
+  });
+
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
+function mockAuthenticatedAccountFetch(shadowSaveResponse: Promise<Response>) {
+  return vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+    void _init;
+
+    if (input.toString() === "/api/auth/me") {
+      return new Response(JSON.stringify({
+        ok: true,
+        account: {
+          userId: "user-1",
+          email: "user@example.com",
+          displayName: "Test User",
+          username: "testuser",
+          role: "user",
+        },
+      }), { status: 200 });
+    }
+
+    if (input.toString() === "/api/supabase/shadow-save") {
+      return await shadowSaveResponse;
+    }
+
+    return new Response(JSON.stringify({ ok: false, error: "Unexpected request." }), { status: 500 });
   });
 }
 

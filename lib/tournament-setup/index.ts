@@ -28,6 +28,7 @@ export {
   saveActiveTeamVsTeamTournament,
   saveActiveTeamVsTeamTournamentFromRemoteSync,
   saveActiveTournament,
+  saveActiveTournamentLocalOnly,
   saveActiveTournamentFromRemoteSync,
   saveCompletedTeamVsTeamTournament,
   saveCompletedTournament,

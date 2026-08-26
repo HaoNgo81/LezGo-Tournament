@@ -18,6 +18,7 @@ import {
   isShadowSaveEnabled,
   saveActiveTeamVsTeamTournament,
   saveActiveTournament,
+  saveActiveTournamentLocalOnly,
   type ShadowSaveMetadata,
   type FixedScoreRule,
   type PoolAdvancementMode,
@@ -57,6 +58,7 @@ const scoringChoices: Array<{ labelKey: "playToScorePoints" | "totalScorePoints"
 const automaticTournamentNames = new Set<string>(formatOptions);
 const tapMovementThresholdPx = 10;
 const suppressSyntheticClickMs = 750;
+const guestMaxCourts = 2;
 
 type FormatTapGesture = {
   cancelled: boolean;
@@ -65,6 +67,8 @@ type FormatTapGesture = {
   startX: number;
   startY: number;
 };
+
+type AccountStatus = "unknown" | "authenticated" | "guest";
 
 export function TournamentSetupForm() {
   const { t } = useAppTranslation();
@@ -99,6 +103,7 @@ export function TournamentSetupForm() {
   const [poolUnmatchedResolution, setPoolUnmatchedResolution] = useState<PoolUnmatchedResolution>("bye");
   const [poolTeamPlayersPerTeam, setPoolTeamPlayersPerTeam] = useState<PoolTeamPlayers>(4);
   const [rankingMode, setRankingMode] = useState<StandingsRankingMode>(initialSettings.rankingMode);
+  const [accountStatus, setAccountStatus] = useState<AccountStatus>("unknown");
   const [error, setError] = useState("");
   const isTeamVsTeam = format === "Team vs. Team";
   const isPoolPlay = format === "Puljespil";
@@ -111,6 +116,7 @@ export function TournamentSetupForm() {
   const mixedGenderFieldCount = configuredCourtCount * 2;
   const femalePlayerFieldCount = getIndividualPlayerFieldCount(femalePlayerText, mixedGenderFieldCount);
   const malePlayerFieldCount = getIndividualPlayerFieldCount(malePlayerText, mixedGenderFieldCount);
+  const isGuest = accountStatus === "guest";
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -127,6 +133,27 @@ export function TournamentSetupForm() {
     }, 0);
 
     return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAccountStatus() {
+      const nextStatus = await readAccountStatus();
+
+      if (!cancelled) {
+        setAccountStatus(nextStatus);
+        if (nextStatus === "guest") {
+          setCourts((currentCourts) => clampGuestCourtsValue(currentCourts));
+        }
+      }
+    }
+
+    void loadAccountStatus();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const playerCount = useMemo(() => {
@@ -150,6 +177,15 @@ export function TournamentSetupForm() {
     setError("");
 
     try {
+      const resolvedAccountStatus = accountStatus === "unknown" ? await readAccountStatus() : accountStatus;
+      const shouldCreateLocalOnly = resolvedAccountStatus !== "authenticated";
+      const parsedCourts = parsePositiveIntegerInput(courts, t("courts"));
+      setAccountStatus(resolvedAccountStatus);
+
+      if (shouldCreateLocalOnly) {
+        assertGuestCourtLimit(parsedCourts, t);
+      }
+
       if (isTeamVsTeam) {
         const tournament = createTeamVsTeamTournamentFromSetup({
           name,
@@ -199,7 +235,7 @@ export function TournamentSetupForm() {
         playerText,
         femalePlayerText,
         malePlayerText,
-        courts: parsePositiveIntegerInput(courts, "Baner"),
+        courts: parsedCourts,
         rounds: parsePositiveIntegerInput(rounds, "Runder"),
         scoringMode,
         fixedScoreRule,
@@ -209,8 +245,12 @@ export function TournamentSetupForm() {
         rankingMode,
       });
 
-      saveActiveTournament(tournament);
-      assertInitialCloudShadowSave(await ensureStandardTournamentShadowSaveCompleted(createStandardShadowSaveLocalId(tournament), tournament));
+      if (shouldCreateLocalOnly) {
+        saveActiveTournamentLocalOnly(tournament);
+      } else {
+        saveActiveTournament(tournament);
+        assertInitialCloudShadowSave(await ensureStandardTournamentShadowSaveCompleted(createStandardShadowSaveLocalId(tournament), tournament));
+      }
       router.push("/live");
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Turneringen kunne ikke oprettes.");
@@ -705,15 +745,17 @@ export function TournamentSetupForm() {
                   <input
                     className="field-control"
                     min="1"
+                    max={isGuest ? guestMaxCourts : undefined}
                     type="number"
                     value={courts}
-                    onBlur={() => setCourts(normalizeIntegerInputValue(courts))}
+                    onBlur={() => setCourts(isGuest ? clampGuestCourtsValue(courts) : normalizeIntegerInputValue(courts))}
                     onChange={(event) => {
                       markFormDirty();
-                      setCourts(event.target.value);
+                      setCourts(isGuest ? clampGuestCourtsValue(event.target.value) : event.target.value);
                     }}
                   />
                 </label>
+                {isGuest ? <p className="self-end text-sm font-bold text-[var(--muted)]">{t("guestCourtLimitMessage")}</p> : null}
                 <label className="grid gap-2 text-lg font-bold">
                   {t("rounds")}
                   <input
@@ -982,6 +1024,38 @@ function parsePositiveIntegerInput(value: string, label: string): number {
   }
 
   return numericValue;
+}
+
+async function readAccountStatus(): Promise<AccountStatus> {
+  try {
+    const response = await fetch("/api/auth/me", { cache: "no-store" });
+    const body = await response.json() as { ok?: boolean; account?: unknown };
+    return response.ok && body.ok && body.account ? "authenticated" : "guest";
+  } catch {
+    return "guest";
+  }
+}
+
+function assertGuestCourtLimit(courts: number, t: (key: TranslationKey) => string): void {
+  if (courts > guestMaxCourts) {
+    throw new Error(t("guestCourtLimitMessage"));
+  }
+}
+
+function clampGuestCourtsValue(value: string): string {
+  const normalizedValue = normalizeIntegerInputValue(value);
+
+  if (!normalizedValue) {
+    return "";
+  }
+
+  const numericValue = Number(normalizedValue);
+
+  if (!Number.isInteger(numericValue) || numericValue < 1) {
+    return value;
+  }
+
+  return String(Math.min(numericValue, guestMaxCourts));
 }
 
 function isAutomaticTournamentName(name: string): boolean {

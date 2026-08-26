@@ -8,6 +8,7 @@ import {
   retryStandardTournamentShadowSave,
   saveActiveTeamVsTeamTournament,
   saveActiveTournament,
+  saveActiveTournamentLocalOnly,
 } from "../lib/tournament-setup";
 import type { TeamVsTeamTournamentState } from "../lib/tournament-setup";
 
@@ -91,6 +92,26 @@ describe("STEP 10 shadow-save integration", () => {
       lastError: "Synchronization failed. Local tournament is preserved.",
     });
     expect(loadShadowSaveMetadata("mock americano-americano")?.lastError).not.toMatch(/Supabase|relation|constraint|null value/i);
+  });
+
+  it("keeps guest local-only tournaments out of shadow-save on later saves", async () => {
+    process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE = "1";
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const state = createMockLiveTournamentState();
+
+    saveActiveTournamentLocalOnly(state);
+    await flushShadowSaveQueue();
+    saveActiveTournament({ ...state, activeRoundNumber: 2 });
+    await flushShadowSaveQueue();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(loadActiveTournament()).toMatchObject({ activeRoundNumber: 2 });
+    expect(loadShadowSaveMetadata("mock americano-americano")).toMatchObject({
+      kind: "standard",
+      status: "local-only",
+    });
+    expect(loadShadowSaveMetadata("mock americano-americano")?.supabaseTournamentId).toBeUndefined();
   });
 
   it("retries a failed shadow-save with the existing mapping", async () => {

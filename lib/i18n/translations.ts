@@ -176,6 +176,7 @@ export type TranslationKey =
   | "fixedPartnerAmericanoDescription"
   | "fixedPartnerMexicanoDescription"
   | "formatPoolPlay"
+  | "guestCourtLimitMessage"
   | "finalPlacements"
   | "homeNewTournamentDescription"
   | "homeSettingsDescription"
@@ -432,6 +433,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     formatMixedAmericano: "Mixed Americano",
     formatMixedAmericanoDescription: "Kvinde og mand spiller sammen i skiftende makkerpar.",
     formatPoolPlay: "Puljespil",
+    guestCourtLimitMessage: "Som gæst kan du bruge op til 2 baner. Log ind for flere baner.",
     finalPlacements: "Slutplaceringer",
     homeNewTournamentDescription: "Vælg format, indstillinger og spillere.",
     homeSettingsDescription: "Kun de nødvendige valg.",
@@ -686,6 +688,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     formatMixedAmericano: "Mixed Americano",
     formatMixedAmericanoDescription: "Women and men pair up in changing teams.",
     formatPoolPlay: "Pool Play",
+    guestCourtLimitMessage: "As a guest you can use up to 2 courts. Log in for more courts.",
     finalPlacements: "Final placements",
     homeNewTournamentDescription: "Choose format, settings and players.",
     homeSettingsDescription: "Only the essential options.",

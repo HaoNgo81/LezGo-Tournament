@@ -90,7 +90,7 @@ describe("STEP 25I-C1-B main page account UI", () => {
     expect(createButton).not.toHaveClass("bg-[var(--primary)]");
     expect(screen.getByRole("link", { name: /Ny turnering/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /^Turneringer/i })).toBeInTheDocument();
-    expect(screen.getByText("UPDATE TEST D3")).toBeInTheDocument();
+    expect(screen.queryByText("UPDATE TEST D3")).not.toBeInTheDocument();
     expectRemovedLegacyFeaturesAbsent();
     expect(screen.queryByRole("link", { name: /^Indstillinger/i })).not.toBeInTheDocument();
 

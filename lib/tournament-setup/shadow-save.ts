@@ -77,12 +77,44 @@ export function retryTeamVsTeamShadowSave(localId: string, state: TeamVsTeamTour
 
 export function markLocalShadowSave(localId: string, kind: ShadowSaveKind, savedAt = new Date().toISOString()): ShadowSaveMetadata {
   const existing = loadShadowSaveMetadata(localId);
+  if (existing?.status === "local-only") {
+    const nextMetadata: ShadowSaveMetadata = {
+      ...existing,
+      localId,
+      kind,
+      status: "local-only",
+      lastLocalSaveAt: savedAt,
+      lastError: undefined,
+    };
+
+    saveShadowSaveMetadata(nextMetadata);
+    return nextMetadata;
+  }
+
   const status: ShadowSaveStatus = isShadowSaveEnabled() ? "syncing" : "local-only";
   const nextMetadata: ShadowSaveMetadata = {
     ...existing,
     localId,
     kind,
     status: existing?.status === "conflict" && status === "syncing" ? "conflict" : status,
+    lastLocalSaveAt: savedAt,
+    lastError: undefined,
+  };
+
+  saveShadowSaveMetadata(nextMetadata);
+  return nextMetadata;
+}
+
+export function markLocalOnlyShadowSave(localId: string, kind: ShadowSaveKind, savedAt = new Date().toISOString()): ShadowSaveMetadata {
+  const existing = loadShadowSaveMetadata(localId);
+  const nextMetadata: ShadowSaveMetadata = {
+    ...existing,
+    localId,
+    kind,
+    status: "local-only",
+    supabaseTournamentId: undefined,
+    organizerToken: undefined,
+    canManage: undefined,
     lastLocalSaveAt: savedAt,
     lastError: undefined,
   };
@@ -200,7 +232,7 @@ function queueShadowSave({ kind, localId, state }: { kind: ShadowSaveKind; local
 
   const metadata = loadShadowSaveMetadata(localId);
 
-  if (metadata?.status === "conflict" || inFlightLocalIds.has(localId)) {
+  if (metadata?.status === "local-only" || metadata?.status === "conflict" || inFlightLocalIds.has(localId)) {
     return;
   }
 
@@ -212,6 +244,10 @@ function queueShadowSave({ kind, localId, state }: { kind: ShadowSaveKind; local
 
 function retryShadowSave(localId: string, kind: ShadowSaveKind, state: unknown): void {
   const metadata = loadShadowSaveMetadata(localId);
+
+  if (metadata?.status === "local-only") {
+    return;
+  }
 
   if (metadata?.status === "conflict") {
     return;
@@ -237,6 +273,11 @@ async function ensureShadowSaveCompleted(localId: string, kind: ShadowSaveKind, 
   }
 
   const metadata = loadShadowSaveMetadata(localId);
+
+  if (metadata?.status === "local-only") {
+    return metadata;
+  }
+
   saveShadowSaveMetadata({
     ...metadata,
     localId,

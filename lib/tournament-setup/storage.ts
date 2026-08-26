@@ -3,7 +3,7 @@ import { safeLocalStorageGetItem, safeLocalStorageRemoveItem, safeLocalStorageSe
 import { rebalanceFixedPartnerAmericanoCourts, rebalanceMixedAmericanoCourts } from "../tournament-engine";
 import { getTeamVsTeamMaxRounds, teamVsTeamPlayerOptions, type TeamVsTeamMatchFormat, type TeamVsTeamMatchResult, type TeamVsTeamPlayersPerTeam, type TeamVsTeamRoundResult, type TeamVsTeamSetResult } from "../team-vs-team";
 import type { TeamVsTeamTournamentState } from "./team-vs-team-setup";
-import { createStandardShadowSaveLocalId, createTeamVsTeamShadowSaveLocalId, markLocalShadowSave, queueStandardTournamentShadowSave, queueTeamVsTeamShadowSave } from "./shadow-save";
+import { createStandardShadowSaveLocalId, createTeamVsTeamShadowSaveLocalId, markLocalOnlyShadowSave, markLocalShadowSave, queueStandardTournamentShadowSave, queueTeamVsTeamShadowSave } from "./shadow-save";
 
 const activeTournamentStorageKey = "lezgo.activeTournament.v1";
 const activeTournamentsStorageKey = "lezgo.activeTournaments.v1";
@@ -25,6 +25,14 @@ export interface CompletedTeamVsTeamTournament {
 }
 
 export function saveActiveTournament(state: LiveTournamentState): void {
+  saveActiveStandardTournament(state, "sync");
+}
+
+export function saveActiveTournamentLocalOnly(state: LiveTournamentState): void {
+  saveActiveStandardTournament(state, "local-only");
+}
+
+function saveActiveStandardTournament(state: LiveTournamentState, persistenceMode: "sync" | "local-only"): void {
   const tournamentId = createActiveTournamentId(state);
   const selectedTournamentSaved = safeLocalStorageSetItem(activeTournamentStorageKey, JSON.stringify(state));
 
@@ -41,6 +49,11 @@ export function saveActiveTournament(state: LiveTournamentState): void {
 
   const activeTournaments = loadActiveTournaments().filter((tournament) => createActiveTournamentId(tournament) !== tournamentId);
   safeLocalStorageSetItem(activeTournamentsStorageKey, JSON.stringify([state, ...activeTournaments].slice(0, maxActiveTournaments)));
+  if (persistenceMode === "local-only") {
+    markLocalOnlyShadowSave(tournamentId, "standard");
+    return;
+  }
+
   markLocalShadowSave(tournamentId, "standard");
   queueStandardTournamentShadowSave(tournamentId, state);
 }
