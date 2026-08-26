@@ -1,5 +1,6 @@
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import TournamentsPage from "../app/tournaments/page";
 import { TournamentListApp } from "../components/tournament/tournament-list-app";
 import { advanceLivePoolPlayState, finishTournament, saveNextPoolPhaseResult } from "../lib/live-scoring";
 import { createPoolTournamentFromSetup, createStandardShadowSaveLocalId, createTournamentFromSetup, loadActiveTournament, markActiveCloudTournamentAuthority, markCloudTournamentRestored, saveActiveTournament, saveActiveTournamentLocalOnly, saveCompletedTournament, type CompletedTournament } from "../lib/tournament-setup";
@@ -11,6 +12,12 @@ const ownerAccount = {
   email: "owner@example.com",
   displayName: "Owner",
   role: "user" as const,
+};
+const adminAccount = {
+  userId: "00000000-0000-4000-8000-00000000ad01",
+  email: "admin@example.com",
+  displayName: "Admin User",
+  role: "admin" as const,
 };
 let accountTournamentRows: AccountTournamentRow[] = [];
 
@@ -435,6 +442,164 @@ describe("TournamentListApp pool play", () => {
 
     await waitFor(() => expect(screen.queryByText("Other account cached tournament")).not.toBeInTheDocument());
   });
+
+  it("keeps ADMIN on a genuine loading state while account hydration is unresolved", async () => {
+    const fetchMock = vi.fn(async () => Response.json({ ok: true, tournaments: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TournamentListApp account={undefined} />);
+
+    expect(await screen.findAllByText("Indlæser turneringer...")).toHaveLength(2);
+    expect(screen.queryByText("Log ind for at se dine turneringer.")).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("settles ADMIN zero active and completed tournaments without loading oscillation", async () => {
+    const fetchMock = vi.fn(async () => Response.json({ ok: true, tournaments: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const view = render(<TournamentListApp account={adminAccount} accountRevision={0} />);
+
+    expect(await screen.findByText("Ingen aktive turneringer.")).toBeInTheDocument();
+    expect(screen.getByText("Ingen afsluttede turneringer endnu.")).toBeInTheDocument();
+    expect(screen.queryByText("Indlæser turneringer...")).not.toBeInTheDocument();
+
+    let resolveRefresh: (response: Response) => void = () => undefined;
+    fetchMock.mockImplementation(async () => await new Promise<Response>((resolve) => {
+      resolveRefresh = resolve;
+    }));
+    view.rerender(<TournamentListApp account={adminAccount} accountRevision={1} />);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(screen.getByText("Ingen aktive turneringer.")).toBeInTheDocument();
+    expect(screen.getByText("Ingen afsluttede turneringer endnu.")).toBeInTheDocument();
+    expect(screen.queryByText("Indlæser turneringer...")).not.toBeInTheDocument();
+
+    window.dispatchEvent(new Event("focus"));
+    document.dispatchEvent(new Event("visibilitychange"));
+
+    expect(screen.getByText("Ingen aktive turneringer.")).toBeInTheDocument();
+    expect(screen.getByText("Ingen afsluttede turneringer endnu.")).toBeInTheDocument();
+    expect(screen.queryByText("Indlæser turneringer...")).not.toBeInTheDocument();
+
+    resolveRefresh(Response.json({ ok: true, tournaments: [] }));
+    await waitFor(() => expect(screen.queryByText("Indlæser turneringer...")).not.toBeInTheDocument());
+  });
+
+  it("renders ADMIN owned active and completed cloud tournaments in their sections", async () => {
+    accountTournamentRows = [
+      createAccountTournamentRow("00000000-0000-4000-8000-00000000a701", "Admin Active Cup", "active"),
+      createAccountTournamentRow("00000000-0000-4000-8000-00000000a702", "Admin Completed Cup", "finished"),
+    ];
+
+    render(<TournamentListApp account={adminAccount} />);
+
+    const activeSection = getSectionByHeading("Aktive");
+    const completedSection = getSectionByHeading("Afsluttet");
+
+    expect(await within(activeSection).findByText("Admin Active Cup")).toBeInTheDocument();
+    expect(within(activeSection).queryByText("Admin Completed Cup")).not.toBeInTheDocument();
+    expect(await within(completedSection).findByText("Admin Completed Cup")).toBeInTheDocument();
+    expect(within(completedSection).queryByText("Admin Active Cup")).not.toBeInTheDocument();
+  });
+
+  it("does not let ADMIN role bypass local ownership authority", async () => {
+    const adminTournament = createStandardTournament("Admin owned local");
+    const otherTournament = createStandardTournament("Other user local");
+    saveActiveTournament(adminTournament);
+    saveActiveTournament(otherTournament);
+    markOwnedStandardTournament(adminTournament, "00000000-0000-4000-8000-00000000a711", "active");
+    markCloudTournamentRestored({
+      localId: createStandardShadowSaveLocalId(otherTournament),
+      kind: "standard",
+      tournamentId: "00000000-0000-4000-8000-00000000a712",
+    });
+
+    render(<TournamentListApp account={adminAccount} />);
+
+    expect(await screen.findByText("Admin owned local")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText("Other user local")).not.toBeInTheDocument());
+  });
+
+  it("keeps ADMIN PWA reopen on stable empty states", async () => {
+    const fetchMock = vi.fn(async () => Response.json({ ok: true, tournaments: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const firstRender = render(<TournamentListApp account={adminAccount} />);
+
+    expect(await screen.findByText("Ingen aktive turneringer.")).toBeInTheDocument();
+    expect(screen.queryByText("Indlæser turneringer...")).not.toBeInTheDocument();
+
+    firstRender.unmount();
+    render(<TournamentListApp account={adminAccount} />);
+
+    expect(await screen.findByText("Ingen aktive turneringer.")).toBeInTheDocument();
+    expect(screen.getByText("Ingen afsluttede turneringer endnu.")).toBeInTheDocument();
+    expect(screen.queryByText("Indlæser turneringer...")).not.toBeInTheDocument();
+  });
+
+  it("ignores stale ADMIN tournament responses that arrive after a newer empty result", async () => {
+    let resolveStale: (response: Response) => void = () => undefined;
+    let resolveLatest: (response: Response) => void = () => undefined;
+    const fetchMock = vi.fn(async () => {
+      if (fetchMock.mock.calls.length === 1) {
+        return await new Promise<Response>((resolve) => {
+          resolveStale = resolve;
+        });
+      }
+
+      return await new Promise<Response>((resolve) => {
+        resolveLatest = resolve;
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const view = render(<TournamentListApp account={adminAccount} accountRevision={0} />);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    view.rerender(<TournamentListApp account={adminAccount} accountRevision={1} />);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    resolveLatest(Response.json({ ok: true, tournaments: [] }));
+
+    expect(await screen.findByText("Ingen aktive turneringer.")).toBeInTheDocument();
+    expect(screen.queryByText("Indlæser turneringer...")).not.toBeInTheDocument();
+
+    resolveStale(Response.json({
+      ok: true,
+      tournaments: [createAccountTournamentRow("00000000-0000-4000-8000-00000000a731", "Stale Admin Cup", "active")],
+    }));
+    await Promise.resolve();
+
+    expect(screen.queryByText("Stale Admin Cup")).not.toBeInTheDocument();
+    expect(screen.getByText("Ingen aktive turneringer.")).toBeInTheDocument();
+    expect(screen.queryByText("Indlæser turneringer...")).not.toBeInTheDocument();
+  });
+
+  it("loads the ADMIN tournaments page once and leaves the empty state stable", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === "/api/auth/me") {
+        return Response.json({ ok: true, account: adminAccount });
+      }
+
+      if (url === "/api/account/tournaments") {
+        return Response.json({ ok: true, tournaments: [] });
+      }
+
+      return Response.json({ ok: false }, { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TournamentsPage />);
+
+    expect(await screen.findByText("Ingen aktive turneringer.")).toBeInTheDocument();
+    expect(screen.getByText("Ingen afsluttede turneringer endnu.")).toBeInTheDocument();
+    expect(screen.queryByText("Indlæser turneringer...")).not.toBeInTheDocument();
+
+    await waitFor(() => expect(fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/auth/me")).toHaveLength(1));
+    expect(fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/account/tournaments")).toHaveLength(1);
+  });
 });
 
 interface AccountTournamentRow {
@@ -467,6 +632,18 @@ function markOwnedStandardTournament(tournament: ReturnType<typeof createStandar
 
 function markOwnedCompletedTournament(completedTournament: CompletedTournament, tournamentId: string) {
   markOwnedStandardTournament(completedTournament.state, tournamentId, "finished");
+}
+
+function createAccountTournamentRow(id: string, name: string, status: "setup" | "active" | "finished"): AccountTournamentRow {
+  return {
+    id,
+    name,
+    format: "mexicano",
+    status,
+    updatedAt: "2026-08-24T12:00:00.000Z",
+    canManage: true,
+    managementState: status === "finished" ? "completed" : "controller",
+  };
 }
 
 function markLocalAuthority(tournament: ReturnType<typeof createStandardTournament> | ReturnType<typeof createPoolTournament>, tournamentId: string, userId: string, canManage: boolean) {

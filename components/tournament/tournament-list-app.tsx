@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Section } from "@/components/ui/section";
@@ -81,12 +81,18 @@ type CloudTournamentOpenResponse =
       error?: string;
     };
 
-export function TournamentListApp({ account, accountRevision = 0 }: { account?: Account | null; accountRevision?: number }) {
+export function TournamentListApp(props: { account?: Account | null; accountRevision?: number }) {
+  const { accountRevision = 0 } = props;
   const { t } = useAppTranslation();
   const router = useRouter();
   const hasHydrated = useHasHydrated();
+  const hasAccountProp = Object.prototype.hasOwnProperty.call(props, "account");
+  const account = props.account ?? null;
   const accountUserId = account?.userId ?? null;
-  const [accountStatus, setAccountStatus] = useState<"loading" | "anonymous" | "authenticated">(accountUserId ? "loading" : "anonymous");
+  const isAccountUnresolved = hasAccountProp && props.account === undefined;
+  const [accountStatus, setAccountStatus] = useState<"loading" | "anonymous" | "authenticated">(() => (
+    isAccountUnresolved || accountUserId ? "loading" : "anonymous"
+  ));
   const [cloudTournaments, setCloudTournaments] = useState<AccountTournament[]>([]);
   const [activeTournament, setActiveTournament] = useState<LiveTournamentState | null>(null);
   const [activeTournamentList, setActiveTournamentList] = useState<LiveTournamentState[]>([]);
@@ -94,6 +100,8 @@ export function TournamentListApp({ account, accountRevision = 0 }: { account?: 
   const [completedTournaments, setCompletedTournaments] = useState<CompletedTournament[]>([]);
   const [completedTeamVsTeamTournaments, setCompletedTeamVsTeamTournaments] = useState<CompletedTeamVsTeamTournament[]>([]);
   const [openingCloudTournamentId, setOpeningCloudTournamentId] = useState<string | null>(null);
+  const accountTournamentRequestIdRef = useRef(0);
+  const settledAccountUserIdRef = useRef<string | null>(null);
   const ownedCloudTournamentIds = useMemo(() => {
     const ids = new Set(cloudTournaments.map((tournament) => tournament.id));
 
@@ -184,15 +192,27 @@ export function TournamentListApp({ account, accountRevision = 0 }: { account?: 
     }
 
     let isDisposed = false;
+    const requestId = accountTournamentRequestIdRef.current + 1;
+    accountTournamentRequestIdRef.current = requestId;
 
     async function loadPrivateTournaments() {
+      if (isAccountUnresolved) {
+        setCloudTournaments([]);
+        setAccountStatus("loading");
+        return;
+      }
+
       if (!accountUserId) {
         setCloudTournaments([]);
+        settledAccountUserIdRef.current = null;
         setAccountStatus("anonymous");
         return;
       }
 
-      setAccountStatus("loading");
+      if (settledAccountUserIdRef.current !== accountUserId) {
+        setCloudTournaments([]);
+        setAccountStatus("loading");
+      }
 
       try {
         const tournamentResponse = await fetch("/api/account/tournaments", { cache: "no-store" });
@@ -202,18 +222,20 @@ export function TournamentListApp({ account, accountRevision = 0 }: { account?: 
           throw new Error("Authentication required.");
         }
 
-        if (isDisposed) {
+        if (isDisposed || requestId !== accountTournamentRequestIdRef.current) {
           return;
         }
 
         setCloudTournaments(tournamentBody.tournaments);
+        settledAccountUserIdRef.current = accountUserId;
         setAccountStatus("authenticated");
       } catch {
-        if (isDisposed) {
+        if (isDisposed || requestId !== accountTournamentRequestIdRef.current) {
           return;
         }
 
         setCloudTournaments([]);
+        settledAccountUserIdRef.current = null;
         setAccountStatus("anonymous");
       }
     }
@@ -231,7 +253,7 @@ export function TournamentListApp({ account, accountRevision = 0 }: { account?: 
       isDisposed = true;
       window.clearTimeout(timeoutId);
     };
-  }, [accountRevision, accountUserId, hasHydrated]);
+  }, [accountRevision, accountUserId, hasHydrated, isAccountUnresolved]);
 
   if (!hasHydrated) {
     return <p className="app-card p-4 font-bold text-[var(--muted)]">{t("loadingTournaments")}</p>;

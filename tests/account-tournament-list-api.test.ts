@@ -81,6 +81,30 @@ describe("STEP 25Y-D2 private account tournament list API", () => {
     );
   });
 
+  it("keeps ADMIN account listings ownership-scoped", async () => {
+    const adminUserId = "00000000-0000-4000-8000-00000000ad01";
+    authMocks.readVerifiedAuthUserIdFromAccessToken.mockResolvedValue(adminUserId);
+    restClientMocks.select.mockResolvedValue([
+      createTournamentRow("Admin own visible", adminUserId, adminUserId, adminUserId),
+      createTournamentRow("Other owner hidden", otherUserId, otherUserId, otherUserId),
+      createTournamentRow("Admin controller hidden", otherUserId, otherUserId, adminUserId),
+    ]);
+
+    const response = await listAccountTournaments();
+    const body = await response.json() as { tournaments: Array<{ name: string }> };
+
+    expect(response.status).toBe(200);
+    expect(body.tournaments.map((tournament) => tournament.name)).toEqual(["Admin own visible"]);
+    expect(restClientMocks.select).toHaveBeenCalledWith(
+      "tournaments",
+      expect.stringContaining(`created_by_user_id.eq.${encodeURIComponent(adminUserId)}`),
+    );
+    expect(restClientMocks.select).toHaveBeenCalledWith(
+      "tournaments",
+      expect.not.stringContaining("controller_user_id.eq."),
+    );
+  });
+
   it("marks finished account tournaments as completed in the presentation state", async () => {
     restClientMocks.select.mockResolvedValue([
       {
