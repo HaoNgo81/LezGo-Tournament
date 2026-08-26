@@ -6,6 +6,12 @@ import { createPoolTournamentFromSetup, createStandardShadowSaveLocalId, createT
 
 const sixteenPlayerText = Array.from({ length: 16 }, (_, index) => `Spiller ${index + 1}`).join("\n");
 const routerPush = vi.fn();
+const ownerAccount = {
+  userId: "00000000-0000-4000-8000-0000000000a1",
+  email: "owner@example.com",
+  displayName: "Owner",
+  role: "user" as const,
+};
 let accountTournamentRows: AccountTournamentRow[] = [];
 
 vi.mock("next/navigation", () => ({
@@ -54,7 +60,7 @@ describe("TournamentListApp pool play", () => {
     markOwnedStandardTournament(activeTournament, "00000000-0000-4000-8000-000000000101", "active");
     const completed = saveCompletedTournament(completedTournament);
     markOwnedCompletedTournament(completed, "00000000-0000-4000-8000-000000000102");
-    render(<TournamentListApp />);
+    render(<TournamentListApp account={ownerAccount} />);
 
     expect(await screen.findByText("Aktiv pulje")).toBeInTheDocument();
     expect(screen.getByText("Puljespil · 4 par · 2 puljer · Krydskampe · Fri scoring")).toBeInTheDocument();
@@ -65,7 +71,7 @@ describe("TournamentListApp pool play", () => {
     const completed = saveCompletedTournament(finishTournament(scoreIndividualOddPoolCrossMatchTournament(), "2026-08-04T18:00:00.000Z"));
     markOwnedCompletedTournament(completed, "00000000-0000-4000-8000-000000000103");
 
-    render(<TournamentListApp />);
+    render(<TournamentListApp account={ownerAccount} />);
 
     expect(await screen.findByRole("heading", { name: "Slutplaceringer" })).toBeInTheDocument();
     expect(screen.getByText("1. Alpha")).toBeInTheDocument();
@@ -77,7 +83,7 @@ describe("TournamentListApp pool play", () => {
     const completed = saveCompletedTournament(finishTournament(createStandardTournament(), "2026-08-04T18:00:00.000Z"));
     markOwnedCompletedTournament(completed, "00000000-0000-4000-8000-000000000104");
 
-    render(<TournamentListApp />);
+    render(<TournamentListApp account={ownerAccount} />);
 
     expect(await screen.findByText("Fast Makker Mexicano 16/4")).toBeInTheDocument();
     expect(screen.getByText(/Afsluttet .* 16 spillere/)).toBeInTheDocument();
@@ -87,7 +93,7 @@ describe("TournamentListApp pool play", () => {
     const completedTournament = saveCompletedTournament(finishTournament(createStandardTournament("Se slutstilling test"), "2026-08-04T18:00:00.000Z"));
     markOwnedCompletedTournament(completedTournament, "00000000-0000-4000-8000-000000000105");
 
-    render(<TournamentListApp />);
+    render(<TournamentListApp account={ownerAccount} />);
 
     const card = (await screen.findByText("Se slutstilling test")).closest("article");
 
@@ -113,7 +119,7 @@ describe("TournamentListApp pool play", () => {
     const completed = saveCompletedTournament(finishTournament(tournament, "2026-08-24T12:00:00.000Z"));
     markOwnedCompletedTournament(completed, "00000000-0000-4000-8000-000000000106");
 
-    render(<TournamentListApp />);
+    render(<TournamentListApp account={ownerAccount} />);
 
     await screen.findByRole("heading", { name: "Aktive" });
     const activeSection = getSectionByHeading("Aktive");
@@ -130,7 +136,7 @@ describe("TournamentListApp pool play", () => {
     markOwnedCompletedTournament(completed, "00000000-0000-4000-8000-000000000107");
     window.localStorage.setItem("lezgo.activeTournaments.v1", JSON.stringify([staleActiveCopy]));
 
-    render(<TournamentListApp />);
+    render(<TournamentListApp account={ownerAccount} />);
 
     await screen.findByRole("heading", { name: "Aktive" });
     const activeSection = getSectionByHeading("Aktive");
@@ -157,7 +163,7 @@ describe("TournamentListApp pool play", () => {
       markOwnedStandardTournament(tournament, `00000000-0000-4000-8000-${(200 + index).toString().padStart(12, "0")}`, "active");
     });
 
-    render(<TournamentListApp />);
+    render(<TournamentListApp account={ownerAccount} />);
 
     expect(await screen.findByText("Aktiv 5")).toBeInTheDocument();
     expect(screen.getByText("Aktiv 1")).toBeInTheDocument();
@@ -183,6 +189,25 @@ describe("TournamentListApp pool play", () => {
     expect(await screen.findByText("Log ind for at se dine turneringer.")).toBeInTheDocument();
     expect(screen.queryByText("User A private active")).not.toBeInTheDocument();
     expect(screen.queryByText("User A private finished")).not.toBeInTheDocument();
+  });
+
+  it("resolves anonymous empty local tournaments without waiting for account tournaments", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (input.toString() === "/api/account/tournaments") {
+        return new Promise<Response>(() => undefined);
+      }
+
+      return Response.json({ ok: false }, { status: 401 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TournamentListApp />);
+
+    expect(await screen.findByText("Log ind for at se dine turneringer.")).toBeInTheDocument();
+    expect(screen.getByText("Ingen aktive turneringer.")).toBeInTheDocument();
+    expect(screen.getByText("Ingen afsluttede turneringer endnu.")).toBeInTheDocument();
+    expect(screen.queryByText("Indlæser turneringer...")).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some((call) => call[0] === "/api/account/tournaments")).toBe(false);
   });
 
   it("shows a guest local-only active tournament after a full app remount", async () => {
@@ -217,6 +242,35 @@ describe("TournamentListApp pool play", () => {
     expect(await screen.findByText("Guest reopen completed")).toBeInTheDocument();
   });
 
+  it("shows guest local-only active and completed tournaments together while anonymous", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ ok: false }, { status: 401 })));
+    const activeTournament = createGuestTournament("Guest both active");
+    const completedTournament = createGuestTournament("Guest both completed");
+    saveActiveTournamentLocalOnly(activeTournament);
+    saveActiveTournamentLocalOnly(completedTournament);
+    saveCompletedTournament(finishTournament(completedTournament, "2026-08-26T12:20:00.000Z"));
+
+    render(<TournamentListApp />);
+
+    expect(await screen.findByText("Guest both active")).toBeInTheDocument();
+    expect(screen.getByText("Guest both completed")).toBeInTheDocument();
+    expect(screen.queryByText("Indlæser turneringer...")).not.toBeInTheDocument();
+  });
+
+  it("resolves anonymous malformed localStorage to empty states without hanging", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ ok: false }, { status: 401 })));
+    window.localStorage.setItem("lezgo.activeTournament.v1", "{bad json");
+    window.localStorage.setItem("lezgo.activeTournaments.v1", "{bad json");
+    window.localStorage.setItem("lezgo.completedTournaments.v1", "{bad json");
+
+    render(<TournamentListApp />);
+
+    expect(await screen.findByText("Log ind for at se dine turneringer.")).toBeInTheDocument();
+    expect(screen.getByText("Ingen aktive turneringer.")).toBeInTheDocument();
+    expect(screen.getByText("Ingen afsluttede turneringer endnu.")).toBeInTheDocument();
+    expect(screen.queryByText("Indlæser turneringer...")).not.toBeInTheDocument();
+  });
+
   it("does not convert a guest local-only tournament into an account tournament after login", async () => {
     const guestTournament = createGuestTournament("Guest stays local");
     saveActiveTournamentLocalOnly(guestTournament);
@@ -228,12 +282,7 @@ describe("TournamentListApp pool play", () => {
       return Response.json({ ok: false }, { status: 404 });
     }));
 
-    render(<TournamentListApp account={{
-      userId: "00000000-0000-4000-8000-0000000000a1",
-      email: "owner@example.com",
-      displayName: "Owner",
-      role: "user",
-    }} />);
+    render(<TournamentListApp account={ownerAccount} />);
 
     await screen.findByRole("heading", { name: "Aktive" });
     await waitFor(() => expect(screen.queryByText("Guest stays local")).not.toBeInTheDocument());
@@ -266,7 +315,7 @@ describe("TournamentListApp pool play", () => {
       tournamentId: "00000000-0000-4000-8000-000000000302",
     });
 
-    render(<TournamentListApp />);
+    render(<TournamentListApp account={ownerAccount} />);
 
     expect(await screen.findByText("User A visible")).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByText("User B hidden")).not.toBeInTheDocument());
@@ -294,7 +343,7 @@ describe("TournamentListApp pool play", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<TournamentListApp />);
+    render(<TournamentListApp account={ownerAccount} />);
 
     const activeSection = await screen.findByRole("heading", { name: "Aktive" });
     expect(activeSection).toBeInTheDocument();
@@ -327,12 +376,7 @@ describe("TournamentListApp pool play", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<TournamentListApp account={{
-      userId: "00000000-0000-4000-8000-0000000000a1",
-      email: "owner@example.com",
-      displayName: "Owner",
-      role: "user",
-    }} />);
+    render(<TournamentListApp account={ownerAccount} />);
 
     expect(await screen.findByText("Verified local active")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith("/api/account/tournaments", { cache: "no-store" });
@@ -357,12 +401,7 @@ describe("TournamentListApp pool play", () => {
       return Response.json({ ok: false }, { status: 404 });
     }));
 
-    render(<TournamentListApp account={{
-      userId: "00000000-0000-4000-8000-0000000000a1",
-      email: "owner@example.com",
-      displayName: "Owner",
-      role: "user",
-    }} />);
+    render(<TournamentListApp account={ownerAccount} />);
 
     expect(await screen.findByText("Verified local completed")).toBeInTheDocument();
 
@@ -387,12 +426,7 @@ describe("TournamentListApp pool play", () => {
       return Response.json({ ok: false }, { status: 404 });
     }));
 
-    render(<TournamentListApp account={{
-      userId: "00000000-0000-4000-8000-0000000000a1",
-      email: "owner@example.com",
-      displayName: "Owner",
-      role: "user",
-    }} />);
+    render(<TournamentListApp account={ownerAccount} />);
 
     expect(await screen.findByRole("heading", { name: "Aktive" })).toBeInTheDocument();
     expect(screen.queryByText("Other account cached tournament")).not.toBeInTheDocument();

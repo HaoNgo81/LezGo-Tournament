@@ -85,7 +85,8 @@ export function TournamentListApp({ account, accountRevision = 0 }: { account?: 
   const { t } = useAppTranslation();
   const router = useRouter();
   const hasHydrated = useHasHydrated();
-  const [accountStatus, setAccountStatus] = useState<"loading" | "anonymous" | "authenticated">("loading");
+  const accountUserId = account?.userId ?? null;
+  const [accountStatus, setAccountStatus] = useState<"loading" | "anonymous" | "authenticated">(accountUserId ? "loading" : "anonymous");
   const [cloudTournaments, setCloudTournaments] = useState<AccountTournament[]>([]);
   const [activeTournament, setActiveTournament] = useState<LiveTournamentState | null>(null);
   const [activeTournamentList, setActiveTournamentList] = useState<LiveTournamentState[]>([]);
@@ -93,7 +94,6 @@ export function TournamentListApp({ account, accountRevision = 0 }: { account?: 
   const [completedTournaments, setCompletedTournaments] = useState<CompletedTournament[]>([]);
   const [completedTeamVsTeamTournaments, setCompletedTeamVsTeamTournaments] = useState<CompletedTeamVsTeamTournament[]>([]);
   const [openingCloudTournamentId, setOpeningCloudTournamentId] = useState<string | null>(null);
-  const accountUserId = account?.userId ?? null;
   const ownedCloudTournamentIds = useMemo(() => {
     const ids = new Set(cloudTournaments.map((tournament) => tournament.id));
 
@@ -186,6 +186,14 @@ export function TournamentListApp({ account, accountRevision = 0 }: { account?: 
     let isDisposed = false;
 
     async function loadPrivateTournaments() {
+      if (!accountUserId) {
+        setCloudTournaments([]);
+        setAccountStatus("anonymous");
+        return;
+      }
+
+      setAccountStatus("loading");
+
       try {
         const tournamentResponse = await fetch("/api/account/tournaments", { cache: "no-store" });
         const tournamentBody = await tournamentResponse.json() as { ok?: boolean; tournaments?: AccountTournament[] };
@@ -223,7 +231,7 @@ export function TournamentListApp({ account, accountRevision = 0 }: { account?: 
       isDisposed = true;
       window.clearTimeout(timeoutId);
     };
-  }, [accountRevision, hasHydrated]);
+  }, [accountRevision, accountUserId, hasHydrated]);
 
   if (!hasHydrated) {
     return <p className="app-card p-4 font-bold text-[var(--muted)]">{t("loadingTournaments")}</p>;
