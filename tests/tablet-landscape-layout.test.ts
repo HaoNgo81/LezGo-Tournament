@@ -4,12 +4,26 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const globalCss = readFileSync(resolve(process.cwd(), "app/globals.css"), "utf8");
-const tabletLandscapeQuery = "@media (orientation: landscape) and (min-width: 900px) and (max-width: 1199px) and (min-height: 650px) and (max-height: 900px)";
+const tabletLandscapeQuery = "@media (orientation: landscape) and (pointer: coarse) and (min-width: 900px) and (max-width: 1600px) and (min-height: 600px) and (max-height: 1000px)";
 
 describe("tablet landscape live tournament layout", () => {
-  it("limits compact mode by orientation, width, and viewport height", () => {
+  it("activates compact mode only for a coarse-pointer landscape tablet", () => {
     expect(globalCss).toContain(tabletLandscapeQuery);
-    expect(globalCss).not.toContain("@media (orientation: portrait) and (min-width: 900px)");
+    expect(tabletLandscapeQuery).toContain("(orientation: landscape)");
+    expect(tabletLandscapeQuery).toContain("(pointer: coarse)");
+    expect(tabletLandscapeQuery).not.toContain("pointer: fine");
+  });
+
+  it("includes wider Samsung-style tablet viewports above the former 1199px ceiling", () => {
+    expect(tabletLandscapeQuery).toContain("(max-width: 1600px)");
+    expect(tabletLandscapeQuery).not.toContain("(max-width: 1199px)");
+  });
+
+  it("protects fine-pointer desktop, portrait, and mobile layouts", () => {
+    expect(tabletLandscapeQuery).toContain("(pointer: coarse)");
+    expect(tabletLandscapeQuery).toContain("(orientation: landscape)");
+    expect(tabletLandscapeQuery).toContain("(min-width: 900px)");
+    expect(globalCss).not.toContain("@media (orientation: portrait) and (pointer: coarse)");
   });
 
   it("places the courts in a 2 by 2 grid beside standings", () => {

@@ -287,11 +287,12 @@ img {
 
 /*
  * Landscape tablets need the live overview to behave differently from both the
- * stacked mobile view and the roomier desktop view. Keep this deliberately
- * bounded by orientation, width, and height so portrait tablets, laptops with
- * tall viewports, TV views, and the existing desktop breakpoints are untouched.
+ * stacked mobile view and the roomier desktop view. Detect the tablet by its
+ * coarse primary pointer as well as landscape orientation and viewport height;
+ * the broad width ceiling includes wider Android CSS viewports without opting
+ * fine-pointer laptops or desktops into the compact layout.
  */
-@media (orientation: landscape) and (min-width: 900px) and (max-width: 1199px) and (min-height: 650px) and (max-height: 900px) {
+@media (orientation: landscape) and (pointer: coarse) and (min-width: 900px) and (max-width: 1600px) and (min-height: 600px) and (max-height: 1000px) {
   [data-testid="live-layout"] {
     gap: 0.625rem;
   }
