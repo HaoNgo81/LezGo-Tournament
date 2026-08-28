@@ -191,7 +191,7 @@ export function TournamentSetupForm() {
           name,
           scoringMode,
           fixedScoreRule,
-          fixedScorePoints: parsePositiveIntegerInput(fixedScorePoints, "Antal scorepoint"),
+          fixedScorePoints: parseFixedScorePointsInput(scoringMode, fixedScorePoints),
           teamCount,
           competitionMode,
           drawMode,
@@ -217,8 +217,8 @@ export function TournamentSetupForm() {
           unmatchedResolution: poolUnmatchedResolution,
           scoringMode,
           fixedScoreRule,
-          fixedScorePoints: parsePositiveIntegerInput(fixedScorePoints, "Antal scorepoint"),
-          timeLimitMinutes: parsePositiveIntegerInput(timeLimitMinutes, "Spilletid"),
+          fixedScorePoints: parseFixedScorePointsInput(scoringMode, fixedScorePoints),
+          timeLimitMinutes: parseTimeLimitInput(scoringMode, timeLimitMinutes),
           rankingMode,
           teamPlayersPerTeam: poolParticipantType === "team" ? poolTeamPlayersPerTeam : undefined,
         });
@@ -239,8 +239,8 @@ export function TournamentSetupForm() {
         rounds: parsePositiveIntegerInput(rounds, "Runder"),
         scoringMode,
         fixedScoreRule,
-        fixedScorePoints: parsePositiveIntegerInput(fixedScorePoints, "Antal scorepoint"),
-        timeLimitMinutes: parsePositiveIntegerInput(timeLimitMinutes, "Spilletid"),
+        fixedScorePoints: parseFixedScorePointsInput(scoringMode, fixedScorePoints),
+        timeLimitMinutes: parseTimeLimitInput(scoringMode, timeLimitMinutes),
         firstRoundOrder: "random",
         rankingMode,
       });
@@ -1024,6 +1024,14 @@ function parsePositiveIntegerInput(value: string, label: string): number {
   }
 
   return numericValue;
+}
+
+function parseFixedScorePointsInput(scoringMode: ScoringMode, value: string): number | undefined {
+  return scoringMode === "Fast antal point" ? parsePositiveIntegerInput(value, "Antal scorepoint") : undefined;
+}
+
+function parseTimeLimitInput(scoringMode: ScoringMode, value: string): number | undefined {
+  return scoringMode === "Spil på tid" ? parsePositiveIntegerInput(value, "Spilletid") : undefined;
 }
 
 async function readAccountStatus(): Promise<AccountStatus> {

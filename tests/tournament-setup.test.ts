@@ -116,6 +116,64 @@ describe("tournament setup", () => {
     expect(tournament.fixedScorePoints).toBeUndefined();
   });
 
+  it("accepts timed scoring with valid duration while ignoring irrelevant fixed score points", () => {
+    const tournament = createTournamentFromSetup({
+      name: "Tid uden scorekrav",
+      format: "Mexicano",
+      playerText: sixteenPlayerText,
+      femalePlayerText: "",
+      malePlayerText: "",
+      courts: 4,
+      rounds: 20,
+      scoringMode: "Spil på tid",
+      fixedScoreRule: "target",
+      fixedScorePoints: 0,
+      timeLimitMinutes: 15,
+      firstRoundOrder: "manual",
+      rankingMode: "matchPointsFirst",
+    });
+
+    expect(tournament).toMatchObject({
+      scoringMode: "Spil på tid",
+      timeLimitMinutes: 15,
+      fixedScoreRule: undefined,
+      fixedScorePoints: undefined,
+    });
+  });
+
+  it("rejects timed scoring without a valid duration", () => {
+    expect(() => createTournamentFromSetup({
+      name: "Tid uden minutter",
+      format: "Americano",
+      playerText,
+      femalePlayerText: "",
+      malePlayerText: "",
+      courts: 2,
+      rounds: 2,
+      scoringMode: "Spil på tid",
+      timeLimitMinutes: 0,
+      firstRoundOrder: "manual",
+      rankingMode: "matchPointsFirst",
+    })).toThrow("Vælg spilletid for Spil på tid.");
+  });
+
+  it("rejects fixed scoring without a valid score-point count", () => {
+    expect(() => createTournamentFromSetup({
+      name: "Fast uden point",
+      format: "Americano",
+      playerText,
+      femalePlayerText: "",
+      malePlayerText: "",
+      courts: 2,
+      rounds: 2,
+      scoringMode: "Fast antal point",
+      fixedScoreRule: "target",
+      fixedScorePoints: 0,
+      firstRoundOrder: "manual",
+      rankingMode: "matchPointsFirst",
+    })).toThrow("Vælg et fast antal scorepoint på mindst 1.");
+  });
+
   it("stores target score settings for fixed scoring", () => {
     const tournament = createTournamentFromSetup({
       name: "Fast Americano",

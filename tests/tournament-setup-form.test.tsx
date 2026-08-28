@@ -394,6 +394,61 @@ describe("tournament setup form", () => {
     expect(roundsInput.value).toBe("10");
   });
 
+  it("starts a timed free-scoring tournament even when the hidden score-point field was cleared", async () => {
+    const fetchMock = mockAuthenticatedAccountFetch(Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 })));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TournamentSetupForm />);
+
+    fireEvent.change(getNumberInput("Antal scorepoint"), { target: { value: "0" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Scoring" }), { target: { value: "timed" } });
+    fireEvent.change(getNumberInput("Spilletid (minutter)"), { target: { value: "15" } });
+    fireEvent.click(screen.getByRole("button", { name: "Mexicano" }));
+    fireEvent.change(getNumberInput("Baner"), { target: { value: "4" } });
+    fireEvent.change(getNumberInput("Runder"), { target: { value: "20" } });
+    fillIndividualPlayerFields(Array.from({ length: 16 }, (_, index) => `Spiller ${index + 1}`));
+    fireEvent.click(screen.getByRole("button", { name: "Start turnering" }));
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/live"));
+    expect(screen.queryByText("Antal scorepoint skal være mindst 1.")).not.toBeInTheDocument();
+    expect(loadActiveTournament()).toMatchObject({
+      format: "mexicano",
+      scoringMode: "Spil på tid",
+      timeLimitMinutes: 15,
+      configuredRounds: 20,
+      courtCount: 4,
+    });
+    expect(loadActiveTournament()?.fixedScorePoints).toBeUndefined();
+  });
+
+  it("shows a duration error for timed free-scoring setup without a valid game time", async () => {
+    vi.stubGlobal("fetch", mockAuthenticatedAccountFetch(Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 }))));
+
+    render(<TournamentSetupForm />);
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Scoring" }), { target: { value: "timed" } });
+    fireEvent.change(getNumberInput("Spilletid (minutter)"), { target: { value: "0" } });
+    fillIndividualPlayerFields(["Anna", "Peter", "Mads", "Louise"]);
+    submitSetupForm();
+
+    expect(await screen.findByText("Spilletid skal være mindst 1.")).toBeInTheDocument();
+    expect(screen.queryByText("Antal scorepoint skal være mindst 1.")).not.toBeInTheDocument();
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("keeps fixed-score setup blocked when score points are invalid", async () => {
+    vi.stubGlobal("fetch", mockAuthenticatedAccountFetch(Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 }))));
+
+    render(<TournamentSetupForm />);
+
+    fireEvent.change(getNumberInput("Antal scorepoint"), { target: { value: "0" } });
+    fillIndividualPlayerFields(["Anna", "Peter", "Mads", "Louise"]);
+    submitSetupForm();
+
+    expect(await screen.findByText("Antal scorepoint skal være mindst 1.")).toBeInTheDocument();
+    expect(push).not.toHaveBeenCalled();
+  });
+
   it("shows the new tournament form in English when English is selected", () => {
     saveTournamentSettings({
       language: "en",
@@ -763,6 +818,17 @@ function fillMixedPlayerFields(groupLabel: string, names: string[]): void {
   names.forEach((name, index) => {
     fireEvent.change(screen.getByRole("textbox", { name: `${groupLabel} Spiller ${index + 1}` }), { target: { value: name } });
   });
+}
+
+function submitSetupForm(): void {
+  const startButton = screen.getByRole("button", { name: "Start turnering" });
+  const form = startButton.closest("form");
+
+  if (!form) {
+    throw new Error("Tournament setup form was not rendered.");
+  }
+
+  fireEvent.submit(form);
 }
 
 function mockGuestAccountFetch() {
