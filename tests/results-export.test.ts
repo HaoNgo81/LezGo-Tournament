@@ -136,6 +136,66 @@ describe("result export", () => {
     expect(diagnostics.maxDrawnY).toBeLessThanOrEqual(842);
   });
 
+  it("renders PDF text without BOM artifacts and preserves Danish characters in WinAnsi text", () => {
+    const state = finishTournament(scoreAllConfiguredRounds(createStandardTournament("Americano", {
+      name: "ÆØÅ æøå - UAFGJORT test",
+      playerText: ["Ægir Åsen", "Ørn Æble", "Åse Øster", "Maja Bøge"].join("\n"),
+      courts: 1,
+      rounds: 3,
+    })), "2026-08-04T18:00:00.000Z");
+    const pdf = createTournamentResultPdf(state);
+    const pdfText = new TextDecoder("windows-1252").decode(pdf);
+
+    expect(pdfText).toContain("ÆØÅ æøå");
+    expect(pdfText).toContain("SLUTSTILLING");
+    expect(pdfText).toContain("KAMPRESULTATER");
+    expect(pdfText).toContain("OVERBLIK");
+    expect(pdfText).toContain("RUNDE");
+    expect(pdfText).toContain("BANE");
+    expect(pdfText).toContain("SPILLERE");
+    expect(pdfText).toContain("AFSLUTTET");
+    expect(pdfText).toContain("UAFGJORT");
+    expect(pdfText).not.toContain("þÿ");
+    expect(pdfText).not.toContain("�");
+  });
+
+  it("keeps every four-court match row inside separate non-overlapping bounded cells", () => {
+    const state = finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mexicano", {
+      name: "Chopstick Mex v1",
+      courts: 4,
+      rounds: 20,
+    })), "2026-08-04T18:00:00.000Z");
+    const diagnostics = createTournamentResultPdfLayoutDiagnostics(state);
+    const roundOneRows = diagnostics.matchRows.filter((row) => row.roundNumber === 1);
+
+    expect(roundOneRows).toHaveLength(4);
+    roundOneRows.forEach((row) => {
+      expect(row.court.x + row.court.width).toBeLessThanOrEqual(row.sideA.x);
+      expect(row.sideA.x + row.sideA.width).toBeLessThanOrEqual(row.score.x);
+      expect(row.score.x + row.score.width).toBeLessThanOrEqual(row.sideB.x);
+      expect(row.sideB.x + row.sideB.width).toBeLessThanOrEqual(595);
+      expect(row.court.y).toBeGreaterThanOrEqual(0);
+      expect(row.score.y).toBe(row.sideA.y);
+      expect(row.score.y).toBe(row.sideB.y);
+    });
+  });
+
+  it("lays Scenario C continuation rounds 13-20 out as a fixed 4 by 2 grid", () => {
+    const state = finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mexicano", {
+      name: "Chopstick Mex v1",
+      courts: 4,
+      rounds: 20,
+    })), "2026-08-04T18:00:00.000Z");
+    const diagnostics = createTournamentResultPdfLayoutDiagnostics(state);
+    const pageTwo = diagnostics.resultPages.find((page) => page.page === 2);
+
+    expect(pageTwo).toMatchObject({
+      columns: 4,
+      rows: 2,
+      roundNumbers: [13, 14, 15, 16, 17, 18, 19, 20],
+    });
+  });
+
   it("creates pool-play result lines with pool standings and next phase matches", () => {
     const advancedState = advanceLivePoolPlayState(createCompletedInitialPoolTournament());
     const matchId = advancedState.poolPlay?.crossMatchStage?.groups[0].encounters[0].id;

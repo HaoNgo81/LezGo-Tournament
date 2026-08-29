@@ -192,16 +192,44 @@ export interface TournamentResultPdfLayoutDiagnostics {
   courtColumns: number;
   density: "relaxed" | "standard" | "compact" | "dense";
   fitsOnePage: boolean;
+  matchRows: PdfMatchRowDiagnostics[];
   maxDrawnX: number;
   maxDrawnY: number;
   minimumFontSize: number;
   orientation: "portrait";
   pageCount: number;
   pageRoundRanges: Array<{ end: number; page: number; roundNumbers: number[]; start: number }>;
+  resultPages: PdfResultPageDiagnostics[];
   resultCardColumns: number;
   resultCardRows: number;
   resultFontSize: number;
   standingsFontSize: number;
+}
+
+export interface PdfBounds {
+  height: number;
+  width: number;
+  x: number;
+  y: number;
+}
+
+export interface PdfMatchRowDiagnostics {
+  court: PdfBounds;
+  courtNumber: number;
+  page: number;
+  roundNumber: number;
+  score: PdfBounds;
+  sideA: PdfBounds;
+  sideB: PdfBounds;
+}
+
+export interface PdfResultPageDiagnostics {
+  cardHeight: number;
+  cardWidth: number;
+  columns: number;
+  page: number;
+  roundNumbers: number[];
+  rows: number;
 }
 
 export function createTournamentResultPdfLayoutDiagnostics(state: LiveTournamentState): TournamentResultPdfLayoutDiagnostics {
@@ -233,8 +261,8 @@ interface PdfRectCommand {
 type PdfCommand = PdfTextCommand | PdfRectCommand;
 
 interface PdfLayout {
-  pages: PdfCommand[][];
   diagnostics: TournamentResultPdfLayoutDiagnostics;
+  pages: PdfCommand[][];
 }
 
 const page = {
@@ -270,6 +298,7 @@ function createDesignedPdf(state: LiveTournamentState): Uint8Array {
   const catalogId = addObject(objects, "<< /Type /Catalog /Pages 2 0 R >>");
   addObject(objects, "");
   const pageIds: number[] = [];
+  const fontResources = "/Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >> /F2 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >> >>";
 
   layout.pages.forEach((commands) => {
     const contentId = addObject(objects, createDesignedContentStream(commands));
@@ -277,7 +306,7 @@ function createDesignedPdf(state: LiveTournamentState): Uint8Array {
 
     pageIds.push(pageId);
     objects[pageId - 1] =
-      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${page.width} ${page.height}] /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> /F2 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >> >> >> /Contents ${contentId} 0 R >>`;
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${page.width} ${page.height}] /Resources << ${fontResources} >> /Contents ${contentId} 0 R >>`;
   });
 
   objects[1] = `<< /Type /Pages /Kids [${pageIds.map((pageId) => `${pageId} 0 R`).join(" ")}] /Count ${pageIds.length} >>`;
@@ -308,6 +337,8 @@ function createResultLayout(state: LiveTournamentState): PdfLayout {
   let resultCardColumns = 1;
   let resultCardRows = 1;
   let fitsAllPages = true;
+  const matchRows: PdfMatchRowDiagnostics[] = [];
+  const resultPages: PdfResultPageDiagnostics[] = [];
 
   roundPages.forEach((roundPage, pageIndex) => {
     const commands: PdfCommand[] = [];
@@ -317,7 +348,9 @@ function createResultLayout(state: LiveTournamentState): PdfLayout {
     const resultsTop = isFirstPage ? topY - 34 : 700;
     const resultsBottom = 50;
     const resultsHeight = resultsTop - resultsBottom;
-    const grid = calculateResultGrid(roundPage.length, courtColumns, contentWidth, resultsHeight, density);
+    const grid = calculateResultGrid(roundPage.length, courtColumns, contentWidth, resultsHeight, density, isFirstPage);
+    const blockHeight = grid.rows * grid.cardHeight + Math.max(0, grid.rows - 1) * grid.rowGap;
+    const blockBottom = isFirstPage ? resultsBottom : resultsTop - blockHeight;
 
     resultFontSize = Math.max(resultFontSize, grid.fontSize);
     resultCardColumns = Math.max(resultCardColumns, grid.columns);
@@ -339,9 +372,17 @@ function createResultLayout(state: LiveTournamentState): PdfLayout {
       const column = index % grid.columns;
       const row = Math.floor(index / grid.columns);
       const x = contentX + column * (grid.cardWidth + grid.gap);
-      const y = resultsBottom + resultsHeight - (row + 1) * grid.cardHeight - row * grid.gap;
+      const y = blockBottom + blockHeight - (row + 1) * grid.cardHeight - row * grid.rowGap;
 
-      drawRoundCard(commands, x, y, grid.cardWidth, grid.cardHeight, round, resultByMatchId, state, grid.fontSize, density);
+      matchRows.push(...drawRoundCard(commands, x, y, grid.cardWidth, grid.cardHeight, round, resultByMatchId, state, grid.fontSize, density, pageNumber));
+    });
+    resultPages.push({
+      cardHeight: grid.cardHeight,
+      cardWidth: grid.cardWidth,
+      columns: grid.columns,
+      page: pageNumber,
+      roundNumbers: roundPage.map((round) => round.roundNumber),
+      rows: grid.rows,
     });
 
     drawPageNumber(commands, pageNumber, pageCount);
@@ -366,12 +407,14 @@ function createResultLayout(state: LiveTournamentState): PdfLayout {
       courtColumns,
       density,
       fitsOnePage: fitsAllPages && roundsPerPageValid && maxDrawnX <= page.width && maxDrawnY <= page.height && allCommands.length > 0,
+      matchRows,
       maxDrawnX,
       maxDrawnY,
       minimumFontSize: minimumReadableFontSize,
       orientation: "portrait",
       pageCount: pages.length,
       pageRoundRanges,
+      resultPages,
       resultCardColumns,
       resultCardRows,
       resultFontSize,
@@ -433,12 +476,14 @@ function createPoolPlayOnePageLayout(state: LiveTournamentState & { poolPlay: No
       courtColumns: Math.max(1, poolMatches.length),
       density,
       fitsOnePage: resultFontSize >= minimumReadableFontSize,
+      matchRows: [],
       maxDrawnX: getMaxDrawnX(commands),
       maxDrawnY: getMaxDrawnY(commands),
       minimumFontSize: minimumReadableFontSize,
       orientation: "portrait",
       pageCount: 1,
       pageRoundRanges: [{ end: 1, page: 1, roundNumbers: [1], start: 1 }],
+      resultPages: [{ cardHeight: 1, cardWidth: 1, columns: 1, page: 1, roundNumbers: [1], rows: 1 }],
       resultCardColumns: 1,
       resultCardRows: 1,
       resultFontSize,
@@ -563,14 +608,14 @@ function drawStandingsTable(commands: PdfCommand[], x: number, y: number, width:
 
   const columns = [
     { label: "#", value: (row: StandingRow) => String(row.rank), width: 20 },
-    { label: "Navn", value: (row: StandingRow) => row.name, width: width - 196 },
+    { label: "Navn", value: (row: StandingRow) => row.name, width: width - 238 },
     { label: "MP", value: (row: StandingRow) => String(row.matchPoints), width: 28 },
     { label: "SP", value: (row: StandingRow) => String(row.pointsFor), width: 28 },
     { label: "Tabte", value: (row: StandingRow) => String(row.pointsAgainst), width: 34 },
     { label: "Diff", value: (row: StandingRow) => String(row.pointDifference), width: 30 },
-    { label: "V", value: (row: StandingRow) => String(row.wins), width: 18 },
-    { label: "U", value: (row: StandingRow) => String(row.draws), width: 18 },
-    { label: "T", value: (row: StandingRow) => String(row.losses), width: 20 },
+    { label: "Sejre", value: (row: StandingRow) => String(row.wins), width: 30 },
+    { label: "Uafgjort", value: (row: StandingRow) => String(row.draws), width: 44 },
+    { label: "Tab", value: (row: StandingRow) => String(row.losses), width: 24 },
   ];
   let cursorX = x + 6;
 
@@ -598,7 +643,7 @@ function drawStandingsTable(commands: PdfCommand[], x: number, y: number, width:
   });
 }
 
-function calculateResultGrid(roundCount: number, courtCount: number, width: number, height: number, density: TournamentResultPdfLayoutDiagnostics["density"]) {
+function calculateResultGrid(roundCount: number, courtCount: number, width: number, height: number, density: TournamentResultPdfLayoutDiagnostics["density"], isFirstPage: boolean) {
   const safeRoundCount = Math.max(1, roundCount);
   const gap = density === "relaxed" ? 10 : 7;
   const maxColumns = density === "relaxed" ? Math.min(3, safeRoundCount) : 4;
@@ -606,11 +651,15 @@ function calculateResultGrid(roundCount: number, courtCount: number, width: numb
   const columns = clamp(preferredColumns, 1, Math.min(maxColumns, safeRoundCount));
   const rows = Math.ceil(safeRoundCount / columns);
   const cardWidth = (width - gap * (columns - 1)) / columns;
-  const cardHeight = (height - gap * (rows - 1)) / rows;
   const lineCount = courtCount + 1;
-  const fontSize = Math.min(density === "relaxed" ? 9.3 : 7.8, Math.max(minimumReadableFontSize, (cardHeight - 22) / Math.max(1, lineCount) * 0.64));
+  const rowHeight = density === "relaxed" ? 24 : 18;
+  const naturalCardHeight = 24 + courtCount * rowHeight + 10;
+  const stretchedCardHeight = (height - gap * (rows - 1)) / rows;
+  const cardHeight = isFirstPage ? stretchedCardHeight : Math.min(stretchedCardHeight, Math.max(naturalCardHeight, 124));
+  const rowGap = isFirstPage ? gap : Math.min(20, Math.max(gap, (height - cardHeight * rows) / Math.max(1, rows - 1)));
+  const fontSize = Math.min(density === "relaxed" ? 9.3 : 7.8, Math.max(minimumReadableFontSize, (cardHeight - 24) / Math.max(1, lineCount) * 0.58));
 
-  return { cardHeight, cardWidth, columns, fontSize, gap, rows };
+  return { cardHeight, cardWidth, columns, fontSize, gap, rowGap, rows };
 }
 
 function drawRoundCard(
@@ -624,18 +673,21 @@ function drawRoundCard(
   state: LiveTournamentState,
   fontSize: number,
   density: TournamentResultPdfLayoutDiagnostics["density"],
-) {
+  pageNumber: number,
+): PdfMatchRowDiagnostics[] {
+  const matchRows: PdfMatchRowDiagnostics[] = [];
+
   rect(commands, x, y, width, height, colors.white);
   rect(commands, x, y + height - 18, width, 18, colors.goldSoft);
   rect(commands, x, y, 3, height, colors.gold);
   text(commands, `RUNDE ${round.roundNumber}`, x + 7, y + height - 12, Math.max(7, fontSize + 1.2), "bold", colors.brown, width - 14);
 
-  const rowSpacing = Math.min(22, Math.max(fontSize + 5, (height - 24) / Math.max(1, round.matches.length)));
+  const rowSpacing = Math.min(22, Math.max(fontSize + 5, (height - 28) / Math.max(1, round.matches.length)));
   const scoreCellHeight = Math.max(12, fontSize + 4);
-  const courtWidth = density === "relaxed" ? 36 : 26;
-  const scoreWidth = density === "relaxed" ? 34 : 30;
+  const courtWidth = density === "relaxed" ? width * 0.15 : width * 0.15;
+  const scoreWidth = width * 0.2;
   const sideGap = 2;
-  const sideWidth = (width - courtWidth - scoreWidth - sideGap * 3 - 14) / 2;
+  const sideWidth = (width - courtWidth - scoreWidth - sideGap * 3 - 16) / 2;
   const courtFontSize = density === "relaxed" ? Math.max(5.8, fontSize - 1) : 5.2;
   const sideFontSize = density === "relaxed" ? Math.max(6.2, fontSize - 0.5) : 5.5;
   round.matches.forEach((match, index) => {
@@ -649,13 +701,31 @@ function drawRoundCard(
     const sideAX = courtX + courtWidth + sideGap;
     const scoreX = sideAX + sideWidth + sideGap;
     const sideBX = scoreX + scoreWidth + sideGap;
+    const courtBounds = { height: scoreCellHeight, width: courtWidth, x: courtX, y: cellY };
+    const sideABounds = { height: scoreCellHeight, width: sideWidth, x: sideAX, y: cellY };
+    const scoreBounds = { height: scoreCellHeight, width: scoreWidth, x: scoreX - 2, y: cellY };
+    const sideBBounds = { height: scoreCellHeight, width: sideWidth, x: sideBX, y: cellY };
 
-    rect(commands, scoreX - 2, cellY, scoreWidth + 4, scoreCellHeight, [0.99, 0.985, 0.965]);
+    rect(commands, courtBounds.x, courtBounds.y, courtBounds.width, courtBounds.height, [0.985, 0.97, 0.94]);
+    rect(commands, sideABounds.x, sideABounds.y, sideABounds.width, sideABounds.height, colors.white);
+    rect(commands, scoreBounds.x, scoreBounds.y, scoreBounds.width, scoreBounds.height, [0.99, 0.985, 0.965]);
+    rect(commands, sideBBounds.x, sideBBounds.y, sideBBounds.width, sideBBounds.height, colors.white);
     text(commands, `BANE ${match.courtNumber}`, courtX, rowY, courtFontSize, "bold", colors.muted, courtWidth);
     text(commands, teamA, sideAX, rowY, sideFontSize, "regular", colors.brown, sideWidth);
-    text(commands, score, scoreX + 3, rowY, fontSize + 1.3, "bold", colors.brown, scoreWidth - 6);
+    centeredText(commands, score, scoreBounds, fontSize + 1.3, "bold", colors.brown);
     text(commands, teamB, sideBX, rowY, sideFontSize, "regular", colors.brown, sideWidth);
+    matchRows.push({
+      court: courtBounds,
+      courtNumber: match.courtNumber,
+      page: pageNumber,
+      roundNumber: round.roundNumber,
+      score: scoreBounds,
+      sideA: sideABounds,
+      sideB: sideBBounds,
+    });
   });
+
+  return matchRows;
 }
 
 function getCompletedResultRounds(state: LiveTournamentState): TournamentRound[] {
@@ -713,6 +783,15 @@ function text(commands: PdfCommand[], value: string, x: number, y: number, size:
   });
 }
 
+function centeredText(commands: PdfCommand[], value: string, bounds: PdfBounds, size: number, font: "regular" | "bold", color: PdfColor) {
+  const fittedText = fitText(value, size, bounds.width - 4);
+  const textWidth = estimateTextWidth(fittedText, size);
+  const x = bounds.x + Math.max(2, (bounds.width - textWidth) / 2);
+  const y = bounds.y + (bounds.height - size) / 2 + 1.5;
+
+  text(commands, fittedText, x, y, size, font, color, bounds.width - 4);
+}
+
 function fitText(value: string, size: number, maxWidth: number): string {
   if (estimateTextWidth(value, size) <= maxWidth) {
     return value;
@@ -765,12 +844,12 @@ function createDesignedContentStream(commands: PdfCommand[]): string {
       `${formatColor(command.color ?? colors.brown)} rg`,
       `/${command.font === "bold" ? "F2" : "F1"} ${formatNumber(command.size)} Tf`,
       `${formatNumber(command.x)} ${formatNumber(command.y)} Td`,
-      `${toPdfUnicodeString(command.text)} Tj`,
+      `${toPdfLiteralString(command.text)} Tj`,
       "ET",
     ].join("\n");
   }).join("\n");
 
-  return `<< /Length ${new TextEncoder().encode(body).length} >>\nstream\n${body}\nendstream`;
+  return `<< /Length ${byteLength(body)} >>\nstream\n${body}\nendstream`;
 }
 
 function formatColor(color: PdfColor): string {
@@ -781,15 +860,20 @@ function formatNumber(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0+$/g, "").replace(/\.$/, "");
 }
 
-function toPdfUnicodeString(value: string): string {
-  const bytes = [0xfe, 0xff];
+function toPdfLiteralString(value: string): string {
+  const encoded = Array.from(value.normalize("NFC")).map(toWinAnsiChar).join("");
 
-  for (const char of value) {
-    const codePoint = char.codePointAt(0) ?? 32;
-    bytes.push((codePoint >> 8) & 0xff, codePoint & 0xff);
+  return `(${encoded.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)")})`;
+}
+
+function toWinAnsiChar(value: string): string {
+  const codePoint = value.codePointAt(0) ?? 32;
+
+  if (codePoint <= 0xff) {
+    return String.fromCharCode(codePoint);
   }
 
-  return `<${bytes.map((byte) => byte.toString(16).padStart(2, "0")).join("")}>`;
+  return "?";
 }
 
 function addObject(objects: string[], body: string): number {
@@ -798,25 +882,38 @@ function addObject(objects: string[], body: string): number {
 }
 
 function encodePdf(objects: string[], catalogId: number): Uint8Array {
-  const encoder = new TextEncoder();
   const chunks = ["%PDF-1.4\n"];
   const offsets = [0];
 
   objects.forEach((body, index) => {
-    offsets.push(totalLength(chunks, encoder));
+    offsets.push(totalLength(chunks));
     chunks.push(`${index + 1} 0 obj\n${body}\nendobj\n`);
   });
 
-  const xrefOffset = totalLength(chunks, encoder);
+  const xrefOffset = totalLength(chunks);
   chunks.push(`xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`);
   offsets.slice(1).forEach((offset) => {
     chunks.push(`${offset.toString().padStart(10, "0")} 00000 n \n`);
   });
   chunks.push(`trailer\n<< /Size ${objects.length + 1} /Root ${catalogId} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`);
 
-  return encoder.encode(chunks.join(""));
+  return toBinaryBytes(chunks.join(""));
 }
 
-function totalLength(chunks: string[], encoder: TextEncoder): number {
-  return chunks.reduce((length, chunk) => length + encoder.encode(chunk).length, 0);
+function totalLength(chunks: string[]): number {
+  return chunks.reduce((length, chunk) => length + byteLength(chunk), 0);
+}
+
+function byteLength(value: string): number {
+  return value.length;
+}
+
+function toBinaryBytes(value: string): Uint8Array {
+  const bytes = new Uint8Array(value.length);
+
+  for (let index = 0; index < value.length; index += 1) {
+    bytes[index] = value.charCodeAt(index) & 0xff;
+  }
+
+  return bytes;
 }
