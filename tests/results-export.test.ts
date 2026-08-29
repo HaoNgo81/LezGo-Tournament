@@ -61,24 +61,29 @@ describe("result export", () => {
   });
 
   it.each([
-    ["Scenario A", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Americano", { name: "A 4 spillere 1 bane", playerText: fourPlayerText, courts: 1, rounds: 3 })), "2026-08-04T18:00:00.000Z"), 3, 1, "relaxed"],
-    ["Scenario B", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Americano", { name: "B 8 spillere 2 baner", playerText: eightPlayerText, courts: 2, rounds: 8 })), "2026-08-04T18:00:00.000Z"), 8, 2, "standard"],
-    ["Scenario C", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mexicano", { name: "Chopstick Mex v1", courts: 4, rounds: 20 })), "2026-08-04T18:00:00.000Z"), 20, 4, "dense"],
-    ["Scenario D", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Fast Makker Mexicano", { name: "D stor fast makker", courts: 4, rounds: 20 })), "2026-08-04T18:00:00.000Z"), 20, 4, "dense"],
-    ["Scenario E", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mixed Americano", { name: "E mixed format", courts: 4, rounds: 8 })), "2026-08-04T18:00:00.000Z"), 8, 4, "compact"],
-  ] as const)("keeps %s on one polished A4 page without dropping completed data", (_label, state, expectedRounds, expectedCourts, expectedDensity) => {
+    ["Scenario A", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Americano", { name: "A 4 spillere 1 bane", playerText: fourPlayerText, courts: 1, rounds: 3 })), "2026-08-04T18:00:00.000Z"), 3, 1, "relaxed", 1, [[1, 2, 3]]],
+    ["Scenario B", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Americano", { name: "B 8 spillere 2 baner", playerText: eightPlayerText, courts: 2, rounds: 8 })), "2026-08-04T18:00:00.000Z"), 8, 2, "standard", 1, [[1, 2, 3, 4, 5, 6, 7, 8]]],
+    ["Scenario C", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mexicano", { name: "Chopstick Mex v1", courts: 4, rounds: 20 })), "2026-08-04T18:00:00.000Z"), 20, 4, "dense", 2, [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], [13, 14, 15, 16, 17, 18, 19, 20]]],
+    ["Scenario D", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Fast Makker Mexicano", { name: "D stor fast makker", courts: 4, rounds: 20 })), "2026-08-04T18:00:00.000Z"), 20, 4, "dense", 2, [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], [13, 14, 15, 16, 17, 18, 19, 20]]],
+    ["Scenario E", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mixed Americano", { name: "E mixed format", courts: 4, rounds: 8 })), "2026-08-04T18:00:00.000Z"), 8, 4, "compact", 1, [[1, 2, 3, 4, 5, 6, 7, 8]]],
+    ["Scenario F", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mexicano", { name: "F 25 runder", courts: 4, rounds: 25 })), "2026-08-04T18:00:00.000Z"), 25, 4, "dense", 3, [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24], [25]]],
+  ] as const)("paginates %s without dropping completed data", (_label, state, expectedRounds, expectedCourts, expectedDensity, expectedPages, expectedRoundPages) => {
     const pdf = createTournamentResultPdf(state);
     const lines = createTournamentResultLines(state);
     const diagnostics = createTournamentResultPdfLayoutDiagnostics(state);
 
-    expect(getPdfPageCount(pdf)).toBe(1);
+    expect(getPdfPageCount(pdf)).toBe(expectedPages);
     expect(diagnostics).toMatchObject({
       completedRounds: expectedRounds,
       courtColumns: expectedCourts,
       density: expectedDensity,
       fitsOnePage: true,
       orientation: "portrait",
-      pageCount: 1,
+      pageCount: expectedPages,
+    });
+    expect(diagnostics.pageRoundRanges.map((range) => range.roundNumbers)).toEqual(expectedRoundPages);
+    diagnostics.pageRoundRanges.forEach((range) => {
+      expect(range.roundNumbers.length).toBeLessThanOrEqual(12);
     });
     expect(diagnostics.maxDrawnX).toBeLessThanOrEqual(595);
     expect(diagnostics.maxDrawnY).toBeLessThanOrEqual(842);
@@ -91,6 +96,28 @@ describe("result export", () => {
     state.players.forEach((player) => {
       expect(lines.join("\n")).toContain(player.name);
     });
+  });
+
+  it.each([
+    [13, 2, [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], [13]]],
+    [24, 2, [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]]],
+    [25, 3, [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24], [25]]],
+    [36, 3, [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24], [25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36]]],
+    [37, 4, [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24], [25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36], [37]]],
+  ] as const)("splits %s completed rounds into pages of at most 12 rounds", (rounds, expectedPages, expectedRoundPages) => {
+    const state = finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mexicano", {
+      courts: 4,
+      name: `${rounds} runder boundary`,
+      rounds,
+    })), "2026-08-04T18:00:00.000Z");
+    const pdf = createTournamentResultPdf(state);
+    const diagnostics = createTournamentResultPdfLayoutDiagnostics(state);
+
+    expect(getPdfPageCount(pdf)).toBe(expectedPages);
+    expect(diagnostics.pageCount).toBe(expectedPages);
+    expect(diagnostics.pageRoundRanges.map((range) => range.roundNumbers)).toEqual(expectedRoundPages);
+    expect(diagnostics.pageRoundRanges.every((range) => range.roundNumbers.length <= 12)).toBe(true);
+    expect(diagnostics.fitsOnePage).toBe(true);
   });
 
   it("keeps a long tournament title inside the one-page PDF header", () => {
