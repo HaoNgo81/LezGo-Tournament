@@ -731,6 +731,11 @@ export function LiveScoringApp() {
         const rotationLabel = americanoCycleStatus
           ? `Rotation ${americanoCycleStatus.cycleNumber} · ${americanoCycleStatus.roundInCycle}/${americanoCycleStatus.cycleLength}`
           : null;
+        const activeRound = state.rounds.find((round) => round.roundNumber === state.activeRoundNumber) ?? null;
+        const byePlayerNames = (activeRound?.byePlayerIds ?? []).map((playerId) => getPlayerName(state.players, playerId));
+        const byeLabel = byePlayerNames.length === 1
+          ? `Oversidder: ${byePlayerNames[0]}`
+          : byePlayerNames.length > 1 ? `Oversiddere: ${byePlayerNames.join(", ")}` : null;
         const roundStatusLabel = americanoCycleStatus?.isCycleComplete && roundProgress?.isComplete
           ? `Rotation ${americanoCycleStatus.cycleNumber} færdig`
           : roundProgress?.isComplete ? t("roundComplete") : t("roundIncomplete");
@@ -778,6 +783,7 @@ export function LiveScoringApp() {
             <p className="text-xs font-bold text-[var(--muted)] sm:text-sm">
               {roundStatusLabel}
             </p>
+            {byeLabel ? <p className="mt-1 text-xs font-black text-[var(--primary-strong)] sm:text-sm" data-testid="live-round-byes">{byeLabel}</p> : null}
           </div>
           {!isControllerReadOnly ? <RoundNavigationButtons canGoPrevious={state.activeRoundNumber > 1} canGoNext={nextRoundIsAvailable} onNext={handleNextRound} onPrevious={handlePreviousRound} /> : null}
         </div>

@@ -1414,6 +1414,51 @@ describe("LiveScoringApp score sheet", () => {
     expect(screen.getByText("1 / 5")).toBeInTheDocument();
   });
 
+  it("does not show an oversidder line when every Americano player is active", async () => {
+    saveActiveTournament(createStandardTournament("Americano", {
+      courts: 2,
+      playerText: Array.from({ length: 8 }, (_, index) => `Spiller ${index + 1}`).join("\n"),
+    }));
+
+    render(<LiveScoringApp />);
+
+    expect(await screen.findByText("Rotation 1 · 1/7")).toBeInTheDocument();
+    expect(screen.queryByTestId("live-round-byes")).not.toBeInTheDocument();
+  });
+
+  it("shows the current Americano oversidder and updates it after advancing rounds", async () => {
+    const state = createStandardTournament("Americano", {
+      courts: 2,
+      playerText: Array.from({ length: 9 }, (_, index) => `Spiller ${index + 1}`).join("\n"),
+    });
+    const firstByeId = state.rounds[0].byePlayerIds?.[0];
+    const secondByeId = state.rounds[1].byePlayerIds?.[0];
+
+    saveActiveTournament(state);
+    render(<LiveScoringApp />);
+
+    expect(await screen.findByTestId("live-round-byes")).toHaveTextContent(`Oversidder: ${getPlayerNameForTest(state, firstByeId)}`);
+
+    scoreAllVisibleMatches();
+    fireEvent.click(screen.getAllByRole("button", { name: "Næste" })[0]);
+
+    expect(await screen.findByTestId("live-round-byes")).toHaveTextContent(`Oversidder: ${getPlayerNameForTest(state, secondByeId)}`);
+    expect(secondByeId).not.toBe(firstByeId);
+  });
+
+  it("shows multiple current Americano oversiddere", async () => {
+    const state = createStandardTournament("Americano", {
+      courts: 2,
+      playerText: Array.from({ length: 11 }, (_, index) => `Spiller ${index + 1}`).join("\n"),
+    });
+    const byeNames = (state.rounds[0].byePlayerIds ?? []).map((playerId) => getPlayerNameForTest(state, playerId));
+
+    saveActiveTournament(state);
+    render(<LiveScoringApp />);
+
+    expect(await screen.findByTestId("live-round-byes")).toHaveTextContent(`Oversiddere: ${byeNames.join(", ")}`);
+  });
+
   it("opens the next Fast Makker Mexicano round from the live pair standings", async () => {
     saveActiveTournament(createStandardTournament("Fast Makker Mexicano"));
     render(<LiveScoringApp />);
@@ -1652,6 +1697,21 @@ function scoreVisibleRound() {
     fireEvent.change(screen.getByRole("textbox", { name: "Hold B scorepoint" }), { target: { value: `${10 + matchIndex}` } });
     fireEvent.click(screen.getByRole("button", { name: "Gem" }));
   }
+}
+
+function scoreAllVisibleMatches() {
+  const matchCount = screen.getAllByRole("button", { name: "Indtast score" }).length;
+
+  for (let matchIndex = 0; matchIndex < matchCount; matchIndex += 1) {
+    fireEvent.click(screen.getAllByRole("button", { name: "Indtast score" })[0]);
+    fireEvent.change(screen.getByRole("textbox", { name: "Hold A scorepoint" }), { target: { value: "21" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Hold B scorepoint" }), { target: { value: `${10 + matchIndex}` } });
+    fireEvent.click(screen.getByRole("button", { name: "Gem" }));
+  }
+}
+
+function getPlayerNameForTest(state: ReturnType<typeof createStandardTournament>, playerId: string | undefined): string {
+  return state.players.find((player) => player.id === playerId)?.name ?? "";
 }
 
 function expectLiveCourtScore(teamA: string, teamB: string, cardIndex = 0): HTMLElement {
