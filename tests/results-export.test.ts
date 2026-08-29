@@ -236,7 +236,7 @@ describe("result export", () => {
       expect(row.score.x + row.score.width).toBeLessThanOrEqual(row.sideB.x);
       expect(row.score.y).toBeGreaterThan(row.court.y);
       expect(row.score.y + row.score.height).toBeLessThan(row.court.y + row.court.height);
-      expect(row.score.height).toBeGreaterThanOrEqual(17);
+      expect(row.score.height).toBeGreaterThanOrEqual(9);
       expect(row.score.x + row.score.width / 2).toBeCloseTo(row.court.x + row.court.width / 2, 1);
     });
   });
@@ -257,14 +257,35 @@ describe("result export", () => {
       expect(row.score.width).toBeCloseTo(firstRow.score.width, 4);
       expect(row.sideA.height).toBe(row.court.height);
       expect(row.sideB.height).toBe(row.court.height);
-      expect(row.score.height).toBeGreaterThanOrEqual(17);
+      expect(row.score.height).toBeGreaterThanOrEqual(9);
       expect(row.score.height).toBeLessThanOrEqual(24);
       expect(row.topLeftPlayer).not.toBe(row.bottomLeftPlayer);
       expect(row.topRightPlayer).not.toBe(row.bottomRightPlayer);
     });
   });
 
-  it("lays Scenario C continuation rounds 9-20 out as a fixed 4 by 3 grid", () => {
+  it("lays Scenario C first page rounds 1-8 out as a balanced 3 by 3 grid", () => {
+    const state = finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mexicano", {
+      name: "Chopstick Mex v1",
+      courts: 4,
+      rounds: 20,
+    })), "2026-08-04T18:00:00.000Z");
+    const diagnostics = createTournamentResultPdfLayoutDiagnostics(state);
+    const pageOne = diagnostics.resultPages.find((page) => page.page === 1);
+    const finalRowCards = pageOne?.roundCards.filter((card) => card.roundNumber === 7 || card.roundNumber === 8) ?? [];
+
+    expect(pageOne).toMatchObject({
+      columns: 3,
+      rows: 3,
+      roundNumbers: [1, 2, 3, 4, 5, 6, 7, 8],
+    });
+    expect(finalRowCards).toHaveLength(2);
+    expect(finalRowCards[0].bounds.x).toBeGreaterThan(26);
+    expect(finalRowCards[1].bounds.x + finalRowCards[1].bounds.width).toBeLessThan(569);
+    expect(finalRowCards[0].bounds.x - 26).toBeCloseTo(569 - (finalRowCards[1].bounds.x + finalRowCards[1].bounds.width), 4);
+  });
+
+  it("lays Scenario C continuation rounds 9-20 out as a fixed 3 by 4 grid", () => {
     const state = finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mexicano", {
       name: "Chopstick Mex v1",
       courts: 4,
@@ -274,8 +295,8 @@ describe("result export", () => {
     const pageTwo = diagnostics.resultPages.find((page) => page.page === 2);
 
     expect(pageTwo).toMatchObject({
-      columns: 4,
-      rows: 3,
+      columns: 3,
+      rows: 4,
       roundNumbers: [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
     });
   });
@@ -289,18 +310,44 @@ describe("result export", () => {
     const diagnostics = createTournamentResultPdfLayoutDiagnostics(state);
     const [pageOne, pageTwo] = diagnostics.resultPages;
 
-    expect(pageOne).toMatchObject({ columns: 4, rows: 2 });
-    expect(pageTwo).toMatchObject({ columns: 4, rows: 3 });
+    expect(pageOne).toMatchObject({ columns: 3, rows: 3 });
+    expect(pageTwo).toMatchObject({ columns: 3, rows: 4 });
     [pageOne, pageTwo].forEach((resultPage) => {
       const allocatedHeight = resultPage.gridTop - resultPage.gridBottom;
       const usedHeight = resultPage.rows * resultPage.cardHeight + Math.max(0, resultPage.rows - 1) * resultPage.rowGap;
 
       expect(usedHeight).toBeCloseTo(allocatedHeight, 4);
-      expect(resultPage.cardWidth * resultPage.columns + (resultPage.columns - 1) * 7).toBeCloseTo(543, 4);
+      expect(resultPage.cardWidth * resultPage.columns + (resultPage.columns - 1) * resultPage.rowGap).toBeCloseTo(543, 4);
       expect(resultPage.gridBottom).toBeGreaterThanOrEqual(50);
       expect(resultPage.gridTop).toBeLessThanOrEqual(700);
     });
-    expect(pageTwo.cardHeight).toBeGreaterThan(170);
+    expect(pageOne.cardWidth).toBeGreaterThan(170);
+    expect(pageTwo.cardWidth).toBeGreaterThan(170);
+  });
+
+  it("keeps Scenario C round cards inside the page without overlap", () => {
+    const state = finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mexicano", {
+      name: "Chopstick Mex v1",
+      courts: 4,
+      rounds: 20,
+    })), "2026-08-04T18:00:00.000Z");
+    const diagnostics = createTournamentResultPdfLayoutDiagnostics(state);
+
+    diagnostics.resultPages.forEach((resultPage) => {
+      resultPage.roundCards.forEach((card, index) => {
+        expect(card.bounds.x).toBeGreaterThanOrEqual(26);
+        expect(card.bounds.x + card.bounds.width).toBeLessThanOrEqual(569);
+        expect(card.bounds.y).toBeGreaterThanOrEqual(50);
+        expect(card.bounds.y + card.bounds.height).toBeLessThanOrEqual(resultPage.gridTop);
+
+        resultPage.roundCards.slice(index + 1).forEach((otherCard) => {
+          const overlapsX = card.bounds.x < otherCard.bounds.x + otherCard.bounds.width && card.bounds.x + card.bounds.width > otherCard.bounds.x;
+          const overlapsY = card.bounds.y < otherCard.bounds.y + otherCard.bounds.height && card.bounds.y + card.bounds.height > otherCard.bounds.y;
+
+          expect(overlapsX && overlapsY).toBe(false);
+        });
+      });
+    });
   });
 
   it("creates pool-play result lines with pool standings and next phase matches", () => {
