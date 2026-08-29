@@ -1,14 +1,10 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  calculateLiveStandings,
   createMockLiveTournamentState,
-  createPoolPlaySummary,
   finishTournament,
-  getPlayerName,
-  type PoolPlaySummary,
   type LiveTournamentState,
 } from "@/lib/live-scoring";
 import { createTournamentResultFileName, createTournamentResultPdf } from "@/lib/results-export";
@@ -25,17 +21,10 @@ import {
   saveCompletedTournament,
   type CloudTournamentAuthority,
 } from "@/lib/tournament-setup";
-import { StandingsTable } from "@/components/tournament/standings-table";
-import { UnifiedCourtCard } from "@/components/tournament/unified-court-card";
+import { CompletedTournamentResults, formatFinishedTournamentSummary, getRankingModeLabelKey } from "@/components/tournament/completed-tournament-results";
+import { ResultSharePanel } from "@/components/tournament/result-share-panel";
 import { useAppTranslation } from "@/lib/preferences/client";
-import type { TranslationKey } from "@/lib/i18n/translations";
 import { useHasHydrated } from "@/hooks/use-has-hydrated";
-import type { MatchResult, TournamentMatch, TournamentRound } from "@/lib/tournament-engine";
-
-const rankingModeLabels = {
-  matchPointsFirst: "mostMatchPoints",
-  partiPointsFirst: "mostScorePoints",
-} as const;
 
 interface ShadowSaveWriteResponse {
   ok?: boolean;
@@ -53,11 +42,8 @@ export function FinishTournamentApp() {
   const [state, setState] = useState<LiveTournamentState>(() => createMockLiveTournamentState());
   const [cloudAuthority, setCloudAuthority] = useState<CloudTournamentAuthority | null>(null);
   const [message, setMessage] = useState("");
-  const [selectedHistoryRoundNumber, setSelectedHistoryRoundNumber] = useState(1);
   const finishInFlightRef = useRef(false);
   const hasHydrated = useHasHydrated();
-  const standings = useMemo(() => calculateLiveStandings(state), [state]);
-  const poolSummary = useMemo(() => (state.poolPlay ? createPoolPlaySummary(state.poolPlay, state.rankingMode) : null), [state.poolPlay, state.rankingMode]);
   const isFinished = state.status === "finished";
 
   useEffect(() => {
@@ -69,7 +55,6 @@ export function FinishTournamentApp() {
       const loadedState = loadActiveTournament() ?? createMockLiveTournamentState();
       const localId = createStandardShadowSaveLocalId(loadedState);
       setState(loadedState);
-      setSelectedHistoryRoundNumber(getFirstHistoryRoundNumber(loadedState));
       setCloudAuthority(loadActiveCloudTournamentAuthority("standard", localId));
     }, 0);
 
@@ -96,7 +81,6 @@ export function FinishTournamentApp() {
 
       saveCompletedTournament(finishedState);
       setState(finishedState);
-      setSelectedHistoryRoundNumber(getFirstHistoryRoundNumber(finishedState));
     } finally {
       finishInFlightRef.current = false;
     }
@@ -246,7 +230,7 @@ export function FinishTournamentApp() {
           {formatFinishedTournamentSummary(state, t)}
         </p>
         {!isFinished ? <p className="text-sm font-bold text-[var(--muted)]">
-          {t("finalStandings")} sorteres efter {t(rankingModeLabels[state.rankingMode] as TranslationKey).toLocaleLowerCase("da")}.
+          {t("finalStandings")} sorteres efter {t(getRankingModeLabelKey(state)).toLocaleLowerCase("da")}.
         </p> : null}
         {!isFinished ? <div className="action-grid">
           <Link className="btn-secondary min-h-14 text-lg" href="/live">
@@ -259,336 +243,19 @@ export function FinishTournamentApp() {
             {isFinished ? t("completed") : t("finishTournament")}
           </button>
         </div> : (
-          <button className="btn-outline-primary min-h-12 justify-self-start px-4 text-base" type="button" onClick={handleDownloadPdf}>
-            Download PDF
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button className="btn-outline-primary min-h-12 px-4 text-base" type="button" onClick={handleDownloadPdf}>
+              Download PDF
+            </button>
+            <ResultSharePanel state={state} />
+          </div>
         )}
         {message ? <p className="rounded-md bg-yellow-50 p-3 font-bold text-yellow-900">{message}</p> : null}
       </section>
 
-      {poolSummary ? <PoolPlayFinishSummary summary={poolSummary} /> : (
-        <>
-          <section className="grid gap-3">
-            <h2 className="text-xl font-black uppercase">{t("finalStandings")}</h2>
-            <StandingsTable standings={standings} />
-          </section>
-          {isFinished ? (
-            <RoundHistory
-              selectedRoundNumber={selectedHistoryRoundNumber}
-              state={state}
-              t={t}
-              onSelectRound={setSelectedHistoryRoundNumber}
-            />
-          ) : null}
-        </>
-      )}
+      <CompletedTournamentResults state={state} t={t} />
     </div>
   );
-}
-
-function RoundHistory({
-  onSelectRound,
-  selectedRoundNumber,
-  state,
-  t,
-}: {
-  onSelectRound: (roundNumber: number) => void;
-  selectedRoundNumber: number;
-  state: LiveTournamentState;
-  t: (key: TranslationKey) => string;
-}) {
-  const historyRounds = getHistoryRounds(state);
-  const resultByMatchId = new Map(state.results.map((result) => [result.matchId, result]));
-
-  if (!historyRounds.length) {
-    return (
-      <section className="grid gap-3" data-testid="finished-round-history">
-        <h2 className="text-xl font-black uppercase">{t("matchResults")}</h2>
-        <p className="app-card p-4 font-bold text-[var(--muted)]">{t("matchHistoryUnavailable")}</p>
-      </section>
-    );
-  }
-
-  const selectedRound = historyRounds.find((round) => round.roundNumber === selectedRoundNumber) ?? historyRounds[0];
-
-  return (
-    <section className="grid gap-3" data-testid="finished-round-history">
-      <div>
-        <h2 className="text-xl font-black uppercase">{t("matchResults")}</h2>
-        <div className="-mx-1 mt-3 flex gap-2 overflow-x-auto px-1 pb-2" aria-label={t("round")}>
-          {historyRounds.map((round) => (
-            <button
-              key={round.roundNumber}
-              aria-pressed={selectedRound.roundNumber === round.roundNumber}
-              className={selectedRound.roundNumber === round.roundNumber ? "btn-primary min-h-11 shrink-0 px-4 text-sm" : "btn-secondary min-h-11 shrink-0 px-4 text-sm"}
-              type="button"
-              onClick={() => onSelectRound(round.roundNumber)}
-            >
-              {t("round")} {round.roundNumber}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <section className="grid gap-3" aria-label={`${t("round")} ${selectedRound.roundNumber}`}>
-        <h3 className="text-lg font-black">{t("round")} {selectedRound.roundNumber}</h3>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {selectedRound.matches.map((match) => (
-            <HistoryMatchCard
-              key={match.id}
-              match={match}
-              result={resultByMatchId.get(match.id)}
-              state={state}
-              t={t}
-            />
-          ))}
-        </div>
-      </section>
-    </section>
-  );
-}
-
-function HistoryMatchCard({ match, result, state, t }: { match: TournamentMatch; result?: MatchResult; state: LiveTournamentState; t: (key: TranslationKey) => string }) {
-  return (
-    <UnifiedCourtCard
-      articleProps={{ "aria-label": `${t("court")} ${match.courtNumber} ${t("completed").toLocaleLowerCase("da")}` }}
-      className="text-left"
-      court={`${t("court")} ${match.courtNumber}`}
-      density="standard"
-      leftPlayers={formatHistoryTeamPlayers(match.teamA.playerIds, state)}
-      leftScore={result?.teamAPoints}
-      rightPlayers={formatHistoryTeamPlayers(match.teamB.playerIds, state)}
-      rightScore={result?.teamBPoints}
-      status={formatHistoryStatus(result, t)}
-      testId="finished-history-match-card"
-      testIdPrefix="finished-history-court"
-      tone="completed"
-      unsavedLabel={result ? undefined : "-"}
-    />
-  );
-}
-
-function getHistoryRounds(state: LiveTournamentState): TournamentRound[] {
-  if (!Array.isArray(state.rounds) || !Array.isArray(state.results)) {
-    return [];
-  }
-
-  const resultByMatchId = new Set(state.results.filter(isHistoryResult).map((result) => result.matchId));
-
-  return state.rounds
-    .filter(isHistoryRound)
-    .map((round) => ({
-      ...round,
-      matches: round.matches.filter((match) => resultByMatchId.has(match.id)),
-    }))
-    .filter((round) => round.matches.length > 0);
-}
-
-function isHistoryRound(value: unknown): value is TournamentRound {
-  const round = value as { roundNumber?: unknown; matches?: unknown };
-  return Boolean(round)
-    && typeof round === "object"
-    && typeof round.roundNumber === "number"
-    && Array.isArray(round.matches)
-    && round.matches.every(isHistoryMatch);
-}
-
-function isHistoryMatch(value: unknown): value is TournamentMatch {
-  const match = value as { id?: unknown; courtNumber?: unknown; teamA?: { playerIds?: unknown }; teamB?: { playerIds?: unknown } };
-  return Boolean(match)
-    && typeof match === "object"
-    && typeof match.id === "string"
-    && typeof match.courtNumber === "number"
-    && Array.isArray(match.teamA?.playerIds)
-    && Array.isArray(match.teamB?.playerIds);
-}
-
-function isHistoryResult(value: unknown): value is MatchResult {
-  const result = value as { matchId?: unknown; teamAPoints?: unknown; teamBPoints?: unknown };
-  return Boolean(result)
-    && typeof result === "object"
-    && typeof result.matchId === "string"
-    && typeof result.teamAPoints === "number"
-    && typeof result.teamBPoints === "number";
-}
-
-function getFirstHistoryRoundNumber(state: LiveTournamentState): number {
-  return getHistoryRounds(state)[0]?.roundNumber ?? 1;
-}
-
-function formatHistoryTeamPlayers(playerIds: readonly string[], state: LiveTournamentState): string[] {
-  return playerIds.map((playerId) => getPlayerName(state.players, playerId));
-}
-
-function formatHistoryStatus(result: MatchResult | undefined, t: (key: TranslationKey) => string): string {
-  if (!result?.tieBreakWinner) {
-    return t("completed");
-  }
-
-  return `${t("completed")} · MTB ${result.tieBreakWinner === "teamA" ? "A" : "B"}`;
-}
-
-function formatFinishedTournamentSummary(state: LiveTournamentState, t: (key: TranslationKey) => string): string {
-  const summaryParts = [
-    formatTournamentType(state.format, t),
-    formatParticipantCount(state, t),
-    `${state.configuredRounds ?? state.rounds.length} ${t("rounds").toLowerCase()}`,
-  ];
-
-  if (state.finishedAt) {
-    summaryParts.push(formatDate(state.finishedAt));
-  }
-
-  return summaryParts.join(" · ");
-}
-
-function formatTournamentType(format: LiveTournamentState["format"], t: (key: TranslationKey) => string): string {
-  switch (format) {
-    case "americano":
-      return t("formatAmericano");
-    case "mexicano":
-      return t("formatMexicano");
-    case "mixed-americano":
-      return t("formatMixedAmericano");
-    case "fixed-partner-americano":
-      return t("fixedPartnerAmericano");
-    case "fixed-partner-mexicano":
-      return t("fixedPartnerMexicano");
-    case "pool-play":
-      return t("formatPoolPlay");
-  }
-}
-
-function formatParticipantCount(state: LiveTournamentState, t: (key: TranslationKey) => string): string {
-  if (state.format === "fixed-partner-americano" || state.format === "fixed-partner-mexicano") {
-    return `${state.players.length / 2} ${t("teams").toLowerCase()}`;
-  }
-
-  return `${state.players.length} ${t("players").toLowerCase()}`;
-}
-
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat("da-DK", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
-}
-
-function PoolPlayFinishSummary({ summary }: { summary: PoolPlaySummary }) {
-  return (
-    <div className="grid gap-5">
-      {summary.finalPlacements.length > 0 ? (
-        <section className="grid gap-3" aria-label="Slutplaceringer">
-          <h2 className="text-xl font-black">Slutplaceringer</h2>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {summary.finalPlacements.map((placement) => (
-              <article key={`${placement.groupName}-${placement.rank}`} className="app-card flex items-center justify-between gap-3 p-4">
-                <div>
-                  <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{placement.groupName}</p>
-                  <h3 className="mt-1 text-lg font-black">{placement.participantName}</h3>
-                </div>
-                <span className="text-3xl font-black">{placement.rank}.</span>
-              </article>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      <section className="grid gap-3">
-        <h2 className="text-xl font-black">Puljestillinger</h2>
-        <div className="grid gap-4">
-          {summary.initialStandings.map((table) => (
-            <section key={table.poolId} className="grid gap-3" aria-labelledby={`${table.poolId}-finish-heading`}>
-              <h3 id={`${table.poolId}-finish-heading`} className="text-lg font-black">{table.poolName}</h3>
-              <StandingsTable standings={table.rows} />
-            </section>
-          ))}
-        </div>
-      </section>
-
-      {summary.nextPhaseMatches.length > 0 ? (
-        <section className="grid gap-3" aria-label="Næste fase">
-          <h2 className="text-xl font-black">Næste fase</h2>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {summary.nextPhaseMatches.map((match) => (
-              <article key={match.id} className="app-card p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{match.groupName}</p>
-                    <h3 className="mt-1 text-lg font-black">{match.label}</h3>
-                  </div>
-                  {match.matchesPerTeam ? <span className="rounded-md bg-[var(--primary-soft)] px-3 py-1 text-sm font-black text-[var(--primary-strong)]">{match.matchesPerTeam} delkampe</span> : null}
-                </div>
-                <p className="mt-3 font-bold">{match.teamAName}</p>
-                <p className="text-sm font-bold uppercase text-[var(--muted)]">mod</p>
-                <p className="font-bold">{match.teamBName}</p>
-                <p className="mt-3 text-2xl font-black">{match.result ? formatPoolResultScore(match.result) : "Ikke spillet"}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {summary.finalMatches.length > 0 ? (
-        <section className="grid gap-3" aria-label="Finaler">
-          <h2 className="text-xl font-black">Finaler</h2>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {summary.finalMatches.map((match) => (
-              <article key={match.id} className="app-card p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{match.groupName}</p>
-                    <h3 className="mt-1 text-lg font-black">{match.label}</h3>
-                  </div>
-                  {match.matchesPerTeam ? <span className="rounded-md bg-[var(--primary-soft)] px-3 py-1 text-sm font-black text-[var(--primary-strong)]">{match.matchesPerTeam} delkampe</span> : null}
-                </div>
-                <p className="mt-3 font-bold">{match.teamAName}</p>
-                <p className="text-sm font-bold uppercase text-[var(--muted)]">mod</p>
-                <p className="font-bold">{match.teamBName}</p>
-                <p className="mt-3 text-2xl font-black">{match.result ? formatPoolResultScore(match.result) : "Ikke spillet"}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {summary.placementTiebreakMatches.length > 0 ? (
-        <section className="grid gap-3" aria-label="Tiebreak om placering">
-          <h2 className="text-xl font-black">Tiebreak om placering</h2>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {summary.placementTiebreakMatches.map((match) => (
-              <article key={match.id} className="app-card p-4">
-                <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{match.groupName}</p>
-                <h3 className="mt-1 text-lg font-black">{match.label}</h3>
-                <p className="mt-3 font-bold">{match.teamAName}</p>
-                <p className="text-sm font-bold uppercase text-[var(--muted)]">mod</p>
-                <p className="font-bold">{match.teamBName}</p>
-                <p className="mt-3 text-2xl font-black">{match.result ? formatPoolResultScore(match.result) : "Ikke spillet"}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {summary.automaticAdvances.length > 0 ? (
-        <section className="grid gap-3" aria-label="Automatisk videre">
-          <h2 className="text-xl font-black">Automatisk videre</h2>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {summary.automaticAdvances.map((advance) => (
-              <article key={advance.id} className="app-card p-4">
-                <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{advance.resolution === "bye" ? "Oversidning" : "Walkover"}</p>
-                <h3 className="mt-1 text-lg font-black">{advance.participantName}</h3>
-                <p className="mt-2 text-sm font-bold text-[var(--muted)]">{advance.sourcePoolName}, nr. {advance.sourceRank}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-      ) : null}
-    </div>
-  );
-}
-
-function formatPoolResultScore(result: NonNullable<PoolPlaySummary["nextPhaseMatches"][number]["result"]>): string {
-  const baseScore = `${result.teamAPoints} - ${result.teamBPoints}`;
-
-  return result.tieBreakWinner ? `${baseScore} (MTB: ${result.tieBreakWinner === "teamA" ? "hold A" : "hold B"})` : baseScore;
 }
 
 async function parseShadowSaveWriteResponse(response: Response): Promise<ShadowSaveWriteResponse> {

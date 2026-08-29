@@ -30,6 +30,7 @@ interface PublicResultSnapshotRow {
 export interface PublicResultSnapshotRepository {
   publishStandard(input: { tournamentId: string; state: LiveTournamentState }): Promise<PublicResultSnapshot>;
   read(resultId: string): Promise<PublicResultSnapshot>;
+  revokeStandard(input: { tournamentId: string }): Promise<void>;
 }
 
 export function createPublicResultSnapshotRepository(client: SupabaseRestClient = createSupabaseRestClient()): PublicResultSnapshotRepository {
@@ -47,7 +48,7 @@ export function createPublicResultSnapshotRepository(client: SupabaseRestClient 
         createdAt: existing?.created_at,
         updatedAt: now,
       });
-      const row = toDatabaseRow(snapshot, now);
+      const row = toDatabaseRow(input.tournamentId, snapshot, now);
 
       try {
         if (existing) {
@@ -80,18 +81,27 @@ export function createPublicResultSnapshotRepository(client: SupabaseRestClient 
           throw new PublicResultSnapshotError("Public result was not found.", 404);
         }
 
-        return row.snapshot;
+        return sanitizePublicSnapshot(row.snapshot);
       } catch (error) {
         throw toPublicResultSnapshotError("Could not read public result snapshot.", error);
+      }
+    },
+    async revokeStandard(input) {
+      validateUuid(input.tournamentId, "tournamentId");
+
+      try {
+        await client.delete("public_result_snapshots", `tournament_id=eq.${encodeURIComponent(input.tournamentId)}`);
+      } catch (error) {
+        throw toPublicResultSnapshotError("Could not disable public result sharing.", error);
       }
     },
   };
 }
 
-function toDatabaseRow(snapshot: PublicResultSnapshot, publishedAt: string): PublicResultSnapshotRow {
+function toDatabaseRow(tournamentId: string, snapshot: PublicResultSnapshot, publishedAt: string): PublicResultSnapshotRow {
   return {
     id: snapshot.resultId,
-    tournament_id: snapshot.tournamentId,
+    tournament_id: tournamentId,
     kind: snapshot.kind,
     tournament_name: snapshot.tournamentName,
     format: snapshot.format,
@@ -102,6 +112,12 @@ function toDatabaseRow(snapshot: PublicResultSnapshot, publishedAt: string): Pub
     created_at: snapshot.createdAt,
     updated_at: snapshot.updatedAt,
   };
+}
+
+function sanitizePublicSnapshot(snapshot: PublicResultSnapshot & { tournamentId?: string }): PublicResultSnapshot {
+  const { tournamentId: _tournamentId, ...publicSnapshot } = snapshot;
+  void _tournamentId;
+  return publicSnapshot;
 }
 
 async function findByTournamentId(client: SupabaseRestClient, tournamentId: string): Promise<PublicResultSnapshotRow | null> {

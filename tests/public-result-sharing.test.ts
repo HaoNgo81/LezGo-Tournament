@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createPublicResultSnapshot, createResultUrl, normalizePublicResultUrl, validateResultId } from "../lib/results-sharing";
-import { calculateLiveStandings, createMockLiveTournamentState, finishTournament, saveMatchResult } from "../lib/live-scoring";
+import { createPublicResultSnapshot, createResultUrl, generateResultId, normalizePublicResultUrl, validateResultId } from "../lib/results-sharing";
+import { calculateLiveStandings, createMockLiveTournamentState, finishTournament, goToNextRound, saveMatchResult } from "../lib/live-scoring";
 
 const tournamentId = "00000000-0000-4000-8000-000000000251";
 const resultId = "ABCDEFGHJKLM2345";
@@ -25,6 +25,7 @@ describe("STEP 25G public result snapshots", () => {
     });
 
     expect(snapshot.resultId).toBe(resultId);
+    expect("tournamentId" in snapshot).toBe(false);
     expect(snapshot.tournamentName).toBe(finishedState.tournamentName);
     expect(snapshot.formatLabel).toBe("Americano");
     expect(snapshot.completedAt).toBe("2026-08-19T18:30:00.000Z");
@@ -45,6 +46,39 @@ describe("STEP 25G public result snapshots", () => {
       draws: row.draws,
       losses: row.losses,
     })));
+    expect(snapshot.state).toMatchObject({
+      status: "finished",
+      tournamentName: finishedState.tournamentName,
+      results: finishedState.results,
+    });
+  });
+
+  it("stores completed round history needed for public read-only browsing", () => {
+    const activeState = createMockLiveTournamentState();
+    const firstRoundScored = activeState.rounds[0].matches.reduce((currentState, match, index) => saveMatchResult(currentState, {
+      matchId: match.id,
+      teamAPoints: index === 0 ? 21 : 17,
+      teamBPoints: index === 0 ? 12 : 19,
+    }), activeState);
+    const secondRoundState = goToNextRound(firstRoundScored);
+    const secondRoundScored = secondRoundState.rounds[1].matches.reduce((currentState, match, index) => saveMatchResult(currentState, {
+      matchId: match.id,
+      teamAPoints: index === 0 ? 17 : 20,
+      teamBPoints: index === 0 ? 21 : 16,
+    }), secondRoundState);
+    const finishedState = finishTournament(secondRoundScored, "2026-08-29T12:00:00.000Z");
+
+    const snapshot = createPublicResultSnapshot({
+      resultId,
+      tournamentId,
+      state: finishedState,
+    });
+
+    expect(snapshot.state?.rounds).toHaveLength(2);
+    expect(snapshot.state?.results.map((result) => result.matchId)).toEqual([
+      ...activeState.rounds[0].matches.map((match) => match.id),
+      ...secondRoundState.rounds[1].matches.map((match) => match.id),
+    ]);
   });
 
   it("rejects draft tournaments and malformed result IDs", () => {
@@ -55,6 +89,14 @@ describe("STEP 25G public result snapshots", () => {
     })).toThrow("Only completed tournaments can be shared");
 
     expect(() => validateResultId("bad-token")).toThrow("Result ID is invalid.");
+  });
+
+  it("generates non-sequential public result IDs with at least 80 bits of entropy", () => {
+    const ids = Array.from({ length: 64 }, () => generateResultId());
+
+    expect(ids.every((id) => /^[A-HJ-NP-Z2-9]{16}$/.test(id))).toBe(true);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).not.toContain(tournamentId.replace(/-/g, "").slice(0, 16).toUpperCase());
   });
 
   it("creates a stable public result URL without secret tokens", () => {

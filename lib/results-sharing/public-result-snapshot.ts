@@ -20,7 +20,6 @@ export interface PublicResultRow {
 export interface PublicResultSnapshot {
   version: 1;
   resultId: string;
-  tournamentId: string;
   kind: PublicResultKind;
   tournamentName: string;
   format: LiveTournamentState["format"];
@@ -31,6 +30,7 @@ export interface PublicResultSnapshot {
   participantCount: number;
   statusLabel: string;
   rows: PublicResultRow[];
+  state?: LiveTournamentState;
   createdAt: string;
   updatedAt: string;
 }
@@ -58,7 +58,6 @@ export function createPublicResultSnapshot(input: {
   return {
     version: 1,
     resultId: input.resultId,
-    tournamentId: input.tournamentId,
     kind: "standard",
     tournamentName: input.state.tournamentName,
     format: input.state.format,
@@ -69,6 +68,7 @@ export function createPublicResultSnapshot(input: {
     participantCount,
     statusLabel: "Turneringen er afsluttet",
     rows,
+    state: sanitizePublicTournamentState(input.state),
     createdAt: input.createdAt ?? now,
     updatedAt: input.updatedAt ?? now,
   };
@@ -130,6 +130,10 @@ function getFormatLabel(format: LiveTournamentState["format"]): string {
 
 function isFixedPartnerFormat(format: LiveTournamentState["format"]): boolean {
   return format === "fixed-partner-americano" || format === "fixed-partner-mexicano";
+}
+
+function sanitizePublicTournamentState(state: LiveTournamentState): LiveTournamentState {
+  return JSON.parse(JSON.stringify(state)) as LiveTournamentState;
 }
 
 function toBase32NoAmbiguous(buffer: Buffer): string {

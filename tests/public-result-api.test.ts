@@ -4,6 +4,7 @@ import { finishTournament, createMockLiveTournamentState } from "../lib/live-sco
 const repositoryMocks = vi.hoisted(() => ({
   publishStandard: vi.fn(),
   read: vi.fn(),
+  revokeStandard: vi.fn(),
 }));
 
 const authMocks = vi.hoisted(() => ({
@@ -45,6 +46,7 @@ vi.mock("@/lib/database", async (importOriginal) => {
     createPublicResultSnapshotRepository: () => ({
       publishStandard: repositoryMocks.publishStandard,
       read: repositoryMocks.read,
+      revokeStandard: repositoryMocks.revokeStandard,
     }),
     assertOrganizerToken: (token: string | undefined) => {
       if (token !== "VALID_ORGANIZER_TOKEN") {
@@ -65,6 +67,7 @@ vi.mock("@/lib/database", async (importOriginal) => {
 
 import { GET as readPublicResult } from "../app/api/result/[resultId]/route";
 import { POST as publishPublicResult } from "../app/api/supabase/result-snapshots/publish/route";
+import { POST as revokePublicResult } from "../app/api/supabase/result-snapshots/revoke/route";
 
 const previousAccessFlag = process.env.LEZGO_ENABLE_SUPABASE_ACCESS;
 const previousPublicOrigin = process.env.LEZGO_PUBLIC_APP_ORIGIN;
@@ -75,6 +78,7 @@ describe("STEP 25G public result API", () => {
     process.env.LEZGO_PUBLIC_APP_ORIGIN = "https://app.lezgopadel.dk";
     repositoryMocks.publishStandard.mockReset();
     repositoryMocks.read.mockReset();
+    repositoryMocks.revokeStandard.mockReset();
     authMocks.readAuthAccessCookie.mockReset();
     authMocks.readOptionalAccountFromAccessToken.mockReset();
     restClientMocks.select.mockReset();
@@ -175,6 +179,38 @@ describe("STEP 25G public result API", () => {
     expect(repositoryMocks.publishStandard).not.toHaveBeenCalled();
   });
 
+  it("revokes a public result with organizer authorization", async () => {
+    const response = await revokePublicResult(new Request("https://lezgotournament.vercel.app/api/supabase/result-snapshots/revoke", {
+      method: "POST",
+      body: JSON.stringify({
+        kind: "standard",
+        legacyLocalId: "step-25g-result",
+        organizerToken: "VALID_ORGANIZER_TOKEN",
+        tournamentId: "00000000-0000-4000-8000-000000000261",
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true });
+    expect(repositoryMocks.revokeStandard).toHaveBeenCalledWith({
+      tournamentId: "00000000-0000-4000-8000-000000000261",
+    });
+  });
+
+  it("blocks unauthenticated revocation attempts without organizer authorization", async () => {
+    const response = await revokePublicResult(new Request("https://lezgotournament.vercel.app/api/supabase/result-snapshots/revoke", {
+      method: "POST",
+      body: JSON.stringify({
+        kind: "standard",
+        legacyLocalId: "step-25g-result",
+        tournamentId: "00000000-0000-4000-8000-000000000261",
+      }),
+    }));
+
+    expect(response.status).toBe(403);
+    expect(repositoryMocks.revokeStandard).not.toHaveBeenCalled();
+  });
+
   it("blocks stale former-controller result publishing for an account-owned tournament", async () => {
     const state = finishTournament(createMockLiveTournamentState(), "2026-08-19T18:30:00.000Z");
     restClientMocks.select.mockResolvedValueOnce([createTournamentAuthorityRow(
@@ -226,7 +262,7 @@ describe("STEP 25G public result API", () => {
 
     expect(response.status).toBe(200);
     expect(serialized).toContain("Result Test");
-    expect(serialized).not.toMatch(/organizerToken|shareToken|serviceRole|SUPABASE_SERVICE_ROLE_KEY|secret/i);
+    expect(serialized).not.toMatch(/organizerToken|shareToken|serviceRole|SUPABASE_SERVICE_ROLE_KEY|secret|owner|email|password/i);
   });
 
   it("handles malformed public result IDs safely", async () => {

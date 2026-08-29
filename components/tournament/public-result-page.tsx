@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useAppTranslation } from "@/lib/preferences/client";
 import type { PublicResultSnapshot } from "@/lib/results-sharing";
+import { CompletedTournamentResults, formatFinishedTournamentSummary } from "@/components/tournament/completed-tournament-results";
 
 export function PublicResultPage({ snapshot }: { snapshot: PublicResultSnapshot }) {
   const { language, t } = useAppTranslation();
   const participantType = formatParticipantType(snapshot.participantType, language);
   const rankingLabel = snapshot.rankingMode === "matchPointsFirst" ? t("matchPoints").toLowerCase() : t("scorePoints").toLowerCase();
+  const completedState = snapshot.state?.status === "finished" ? snapshot.state : null;
 
   return (
     <main className="safe-screen">
@@ -18,26 +20,27 @@ export function PublicResultPage({ snapshot }: { snapshot: PublicResultSnapshot 
             <p className="text-sm font-black uppercase text-[var(--primary-strong)]">{t("resultFinalResult")}</p>
             <h1 className="text-3xl font-black leading-tight sm:text-5xl">{snapshot.tournamentName}</h1>
             <p className="font-bold text-[var(--muted)]">
-              {snapshot.formatLabel} · {snapshot.participantCount} {participantType} · {snapshot.completedAt ? formatDate(snapshot.completedAt, language) : t("completed")}
+              {completedState ? formatFinishedTournamentSummary(completedState, t) : `${snapshot.formatLabel} · ${snapshot.participantCount} ${participantType} · ${snapshot.completedAt ? formatDate(snapshot.completedAt, language) : t("completed")}`}
             </p>
           </div>
-          <p className="rounded-md border border-[var(--line)] bg-[var(--primary-soft)] px-3 py-2 text-sm font-black uppercase text-[var(--primary-strong)]">
-            {t("resultCompletedReadOnly")}
-          </p>
         </header>
 
-        <section className="grid gap-3">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <p className="text-sm font-black uppercase text-[var(--primary-strong)]">{t("resultFinalResult")}</p>
-              <h2 className="text-2xl font-black">{t("finalStandings")}</h2>
+        {completedState ? (
+          <CompletedTournamentResults state={completedState} t={t} />
+        ) : (
+          <section className="grid gap-3">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <p className="text-sm font-black uppercase text-[var(--primary-strong)]">{t("resultFinalResult")}</p>
+                <h2 className="text-2xl font-black">{t("finalStandings")}</h2>
+              </div>
+              <p className="text-sm font-bold text-[var(--muted)]">
+                {t("resultSortedBy")} {rankingLabel}.
+              </p>
             </div>
-            <p className="text-sm font-bold text-[var(--muted)]">
-              {t("resultSortedBy")} {rankingLabel}.
-            </p>
-          </div>
-          <PublicResultTable snapshot={snapshot} />
-        </section>
+            <PublicResultTable snapshot={snapshot} />
+          </section>
+        )}
       </div>
     </main>
   );

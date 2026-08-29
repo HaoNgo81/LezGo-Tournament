@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FinishTournamentApp } from "../components/tournament/finish-tournament-app";
+import { ResultSharePanel } from "../components/tournament/result-share-panel";
 import { advanceLivePoolPlayState, createMockLiveTournamentState, finishTournament, goToNextRound, saveMatchResult, saveNextPoolPhaseResult, type LiveTournamentState } from "../lib/live-scoring";
 import { createStandardShadowSaveLocalId, createPoolTournamentFromSetup, createTournamentFromSetup, loadActiveTournament, loadShadowSaveMetadata, markActiveCloudTournamentAuthority, saveActiveTournament, saveActiveTournamentFromRemoteSync } from "../lib/tournament-setup";
 import type { TournamentSetupFormat } from "../lib/tournament-setup";
@@ -30,12 +31,12 @@ describe("FinishTournamentApp pool play", () => {
     expect(screen.getByText("21 - 18")).toBeInTheDocument();
   });
 
-  it("does not expose public result sharing or QR controls after finish", async () => {
-    const finishedState = finishTournament(createMockLiveTournamentState(), "2026-08-19T18:30:00.000Z");
-    window.localStorage.setItem("lezgo.activeTournament.v1", JSON.stringify(finishedState));
+  it("shows completed tournament sharing controls without QR complexity", async () => {
+    const finishedState = createFinishedHistoryTournament("Americano", "Mock Americano");
+    const localId = createStandardShadowSaveLocalId(finishedState);
     window.localStorage.setItem("lezgo.shadowSaveMetadata.v1", JSON.stringify({
-      "mock americano-americano": {
-        localId: "mock americano-americano",
+      [localId]: {
+        localId,
         kind: "standard",
         status: "synced",
         supabaseTournamentId: "00000000-0000-4000-8000-000000000271",
@@ -43,13 +44,62 @@ describe("FinishTournamentApp pool play", () => {
       },
     }));
 
-    render(<FinishTournamentApp />);
+    render(<ResultSharePanel state={finishedState} />);
 
-    expect(await screen.findByRole("heading", { name: "Slutstilling" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Vis QR" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Del resultat" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Kopier link" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Del turnering" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Kopier link" })).toBeInTheDocument();
     expect(screen.queryByRole("img", { name: "QR-kode til offentligt slutresultat" })).not.toBeInTheDocument();
+  });
+
+  it("creates, copies, and disables a permanent completed tournament share link", async () => {
+    const finishedState = createFinishedHistoryTournament("Americano", "Mock Americano");
+    const localId = createStandardShadowSaveLocalId(finishedState);
+    const expectedUrl = "http://localhost:3000/result/ABCDEFGHJKLM2345";
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    window.localStorage.setItem("lezgo.shadowSaveMetadata.v1", JSON.stringify({
+      [localId]: {
+        localId,
+        kind: "standard",
+        status: "synced",
+        supabaseTournamentId: "00000000-0000-4000-8000-000000000272",
+        organizerToken: "ORGANIZER_TOKEN",
+      },
+    }));
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      if (input.toString() === "/api/supabase/result-snapshots/publish") {
+        return Promise.resolve(new Response(JSON.stringify({
+          ok: true,
+          resultId: "ABCDEFGHJKLM2345",
+          resultUrl: "https://lezgotournament.vercel.app/result/ABCDEFGHJKLM2345",
+        }), { status: 200 }));
+      }
+
+      if (input.toString() === "/api/supabase/result-snapshots/revoke") {
+        return Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({ ok: false }), { status: 500 }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<ResultSharePanel state={finishedState} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Kopier link" }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(expectedUrl));
+    expect(screen.getByText(expectedUrl)).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith("/api/supabase/result-snapshots/publish", expect.objectContaining({ method: "POST" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Slå deling fra" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/supabase/result-snapshots/revoke", expect.objectContaining({ method: "POST" })));
+    expect(screen.queryByText(expectedUrl)).not.toBeInTheDocument();
+    expect(screen.getByText("Deling slået fra.")).toBeInTheDocument();
   });
 
   it("opens a completed tournament as a read-only final standings and round history page", async () => {
