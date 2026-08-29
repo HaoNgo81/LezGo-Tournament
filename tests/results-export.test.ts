@@ -1,8 +1,12 @@
 ﻿import { describe, expect, it } from "vitest";
 import { advanceLivePoolPlayState, advanceLivePoolPlayToFinals, createMockLiveTournamentState, finishTournament, getLiveMatches, goToNextRound, saveMatchResult, saveNextPoolPhaseResult, savePoolFinalResult, savePoolPlacementTiebreakResult, type LiveTournamentState } from "../lib/live-scoring";
 import { createTournamentResultFileName, createTournamentResultLines, createTournamentResultPdf } from "../lib/results-export";
+import { createTournamentResultPdfLayoutDiagnostics } from "../lib/results-export/pdf-export";
 import { createPoolTournamentFromSetup, createTournamentFromSetup, type TournamentSetupFormat } from "../lib/tournament-setup";
+import type { TournamentMatch } from "../lib/tournament-engine";
 
+const fourPlayerText = Array.from({ length: 4 }, (_, index) => `Spiller ${index + 1}`).join("\n");
+const eightPlayerText = Array.from({ length: 8 }, (_, index) => `Spiller ${index + 1}`).join("\n");
 const sixteenPlayerText = Array.from({ length: 16 }, (_, index) => `Spiller ${index + 1}`).join("\n");
 const eightFemalePlayerText = Array.from({ length: 8 }, (_, index) => `Kvinde ${index + 1}`).join("\n");
 const eightMalePlayerText = Array.from({ length: 8 }, (_, index) => `Mand ${index + 1}`).join("\n");
@@ -52,7 +56,38 @@ describe("result export", () => {
     const header = new TextDecoder().decode(pdf.slice(0, 8));
 
     expect(header).toBe("%PDF-1.4");
+    expect(getPdfPageCount(pdf)).toBe(1);
     expect(pdf.length).toBeGreaterThan(1000);
+  });
+
+  it.each([
+    ["Scenario A", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Americano", { name: "A 4 spillere 1 bane", playerText: fourPlayerText, courts: 1, rounds: 3 })), "2026-08-04T18:00:00.000Z"), 3, 1],
+    ["Scenario B", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Americano", { name: "B 8 spillere 2 baner", playerText: eightPlayerText, courts: 2, rounds: 8 })), "2026-08-04T18:00:00.000Z"), 8, 2],
+    ["Scenario C", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mexicano", { name: "Chopstick Mex v1", courts: 4, rounds: 20 })), "2026-08-04T18:00:00.000Z"), 20, 4],
+    ["Scenario D", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Fast Makker Mexicano", { name: "D stor fast makker", courts: 4, rounds: 20 })), "2026-08-04T18:00:00.000Z"), 20, 4],
+    ["Scenario E", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mixed Americano", { name: "E mixed format", courts: 4, rounds: 8 })), "2026-08-04T18:00:00.000Z"), 8, 4],
+  ] as const)("keeps %s on one polished A4 page without dropping completed data", (_label, state, expectedRounds, expectedCourts) => {
+    const pdf = createTournamentResultPdf(state);
+    const lines = createTournamentResultLines(state);
+    const diagnostics = createTournamentResultPdfLayoutDiagnostics(state);
+
+    expect(getPdfPageCount(pdf)).toBe(1);
+    expect(diagnostics).toMatchObject({
+      completedRounds: expectedRounds,
+      courtColumns: expectedCourts,
+      fitsOnePage: true,
+      orientation: "portrait",
+      pageCount: 1,
+    });
+    expect(diagnostics.resultFontSize).toBeGreaterThanOrEqual(diagnostics.minimumFontSize);
+    expect(diagnostics.standingsFontSize).toBeGreaterThanOrEqual(diagnostics.minimumFontSize);
+    expect(lines).toContain(`Runde ${expectedRounds}`);
+    expect(lines).toContain(`Bane ${expectedCourts}: ${formatTeamLineFragment(state.rounds[0].matches[expectedCourts - 1], state)} - 21-${10 + expectedCourts - 1}`);
+    expect(lines.filter((line) => /^Runde \d+$/.test(line))).toHaveLength(expectedRounds);
+    expect(lines.filter((line) => line.startsWith("Bane "))).toHaveLength(expectedRounds * expectedCourts);
+    state.players.forEach((player) => {
+      expect(lines.join("\n")).toContain(player.name);
+    });
   });
 
   it("creates pool-play result lines with pool standings and next phase matches", () => {
@@ -187,15 +222,22 @@ function createPoolTournament(overrides: Partial<Parameters<typeof createPoolTou
   });
 }
 
-function createStandardTournament(format: TournamentSetupFormat): LiveTournamentState {
+function createStandardTournament(format: TournamentSetupFormat, overrides: Partial<{
+  courts: number;
+  femalePlayerText: string;
+  malePlayerText: string;
+  name: string;
+  playerText: string;
+  rounds: number;
+}> = {}): LiveTournamentState {
   return createTournamentFromSetup({
-    name: `${format} 16/4`,
+    name: overrides.name ?? `${format} 16/4`,
     format,
-    playerText: format === "Mixed Americano" ? "" : sixteenPlayerText,
-    femalePlayerText: format === "Mixed Americano" ? eightFemalePlayerText : "",
-    malePlayerText: format === "Mixed Americano" ? eightMalePlayerText : "",
-    courts: 4,
-    rounds: 5,
+    playerText: overrides.playerText ?? (format === "Mixed Americano" ? "" : sixteenPlayerText),
+    femalePlayerText: overrides.femalePlayerText ?? (format === "Mixed Americano" ? eightFemalePlayerText : ""),
+    malePlayerText: overrides.malePlayerText ?? (format === "Mixed Americano" ? eightMalePlayerText : ""),
+    courts: overrides.courts ?? 4,
+    rounds: overrides.rounds ?? 5,
     scoringMode: "Fri scoring",
     firstRoundOrder: "manual",
     rankingMode: "matchPointsFirst",
@@ -225,6 +267,21 @@ function scoreAllConfiguredRounds(state: LiveTournamentState): LiveTournamentSta
   }
 
   return currentState;
+}
+
+function formatTeamLineFragment(match: TournamentMatch, state: LiveTournamentState): string {
+  const players = new Map(state.players.map((player) => [player.id, player.name]));
+  const teamA = match.teamA.playerIds.map((playerId) => players.get(playerId) ?? playerId).join(" / ");
+  const teamB = match.teamB.playerIds.map((playerId) => players.get(playerId) ?? playerId).join(" / ");
+
+  return `${teamA} vs ${teamB}`;
+}
+
+function getPdfPageCount(pdf: Uint8Array): number {
+  const text = new TextDecoder().decode(pdf);
+  const match = /\/Type \/Pages \/Kids \[[^\]]+\] \/Count (\d+)/.exec(text);
+
+  return match ? Number(match[1]) : 0;
 }
 
 function createCompletedInitialPoolTournament(overrides: Partial<Parameters<typeof createPoolTournamentFromSetup>[0]> = {}) {
