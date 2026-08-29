@@ -39,13 +39,14 @@ describe("read-only tournament views", () => {
     ["Mixed Americano", 16],
     ["Fast Makker Americano", 8],
     ["Fast Makker Mexicano", 8],
-  ] as const)("creates QR and TV data for five-round %s tournaments", (format, expectedStandingRows) => {
+  ] as const)("creates QR and TV data for standard %s tournaments", (format, expectedStandingRows) => {
     const view = createReadOnlyTournamentView(scoreActiveRound(createStandardTournament(format)));
+    const expectedTotalRounds = format === "Americano" ? 15 : 5;
 
     expect(view).toMatchObject({
       format: "standard",
       activeRoundNumber: 1,
-      totalRounds: 5,
+      totalRounds: expectedTotalRounds,
       courts: 4,
       players: 16,
     });

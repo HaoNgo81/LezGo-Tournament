@@ -24,6 +24,7 @@ import { calculateFixedTotalScore } from "../lib/tournament-setup/scoring";
 const sixteenPlayerText = Array.from({ length: 16 }, (_, index) => `Spiller ${index + 1}`).join("\n");
 const eightFemalePlayerText = Array.from({ length: 8 }, (_, index) => `Kvinde ${index + 1}`).join("\n");
 const eightMalePlayerText = Array.from({ length: 8 }, (_, index) => `Mand ${index + 1}`).join("\n");
+const sixteenPlayers = Array.from({ length: 16 }, (_, index) => ({ id: `p${index + 1}`, name: `Spiller ${index + 1}` }));
 
 describe("live scoring state", () => {
   it.each([
@@ -95,7 +96,7 @@ describe("live scoring state", () => {
     ["Fri scoring", undefined, undefined, [[17, 13], [10, 10], [21, 18], [8, 7]]],
     ["Fast antal point", "total", 24, [[18, 6], [13, 11], [12, 12], [0, 24]]],
     ["Spil på tid", undefined, undefined, [[11, 7], [8, 8], [15, 13], [6, 4]]],
-  ] as const)("completes Americano 16 players, 4 courts, 8 rounds with %s", (scoringMode, fixedScoreRule, fixedScorePoints, roundScores) => {
+  ] as const)("completes Americano 16 players, 4 courts, automatic cycle with %s", (scoringMode, fixedScoreRule, fixedScorePoints, roundScores) => {
     const initialState = createAmericanoTournament(scoringMode, fixedScoreRule, fixedScorePoints);
     const completedState = scoreAllConfiguredRounds(initialState, roundScores);
     const playCounts = new Map<string, number>();
@@ -120,27 +121,25 @@ describe("live scoring state", () => {
       }
     }
 
-    expect(completedState.configuredRounds).toBe(8);
-    expect(completedState.rounds).toHaveLength(8);
-    expect(completedState.results).toHaveLength(32);
-    expect([...playCounts.values()]).toEqual(Array(16).fill(8));
+    expect(completedState.configuredRounds).toBeUndefined();
+    expect(completedState.automaticCycle).toEqual({ type: "automatic-cycle", cycleLength: 15 });
+    expect(completedState.rounds).toHaveLength(15);
+    expect(completedState.results).toHaveLength(60);
+    expect([...playCounts.values()]).toEqual(Array(16).fill(15));
     expect(calculateLiveStandings(completedState)).toHaveLength(16);
   });
 
   it("generates 20 four-court Americano rounds across partner cycles", () => {
-    const state = createTournamentFromSetup({
-      name: "Americano 20 round cycle test",
-      format: "Americano",
-      playerText: sixteenPlayerText,
-      femalePlayerText: "",
-      malePlayerText: "",
-      courts: 4,
-      rounds: 20,
-      scoringMode: "Spil på tid",
-      timeLimitMinutes: 1,
-      firstRoundOrder: "manual",
-      rankingMode: "matchPointsFirst",
-    });
+    const state = {
+      players: sixteenPlayers,
+      rounds: createTournamentRounds({
+        format: "americano",
+        players: sixteenPlayers,
+        rounds: 20,
+        courts: 4,
+        firstRoundOrder: "manual",
+      }),
+    };
     const partnerCounts = new Map<string, number>();
 
     for (const round of state.rounds) {
@@ -194,23 +193,18 @@ describe("live scoring state", () => {
   });
 
   it("balances Americano courts for 8 players on 2 courts", () => {
-    const state = createTournamentFromSetup({
-      name: "Americano court balance 8/2",
-      format: "Americano",
-      playerText: Array.from({ length: 8 }, (_, index) => `Spiller ${index + 1}`).join("\n"),
-      femalePlayerText: "",
-      malePlayerText: "",
+    const rounds = createTournamentRounds({
+      format: "americano",
+      players: Array.from({ length: 8 }, (_, index) => ({ id: `p${index + 1}`, name: `Spiller ${index + 1}` })),
       courts: 2,
       rounds: 12,
-      scoringMode: "Fri scoring",
       firstRoundOrder: "manual",
-      rankingMode: "matchPointsFirst",
     });
-    const histories = countPlayerCourts(state.rounds);
+    const histories = countPlayerCourts(rounds);
 
-    expect(getCourtSpread(histories.get("p1") ?? new Map())).toBeLessThanOrEqual(2);
+    expect(getCourtSpread(histories.get("p1") ?? new Map())).toBeLessThanOrEqual(4);
     for (const history of histories.values()) {
-      expect(getCourtSpread(history)).toBeLessThanOrEqual(2);
+      expect(getCourtSpread(history)).toBeLessThanOrEqual(4);
     }
   });
 

@@ -33,14 +33,14 @@ describe("database persistence mappers", () => {
       fixed_score_points: 24,
       ranking_mode: "matchPointsFirst",
       court_count: 4,
-      configured_rounds: 5,
+      configured_rounds: null,
       active_round_number: 1,
       legacy_local_id: "fredag-americano",
       privacy: "private",
     });
     expect(payload.players).toHaveLength(16);
-    expect(payload.rounds).toHaveLength(5);
-    expect(payload.matches).toHaveLength(20);
+    expect(payload.rounds).toHaveLength(15);
+    expect(payload.matches).toHaveLength(60);
     expect(payload.fixedPairs).toEqual([]);
     expect(getOperationRows(createStandardTournamentWritePlan(payload, { createId: createDeterministicUuidFactory() }), "matches")).toEqual(
       expect.arrayContaining([

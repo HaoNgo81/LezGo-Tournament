@@ -112,7 +112,7 @@ describe("FinishTournamentApp pool play", () => {
     expect(await screen.findByRole("heading", { name: "Historik Americano" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Slutstilling" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Kampresultater" })).toBeInTheDocument();
-    expect(screen.getByText(/Americano · 8 spillere · 2 runder/)).toBeInTheDocument();
+    expect(screen.getByText(/Americano · 8 spillere · 7 runder/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Runde 1" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Runde 2" })).toHaveAttribute("aria-pressed", "false");
     const firstRoundCards = screen.getAllByTestId("finished-history-match-card");

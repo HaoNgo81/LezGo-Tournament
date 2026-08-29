@@ -4,6 +4,7 @@
   canGoToNextRound,
   finishTournament,
   getActiveRound,
+  getLiveAmericanoCycleStatus,
   getLiveMatches,
   getPlayerName,
   getRoundProgress,

@@ -90,6 +90,7 @@ export function mapLiveTournamentToPersistencePayload(
       legacy_local_id: options.legacyLocalId ?? null,
       privacy: options.privacy ?? "private",
       metadata: {
+        ...(state.automaticCycle ? { automaticCycle: state.automaticCycle } : {}),
         ...(state.poolPlay ? { runtimeState: state } : {}),
       },
     },

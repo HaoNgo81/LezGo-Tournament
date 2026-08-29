@@ -285,6 +285,7 @@ describe("tournament setup form", () => {
   it("allows courts and rounds to be cleared temporarily before entering a new value", () => {
     render(<TournamentSetupForm />);
 
+    tapFormat("Mexicano");
     const courtsInput = getNumberInput("Baner");
     const roundsInput = getNumberInput("Runder");
 
@@ -384,6 +385,7 @@ describe("tournament setup form", () => {
     expect(timeLimitInput.value).toBe("30");
 
     fireEvent.change(screen.getByRole("combobox", { name: "Scoring" }), { target: { value: "target" } });
+    tapFormat("Mexicano");
     const courtsInput = getNumberInput("Baner");
     const roundsInput = getNumberInput("Runder");
     fireEvent.change(courtsInput, { target: { value: "03" } });
@@ -392,6 +394,17 @@ describe("tournament setup form", () => {
     fireEvent.blur(roundsInput);
     expect(courtsInput.value).toBe("3");
     expect(roundsInput.value).toBe("10");
+  });
+
+  it("hides manual rounds for Americano and shows calculated rotation", () => {
+    render(<TournamentSetupForm />);
+
+    expect(screen.queryByRole("spinbutton", { name: "Runder" })).not.toBeInTheDocument();
+    expect(screen.getAllByText((_content, element) => element?.textContent === "Rotation: -")[0]).toBeInTheDocument();
+
+    fillIndividualPlayerFields(["Anna", "Hassan", "Maja", "Noah", "Sofia", "Emil", "Clara", "Jonas", "Liva"]);
+
+    expect(screen.getAllByText((_content, element) => element?.textContent === "Rotation: 13 runder")[0]).toBeInTheDocument();
   });
 
   it("starts a timed free-scoring tournament even when the hidden score-point field was cleared", async () => {
@@ -468,7 +481,8 @@ describe("tournament setup form", () => {
     expect(screen.getByRole("spinbutton", { name: "Number of score points" })).toHaveValue(21);
     expect(screen.getByRole("combobox", { name: "Sort standings by" })).toHaveDisplayValue("Most match points");
     expect(screen.getByRole("spinbutton", { name: "Courts" })).toBeInTheDocument();
-    expect(screen.getByRole("spinbutton", { name: "Rounds" })).toBeInTheDocument();
+    expect(screen.queryByRole("spinbutton", { name: "Rounds" })).not.toBeInTheDocument();
+    expect(screen.getAllByText((_content, element) => element?.textContent === "Rotation: -")[0]).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "3. Players" })).toBeInTheDocument();
     expect(screen.getAllByRole("textbox", { name: /^Player \d+$/ })).toHaveLength(8);
     expect(screen.getByRole("textbox", { name: "Player 1" })).toHaveAttribute("placeholder", "Player 1");
@@ -794,7 +808,8 @@ describe("tournament setup form", () => {
     expect(await screen.findByDisplayValue("Americano")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Americano" })).toHaveClass("tournament-format-button-selected");
     expect(screen.getByRole("spinbutton", { name: "Baner" })).toHaveValue(2);
-    expect(screen.getByRole("spinbutton", { name: "Runder" })).toHaveValue(2);
+    expect(screen.queryByRole("spinbutton", { name: "Runder" })).not.toBeInTheDocument();
+    expect(screen.getAllByText((_content, element) => element?.textContent === "Rotation: -")[0]).toBeInTheDocument();
     expect(screen.getByRole("spinbutton", { name: "Antal scorepoint" })).toHaveValue(21);
     expect(screen.queryByRole("combobox", { name: "Runde 1" })).not.toBeInTheDocument();
   });

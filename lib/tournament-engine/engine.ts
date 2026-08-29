@@ -6,17 +6,15 @@ import {
   assertRounds,
   assertUniquePlayerIds,
 } from "./validation";
+import { createAmericanoCycleRounds, getAmericanoCycleLength } from "./americano-cycle";
 import {
-  createAmericanoOpeningRound,
-  createCycledAmericanoRound,
   createFixedPartnerAmericanoRound,
   createFixedPartnerRound,
   createFixedPartnerTeams,
-  createGreedyAmericanoRound,
   createMexicanoRoundFromRanking,
   createMixedAmericanoRound,
 } from "./round-generation";
-import { canonicalPairKey, seededShuffle, shuffleItems } from "./utils";
+import { seededShuffle, shuffleItems } from "./utils";
 
 interface ByeTracker {
   pauseCounts: Map<string, number>;
@@ -106,27 +104,12 @@ export function rebalanceFixedPartnerAmericanoCourts(rounds: TournamentRound[]):
 }
 
 function createAmericanoRounds(players: TournamentEngineConfig["players"], rounds: number, courts: number): TournamentRound[] {
-  const generatedRounds: TournamentRound[] = [];
-  const previousPairKeys = new Set<string>();
-  const byeTracker = createByeTracker(players.map((player) => player.id));
-  const courtTracker = createCourtBalanceTracker();
+  const cycleLength = getAmericanoCycleLength(players, courts);
+  const cycleCount = Math.ceil(rounds / cycleLength);
 
-  for (let roundNumber = 1; roundNumber <= rounds; roundNumber += 1) {
-    const selection = selectActivePlayers(players, getActivePlayerCount(players.length, courts), byeTracker, roundNumber);
-    const generatedRound = selection.activePlayers.length % 2 === 0
-      ? createCycledAmericanoRound(selection.activePlayers, roundNumber)
-      : roundNumber === 1 ? createAmericanoOpeningRound(selection.activePlayers, 1) : createGreedyAmericanoRound(selection.activePlayers, roundNumber, previousPairKeys);
-    const round = assignBalancedCourts(generatedRound, courtTracker, (match) => [...match.teamA.playerIds, ...match.teamB.playerIds]);
-
-    for (const match of round.matches) {
-      previousPairKeys.add(canonicalPairKey(match.teamA.playerIds));
-      previousPairKeys.add(canonicalPairKey(match.teamB.playerIds));
-    }
-
-    generatedRounds.push(withByes(round, selection.byePlayerIds));
-  }
-
-  return generatedRounds;
+  return Array.from({ length: cycleCount }, (_, cycleIndex) => createAmericanoCycleRounds(players, courts, cycleLength, cycleIndex))
+    .flat()
+    .slice(0, rounds);
 }
 
 function createFixedPartnerRounds(teams: Team[], rounds: number, mexicanoRanking: boolean, courts: number): TournamentRound[] {

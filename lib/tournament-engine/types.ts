@@ -35,6 +35,11 @@ export interface TournamentRound {
   byePlayerIds?: string[];
 }
 
+export interface AutomaticCycleState {
+  type: "automatic-cycle";
+  cycleLength: number;
+}
+
 export interface MatchResult {
   matchId: string;
   teamAPoints: number;

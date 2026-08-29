@@ -1383,7 +1383,7 @@ describe("LiveScoringApp score sheet", () => {
   });
 
   it("opens the next round from the bottom next button below live score", async () => {
-    saveActiveTournament(createStandardTournament("Americano"));
+    saveActiveTournament(createStandardTournament("Mexicano"));
     render(<LiveScoringApp />);
 
     expect(await screen.findByText("1 / 5")).toBeInTheDocument();
@@ -1401,7 +1401,7 @@ describe("LiveScoringApp score sheet", () => {
   });
 
   it("opens the previous round from the bottom standings navigation", async () => {
-    saveActiveTournament(createStandardTournament("Americano"));
+    saveActiveTournament(createStandardTournament("Mexicano"));
     render(<LiveScoringApp />);
 
     expect(await screen.findByText("1 / 5")).toBeInTheDocument();

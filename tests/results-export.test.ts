@@ -18,16 +18,17 @@ describe("result export", () => {
     ["Mixed Americano", "Mixed Americano"],
     ["Fast Makker Americano", "Fast Makker Americano"],
     ["Fast Makker Mexicano", "Fast Makker Mexicano"],
-  ] as const)("exports completed five-round %s tournaments", (format, expectedLabel) => {
+  ] as const)("exports completed standard %s tournaments", (format, expectedLabel) => {
     const finishedState = finishTournament(scoreAllConfiguredRounds(createStandardTournament(format)), "2026-08-04T18:00:00.000Z");
     const lines = createTournamentResultLines(finishedState);
     const pdf = createTournamentResultPdf(finishedState);
+    const expectedRounds = format === "Americano" ? 15 : 5;
 
     expect(lines).toContain(`Format: ${expectedLabel}`);
     expect(lines).toContain("Status: Afsluttet");
     expect(lines).toContain("Spillere: 16");
-    expect(lines).toContain("Runder: 5");
-    expect(lines).toContain("Runde 5");
+    expect(lines).toContain(`Runder: ${expectedRounds}`);
+    expect(lines).toContain(`Runde ${expectedRounds}`);
     expect(lines).toContain("KAMPRESULTATER");
     expect(new TextDecoder().decode(pdf.slice(0, 8))).toBe("%PDF-1.4");
   });
@@ -62,7 +63,7 @@ describe("result export", () => {
 
   it.each([
     ["Scenario A", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Americano", { name: "A 4 spillere 1 bane", playerText: fourPlayerText, courts: 1, rounds: 3 })), "2026-08-04T18:00:00.000Z"), 3, 1, "relaxed", 1, [[1, 2, 3]]],
-    ["Scenario B", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Americano", { name: "B 8 spillere 2 baner", playerText: eightPlayerText, courts: 2, rounds: 8 })), "2026-08-04T18:00:00.000Z"), 8, 2, "standard", 1, [[1, 2, 3, 4, 5, 6, 7, 8]]],
+    ["Scenario B", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Americano", { name: "B 8 spillere 2 baner", playerText: eightPlayerText, courts: 2, rounds: 8 })), "2026-08-04T18:00:00.000Z"), 7, 2, "standard", 1, [[1, 2, 3, 4, 5, 6, 7]]],
     ["Scenario C", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mexicano", { name: "Chopstick Mex v1", courts: 4, rounds: 20 })), "2026-08-04T18:00:00.000Z"), 20, 4, "dense", 2, [[1, 2, 3, 4, 5, 6, 7, 8], [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]]],
     ["Scenario D", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Fast Makker Mexicano", { name: "D stor fast makker", courts: 4, rounds: 20 })), "2026-08-04T18:00:00.000Z"), 20, 4, "dense", 2, [[1, 2, 3, 4, 5, 6, 7, 8], [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]]],
     ["Scenario E", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mixed Americano", { name: "E mixed format", courts: 4, rounds: 8 })), "2026-08-04T18:00:00.000Z"), 8, 4, "compact", 1, [[1, 2, 3, 4, 5, 6, 7, 8]]],

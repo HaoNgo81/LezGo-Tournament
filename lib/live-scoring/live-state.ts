@@ -1,10 +1,13 @@
 import {
   calculatePlayerStandings,
   calculateTeamStandings,
+  createNextAmericanoCycleRound,
   createFixedPartnerTeams,
   createNextFixedMexicanoRoundFromTeamRanking,
   createNextMexicanoRoundFromPlayerRanking,
   createTournamentRounds,
+  getAmericanoCycleStatus,
+  type AutomaticCycleState,
   type MatchResult,
   type StandingRow,
   type StandingsRankingMode,
@@ -25,6 +28,7 @@ export interface LiveTournamentState {
   players: TournamentPlayer[];
   rounds: TournamentRound[];
   configuredRounds?: number;
+  automaticCycle?: AutomaticCycleState;
   courtCount?: number;
   activeRoundNumber: number;
   results: MatchResult[];
@@ -133,7 +137,7 @@ export function getRoundProgress(state: LiveTournamentState, roundNumber = state
 }
 
 export function canGoToNextRound(state: LiveTournamentState): boolean {
-  return state.activeRoundNumber < getConfiguredRoundCount(state) && getRoundProgress(state).isComplete;
+  return (isOpenEndedAmericano(state) || state.activeRoundNumber < getConfiguredRoundCount(state)) && getRoundProgress(state).isComplete;
 }
 
 export function goToPreviousRound(state: LiveTournamentState): LiveTournamentState {
@@ -150,7 +154,7 @@ export function goToPreviousRound(state: LiveTournamentState): LiveTournamentSta
 export function goToNextRound(state: LiveTournamentState): LiveTournamentState {
   const nextRoundNumber = state.activeRoundNumber + 1;
 
-  if (state.activeRoundNumber >= getConfiguredRoundCount(state)) {
+  if (!isOpenEndedAmericano(state) && state.activeRoundNumber >= getConfiguredRoundCount(state)) {
     return state;
   }
 
@@ -353,6 +357,10 @@ function getConfiguredRoundCount(state: LiveTournamentState): number {
 }
 
 function createNextDynamicRound(state: LiveTournamentState, roundNumber: number): TournamentRound {
+  if (isOpenEndedAmericano(state)) {
+    return createNextAmericanoCycleRound(state, roundNumber);
+  }
+
   if (state.format === "mexicano") {
     const standings = calculatePlayerStandings(state.players, state.rounds, state.results, state.rankingMode);
     const playerById = new Map(state.players.map((player) => [player.id, player]));
@@ -371,6 +379,14 @@ function createNextDynamicRound(state: LiveTournamentState, roundNumber: number)
   }
 
   throw new Error(`Runde ${roundNumber} er ikke oprettet.`);
+}
+
+function isOpenEndedAmericano(state: LiveTournamentState): boolean {
+  return state.format === "americano" && Boolean(state.automaticCycle);
+}
+
+export function getLiveAmericanoCycleStatus(state: LiveTournamentState) {
+  return getAmericanoCycleStatus(state);
 }
 
 function refreshUnplayedMexicanoRounds(state: LiveTournamentState, editedMatchId: string): LiveTournamentState {

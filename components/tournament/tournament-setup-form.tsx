@@ -28,7 +28,7 @@ import {
   type ScoringMode,
   type TournamentSetupFormat,
 } from "@/lib/tournament-setup";
-import type { StandingsRankingMode } from "@/lib/tournament-engine";
+import { getAmericanoCycleLength, type StandingsRankingMode } from "@/lib/tournament-engine";
 import {
   getTeamVsTeamCaptainName,
   type TeamVsTeamCompetitionMode,
@@ -108,6 +108,7 @@ export function TournamentSetupForm() {
   const isTeamVsTeam = format === "Team vs. Team";
   const isPoolPlay = format === "Puljespil";
   const isFixedPartner = format === "Fast Makker Americano" || format === "Fast Makker Mexicano";
+  const isAutomaticAmericano = format === "Americano";
   const fixedPartnerPairs = getFixedPartnerPairs(playerText);
   const teamRounds = playersPerTeam === 4 ? 3 : 2;
   const scoringChoice = getScoringChoice(scoringMode, fixedScoreRule);
@@ -117,6 +118,7 @@ export function TournamentSetupForm() {
   const femalePlayerFieldCount = getIndividualPlayerFieldCount(femalePlayerText, mixedGenderFieldCount);
   const malePlayerFieldCount = getIndividualPlayerFieldCount(malePlayerText, mixedGenderFieldCount);
   const isGuest = accountStatus === "guest";
+  const americanoRotationRounds = isAutomaticAmericano ? getAmericanoRotationRounds(playerText, configuredCourtCount) : null;
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -236,7 +238,7 @@ export function TournamentSetupForm() {
         femalePlayerText,
         malePlayerText,
         courts: parsedCourts,
-        rounds: parsePositiveIntegerInput(rounds, "Runder"),
+        rounds: isAutomaticAmericano ? 1 : parsePositiveIntegerInput(rounds, "Runder"),
         scoringMode,
         fixedScoreRule,
         fixedScorePoints: parseFixedScorePointsInput(scoringMode, fixedScorePoints),
@@ -756,20 +758,26 @@ export function TournamentSetupForm() {
                   />
                 </label>
                 {isGuest ? <p className="self-end text-sm font-bold text-[var(--muted)]">{t("guestCourtLimitMessage")}</p> : null}
-                <label className="grid gap-2 text-lg font-bold">
-                  {t("rounds")}
-                  <input
-                    className="field-control"
-                    min="1"
-                    type="number"
-                    value={rounds}
-                    onBlur={() => setRounds(normalizeIntegerInputValue(rounds))}
-                    onChange={(event) => {
-                      markFormDirty();
-                      setRounds(event.target.value);
-                    }}
-                  />
-                </label>
+                {isAutomaticAmericano ? (
+                  <div className="self-end rounded-md border border-[var(--line)] bg-white px-4 py-3 text-base font-black">
+                    Rotation: {americanoRotationRounds ? `${americanoRotationRounds} runder` : "-"}
+                  </div>
+                ) : (
+                  <label className="grid gap-2 text-lg font-bold">
+                    {t("rounds")}
+                    <input
+                      className="field-control"
+                      min="1"
+                      type="number"
+                      value={rounds}
+                      onBlur={() => setRounds(normalizeIntegerInputValue(rounds))}
+                      onChange={(event) => {
+                        markFormDirty();
+                        setRounds(event.target.value);
+                      }}
+                    />
+                  </label>
+                )}
               </div>
             </>
           )}
@@ -862,7 +870,7 @@ export function TournamentSetupForm() {
           {isTeamVsTeam ? <p><strong>Spillere pr. hold:</strong> {playersPerTeam}</p> : null}
           {isTeamVsTeam ? <p><strong>Holdkaptajner:</strong> {teamDrafts.slice(0, teamCount).map((team) => `${team.name || "Hold"}: ${getTeamVsTeamCaptainName(team)}`).join(" · ")}</p> : null}
           {!isTeamVsTeam && !isPoolPlay ? <p><strong>{t("courts")}:</strong> {courts || "-"}</p> : null}
-          {!isTeamVsTeam && !isPoolPlay ? <p><strong>{t("rounds")}:</strong> {rounds || "-"}</p> : isTeamVsTeam ? <p><strong>Holdkamp:</strong> {teamRounds} runder · 2 kampe pr. runde · {teamMatchFormat === "oneSet" ? "1 sæt" : "bedst af 3 sæt"}</p> : null}
+          {!isTeamVsTeam && !isPoolPlay ? <p><strong>{isAutomaticAmericano ? "Rotation" : t("rounds")}:</strong> {isAutomaticAmericano ? (americanoRotationRounds ? `${americanoRotationRounds} runder` : "-") : (rounds || "-")}</p> : isTeamVsTeam ? <p><strong>Holdkamp:</strong> {teamRounds} runder · 2 kampe pr. runde · {teamMatchFormat === "oneSet" ? "1 sæt" : "bedst af 3 sæt"}</p> : null}
           {!isTeamVsTeam ? <p><strong>Ranking:</strong> {t(rankingModeOptions.find((option) => option.value === rankingMode)?.labelKey ?? "mostMatchPoints")}</p> : null}
         </div>
       </Section>
@@ -1120,6 +1128,19 @@ function getIndividualPlayerFieldCount(text: string, minimumFieldCount: number):
   const minimum = Math.max(4, minimumFieldCount);
   const allVisibleFieldsAreFilled = names.length >= minimum && names.every((name) => name.trim());
   return Math.max(minimum, names.length + (allVisibleFieldsAreFilled ? 1 : 0));
+}
+
+function getAmericanoRotationRounds(playerText: string, courts: number): number | null {
+  try {
+    const players = getPlayerTextLines(playerText)
+      .map((name) => name.trim())
+      .filter(Boolean)
+      .map((name, index) => ({ id: `p${index + 1}`, name }));
+
+    return players.length >= 4 ? getAmericanoCycleLength(players, courts) : null;
+  } catch {
+    return null;
+  }
 }
 
 function updatePlayerTextAtIndex(text: string, playerIndex: number, playerName: string): string {

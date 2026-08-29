@@ -11,6 +11,7 @@ import {
   createMockLiveTournamentState,
   getPoolFinalProgress,
   getInitialPoolProgress,
+  getLiveAmericanoCycleStatus,
   getNextPoolPhaseProgress,
   getLiveMatches,
   getPlayerName,
@@ -723,12 +724,26 @@ export function LiveScoringApp() {
 
   return (
     <div className="grid gap-3 sm:gap-5" data-testid="live-layout">
+      {(() => {
+        const americanoCycleStatus = getLiveAmericanoCycleStatus(state);
+        const totalRoundLabel = americanoCycleStatus ? `${state.rounds.length} ${t("rounds").toLowerCase()}` : `${state.configuredRounds ?? state.rounds.length} ${t("rounds").toLowerCase()}`;
+        const activeRoundLabel = americanoCycleStatus ? `${state.activeRoundNumber}` : `${state.activeRoundNumber} / ${state.configuredRounds ?? state.rounds.length}`;
+        const rotationLabel = americanoCycleStatus
+          ? `Rotation ${americanoCycleStatus.cycleNumber} · ${americanoCycleStatus.roundInCycle}/${americanoCycleStatus.cycleLength}`
+          : null;
+        const roundStatusLabel = americanoCycleStatus?.isCycleComplete && roundProgress?.isComplete
+          ? `Rotation ${americanoCycleStatus.cycleNumber} færdig`
+          : roundProgress?.isComplete ? t("roundComplete") : t("roundIncomplete");
+
+        return (
+          <>
       <div className="app-card p-3 sm:px-4 sm:py-3" data-testid="live-compact-mobile-header">
         <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
           <div className="min-w-0">
             <p className="text-[0.72rem] font-bold uppercase leading-none text-[var(--primary-strong)] sm:text-xs">{state.status === "finished" ? t("completedTournament") : t("activeTournament")}</p>
             <h2 className="mt-1 text-xl font-black leading-tight sm:text-2xl">{state.tournamentName}</h2>
-            <p className="mt-0.5 text-xs font-bold text-[var(--muted)] sm:text-sm">{state.players.length} {t("players").toLowerCase()} · {state.configuredRounds ?? state.rounds.length} {t("rounds").toLowerCase()}</p>
+            <p className="mt-0.5 text-xs font-bold text-[var(--muted)] sm:text-sm">{state.players.length} {t("players").toLowerCase()} · {totalRoundLabel}</p>
+            {rotationLabel ? <p className="mt-1 text-xs font-black text-[var(--primary-strong)] sm:text-sm">{rotationLabel}</p> : null}
           </div>
           {!isControllerReadOnly ? <ScreenMirroringControl /> : null}
         </div>
@@ -737,7 +752,7 @@ export function LiveScoringApp() {
 
       <div className="grid gap-2 sm:gap-3 sm:grid-cols-[repeat(4,minmax(0,1fr))_minmax(220px,1.2fr)]">
         <div className="app-card grid grid-cols-3 divide-x divide-[var(--line)] overflow-hidden text-center sm:contents" data-testid="live-mobile-round-summary">
-          <MetricBlock label={t("round")} value={`${state.activeRoundNumber} / ${state.configuredRounds ?? state.rounds.length}`} />
+          <MetricBlock label={t("round")} value={activeRoundLabel} />
           <MetricBlock label={t("matches")} value={`${liveMatches.length}`} />
           <MetricBlock label={t("savedShort")} value={`${roundProgress?.completedMatches ?? 0} / ${roundProgress?.totalMatches ?? 0}`} />
         </div>
@@ -761,7 +776,7 @@ export function LiveScoringApp() {
           <div>
             <h2 className="text-lg font-black sm:text-xl">{t("round")} {state.activeRoundNumber}</h2>
             <p className="text-xs font-bold text-[var(--muted)] sm:text-sm">
-              {roundProgress?.isComplete ? t("roundComplete") : t("roundIncomplete")}
+              {roundStatusLabel}
             </p>
           </div>
           {!isControllerReadOnly ? <RoundNavigationButtons canGoPrevious={state.activeRoundNumber > 1} canGoNext={nextRoundIsAvailable} onNext={handleNextRound} onPrevious={handlePreviousRound} /> : null}
@@ -793,6 +808,9 @@ export function LiveScoringApp() {
       {selectedMatch && !isControllerReadOnly ? (
         <ScoreSheet liveMatch={selectedMatch} players={state.players} state={state} onClose={() => setSelectedMatchId(null)} onSave={handleSave} />
       ) : null}
+          </>
+        );
+      })()}
     </div>
   );
 }

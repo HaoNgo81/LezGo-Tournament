@@ -102,6 +102,7 @@ export function mapPersistenceRowsToLiveTournamentState(readModel: StandardTourn
     players,
     rounds,
     configuredRounds: readModel.tournament.configured_rounds ?? undefined,
+    automaticCycle: getAutomaticCycle(readModel.tournament.metadata),
     courtCount: readModel.tournament.court_count ?? undefined,
     activeRoundNumber: readModel.tournament.active_round_number ?? 1,
     results,
@@ -125,6 +126,29 @@ function isLiveTournamentState(value: unknown): value is LiveTournamentState {
     "rounds" in value &&
     "results" in value,
   );
+}
+
+function getAutomaticCycle(metadata: JsonRecord | undefined): LiveTournamentState["automaticCycle"] {
+  const automaticCycle = metadata?.automaticCycle;
+
+  if (
+    automaticCycle &&
+    typeof automaticCycle === "object" &&
+    !Array.isArray(automaticCycle) &&
+    "type" in automaticCycle &&
+    "cycleLength" in automaticCycle &&
+    automaticCycle.type === "automatic-cycle" &&
+    typeof automaticCycle.cycleLength === "number" &&
+    Number.isInteger(automaticCycle.cycleLength) &&
+    automaticCycle.cycleLength > 0
+  ) {
+    return {
+      type: "automatic-cycle",
+      cycleLength: automaticCycle.cycleLength,
+    };
+  }
+
+  return undefined;
 }
 
 function getRoundMatches(

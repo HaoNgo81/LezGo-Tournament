@@ -16,7 +16,7 @@ const teamD = createTeam("d", "Hold D");
 
 describe("tournament setup", () => {
   it.each([
-    ["Americano", sixteenPlayerText, "", "", 5],
+    ["Americano", sixteenPlayerText, "", "", 15],
     ["Mexicano", sixteenPlayerText, "", "", 1],
     ["Mixed Americano", "", eightFemalePlayerText, eightMalePlayerText, 5],
     ["Fast Makker Americano", sixteenPlayerText, "", "", 5],
@@ -36,7 +36,12 @@ describe("tournament setup", () => {
     });
 
     expect(tournament.players).toHaveLength(16);
-    expect(tournament.configuredRounds).toBe(5);
+    if (format === "Americano") {
+      expect(tournament.configuredRounds).toBeUndefined();
+      expect(tournament.automaticCycle).toEqual({ type: "automatic-cycle", cycleLength: 15 });
+    } else {
+      expect(tournament.configuredRounds).toBe(5);
+    }
     expect(tournament.courtCount).toBe(4);
     expect(tournament.rounds).toHaveLength(expectedRounds);
     expect(tournament.rounds.every((round) => round.matches.length === 4)).toBe(true);
@@ -73,7 +78,9 @@ describe("tournament setup", () => {
       rankingMode: "matchPointsFirst",
     });
     expect(tournament.players).toHaveLength(8);
-    expect(tournament.rounds).toHaveLength(2);
+    expect(tournament.configuredRounds).toBeUndefined();
+    expect(tournament.automaticCycle).toEqual({ type: "automatic-cycle", cycleLength: 7 });
+    expect(tournament.rounds).toHaveLength(7);
   });
 
   it("stores selected time limit for timed scoring", () => {
