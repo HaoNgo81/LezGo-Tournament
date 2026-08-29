@@ -63,8 +63,8 @@ describe("result export", () => {
   it.each([
     ["Scenario A", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Americano", { name: "A 4 spillere 1 bane", playerText: fourPlayerText, courts: 1, rounds: 3 })), "2026-08-04T18:00:00.000Z"), 3, 1, "relaxed", 1, [[1, 2, 3]]],
     ["Scenario B", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Americano", { name: "B 8 spillere 2 baner", playerText: eightPlayerText, courts: 2, rounds: 8 })), "2026-08-04T18:00:00.000Z"), 8, 2, "standard", 1, [[1, 2, 3, 4, 5, 6, 7, 8]]],
-    ["Scenario C", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mexicano", { name: "Chopstick Mex v1", courts: 4, rounds: 20 })), "2026-08-04T18:00:00.000Z"), 20, 4, "dense", 2, [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], [13, 14, 15, 16, 17, 18, 19, 20]]],
-    ["Scenario D", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Fast Makker Mexicano", { name: "D stor fast makker", courts: 4, rounds: 20 })), "2026-08-04T18:00:00.000Z"), 20, 4, "dense", 2, [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], [13, 14, 15, 16, 17, 18, 19, 20]]],
+    ["Scenario C", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mexicano", { name: "Chopstick Mex v1", courts: 4, rounds: 20 })), "2026-08-04T18:00:00.000Z"), 20, 4, "dense", 2, [[1, 2, 3, 4, 5, 6, 7, 8], [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]]],
+    ["Scenario D", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Fast Makker Mexicano", { name: "D stor fast makker", courts: 4, rounds: 20 })), "2026-08-04T18:00:00.000Z"), 20, 4, "dense", 2, [[1, 2, 3, 4, 5, 6, 7, 8], [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]]],
     ["Scenario E", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mixed Americano", { name: "E mixed format", courts: 4, rounds: 8 })), "2026-08-04T18:00:00.000Z"), 8, 4, "compact", 1, [[1, 2, 3, 4, 5, 6, 7, 8]]],
     ["Scenario F", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mexicano", { name: "F 25 runder", courts: 4, rounds: 25 })), "2026-08-04T18:00:00.000Z"), 25, 4, "dense", 3, [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24], [25]]],
   ] as const)("paginates %s without dropping completed data", (_label, state, expectedRounds, expectedCourts, expectedDensity, expectedPages, expectedRoundPages) => {
@@ -144,7 +144,9 @@ describe("result export", () => {
       rounds: 3,
     })), "2026-08-04T18:00:00.000Z");
     const pdf = createTournamentResultPdf(state);
-    const pdfText = new TextDecoder("windows-1252").decode(pdf);
+    const pdfText = new TextDecoder("windows-1252")
+      .decode(pdf)
+      .replace(/<< \/Type \/XObject \/Subtype \/Image[\s\S]*?endstream\s*endobj/g, "");
 
     expect(pdfText).toContain("ÆØÅ æøå");
     expect(pdfText).toContain("SLUTSTILLING");
@@ -159,6 +161,23 @@ describe("result export", () => {
     expect(pdfText).not.toContain("�");
   });
 
+  it("uses the official LEZGO logo asset in the designed PDF", () => {
+    const state = finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mexicano", {
+      name: "Chopstick Mex v1",
+      courts: 4,
+      rounds: 20,
+    })), "2026-08-04T18:00:00.000Z");
+    const pdf = createTournamentResultPdf(state);
+    const diagnostics = createTournamentResultPdfLayoutDiagnostics(state);
+    const pdfText = new TextDecoder("windows-1252").decode(pdf);
+
+    expect(diagnostics.logoUsed).toBe(true);
+    expect(diagnostics.logoSourcePath).toBe("public/lezgo-padel-logo.png");
+    expect(pdfText).toContain("/Subtype /Image");
+    expect(pdfText).toContain("/Logo Do");
+    expect(pdfText).not.toContain("(LEZGO)");
+  });
+
   it("keeps every four-court match row inside separate non-overlapping bounded cells", () => {
     const state = finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mexicano", {
       name: "Chopstick Mex v1",
@@ -170,17 +189,81 @@ describe("result export", () => {
 
     expect(roundOneRows).toHaveLength(4);
     roundOneRows.forEach((row) => {
-      expect(row.court.x + row.court.width).toBeLessThanOrEqual(row.sideA.x);
+      expect(row.sideA.x).toBeGreaterThanOrEqual(row.court.x);
+      expect(row.sideB.x + row.sideB.width).toBeLessThanOrEqual(row.court.x + row.court.width);
       expect(row.sideA.x + row.sideA.width).toBeLessThanOrEqual(row.score.x);
       expect(row.score.x + row.score.width).toBeLessThanOrEqual(row.sideB.x);
       expect(row.sideB.x + row.sideB.width).toBeLessThanOrEqual(595);
       expect(row.court.y).toBeGreaterThanOrEqual(0);
-      expect(row.score.y).toBe(row.sideA.y);
-      expect(row.score.y).toBe(row.sideB.y);
+      expect(row.sideA.y).toBe(row.court.y);
+      expect(row.sideB.y).toBe(row.court.y);
     });
   });
 
-  it("lays Scenario C continuation rounds 13-20 out as a fixed 4 by 2 grid", () => {
+  it("keeps Scenario C partners vertically aligned by team in every court card", () => {
+    const state = finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mexicano", {
+      name: "Chopstick Mex v1",
+      courts: 4,
+      rounds: 20,
+    })), "2026-08-04T18:00:00.000Z");
+    const diagnostics = createTournamentResultPdfLayoutDiagnostics(state);
+    const players = new Map(state.players.map((player) => [player.id, player.name]));
+
+    state.rounds.forEach((round) => {
+      round.matches.forEach((match) => {
+        const row = diagnostics.matchRows.find((candidate) => candidate.roundNumber === round.roundNumber && candidate.courtNumber === match.courtNumber);
+
+        expect(row).toBeDefined();
+        expect(row?.topLeftPlayer).toBe(players.get(match.teamA.playerIds[0]));
+        expect(row?.bottomLeftPlayer).toBe(players.get(match.teamA.playerIds[1]));
+        expect(row?.topRightPlayer).toBe(players.get(match.teamB.playerIds[0]));
+        expect(row?.bottomRightPlayer).toBe(players.get(match.teamB.playerIds[1]));
+        expect(new Set([row?.topLeftPlayer, row?.bottomLeftPlayer, row?.topRightPlayer, row?.bottomRightPlayer]).size).toBe(4);
+      });
+    });
+  });
+
+  it("uses one centered score column between the left and right teams in every court card", () => {
+    const state = finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mexicano", {
+      name: "Chopstick Mex v1",
+      courts: 4,
+      rounds: 20,
+    })), "2026-08-04T18:00:00.000Z");
+    const diagnostics = createTournamentResultPdfLayoutDiagnostics(state);
+
+    diagnostics.matchRows.forEach((row) => {
+      expect(row.sideA.x + row.sideA.width).toBeLessThanOrEqual(row.score.x);
+      expect(row.score.x + row.score.width).toBeLessThanOrEqual(row.sideB.x);
+      expect(row.score.y).toBeGreaterThan(row.court.y);
+      expect(row.score.y + row.score.height).toBeLessThan(row.court.y + row.court.height);
+      expect(row.score.x + row.score.width / 2).toBeCloseTo(row.court.x + row.court.width / 2, 1);
+    });
+  });
+
+  it("uses the same court-card template across all Scenario C rounds and courts", () => {
+    const state = finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mexicano", {
+      name: "Chopstick Mex v1",
+      courts: 4,
+      rounds: 20,
+    })), "2026-08-04T18:00:00.000Z");
+    const diagnostics = createTournamentResultPdfLayoutDiagnostics(state);
+    const firstRow = diagnostics.matchRows[0];
+
+    expect(firstRow).toBeDefined();
+    diagnostics.matchRows.forEach((row) => {
+      expect(row.sideA.width).toBeCloseTo(firstRow.sideA.width, 4);
+      expect(row.sideB.width).toBeCloseTo(firstRow.sideB.width, 4);
+      expect(row.score.width).toBeCloseTo(firstRow.score.width, 4);
+      expect(row.sideA.height).toBe(row.court.height);
+      expect(row.sideB.height).toBe(row.court.height);
+      expect(row.score.height).toBeGreaterThanOrEqual(14);
+      expect(row.score.height).toBeLessThanOrEqual(18);
+      expect(row.topLeftPlayer).not.toBe(row.bottomLeftPlayer);
+      expect(row.topRightPlayer).not.toBe(row.bottomRightPlayer);
+    });
+  });
+
+  it("lays Scenario C continuation rounds 9-20 out as a fixed 4 by 3 grid", () => {
     const state = finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mexicano", {
       name: "Chopstick Mex v1",
       courts: 4,
@@ -191,8 +274,8 @@ describe("result export", () => {
 
     expect(pageTwo).toMatchObject({
       columns: 4,
-      rows: 2,
-      roundNumbers: [13, 14, 15, 16, 17, 18, 19, 20],
+      rows: 3,
+      roundNumbers: [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
     });
   });
 

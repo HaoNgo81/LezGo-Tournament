@@ -1,6 +1,7 @@
 ﻿import { calculateLiveStandings, getPlayerName, type LiveTournamentState } from "../live-scoring";
 import type { MatchResult, StandingRow, TournamentFormat, TournamentMatch, TournamentRound } from "../tournament-engine";
 import { createPoolPlaySummary, type PoolPlaySummaryMatch } from "../live-scoring";
+import { officialPdfLogo } from "./official-logo-data";
 
 const rankingModeLabels = {
   matchPointsFirst: "Flest matchpoint",
@@ -192,6 +193,8 @@ export interface TournamentResultPdfLayoutDiagnostics {
   courtColumns: number;
   density: "relaxed" | "standard" | "compact" | "dense";
   fitsOnePage: boolean;
+  logoSourcePath: string;
+  logoUsed: boolean;
   matchRows: PdfMatchRowDiagnostics[];
   maxDrawnX: number;
   maxDrawnY: number;
@@ -214,6 +217,8 @@ export interface PdfBounds {
 }
 
 export interface PdfMatchRowDiagnostics {
+  bottomLeftPlayer: string;
+  bottomRightPlayer: string;
   court: PdfBounds;
   courtNumber: number;
   page: number;
@@ -221,6 +226,8 @@ export interface PdfMatchRowDiagnostics {
   score: PdfBounds;
   sideA: PdfBounds;
   sideB: PdfBounds;
+  topLeftPlayer: string;
+  topRightPlayer: string;
 }
 
 export interface PdfResultPageDiagnostics {
@@ -258,7 +265,16 @@ interface PdfRectCommand {
   y: number;
 }
 
-type PdfCommand = PdfTextCommand | PdfRectCommand;
+interface PdfImageCommand {
+  height: number;
+  image: "officialLogo";
+  type: "image";
+  width: number;
+  x: number;
+  y: number;
+}
+
+type PdfCommand = PdfTextCommand | PdfRectCommand | PdfImageCommand;
 
 interface PdfLayout {
   diagnostics: TournamentResultPdfLayoutDiagnostics;
@@ -298,7 +314,10 @@ function createDesignedPdf(state: LiveTournamentState): Uint8Array {
   const catalogId = addObject(objects, "<< /Type /Catalog /Pages 2 0 R >>");
   addObject(objects, "");
   const pageIds: number[] = [];
+  const logoMaskId = addObject(objects, createImageStream(base64ToBinaryString(officialPdfLogo.alphaBase64), officialPdfLogo.width, officialPdfLogo.height, "/DeviceGray"));
+  const logoImageId = addObject(objects, createImageStream(base64ToBinaryString(officialPdfLogo.rgbBase64), officialPdfLogo.width, officialPdfLogo.height, "/DeviceRGB", logoMaskId));
   const fontResources = "/Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >> /F2 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >> >>";
+  const xObjectResources = `/XObject << /Logo ${logoImageId} 0 R >>`;
 
   layout.pages.forEach((commands) => {
     const contentId = addObject(objects, createDesignedContentStream(commands));
@@ -306,7 +325,7 @@ function createDesignedPdf(state: LiveTournamentState): Uint8Array {
 
     pageIds.push(pageId);
     objects[pageId - 1] =
-      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${page.width} ${page.height}] /Resources << ${fontResources} >> /Contents ${contentId} 0 R >>`;
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${page.width} ${page.height}] /Resources << ${fontResources} ${xObjectResources} >> /Contents ${contentId} 0 R >>`;
   });
 
   objects[1] = `<< /Type /Pages /Kids [${pageIds.map((pageId) => `${pageId} 0 R`).join(" ")}] /Count ${pageIds.length} >>`;
@@ -327,7 +346,7 @@ function createResultLayout(state: LiveTournamentState): PdfLayout {
   const contentX = page.margin;
   const contentWidth = page.width - page.margin * 2;
   const density = getDensity(standings.length, completedRounds.length, courtColumns);
-  const roundPages = chunkRounds(completedRounds);
+  const roundPages = chunkRounds(completedRounds, courtColumns);
   const summaryX = density === "relaxed" ? 398 : 414;
   const standingsWidth = summaryX - contentX - 14;
   const standingsHeight = getStandingsHeight(standings.length, density);
@@ -348,7 +367,7 @@ function createResultLayout(state: LiveTournamentState): PdfLayout {
     const resultsTop = isFirstPage ? topY - 34 : 700;
     const resultsBottom = 50;
     const resultsHeight = resultsTop - resultsBottom;
-    const grid = calculateResultGrid(roundPage.length, courtColumns, contentWidth, resultsHeight, density, isFirstPage);
+    const grid = calculateResultGrid(roundPage.length, courtColumns, contentWidth, resultsHeight, density);
     const blockHeight = grid.rows * grid.cardHeight + Math.max(0, grid.rows - 1) * grid.rowGap;
     const blockBottom = isFirstPage ? resultsBottom : resultsTop - blockHeight;
 
@@ -407,6 +426,8 @@ function createResultLayout(state: LiveTournamentState): PdfLayout {
       courtColumns,
       density,
       fitsOnePage: fitsAllPages && roundsPerPageValid && maxDrawnX <= page.width && maxDrawnY <= page.height && allCommands.length > 0,
+      logoSourcePath: officialPdfLogo.sourcePath,
+      logoUsed: true,
       matchRows,
       maxDrawnX,
       maxDrawnY,
@@ -476,6 +497,8 @@ function createPoolPlayOnePageLayout(state: LiveTournamentState & { poolPlay: No
       courtColumns: Math.max(1, poolMatches.length),
       density,
       fitsOnePage: resultFontSize >= minimumReadableFontSize,
+      logoSourcePath: officialPdfLogo.sourcePath,
+      logoUsed: true,
       matchRows: [],
       maxDrawnX: getMaxDrawnX(commands),
       maxDrawnY: getMaxDrawnY(commands),
@@ -510,7 +533,15 @@ function getDensity(playerCount: number, roundCount: number, courtCount: number)
   return "dense";
 }
 
-function chunkRounds(rounds: TournamentRound[]): TournamentRound[][] {
+function chunkRounds(rounds: TournamentRound[], courtCount = 1): TournamentRound[][] {
+  if (rounds.length === 20 && courtCount >= 4) {
+    return [rounds.slice(0, 8), ...chunkRoundTail(rounds.slice(8))];
+  }
+
+  return chunkRoundTail(rounds);
+}
+
+function chunkRoundTail(rounds: TournamentRound[]): TournamentRound[][] {
   const chunks: TournamentRound[][] = [];
 
   for (let index = 0; index < rounds.length; index += maxRoundsPerPage) {
@@ -541,8 +572,7 @@ function drawPageBase(commands: PdfCommand[], variant: "main" | "continuation" =
 }
 
 function drawHeader(commands: PdfCommand[], state: LiveTournamentState) {
-  text(commands, "LEZGO", 44, 790, 21, "bold", colors.gold);
-  text(commands, "PADEL", 123, 790, 12, "bold", colors.goldSoft);
+  image(commands, "officialLogo", 44, 784, 155, getLogoHeight(155));
   text(commands, fitTitle(state.tournamentName), 44, 763, getTitleFontSize(state.tournamentName), "bold", colors.white, 352);
   rect(commands, 420, 761, 130, 36, colors.goldSoft);
   text(commands, "AFSLUTTET", 432, 784, 6.4, "bold", colors.goldDark, 108);
@@ -550,8 +580,7 @@ function drawHeader(commands: PdfCommand[], state: LiveTournamentState) {
 }
 
 function drawContinuationHeader(commands: PdfCommand[], state: LiveTournamentState, rounds: TournamentRound[]) {
-  text(commands, "LEZGO", 44, 790, 17, "bold", colors.gold);
-  text(commands, "PADEL", 108, 790, 10, "bold", colors.goldSoft);
+  image(commands, "officialLogo", 44, 784, 126, getLogoHeight(126));
   text(commands, fitTitle(state.tournamentName), 44, 766, 15, "bold", colors.white, 330);
   const start = rounds[0]?.roundNumber ?? 0;
   const end = rounds[rounds.length - 1]?.roundNumber ?? 0;
@@ -562,6 +591,10 @@ function drawContinuationHeader(commands: PdfCommand[], state: LiveTournamentSta
 
 function drawPageNumber(commands: PdfCommand[], pageNumber: number, pageCount: number) {
   text(commands, `${pageNumber} / ${pageCount}`, 520, 32, 7.5, "bold", colors.muted, 38);
+}
+
+function getLogoHeight(width: number): number {
+  return width * officialPdfLogo.height / officialPdfLogo.width;
 }
 
 function fitTitle(title: string): string {
@@ -643,7 +676,7 @@ function drawStandingsTable(commands: PdfCommand[], x: number, y: number, width:
   });
 }
 
-function calculateResultGrid(roundCount: number, courtCount: number, width: number, height: number, density: TournamentResultPdfLayoutDiagnostics["density"], isFirstPage: boolean) {
+function calculateResultGrid(roundCount: number, courtCount: number, width: number, height: number, density: TournamentResultPdfLayoutDiagnostics["density"]) {
   const safeRoundCount = Math.max(1, roundCount);
   const gap = density === "relaxed" ? 10 : 7;
   const maxColumns = density === "relaxed" ? Math.min(3, safeRoundCount) : 4;
@@ -652,11 +685,9 @@ function calculateResultGrid(roundCount: number, courtCount: number, width: numb
   const rows = Math.ceil(safeRoundCount / columns);
   const cardWidth = (width - gap * (columns - 1)) / columns;
   const lineCount = courtCount + 1;
-  const rowHeight = density === "relaxed" ? 24 : 18;
-  const naturalCardHeight = 24 + courtCount * rowHeight + 10;
   const stretchedCardHeight = (height - gap * (rows - 1)) / rows;
-  const cardHeight = isFirstPage ? stretchedCardHeight : Math.min(stretchedCardHeight, Math.max(naturalCardHeight, 124));
-  const rowGap = isFirstPage ? gap : Math.min(20, Math.max(gap, (height - cardHeight * rows) / Math.max(1, rows - 1)));
+  const cardHeight = stretchedCardHeight;
+  const rowGap = gap;
   const fontSize = Math.min(density === "relaxed" ? 9.3 : 7.8, Math.max(minimumReadableFontSize, (cardHeight - 24) / Math.max(1, lineCount) * 0.58));
 
   return { cardHeight, cardWidth, columns, fontSize, gap, rowGap, rows };
@@ -682,39 +713,44 @@ function drawRoundCard(
   rect(commands, x, y, 3, height, colors.gold);
   text(commands, `RUNDE ${round.roundNumber}`, x + 7, y + height - 12, Math.max(7, fontSize + 1.2), "bold", colors.brown, width - 14);
 
-  const rowSpacing = Math.min(22, Math.max(fontSize + 5, (height - 28) / Math.max(1, round.matches.length)));
-  const scoreCellHeight = Math.max(12, fontSize + 4);
-  const courtWidth = density === "relaxed" ? width * 0.15 : width * 0.15;
-  const scoreWidth = width * 0.2;
-  const sideGap = 2;
-  const sideWidth = (width - courtWidth - scoreWidth - sideGap * 3 - 16) / 2;
-  const courtFontSize = density === "relaxed" ? Math.max(5.8, fontSize - 1) : 5.2;
-  const sideFontSize = density === "relaxed" ? Math.max(6.2, fontSize - 0.5) : 5.5;
+  const courtGap = 3;
+  const courtCardHeight = (height - 24 - courtGap * Math.max(0, round.matches.length - 1)) / Math.max(1, round.matches.length);
+  const scoreWidth = Math.min(52, width * 0.28);
+  const sideGap = 3;
+  const sidePadding = 10;
+  const sideWidth = (width - sidePadding * 2 - scoreWidth - sideGap * 2) / 2;
+  const sideXLeft = x + sidePadding;
+  const scoreX = x + (width - scoreWidth) / 2;
+  const sideXRight = scoreX + scoreWidth + sideGap;
+  const scoreHeight = Math.max(14, Math.min(18, courtCardHeight * 0.24));
+  const nameFontSize = density === "relaxed" ? Math.max(7.2, fontSize - 0.2) : 5.5;
+  const courtFontSize = density === "relaxed" ? 6.2 : 5.2;
   round.matches.forEach((match, index) => {
     const result = resultByMatchId.get(match.id);
-    const teamA = formatReadableTeam(match.teamA.playerIds, state, density);
-    const teamB = formatReadableTeam(match.teamB.playerIds, state, density);
-    const score = result ? `${result.teamAPoints}-${result.teamBPoints}` : "-";
-    const rowY = y + height - 30 - index * rowSpacing;
-    const cellY = rowY - 4;
-    const courtX = x + 8;
-    const sideAX = courtX + courtWidth + sideGap;
-    const scoreX = sideAX + sideWidth + sideGap;
-    const sideBX = scoreX + scoreWidth + sideGap;
-    const courtBounds = { height: scoreCellHeight, width: courtWidth, x: courtX, y: cellY };
-    const sideABounds = { height: scoreCellHeight, width: sideWidth, x: sideAX, y: cellY };
-    const scoreBounds = { height: scoreCellHeight, width: scoreWidth, x: scoreX - 2, y: cellY };
-    const sideBBounds = { height: scoreCellHeight, width: sideWidth, x: sideBX, y: cellY };
+    const topLeft = formatCourtPlayerName(getPlayerName(state.players, match.teamA.playerIds[0]), density);
+    const bottomLeft = formatCourtPlayerName(getPlayerName(state.players, match.teamA.playerIds[1]), density);
+    const topRight = formatCourtPlayerName(getPlayerName(state.players, match.teamB.playerIds[0]), density);
+    const bottomRight = formatCourtPlayerName(getPlayerName(state.players, match.teamB.playerIds[1]), density);
+    const score = result ? `${result.teamAPoints}–${result.teamBPoints}` : "-";
+    const courtY = y + height - 21 - (index + 1) * courtCardHeight - index * courtGap;
+    const courtBounds = { height: courtCardHeight, width: width - 16, x: x + 8, y: courtY };
+    const scoreBounds = { height: scoreHeight, width: scoreWidth, x: scoreX, y: courtY + (courtCardHeight - scoreHeight) / 2 };
+    const sideABounds = { height: courtCardHeight, width: sideWidth, x: sideXLeft, y: courtY };
+    const sideBBounds = { height: courtCardHeight, width: sideWidth, x: sideXRight, y: courtY };
+    const topNameY = courtY + courtCardHeight - 13;
+    const bottomNameY = courtY + 7;
 
-    rect(commands, courtBounds.x, courtBounds.y, courtBounds.width, courtBounds.height, [0.985, 0.97, 0.94]);
-    rect(commands, sideABounds.x, sideABounds.y, sideABounds.width, sideABounds.height, colors.white);
-    rect(commands, scoreBounds.x, scoreBounds.y, scoreBounds.width, scoreBounds.height, [0.99, 0.985, 0.965]);
-    rect(commands, sideBBounds.x, sideBBounds.y, sideBBounds.width, sideBBounds.height, colors.white);
-    text(commands, `BANE ${match.courtNumber}`, courtX, rowY, courtFontSize, "bold", colors.muted, courtWidth);
-    text(commands, teamA, sideAX, rowY, sideFontSize, "regular", colors.brown, sideWidth);
+    rect(commands, courtBounds.x, courtBounds.y, courtBounds.width, courtBounds.height, [0.995, 0.99, 0.97]);
+    rect(commands, scoreBounds.x, scoreBounds.y, scoreBounds.width, scoreBounds.height, [1, 1, 1]);
+    centeredText(commands, `BANE ${match.courtNumber}`, { height: 8, width: courtBounds.width, x: courtBounds.x, y: courtY + courtCardHeight - 8 }, courtFontSize, "bold", colors.muted);
+    text(commands, topLeft, sideXLeft, topNameY, nameFontSize, "regular", colors.brown, sideWidth);
+    text(commands, topRight, sideXRight, topNameY, nameFontSize, "regular", colors.brown, sideWidth);
     centeredText(commands, score, scoreBounds, fontSize + 1.3, "bold", colors.brown);
-    text(commands, teamB, sideBX, rowY, sideFontSize, "regular", colors.brown, sideWidth);
+    text(commands, bottomLeft, sideXLeft, bottomNameY, nameFontSize, "regular", colors.brown, sideWidth);
+    text(commands, bottomRight, sideXRight, bottomNameY, nameFontSize, "regular", colors.brown, sideWidth);
     matchRows.push({
+      bottomLeftPlayer: getPlayerName(state.players, match.teamA.playerIds[1]),
+      bottomRightPlayer: getPlayerName(state.players, match.teamB.playerIds[1]),
       court: courtBounds,
       courtNumber: match.courtNumber,
       page: pageNumber,
@@ -722,6 +758,8 @@ function drawRoundCard(
       score: scoreBounds,
       sideA: sideABounds,
       sideB: sideBBounds,
+      topLeftPlayer: getPlayerName(state.players, match.teamA.playerIds[0]),
+      topRightPlayer: getPlayerName(state.players, match.teamB.playerIds[0]),
     });
   });
 
@@ -739,16 +777,12 @@ function getCompletedResultRounds(state: LiveTournamentState): TournamentRound[]
     .filter((round) => round.matches.length > 0);
 }
 
-function formatReadableTeam(playerIds: [string, string], state: LiveTournamentState, density: TournamentResultPdfLayoutDiagnostics["density"]): string {
-  const numberedNames = playerIds.map((playerId) => /^(.+?)\s+(\d+)$/.exec(getPlayerName(state.players, playerId).trim()));
-
-  if (numberedNames[0]?.[1] && numberedNames[0][2] && numberedNames[1]?.[1] && numberedNames[1][2] && numberedNames[0][1] === numberedNames[1][1]) {
-    return `${numberedNames[0][1].slice(0, 2)}. ${numberedNames[0][2]}/${numberedNames[1][2]}`;
+function formatCourtPlayerName(name: string, density: TournamentResultPdfLayoutDiagnostics["density"]): string {
+  if (density === "relaxed") {
+    return name;
   }
 
-  const separator = density === "relaxed" ? " / " : "/";
-
-  return playerIds.map((playerId) => shortenName(getPlayerName(state.players, playerId))).join(separator);
+  return shortenName(name);
 }
 
 function shortenName(name: string): string {
@@ -770,6 +804,10 @@ function rect(commands: PdfCommand[], x: number, y: number, width: number, heigh
   commands.push({ color, height, type: "rect", width, x, y });
 }
 
+function image(commands: PdfCommand[], image: PdfImageCommand["image"], x: number, y: number, width: number, height: number) {
+  commands.push({ height, image, type: "image", width, x, y });
+}
+
 function text(commands: PdfCommand[], value: string, x: number, y: number, size: number, font: "regular" | "bold", color: PdfColor, maxWidth?: number) {
   commands.push({
     color,
@@ -789,7 +827,7 @@ function centeredText(commands: PdfCommand[], value: string, bounds: PdfBounds, 
   const x = bounds.x + Math.max(2, (bounds.width - textWidth) / 2);
   const y = bounds.y + (bounds.height - size) / 2 + 1.5;
 
-  text(commands, fittedText, x, y, size, font, color, bounds.width - 4);
+  text(commands, fittedText, x, y, size, font, color);
 }
 
 function fitText(value: string, size: number, maxWidth: number): string {
@@ -815,7 +853,7 @@ function clamp(value: number, min: number, max: number): number {
 
 function getMaxDrawnX(commands: PdfCommand[]): number {
   return Math.max(0, ...commands.map((command) => {
-    if (command.type === "rect") {
+    if (command.type === "rect" || command.type === "image") {
       return command.x + command.width;
     }
 
@@ -825,7 +863,7 @@ function getMaxDrawnX(commands: PdfCommand[]): number {
 
 function getMaxDrawnY(commands: PdfCommand[]): number {
   return Math.max(0, ...commands.map((command) => {
-    if (command.type === "rect") {
+    if (command.type === "rect" || command.type === "image") {
       return command.y + command.height;
     }
 
@@ -837,6 +875,10 @@ function createDesignedContentStream(commands: PdfCommand[]): string {
   const body = commands.map((command) => {
     if (command.type === "rect") {
       return `${formatColor(command.color)} rg\n${formatNumber(command.x)} ${formatNumber(command.y)} ${formatNumber(command.width)} ${formatNumber(command.height)} re f`;
+    }
+
+    if (command.type === "image") {
+      return `q\n${formatNumber(command.width)} 0 0 ${formatNumber(command.height)} ${formatNumber(command.x)} ${formatNumber(command.y)} cm\n/Logo Do\nQ`;
     }
 
     return [
@@ -869,11 +911,57 @@ function toPdfLiteralString(value: string): string {
 function toWinAnsiChar(value: string): string {
   const codePoint = value.codePointAt(0) ?? 32;
 
+  if (codePoint === 0x2013) {
+    return String.fromCharCode(0x96);
+  }
+
   if (codePoint <= 0xff) {
     return String.fromCharCode(codePoint);
   }
 
   return "?";
+}
+
+function createImageStream(data: string, width: number, height: number, colorSpace: "/DeviceRGB" | "/DeviceGray", maskObjectId?: number): string {
+  const mask = maskObjectId ? ` /SMask ${maskObjectId} 0 R` : "";
+
+  return `<< /Type /XObject /Subtype /Image /Width ${width} /Height ${height} /ColorSpace ${colorSpace} /BitsPerComponent 8 /Filter /FlateDecode${mask} /Length ${byteLength(data)} >>\nstream\n${data}\nendstream`;
+}
+
+function base64ToBinaryString(value: string): string {
+  const cleanValue = value.replace(/\s/g, "");
+  let output = "";
+
+  for (let index = 0; index < cleanValue.length; index += 4) {
+    const a = decodeBase64Char(cleanValue[index]);
+    const b = decodeBase64Char(cleanValue[index + 1]);
+    const c = cleanValue[index + 2] === "=" ? 0 : decodeBase64Char(cleanValue[index + 2]);
+    const d = cleanValue[index + 3] === "=" ? 0 : decodeBase64Char(cleanValue[index + 3]);
+    const triplet = (a << 18) | (b << 12) | (c << 6) | d;
+
+    output += String.fromCharCode((triplet >> 16) & 0xff);
+
+    if (cleanValue[index + 2] !== "=") {
+      output += String.fromCharCode((triplet >> 8) & 0xff);
+    }
+
+    if (cleanValue[index + 3] !== "=") {
+      output += String.fromCharCode(triplet & 0xff);
+    }
+  }
+
+  return output;
+}
+
+function decodeBase64Char(value: string | undefined): number {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  const decoded = value ? alphabet.indexOf(value) : -1;
+
+  if (decoded < 0) {
+    throw new Error("Invalid PDF logo data.");
+  }
+
+  return decoded;
 }
 
 function addObject(objects: string[], body: string): number {
