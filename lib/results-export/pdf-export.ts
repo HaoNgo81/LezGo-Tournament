@@ -190,7 +190,10 @@ function formatDateTime(value: string): string {
 export interface TournamentResultPdfLayoutDiagnostics {
   completedRounds: number;
   courtColumns: number;
+  density: "relaxed" | "standard" | "compact" | "dense";
   fitsOnePage: boolean;
+  maxDrawnX: number;
+  maxDrawnY: number;
   minimumFontSize: number;
   orientation: "portrait";
   pageCount: 1;
@@ -243,13 +246,16 @@ const colors = {
   background: [0.985, 0.965, 0.925] as PdfColor,
   brown: [0.16, 0.115, 0.08] as PdfColor,
   cream: [1, 0.988, 0.955] as PdfColor,
+  creamDeep: [0.965, 0.925, 0.84] as PdfColor,
   gold: [0.83, 0.61, 0.08] as PdfColor,
+  goldDark: [0.58, 0.39, 0.02] as PdfColor,
   goldSoft: [0.95, 0.88, 0.66] as PdfColor,
   muted: [0.38, 0.35, 0.31] as PdfColor,
+  sand: [0.91, 0.84, 0.70] as PdfColor,
   white: [1, 1, 1] as PdfColor,
 } as const;
 
-const minimumReadableFontSize = 4.2;
+const minimumReadableFontSize = 5.2;
 
 function createDesignedOnePagePdf(state: LiveTournamentState): Uint8Array {
   const layout = createOnePageResultLayout(state);
@@ -283,21 +289,24 @@ function createOnePageResultLayout(state: LiveTournamentState): PdfLayout {
   const commands: PdfCommand[] = [];
   const contentX = page.margin;
   const contentWidth = page.width - page.margin * 2;
-  const summaryX = 424;
+  const density = getDensity(standings.length, completedRounds.length, courtColumns);
+  const topY = getTopSectionY(density);
+  const summaryX = density === "relaxed" ? 402 : 414;
   const standingsWidth = summaryX - contentX - 14;
-  const standingsFontSize = clamp(8.1 - Math.max(0, standings.length - 8) * 0.18, 5.2, 8.1);
-  const resultsBottom = 42;
-  const resultsHeight = 338;
-  const grid = calculateResultGrid(completedRounds.length, courtColumns, contentWidth, resultsHeight);
+  const topHeight = density === "relaxed" ? 258 : 276;
+  const standingsFontSize = getStandingsFontSize(standings.length, density);
+  const resultsBottom = 38;
+  const resultsHeight = topY - 70;
+  const grid = calculateResultGrid(completedRounds.length, courtColumns, contentWidth, resultsHeight, density);
   const resultFontSize = grid.fontSize;
   const fitsOnePage = resultFontSize >= minimumReadableFontSize;
 
   drawPageBase(commands);
   drawHeader(commands, state);
-  drawSectionHeader(commands, contentX, 690, standingsWidth, "SLUTSTILLING");
-  drawStandingsTable(commands, contentX, 424, standingsWidth, 250, standings, standingsFontSize);
-  drawSummaryPanel(commands, summaryX, 424, contentX + contentWidth - summaryX, 250, state);
-  drawSectionHeader(commands, contentX, 414, contentWidth, "KAMPRESULTATER");
+  drawSectionHeader(commands, contentX, topY + topHeight + 24, standingsWidth, "SLUTSTILLING");
+  drawStandingsTable(commands, contentX, topY, standingsWidth, topHeight, standings, standingsFontSize, density);
+  drawSummaryPanel(commands, summaryX, topY, contentX + contentWidth - summaryX, topHeight, state, density);
+  drawSectionHeader(commands, contentX, topY - 10, contentWidth, "KAMPRESULTATER");
 
   if (fitsOnePage) {
     completedRounds.forEach((round, index) => {
@@ -306,16 +315,22 @@ function createOnePageResultLayout(state: LiveTournamentState): PdfLayout {
       const x = contentX + column * (grid.cardWidth + grid.gap);
       const y = resultsBottom + resultsHeight - (row + 1) * grid.cardHeight - row * grid.gap;
 
-      drawRoundCard(commands, x, y, grid.cardWidth, grid.cardHeight, round, resultByMatchId, state, resultFontSize);
+      drawRoundCard(commands, x, y, grid.cardWidth, grid.cardHeight, round, resultByMatchId, state, resultFontSize, density);
     });
   }
+
+  const maxDrawnX = getMaxDrawnX(commands);
+  const maxDrawnY = getMaxDrawnY(commands);
 
   return {
     commands,
     diagnostics: {
       completedRounds: completedRounds.length,
       courtColumns,
-      fitsOnePage,
+      density,
+      fitsOnePage: fitsOnePage && maxDrawnX <= page.width && maxDrawnY <= page.height,
+      maxDrawnX,
+      maxDrawnY,
       minimumFontSize: minimumReadableFontSize,
       orientation: "portrait",
       pageCount: 1,
@@ -341,6 +356,7 @@ function createPoolPlayOnePageLayout(state: LiveTournamentState & { poolPlay: No
     ...summary.placementTiebreakMatches,
   ];
   const resultRows = Math.max(1, poolMatches.length + summary.automaticAdvances.length + summary.finalPlacements.length);
+  const density = getDensity(standingsRows, resultRows, Math.max(1, poolMatches.length));
   const resultFontSize = clamp(7.2 - Math.max(0, resultRows - 8) * 0.14, minimumReadableFontSize, 7.2);
 
   drawPageBase(commands);
@@ -352,10 +368,10 @@ function createPoolPlayOnePageLayout(state: LiveTournamentState & { poolPlay: No
   tables.forEach((table, index) => {
     const x = contentX + index * (poolWidth + poolGap);
     text(commands, table.poolName, x, 672, 9, "bold", colors.brown, poolWidth);
-    drawStandingsTable(commands, x, 420, poolWidth, 242, table.rows, standingsFontSize);
+    drawStandingsTable(commands, x, 420, poolWidth, 242, table.rows, standingsFontSize, density);
   });
 
-  drawSummaryPanel(commands, contentX, 318, 160, 92, state);
+  drawSummaryPanel(commands, contentX, 318, 160, 92, state, density);
   drawSectionHeader(commands, 200, 386, contentWidth - 174, "KAMPRESULTATER");
 
   let y = 362;
@@ -377,7 +393,10 @@ function createPoolPlayOnePageLayout(state: LiveTournamentState & { poolPlay: No
     diagnostics: {
       completedRounds: 1,
       courtColumns: Math.max(1, poolMatches.length),
+      density,
       fitsOnePage: resultFontSize >= minimumReadableFontSize,
+      maxDrawnX: getMaxDrawnX(commands),
+      maxDrawnY: getMaxDrawnY(commands),
       minimumFontSize: minimumReadableFontSize,
       orientation: "portrait",
       pageCount: 1,
@@ -389,18 +408,65 @@ function createPoolPlayOnePageLayout(state: LiveTournamentState & { poolPlay: No
   };
 }
 
+function getDensity(playerCount: number, roundCount: number, courtCount: number): TournamentResultPdfLayoutDiagnostics["density"] {
+  const load = playerCount + roundCount * Math.max(1, courtCount) * 0.9;
+
+  if (load <= 12) {
+    return "relaxed";
+  }
+
+  if (load <= 30) {
+    return "standard";
+  }
+
+  if (load <= 70) {
+    return "compact";
+  }
+
+  return "dense";
+}
+
+function getTopSectionY(density: TournamentResultPdfLayoutDiagnostics["density"]): number {
+  switch (density) {
+    case "relaxed":
+      return 446;
+    case "standard":
+      return 438;
+    case "compact":
+    case "dense":
+      return 430;
+  }
+}
+
+function getStandingsFontSize(playerCount: number, density: TournamentResultPdfLayoutDiagnostics["density"]): number {
+  const base = density === "relaxed" ? 9.4 : density === "standard" ? 8.6 : 8.2;
+
+  return clamp(base - Math.max(0, playerCount - 8) * 0.16, minimumReadableFontSize, base);
+}
+
 function drawPageBase(commands: PdfCommand[]) {
   rect(commands, 0, 0, page.width, page.height, colors.background);
   rect(commands, page.margin, page.margin, page.width - page.margin * 2, page.height - page.margin * 2, colors.cream);
-  rect(commands, page.margin, 764, page.width - page.margin * 2, 52, colors.brown);
-  rect(commands, page.margin, 752, page.width - page.margin * 2, 7, colors.gold);
+  rect(commands, page.margin, 744, page.width - page.margin * 2, 72, colors.brown);
+  rect(commands, page.margin, 735, page.width - page.margin * 2, 9, colors.gold);
+  rect(commands, page.margin + 14, 758, 7, 42, colors.gold);
 }
 
 function drawHeader(commands: PdfCommand[], state: LiveTournamentState) {
-  text(commands, "LEZGO PADEL", 44, 794, 13, "bold", colors.gold);
-  text(commands, state.tournamentName, 44, 772, 19, "bold", colors.white, 360);
-  text(commands, state.finishedAt ? formatDateTime(state.finishedAt) : "Ikke afsluttet", 430, 786, 9, "bold", colors.white, 120);
-  text(commands, "RESULTATARK", 430, 771, 8, "regular", colors.goldSoft, 120);
+  text(commands, "LEZGO", 44, 790, 21, "bold", colors.gold);
+  text(commands, "PADEL", 123, 790, 12, "bold", colors.goldSoft);
+  text(commands, fitTitle(state.tournamentName), 44, 763, getTitleFontSize(state.tournamentName), "bold", colors.white, 352);
+  rect(commands, 420, 761, 130, 36, colors.goldSoft);
+  text(commands, "AFSLUTTET", 432, 784, 6.4, "bold", colors.goldDark, 108);
+  text(commands, state.finishedAt ? formatDateTime(state.finishedAt) : "Ikke afsluttet", 432, 769, 10, "bold", colors.brown, 108);
+}
+
+function fitTitle(title: string): string {
+  return fitText(title, getTitleFontSize(title), 352);
+}
+
+function getTitleFontSize(title: string): number {
+  return clamp(24 - Math.max(0, title.length - 24) * 0.22, 15, 24);
 }
 
 function drawSectionHeader(commands: PdfCommand[], x: number, y: number, width: number, label: string) {
@@ -408,10 +474,11 @@ function drawSectionHeader(commands: PdfCommand[], x: number, y: number, width: 
   text(commands, label, x + 8, y - 9, 9, "bold", colors.goldSoft, width - 16);
 }
 
-function drawSummaryPanel(commands: PdfCommand[], x: number, y: number, width: number, height: number, state: LiveTournamentState) {
+function drawSummaryPanel(commands: PdfCommand[], x: number, y: number, width: number, height: number, state: LiveTournamentState, density: TournamentResultPdfLayoutDiagnostics["density"]) {
   rect(commands, x, y, width, height, colors.white);
-  rect(commands, x, y + height - 24, width, 24, colors.goldSoft);
-  text(commands, "OVERBLIK", x + 10, y + height - 15, 9, "bold", colors.brown, width - 20);
+  rect(commands, x, y + height - 30, width, 30, colors.goldSoft);
+  rect(commands, x, y, 5, height, colors.gold);
+  text(commands, "OVERBLIK", x + 14, y + height - 18, 11, "bold", colors.brown, width - 24);
 
   const entries = [
     ["Format", formatLabels[state.format]],
@@ -420,18 +487,20 @@ function drawSummaryPanel(commands: PdfCommand[], x: number, y: number, width: n
     ["Baner", String(state.courtCount)],
     ["Runder", String(state.configuredRounds ?? state.rounds.length)],
   ];
-  let cursorY = y + height - 43;
+  const itemGap = density === "relaxed" ? 37 : 33;
+  let cursorY = y + height - 52;
 
   entries.forEach(([label, value]) => {
-    text(commands, label.toUpperCase(), x + 10, cursorY, 6.4, "bold", colors.muted, width - 20);
-    text(commands, value, x + 10, cursorY - 10, 8.1, "bold", colors.brown, width - 20);
-    cursorY -= 31;
+    rect(commands, x + 14, cursorY - 18, width - 28, 23, colors.creamDeep);
+    text(commands, label.toUpperCase(), x + 22, cursorY - 2, 5.8, "bold", colors.muted, width - 44);
+    text(commands, value, x + 22, cursorY - 12, density === "relaxed" ? 8.8 : 8.1, "bold", colors.brown, width - 44);
+    cursorY -= itemGap;
   });
 }
 
-function drawStandingsTable(commands: PdfCommand[], x: number, y: number, width: number, height: number, standings: StandingRow[], fontSize: number) {
+function drawStandingsTable(commands: PdfCommand[], x: number, y: number, width: number, height: number, standings: StandingRow[], fontSize: number, density: TournamentResultPdfLayoutDiagnostics["density"]) {
   rect(commands, x, y, width, height, colors.white);
-  rect(commands, x, y + height - 20, width, 20, colors.goldSoft);
+  rect(commands, x, y + height - 22, width, 22, colors.goldSoft);
 
   const columns = [
     { label: "#", value: (row: StandingRow) => String(row.rank), width: 20 },
@@ -451,32 +520,36 @@ function drawStandingsTable(commands: PdfCommand[], x: number, y: number, width:
     cursorX += column.width;
   });
 
-  const rowHeight = Math.min(16, (height - 25) / Math.max(1, standings.length));
+  const rowHeight = Math.min(density === "relaxed" ? 22 : 16, (height - 28) / Math.max(1, standings.length));
   standings.forEach((row, index) => {
-    const rowY = y + height - 25 - (index + 1) * rowHeight + 4;
+    const rowY = y + height - 28 - (index + 1) * rowHeight + 4;
 
     if (index < 3) {
-      rect(commands, x + 4, rowY - 3, width - 8, rowHeight - 1, index === 0 ? [1, 0.94, 0.72] : [0.97, 0.94, 0.88]);
+      rect(commands, x + 4, rowY - 3, width - 8, rowHeight - 1, index === 0 ? [1, 0.91, 0.55] : index === 1 ? [0.95, 0.91, 0.82] : [0.93, 0.88, 0.73]);
+      rect(commands, x + 4, rowY - 3, 4, rowHeight - 1, index === 0 ? colors.gold : colors.sand);
+    } else if (index % 2 === 1) {
+      rect(commands, x + 4, rowY - 3, width - 8, rowHeight - 1, [0.985, 0.97, 0.94]);
     }
 
     cursorX = x + 6;
     columns.forEach((column, columnIndex) => {
-      text(commands, column.value(row), cursorX, rowY + 1, fontSize, columnIndex < 2 ? "bold" : "regular", colors.brown, column.width - 3);
+      text(commands, column.value(row), cursorX, rowY + 1, columnIndex === 1 ? fontSize + 0.3 : fontSize, columnIndex < 2 ? "bold" : "regular", colors.brown, column.width - 3);
       cursorX += column.width;
     });
   });
 }
 
-function calculateResultGrid(roundCount: number, courtCount: number, width: number, height: number) {
+function calculateResultGrid(roundCount: number, courtCount: number, width: number, height: number, density: TournamentResultPdfLayoutDiagnostics["density"]) {
   const safeRoundCount = Math.max(1, roundCount);
-  const gap = safeRoundCount > 12 ? 4 : 6;
-  const maxColumns = safeRoundCount > 12 ? 5 : 4;
-  const columns = clamp(Math.ceil(Math.sqrt(safeRoundCount * 1.15)), 1, Math.min(maxColumns, safeRoundCount));
+  const gap = density === "dense" ? 4 : density === "compact" ? 5 : 8;
+  const maxColumns = density === "dense" ? 4 : density === "compact" ? 4 : 3;
+  const preferredColumns = density === "dense" ? Math.ceil(safeRoundCount / 5) : Math.ceil(Math.sqrt(safeRoundCount * 1.05));
+  const columns = clamp(preferredColumns, 1, Math.min(maxColumns, safeRoundCount));
   const rows = Math.ceil(safeRoundCount / columns);
   const cardWidth = (width - gap * (columns - 1)) / columns;
   const cardHeight = (height - gap * (rows - 1)) / rows;
   const lineCount = courtCount + 1;
-  const fontSize = Math.min(7.1, Math.max(3.2, (cardHeight - 14) / Math.max(1, lineCount) * 0.72));
+  const fontSize = Math.min(density === "relaxed" ? 8.3 : 7.2, Math.max(4.8, (cardHeight - 16) / Math.max(1, lineCount) * 0.7));
 
   return { cardHeight, cardWidth, columns, fontSize, gap, rows };
 }
@@ -491,19 +564,30 @@ function drawRoundCard(
   resultByMatchId: Map<string, MatchResult>,
   state: LiveTournamentState,
   fontSize: number,
+  density: TournamentResultPdfLayoutDiagnostics["density"],
 ) {
   rect(commands, x, y, width, height, colors.white);
-  rect(commands, x, y + height - 13, width, 13, colors.goldSoft);
-  text(commands, `Runde ${round.roundNumber}`, x + 5, y + height - 8, Math.max(5.2, fontSize + 0.7), "bold", colors.brown, width - 10);
+  rect(commands, x, y + height - 15, width, 15, colors.goldSoft);
+  rect(commands, x, y, 3, height, colors.gold);
+  text(commands, `Runde ${round.roundNumber}`, x + 7, y + height - 9, Math.max(6, fontSize + 0.9), "bold", colors.brown, width - 14);
 
-  const lineHeight = Math.max(fontSize + 2.2, (height - 17) / Math.max(1, round.matches.length));
+  const lineHeight = Math.max(fontSize + 2.6, (height - 19) / Math.max(1, round.matches.length));
   round.matches.forEach((match, index) => {
     const result = resultByMatchId.get(match.id);
     const teamA = formatCompactTeam(match.teamA.playerIds, state);
     const teamB = formatCompactTeam(match.teamB.playerIds, state);
     const score = result ? `${result.teamAPoints}-${result.teamBPoints}` : "-";
+    const rowY = y + height - 25 - index * lineHeight;
 
-    text(commands, `B${match.courtNumber} ${score} ${teamA} vs ${teamB}`, x + 5, y + height - 23 - index * lineHeight, fontSize, "regular", colors.brown, width - 10);
+    if (density === "dense") {
+      text(commands, `B${match.courtNumber}`, x + 7, rowY, fontSize - 0.2, "bold", colors.muted, 13);
+      text(commands, score, x + 22, rowY, fontSize + 0.2, "bold", colors.brown, 27);
+      text(commands, `${teamA} vs ${teamB}`, x + 54, rowY, fontSize - 0.2, "regular", colors.brown, width - 60);
+    } else {
+      text(commands, `Bane ${match.courtNumber}`, x + 8, rowY, fontSize - 0.4, "bold", colors.muted, 34);
+      text(commands, score, x + 45, rowY, fontSize + 1.2, "bold", colors.brown, 36);
+      text(commands, `${teamA} vs ${teamB}`, x + 86, rowY, fontSize, "regular", colors.brown, width - 94);
+    }
   });
 }
 
@@ -573,6 +657,26 @@ function estimateTextWidth(value: string, size: number): number {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+function getMaxDrawnX(commands: PdfCommand[]): number {
+  return Math.max(0, ...commands.map((command) => {
+    if (command.type === "rect") {
+      return command.x + command.width;
+    }
+
+    return command.maxWidth ? command.x + command.maxWidth : command.x + estimateTextWidth(command.text, command.size);
+  }));
+}
+
+function getMaxDrawnY(commands: PdfCommand[]): number {
+  return Math.max(0, ...commands.map((command) => {
+    if (command.type === "rect") {
+      return command.y + command.height;
+    }
+
+    return command.y + command.size;
+  }));
 }
 
 function createDesignedContentStream(commands: PdfCommand[]): string {
