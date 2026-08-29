@@ -236,6 +236,7 @@ describe("result export", () => {
       expect(row.score.x + row.score.width).toBeLessThanOrEqual(row.sideB.x);
       expect(row.score.y).toBeGreaterThan(row.court.y);
       expect(row.score.y + row.score.height).toBeLessThan(row.court.y + row.court.height);
+      expect(row.score.height).toBeGreaterThanOrEqual(17);
       expect(row.score.x + row.score.width / 2).toBeCloseTo(row.court.x + row.court.width / 2, 1);
     });
   });
@@ -256,8 +257,8 @@ describe("result export", () => {
       expect(row.score.width).toBeCloseTo(firstRow.score.width, 4);
       expect(row.sideA.height).toBe(row.court.height);
       expect(row.sideB.height).toBe(row.court.height);
-      expect(row.score.height).toBeGreaterThanOrEqual(14);
-      expect(row.score.height).toBeLessThanOrEqual(18);
+      expect(row.score.height).toBeGreaterThanOrEqual(17);
+      expect(row.score.height).toBeLessThanOrEqual(24);
       expect(row.topLeftPlayer).not.toBe(row.bottomLeftPlayer);
       expect(row.topRightPlayer).not.toBe(row.bottomRightPlayer);
     });
@@ -277,6 +278,29 @@ describe("result export", () => {
       rows: 3,
       roundNumbers: [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
     });
+  });
+
+  it("expands Scenario C result grids to the allocated page height", () => {
+    const state = finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mexicano", {
+      name: "Chopstick Mex v1",
+      courts: 4,
+      rounds: 20,
+    })), "2026-08-04T18:00:00.000Z");
+    const diagnostics = createTournamentResultPdfLayoutDiagnostics(state);
+    const [pageOne, pageTwo] = diagnostics.resultPages;
+
+    expect(pageOne).toMatchObject({ columns: 4, rows: 2 });
+    expect(pageTwo).toMatchObject({ columns: 4, rows: 3 });
+    [pageOne, pageTwo].forEach((resultPage) => {
+      const allocatedHeight = resultPage.gridTop - resultPage.gridBottom;
+      const usedHeight = resultPage.rows * resultPage.cardHeight + Math.max(0, resultPage.rows - 1) * resultPage.rowGap;
+
+      expect(usedHeight).toBeCloseTo(allocatedHeight, 4);
+      expect(resultPage.cardWidth * resultPage.columns + (resultPage.columns - 1) * 7).toBeCloseTo(543, 4);
+      expect(resultPage.gridBottom).toBeGreaterThanOrEqual(50);
+      expect(resultPage.gridTop).toBeLessThanOrEqual(700);
+    });
+    expect(pageTwo.cardHeight).toBeGreaterThan(170);
   });
 
   it("creates pool-play result lines with pool standings and next phase matches", () => {

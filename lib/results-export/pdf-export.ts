@@ -234,8 +234,11 @@ export interface PdfResultPageDiagnostics {
   cardHeight: number;
   cardWidth: number;
   columns: number;
+  gridBottom: number;
+  gridTop: number;
   page: number;
   roundNumbers: number[];
+  rowGap: number;
   rows: number;
 }
 
@@ -399,8 +402,11 @@ function createResultLayout(state: LiveTournamentState): PdfLayout {
       cardHeight: grid.cardHeight,
       cardWidth: grid.cardWidth,
       columns: grid.columns,
+      gridBottom: blockBottom,
+      gridTop: blockBottom + blockHeight,
       page: pageNumber,
       roundNumbers: roundPage.map((round) => round.roundNumber),
+      rowGap: grid.rowGap,
       rows: grid.rows,
     });
 
@@ -506,7 +512,7 @@ function createPoolPlayOnePageLayout(state: LiveTournamentState & { poolPlay: No
       orientation: "portrait",
       pageCount: 1,
       pageRoundRanges: [{ end: 1, page: 1, roundNumbers: [1], start: 1 }],
-      resultPages: [{ cardHeight: 1, cardWidth: 1, columns: 1, page: 1, roundNumbers: [1], rows: 1 }],
+      resultPages: [{ cardHeight: 1, cardWidth: 1, columns: 1, gridBottom: 1, gridTop: 1, page: 1, roundNumbers: [1], rowGap: 0, rows: 1 }],
       resultCardColumns: 1,
       resultCardRows: 1,
       resultFontSize,
@@ -715,16 +721,17 @@ function drawRoundCard(
 
   const courtGap = 3;
   const courtCardHeight = (height - 24 - courtGap * Math.max(0, round.matches.length - 1)) / Math.max(1, round.matches.length);
-  const scoreWidth = Math.min(52, width * 0.28);
+  const scoreWidth = Math.min(58, Math.max(52, width * 0.32));
   const sideGap = 3;
   const sidePadding = 10;
   const sideWidth = (width - sidePadding * 2 - scoreWidth - sideGap * 2) / 2;
   const sideXLeft = x + sidePadding;
   const scoreX = x + (width - scoreWidth) / 2;
   const sideXRight = scoreX + scoreWidth + sideGap;
-  const scoreHeight = Math.max(14, Math.min(18, courtCardHeight * 0.24));
-  const nameFontSize = density === "relaxed" ? Math.max(7.2, fontSize - 0.2) : 5.5;
-  const courtFontSize = density === "relaxed" ? 6.2 : 5.2;
+  const scoreHeight = clamp(courtCardHeight * 0.28, 17, 24);
+  const scoreFontSize = clamp(courtCardHeight * 0.26, fontSize + 1.5, 12.8);
+  const nameFontSize = density === "relaxed" ? Math.max(7.6, fontSize) : clamp(courtCardHeight * 0.16, 6.1, 8.4);
+  const courtFontSize = density === "relaxed" ? 6.8 : clamp(courtCardHeight * 0.12, 5.7, 6.8);
   round.matches.forEach((match, index) => {
     const result = resultByMatchId.get(match.id);
     const topLeft = formatCourtPlayerName(getPlayerName(state.players, match.teamA.playerIds[0]), density);
@@ -745,7 +752,7 @@ function drawRoundCard(
     centeredText(commands, `BANE ${match.courtNumber}`, { height: 8, width: courtBounds.width, x: courtBounds.x, y: courtY + courtCardHeight - 8 }, courtFontSize, "bold", colors.muted);
     text(commands, topLeft, sideXLeft, topNameY, nameFontSize, "regular", colors.brown, sideWidth);
     text(commands, topRight, sideXRight, topNameY, nameFontSize, "regular", colors.brown, sideWidth);
-    centeredText(commands, score, scoreBounds, fontSize + 1.3, "bold", colors.brown);
+    centeredText(commands, score, scoreBounds, scoreFontSize, "bold", colors.brown);
     text(commands, bottomLeft, sideXLeft, bottomNameY, nameFontSize, "regular", colors.brown, sideWidth);
     text(commands, bottomRight, sideXRight, bottomNameY, nameFontSize, "regular", colors.brown, sideWidth);
     matchRows.push({
