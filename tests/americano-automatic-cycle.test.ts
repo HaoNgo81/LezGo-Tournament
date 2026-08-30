@@ -106,6 +106,74 @@ describe("Americano automatic cycle scheduling", () => {
     expect(calculateLiveStandings(finished).reduce((total, row) => total + row.wins + row.draws + row.losses, 0)).toBe(40);
   });
 
+  it("saves scores through Rotation 2 and Rotation 3 with stable generated match IDs", () => {
+    let state = createAmericanoState(4, 1);
+    const savedMatchIds: string[] = [];
+
+    for (let roundNumber = 1; roundNumber <= 7; roundNumber += 1) {
+      const round = state.rounds.find((candidate) => candidate.roundNumber === roundNumber);
+
+      expect(round?.matches).toHaveLength(1);
+
+      const matchId = round?.matches[0]?.id;
+
+      if (!matchId) {
+        throw new Error(`Missing match for round ${roundNumber}.`);
+      }
+
+      expect(matchId).toBe(`r${roundNumber}-c1`);
+      state = saveMatchResult(state, { matchId, teamAPoints: 21, teamBPoints: 10 + (roundNumber % 3) });
+      savedMatchIds.push(matchId);
+
+      expect(state.results.some((result) => result.matchId === matchId)).toBe(true);
+      expect(calculateLiveStandings(state).reduce((total, row) => total + row.wins + row.draws + row.losses, 0)).toBe(roundNumber * 4);
+
+      if (roundNumber < 7) {
+        expect(canGoToNextRound(state)).toBe(true);
+        state = goToNextRound(state);
+      }
+    }
+
+    expect(savedMatchIds).toEqual(["r1-c1", "r2-c1", "r3-c1", "r4-c1", "r5-c1", "r6-c1", "r7-c1"]);
+    expect(state.activeRoundNumber).toBe(7);
+    expect(getLiveAmericanoCycleStatus(state)).toMatchObject({
+      cycleLength: 3,
+      cycleNumber: 3,
+      roundInCycle: 1,
+    });
+  });
+
+  it("saves both 9-player Rotation 2 court scores after the first full cycle", () => {
+    let state = createAmericanoState(9, 2);
+
+    for (let roundNumber = 1; roundNumber <= 13; roundNumber += 1) {
+      state = scoreActiveRound(state);
+      state = goToNextRound(state);
+    }
+
+    expect(state.activeRoundNumber).toBe(14);
+    expect(getLiveAmericanoCycleStatus(state)).toMatchObject({
+      cycleLength: 13,
+      cycleNumber: 2,
+      roundInCycle: 1,
+    });
+
+    const roundFourteen = state.rounds.find((round) => round.roundNumber === 14);
+
+    expect(roundFourteen?.matches.map((match) => match.id)).toEqual(["r14-c1", "r14-c2"]);
+
+    for (const [index, match] of (roundFourteen?.matches ?? []).entries()) {
+      state = saveMatchResult(state, {
+        matchId: match.id,
+        teamAPoints: 21,
+        teamBPoints: 8 + index,
+      });
+    }
+
+    expect(state.results.map((result) => result.matchId)).toEqual(expect.arrayContaining(["r14-c1", "r14-c2"]));
+    expect(canGoToNextRound(state)).toBe(true);
+  });
+
   it("preserves random first-round seeding while keeping fairness invariant-based", () => {
     const players = createPlayers(9);
     const manualRounds = createTournamentRounds({ format: "americano", players, courts: 2, rounds: 13, firstRoundOrder: "manual" });

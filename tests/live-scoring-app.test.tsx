@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "../components/layout/app-shell";
 import { LiveScoringApp } from "../components/tournament/live-scoring-app";
-import { advanceLivePoolPlayState, createMockLiveTournamentState, goToNextRound, saveMatchResult, saveNextPoolPhaseResult } from "../lib/live-scoring";
+import { advanceLivePoolPlayState, createMockLiveTournamentState, goToNextRound, saveMatchResult, saveNextPoolPhaseResult, type LiveTournamentState } from "../lib/live-scoring";
 import { notifyPreferencesChanged } from "../lib/preferences/client";
 import { saveTournamentSettings } from "../lib/tournament-settings";
 import { createPoolTournamentFromSetup, createStandardShadowSaveLocalId, createTournamentFromSetup, loadActiveTournament, loadShadowSaveMetadata, markActiveCloudTournamentAuthority, saveActiveTournament, saveActiveTournamentFromRemoteSync, type TournamentSetupFormat } from "../lib/tournament-setup";
@@ -628,6 +628,134 @@ describe("LiveScoringApp score sheet", () => {
     expect(fetchMock).not.toHaveBeenCalledWith("/api/supabase/shadow-save", expect.anything());
   }, 10000);
 
+  it("persists a generated Americano cycle match before owner score save when its score version is missing", async () => {
+    let localState = createStandardTournament("Americano", {
+      courts: 1,
+      playerText: ["Anna", "Bente", "Clara", "Dorte"].join("\n"),
+    });
+
+    for (let roundNumber = 1; roundNumber <= 4; roundNumber += 1) {
+      localState = saveCurrentRoundForTest(localState);
+      localState = goToNextRound(localState);
+    }
+
+    const roundFiveMatchId = localState.rounds.find((round) => round.roundNumber === 5)?.matches[0]?.id;
+
+    if (!roundFiveMatchId) {
+      throw new Error("Expected a generated round 5 match.");
+    }
+
+    const scoredRoundFive = saveMatchResult(localState, {
+      matchId: roundFiveMatchId,
+      teamAPoints: 14,
+      teamBPoints: 9,
+    });
+    const localId = createStandardShadowSaveLocalId(localState);
+    const persistedVersions = Object.fromEntries(
+      localState.rounds
+        .flatMap((round) => round.matches)
+        .filter((match) => match.id !== roundFiveMatchId)
+        .map((match) => [match.id, 1]),
+    );
+    const syncedVersions = {
+      ...persistedVersions,
+      [roundFiveMatchId]: 1,
+    };
+    const savedVersions = {
+      ...persistedVersions,
+      [roundFiveMatchId]: 2,
+    };
+    saveActiveTournamentFromRemoteSync(localState);
+    saveShadowMetadata(localId, {
+      canManage: true,
+      kind: "standard",
+      lastLocalSaveAt: "2026-08-30T10:00:00.000Z",
+      lastShadowSaveVersion: "2026-08-30T10:00:00.000Z",
+      status: "synced",
+      supabaseTournamentId: "00000000-0000-4000-8000-0000000030c5",
+      matchScoreVersions: persistedVersions,
+    });
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString();
+
+      if (url === "/api/supabase/shadow-save") {
+        const payload = JSON.parse(init?.body as string) as { state?: LiveTournamentState };
+
+        return Promise.resolve(new Response(JSON.stringify({
+          ok: true,
+          kind: "standard",
+          state: payload.state,
+          tournamentId: "00000000-0000-4000-8000-0000000030c5",
+          updatedAt: "2026-08-30T10:00:05.000Z",
+          matchScoreVersions: syncedVersions,
+        }), { status: 200 }));
+      }
+
+      if (url === "/api/account/tournaments/00000000-0000-4000-8000-0000000030c5/score") {
+        return Promise.resolve(new Response(JSON.stringify({
+          ok: true,
+          kind: "standard",
+          state: scoredRoundFive,
+          tournamentId: "00000000-0000-4000-8000-0000000030c5",
+          updatedAt: "2026-08-30T10:00:10.000Z",
+          matchScoreVersions: savedVersions,
+        }), { status: 200 }));
+      }
+
+      if (url === "/api/account/tournaments/00000000-0000-4000-8000-0000000030c5") {
+        return Promise.resolve(new Response(JSON.stringify({
+          ok: true,
+          kind: "standard",
+          state: localState,
+          tournamentId: "00000000-0000-4000-8000-0000000030c5",
+          updatedAt: "2026-08-30T10:00:00.000Z",
+          canRead: true,
+          canManage: true,
+          matchScoreVersions: persistedVersions,
+        }), { status: 200 }));
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({ ok: false, error: `Unexpected URL ${url}` }), { status: 500 }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<LiveScoringApp />);
+
+    expect(await screen.findByText("Rotation 2 · 2/3")).toBeInTheDocument();
+    expect(await screen.findByText("Runde 5")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Indtast score" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Hold A scorepoint" }), { target: { value: "14" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Hold B scorepoint" }), { target: { value: "9" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gem" }));
+
+    await waitFor(() => expectLiveCourtScore("14", "9"));
+    expect(fetchMock).toHaveBeenCalledWith("/api/supabase/shadow-save", expect.objectContaining({
+      method: "POST",
+      cache: "no-store",
+    }));
+    expect(fetchMock).toHaveBeenCalledWith("/api/account/tournaments/00000000-0000-4000-8000-0000000030c5/score", expect.objectContaining({
+      method: "POST",
+      cache: "no-store",
+    }));
+    const shadowSaveCall = (fetchMock.mock.calls as unknown as Array<[RequestInfo | URL, RequestInit?]>).find(
+      (call) => call[0] === "/api/supabase/shadow-save",
+    );
+    const scoreCall = (fetchMock.mock.calls as unknown as Array<[RequestInfo | URL, RequestInit?]>).find(
+      (call) => call[0] === "/api/account/tournaments/00000000-0000-4000-8000-0000000030c5/score",
+    );
+
+    expect((JSON.parse(shadowSaveCall?.[1]?.body as string) as { state: LiveTournamentState }).state.rounds.some(
+      (round) => round.roundNumber === 5 && round.matches.some((match) => match.id === roundFiveMatchId),
+    )).toBe(true);
+    expect(JSON.parse(scoreCall?.[1]?.body as string)).toEqual({
+      matchId: roundFiveMatchId,
+      teamAPoints: 14,
+      teamBPoints: 9,
+      expectedScoreVersion: 1,
+    });
+    expect(loadShadowSaveMetadata(localId)?.matchScoreVersions?.[roundFiveMatchId]).toBe(2);
+  }, 10000);
+
   it("blocks rapid duplicate owned score saves while the first score write is pending", async () => {
     const localState = createMockLiveTournamentState();
     const matchId = localState.rounds[0].matches[0].id;
@@ -716,18 +844,12 @@ describe("LiveScoringApp score sheet", () => {
       supabaseTournamentId: "00000000-0000-4000-8000-0000000009e3",
       organizerToken: "SAME_USER_ORGANIZER_TOKEN",
     });
+    const remoteRead = createDeferred<Response>();
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const url = input.toString();
 
       if (url === "/api/account/tournaments/00000000-0000-4000-8000-0000000009e3") {
-        return Promise.resolve(new Response(JSON.stringify({
-          ok: true,
-          kind: "standard",
-          state: latestState,
-          tournamentId: "00000000-0000-4000-8000-0000000009e3",
-          updatedAt: "2026-08-23T12:51:00.000Z",
-          matchScoreVersions: { [matchId]: 2 },
-        }), { status: 200 }));
+        return remoteRead.promise;
       }
 
       return Promise.resolve(new Response(JSON.stringify({ ok: false, error: `Unexpected URL ${url}` }), { status: 500 }));
@@ -741,6 +863,15 @@ describe("LiveScoringApp score sheet", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Hold A scorepoint" }), { target: { value: "11" } });
     fireEvent.change(screen.getByRole("textbox", { name: "Hold B scorepoint" }), { target: { value: "9" } });
     fireEvent.click(screen.getByRole("button", { name: "Gem" }));
+
+    remoteRead.resolve(new Response(JSON.stringify({
+      ok: true,
+      kind: "standard",
+      state: latestState,
+      tournamentId: "00000000-0000-4000-8000-0000000009e3",
+      updatedAt: "2026-08-23T12:51:00.000Z",
+      matchScoreVersions: { [matchId]: 2 },
+    }), { status: 200 }));
 
     await waitFor(() => expect(screen.getByText("Turneringen blev ændret på en anden enhed. De nyeste data er hentet. Prøv igen.")).toBeInTheDocument());
     expect(loadActiveTournament()?.results).toEqual([{ matchId, teamAPoints: 21, teamBPoints: 10 }]);
@@ -1708,6 +1839,20 @@ function scoreAllVisibleMatches() {
     fireEvent.change(screen.getByRole("textbox", { name: "Hold B scorepoint" }), { target: { value: `${10 + matchIndex}` } });
     fireEvent.click(screen.getByRole("button", { name: "Gem" }));
   }
+}
+
+function saveCurrentRoundForTest(state: ReturnType<typeof createStandardTournament>) {
+  const round = state.rounds.find((candidate) => candidate.roundNumber === state.activeRoundNumber);
+
+  if (!round) {
+    throw new Error(`Missing round ${state.activeRoundNumber}.`);
+  }
+
+  return round.matches.reduce((nextState, match, index) => saveMatchResult(nextState, {
+    matchId: match.id,
+    teamAPoints: 21 - index,
+    teamBPoints: 10 + index,
+  }), state);
 }
 
 function getPlayerNameForTest(state: ReturnType<typeof createStandardTournament>, playerId: string | undefined): string {

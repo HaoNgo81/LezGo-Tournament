@@ -415,6 +415,28 @@ export function LiveScoringApp() {
     const expectedScoreVersion = metadata.matchScoreVersions?.[result.matchId];
 
     if (!expectedScoreVersion) {
+      if (hasKnownMatchScoreVersions(metadata.matchScoreVersions) && doesStateContainSelectedMatch(currentState, result.matchId)) {
+        return runControllerMutation(async () => {
+          const synced = await performControlledCloudSnapshotSave(currentState, localId, tournamentId, metadata);
+
+          if (!synced) {
+            return false;
+          }
+
+          const refreshedMetadata = loadShadowSaveMetadata(localId);
+          const refreshedScoreVersion = refreshedMetadata?.matchScoreVersions?.[result.matchId];
+
+          if (!refreshedScoreVersion) {
+            await reconcileSameControllerConflict(localId, tournamentId, {});
+            setSelectedMatchId(null);
+            setToast(t("ownerTournamentConflictMessage"));
+            return false;
+          }
+
+          return performOwnedCloudMatchSave(result, localId, tournamentId, refreshedScoreVersion);
+        });
+      }
+
       return reconcileSameControllerConflict(localId, tournamentId, {})
         .then(() => {
           setSelectedMatchId(null);
@@ -484,42 +506,49 @@ export function LiveScoringApp() {
       return false;
     }
 
-    return runControllerMutation(async () => {
-      const response = await fetch("/api/supabase/shadow-save", {
-        method: "POST",
-        cache: "no-store",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          kind: "standard",
-          legacyLocalId: metadata.legacyLocalId ?? localId,
-          tournamentId,
-          expectedUpdatedAt: metadata.lastShadowSaveVersion,
-          state: nextState,
-        }),
-      });
-      const body = await parseShadowSaveWriteResponse(response);
+    return runControllerMutation(() => performControlledCloudSnapshotSave(nextState, localId, tournamentId, metadata));
+  }
 
-      if (response.status === 401 || response.status === 403) {
-        await reconcileControlLost(localId, tournamentId);
-        setToast(t("remoteControlledByOtherUser"));
-        return false;
-      }
-
-      if (response.status === 409) {
-        await reconcileSameControllerConflict(localId, tournamentId, body);
-        setToast(t("ownerTournamentConflictMessage"));
-        return false;
-      }
-
-      if (!response.ok || !body.ok || !body.tournamentId) {
-        setToast(body.error ?? "Synchronization failed. Local tournament is preserved.");
-        return false;
-      }
-
-      saveActiveTournamentFromRemoteSync(nextState);
-      markRemoteShadowSaveApplied(localId, "standard", body.updatedAt, new Date().toISOString(), body.matchScoreVersions);
-      return true;
+  async function performControlledCloudSnapshotSave(
+    nextState: LiveTournamentState,
+    localId: string,
+    tournamentId: string,
+    metadata: NonNullable<ReturnType<typeof loadShadowSaveMetadata>>,
+  ): Promise<boolean> {
+    const response = await fetch("/api/supabase/shadow-save", {
+      method: "POST",
+      cache: "no-store",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        kind: "standard",
+        legacyLocalId: metadata.legacyLocalId ?? localId,
+        tournamentId,
+        expectedUpdatedAt: metadata.lastShadowSaveVersion,
+        state: nextState,
+      }),
     });
+    const body = await parseShadowSaveWriteResponse(response);
+
+    if (response.status === 401 || response.status === 403) {
+      await reconcileControlLost(localId, tournamentId);
+      setToast(t("remoteControlledByOtherUser"));
+      return false;
+    }
+
+    if (response.status === 409) {
+      await reconcileSameControllerConflict(localId, tournamentId, body);
+      setToast(t("ownerTournamentConflictMessage"));
+      return false;
+    }
+
+    if (!response.ok || !body.ok || !body.tournamentId) {
+      setToast(body.error ?? "Synchronization failed. Local tournament is preserved.");
+      return false;
+    }
+
+    saveActiveTournamentFromRemoteSync(nextState);
+    markRemoteShadowSaveApplied(localId, "standard", body.updatedAt, new Date().toISOString(), body.matchScoreVersions);
+    return true;
   }
 
   async function runControllerMutation<T>(operation: () => Promise<T>): Promise<T | false> {
@@ -1928,6 +1957,10 @@ function haveOrganizerMatchScoreVersionsChanged(currentScoreVersions: Record<str
   const nextEntries = Object.entries(nextScoreVersions).sort(([left], [right]) => left.localeCompare(right));
 
   return JSON.stringify(currentEntries) !== JSON.stringify(nextEntries);
+}
+
+function hasKnownMatchScoreVersions(matchScoreVersions: Record<string, number> | undefined): boolean {
+  return Boolean(matchScoreVersions && Object.keys(matchScoreVersions).length > 0);
 }
 
 function getOrganizerStateSyncSignature(state: LiveTournamentState | undefined): string {

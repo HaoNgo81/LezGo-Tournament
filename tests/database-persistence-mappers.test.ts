@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { saveMatchResult } from "../lib/live-scoring";
+import { goToNextRound, saveMatchResult } from "../lib/live-scoring";
 import { createStandardTournamentWritePlan, getOperationRows, mapLiveTournamentToPersistencePayload, mapTeamVsTeamTournamentToPersistencePayload } from "../lib/database";
 import { createTeamVsTeamTournamentFromSetup, createTournamentFromSetup, type TeamVsTeamTournamentState } from "../lib/tournament-setup";
 
@@ -132,6 +132,54 @@ describe("database persistence mappers", () => {
     const payload = mapLiveTournamentToPersistencePayload(state, { privacy: "public_result" });
 
     expect(payload.tournament.privacy).toBe("public_result");
+  });
+
+  it("maps generated later-cycle Americano rounds and matches into the persistence payload", () => {
+    let state = createTournamentFromSetup({
+      name: "Later cycle persistence",
+      format: "Americano",
+      playerText: Array.from({ length: 4 }, (_, index) => `Spiller ${index + 1}`).join("\n"),
+      femalePlayerText: "",
+      malePlayerText: "",
+      courts: 1,
+      rounds: 1,
+      scoringMode: "Fri scoring",
+      firstRoundOrder: "manual",
+      rankingMode: "matchPointsFirst",
+    });
+
+    for (let roundNumber = 1; roundNumber <= 4; roundNumber += 1) {
+      const match = state.rounds.find((round) => round.roundNumber === roundNumber)?.matches[0];
+
+      if (!match) {
+        throw new Error(`Missing round ${roundNumber} match.`);
+      }
+
+      state = saveMatchResult(state, { matchId: match.id, teamAPoints: 21, teamBPoints: 10 });
+      state = goToNextRound(state);
+    }
+
+    const roundFiveMatch = state.rounds.find((round) => round.roundNumber === 5)?.matches[0];
+
+    if (!roundFiveMatch) {
+      throw new Error("Missing generated round 5 match.");
+    }
+
+    const payload = mapLiveTournamentToPersistencePayload(state);
+
+    expect(payload.rounds.map((round) => round.round_number)).toEqual(expect.arrayContaining([4, 5]));
+    expect(payload.matches).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        legacy_match_id: "r4-c1",
+        roundRef: "round:4",
+      }),
+      expect.objectContaining({
+        legacy_match_id: "r5-c1",
+        roundRef: "round:5",
+      }),
+    ]));
+    expect(payload.matchSides.filter((side) => side.matchRef === `match:${roundFiveMatch.id}`)).toHaveLength(2);
+    expect(payload.matchSidePlayers.filter((sidePlayer) => sidePlayer.matchSideRef.startsWith(`match-side:${roundFiveMatch.id}:`))).toHaveLength(4);
   });
 
   it("keeps Mixed Americano gender and match-side structure in the payload", () => {
