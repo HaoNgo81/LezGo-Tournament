@@ -228,12 +228,12 @@ function buildFixedPartnerAmericanoCycle(teams: Team[], courts: number, cycleLen
 
 function buildFourPairSingleCourtCycle(teams: Team[], cycleIndex: number): TournamentRound[] {
   const matchupIndexes: Array<[number, number]> = [
-    [0, 1],
-    [2, 0],
-    [3, 1],
-    [2, 3],
-    [0, 3],
+    [3, 0],
     [1, 2],
+    [0, 1],
+    [2, 3],
+    [0, 2],
+    [1, 3],
   ];
 
   return matchupIndexes.map(([teamAIndex, teamBIndex], index) => {

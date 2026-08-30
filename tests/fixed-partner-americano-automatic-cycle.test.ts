@@ -69,6 +69,38 @@ describe("Fast Makker Americano automatic cycles", () => {
     },
   );
 
+  it.each([
+    ["manual", undefined],
+    ["random", 1],
+    ["random", 7],
+    ["random", 30],
+  ] as const)("uses the improved 4-pair / 1-court bye ordering for %s seed %s", (firstRoundOrder, randomSeed) => {
+    const players = createPlayers(8);
+    const teams = createFixedPartnerTeams(players);
+    const cycleLength = getFixedPartnerAmericanoCycleLength(teams, 1);
+    const rounds = createTournamentRounds({
+      format: "fixed-partner-americano",
+      players,
+      rounds: cycleLength,
+      courts: 1,
+      firstRoundOrder,
+      randomSeed,
+    });
+    const analysis = analyzeFixedPairSchedule(teams, rounds);
+    const byeDetails = analyzePairByeDetails(teams, rounds);
+    const roundOneByePairIds = getByePairIds(teams, rounds[0]);
+    const roundTwoActivePairIds = getRoundPairIds(rounds[1]);
+
+    expect(cycleLength).toBe(6);
+    expect(analysis.metrics.cycleOpponentCoverage).toBe(1);
+    expect(analysis.metrics.matchSpread).toBe(0);
+    expect(analysis.metrics.byeSpread).toBe(0);
+    expect(analysis.metrics.maxConsecutiveByes).toBe(2);
+    expect(byeDetails.totalConsecutiveByeOccurrences).toBe(2);
+    expect(byeDetails.firstConsecutiveByeRound).toBeGreaterThanOrEqual(3);
+    expect(roundTwoActivePairIds.sort()).toEqual(roundOneByePairIds.sort());
+  });
+
   it("creates new Fast Makker Americano tournaments without manual configured rounds", () => {
     const state = createFastPartnerTournament(10, 2);
 
@@ -86,6 +118,7 @@ describe("Fast Makker Americano automatic cycles", () => {
 
   it.each([
     [6, 1, 3],
+    [8, 1, 6],
     [10, 2, 8],
   ] as const)("continues into later rotations and saves generated fixed-pair scores for %i players / %i courts", (playerCount, courts, expectedCycleLength) => {
     let state = createFastPartnerTournament(playerCount, courts);
@@ -122,6 +155,52 @@ describe("Fast Makker Americano automatic cycles", () => {
     expect(reloadedState?.activeRoundNumber).toBe(expectedCycleLength + 1);
     expect(reloadedState?.results.filter((result) => generatedMatchIds.includes(result.matchId))).toHaveLength(generatedMatchIds.length);
     expect(reloadedState ? calculateLiveStandings(reloadedState) : []).toHaveLength(playerCount / 2);
+  });
+
+  it("keeps the 4-pair special-case ordering valid through three complete rotations", () => {
+    let state = createFastPartnerTournament(8, 1);
+    const teams = createFixedPartnerTeams(state.players);
+    const cycleLength = 6;
+
+    for (let roundNumber = 1; roundNumber <= cycleLength * 3; roundNumber += 1) {
+      expect(state.activeRoundNumber).toBe(roundNumber);
+      expect(getLiveAmericanoCycleStatus(state)).toMatchObject({
+        cycleLength,
+        cycleNumber: Math.floor((roundNumber - 1) / cycleLength) + 1,
+        roundInCycle: ((roundNumber - 1) % cycleLength) + 1,
+      });
+
+      state = scoreActiveRound(state);
+
+      if (roundNumber < cycleLength * 3) {
+        expect(canGoToNextRound(state)).toBe(true);
+        state = goToNextRound(state);
+      }
+    }
+
+    expect(state.rounds).toHaveLength(cycleLength * 3);
+    expect(state.rounds.map((round) => round.roundNumber)).toEqual(Array.from({ length: cycleLength * 3 }, (_, index) => index + 1));
+    expect(calculateLiveStandings(state)).toHaveLength(4);
+
+    for (let start = 0; start < state.rounds.length; start += cycleLength) {
+      const cycleRounds = state.rounds.slice(start, start + cycleLength);
+      const analysis = analyzeFixedPairSchedule(teams, cycleRounds);
+      const byeDetails = analyzePairByeDetails(teams, cycleRounds);
+
+      expect(analysis.metrics.cycleOpponentCoverage).toBe(1);
+      expect(analysis.metrics.matchSpread).toBe(0);
+      expect(analysis.metrics.byeSpread).toBe(0);
+      expect(analysis.metrics.maxConsecutiveByes).toBe(2);
+      expect(byeDetails.totalConsecutiveByeOccurrences).toBe(2);
+      expect(byeDetails.firstConsecutiveByeRound).toBeGreaterThanOrEqual(cycleRounds[0].roundNumber + 2);
+      expect(getRoundPairIds(cycleRounds[1]).sort()).toEqual(getByePairIds(teams, cycleRounds[0]).sort());
+    }
+
+    const fullAnalysis = analyzeFixedPairSchedule(teams, state.rounds);
+
+    expect(fullAnalysis.metrics.matchSpread).toBe(0);
+    expect(fullAnalysis.metrics.byeSpread).toBe(0);
+    expect(fullAnalysis.metrics.opponentFrequencySpread).toBe(0);
   });
 
   it("allows mid-cycle finish without bye stats affecting standings", () => {
@@ -184,4 +263,36 @@ function getByePairIds(teams: Team[], round: TournamentRound): string[] {
   return teams
     .filter((team) => team.playerIds.every((playerId) => byePlayerIds.has(playerId)))
     .map((team) => team.id);
+}
+
+function analyzePairByeDetails(teams: Team[], rounds: TournamentRound[]): {
+  firstConsecutiveByeRound: number | null;
+  totalConsecutiveByeOccurrences: number;
+} {
+  const activePairIdsByRound = rounds.map((round) => new Set(getRoundPairIds(round)));
+  const byeRunLengths = new Map(teams.map((team) => [team.id, 0]));
+  let firstConsecutiveByeRound: number | null = null;
+  let totalConsecutiveByeOccurrences = 0;
+
+  for (let index = 0; index < rounds.length; index += 1) {
+    for (const team of teams) {
+      if (activePairIdsByRound[index].has(team.id)) {
+        byeRunLengths.set(team.id, 0);
+        continue;
+      }
+
+      const byeRunLength = (byeRunLengths.get(team.id) ?? 0) + 1;
+      byeRunLengths.set(team.id, byeRunLength);
+
+      if (byeRunLength > 1) {
+        totalConsecutiveByeOccurrences += 1;
+        firstConsecutiveByeRound ??= rounds[index].roundNumber;
+      }
+    }
+  }
+
+  return {
+    firstConsecutiveByeRound,
+    totalConsecutiveByeOccurrences,
+  };
 }
