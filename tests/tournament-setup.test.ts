@@ -19,7 +19,7 @@ describe("tournament setup", () => {
     ["Americano", sixteenPlayerText, "", "", 15],
     ["Mexicano", sixteenPlayerText, "", "", 1],
     ["Mixed Americano", "", eightFemalePlayerText, eightMalePlayerText, 5],
-    ["Fast Makker Americano", sixteenPlayerText, "", "", 5],
+    ["Fast Makker Americano", sixteenPlayerText, "", "", 7],
     ["Fast Makker Mexicano", sixteenPlayerText, "", "", 1],
   ] as const)("creates %s for 16 players or 8 pairs on 4 courts", (format, formatPlayerText, formatFemaleText, formatMaleText, expectedRounds) => {
     const tournament = createTournamentFromSetup({
@@ -39,6 +39,9 @@ describe("tournament setup", () => {
     if (format === "Americano") {
       expect(tournament.configuredRounds).toBeUndefined();
       expect(tournament.automaticCycle).toEqual({ type: "automatic-cycle", cycleLength: 15 });
+    } else if (format === "Fast Makker Americano") {
+      expect(tournament.configuredRounds).toBeUndefined();
+      expect(tournament.automaticCycle).toEqual({ type: "automatic-cycle", cycleLength: 7 });
     } else {
       expect(tournament.configuredRounds).toBe(5);
     }

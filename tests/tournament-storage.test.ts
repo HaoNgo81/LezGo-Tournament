@@ -21,6 +21,7 @@ import {
   loadActiveCloudTournamentAuthority,
   createTournamentFromSetup,
 } from "../lib/tournament-setup";
+import { createTournamentRounds } from "../lib/tournament-engine";
 import type { LiveTournamentState } from "../lib/live-scoring";
 
 const originalLocalStorage = window.localStorage;
@@ -567,7 +568,14 @@ function createLegacyLockedFixedPartnerAmericanoState(): LiveTournamentState {
     rankingMode: "matchPointsFirst",
   });
 
-  const lockedRounds = state.rounds.map((round) => ({
+  const legacyRounds = createTournamentRounds({
+    format: "fixed-partner-americano",
+    players: state.players,
+    courts: 4,
+    rounds: 10,
+    firstRoundOrder: "manual",
+  });
+  const lockedRounds = legacyRounds.map((round) => ({
     ...round,
     matches: round.matches.map((match) => {
       const firstTeamIndex = Math.min(Number(match.teamA.playerIds[0].slice(1)), Number(match.teamB.playerIds[0].slice(1)));
@@ -584,6 +592,8 @@ function createLegacyLockedFixedPartnerAmericanoState(): LiveTournamentState {
   return {
     ...state,
     rounds: lockedRounds,
+    configuredRounds: 10,
+    automaticCycle: undefined,
     results: [{ matchId: lockedRounds[0].matches[0].id, teamAPoints: 17, teamBPoints: 7 }],
   };
 }

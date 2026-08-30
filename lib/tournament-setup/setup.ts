@@ -1,6 +1,8 @@
 ﻿import {
   createTournamentRounds,
+  createFixedPartnerTeams,
   getAmericanoCycleLength,
+  getFixedPartnerAmericanoCycleLength,
   type Gender,
   type StandingsRankingMode,
   type TournamentFormat,
@@ -62,7 +64,7 @@ export function createTournamentFromSetup(input: TournamentSetupInput): LiveTour
   const format = mapSetupFormat(input.format);
   const players = input.format === "Mixed Americano" ? parseMixedPlayers(input.femalePlayerText, input.malePlayerText) : parsePlayers(input.playerText);
   const isFixedPartner = input.format === "Fast Makker Americano" || input.format === "Fast Makker Mexicano";
-  const isAutomaticAmericano = input.format === "Americano";
+  const isAutomaticCycle = input.format === "Americano" || input.format === "Fast Makker Americano";
 
   if (isFixedPartner) {
     if (players.length % 2 !== 0) {
@@ -82,7 +84,9 @@ export function createTournamentFromSetup(input: TournamentSetupInput): LiveTour
   }
   validateScoringSettings(input.scoringMode, input);
 
-  const configuredRounds = isAutomaticAmericano ? getAmericanoCycleLength(players, input.courts) : input.rounds;
+  const configuredRounds = input.format === "Americano"
+    ? getAmericanoCycleLength(players, input.courts)
+    : input.format === "Fast Makker Americano" ? getFixedPartnerAmericanoCycleLength(createFixedPartnerTeams(players), input.courts) : input.rounds;
   const rounds = createTournamentRounds({
     format,
     players,
@@ -97,8 +101,8 @@ export function createTournamentFromSetup(input: TournamentSetupInput): LiveTour
     status: "active",
     players,
     rounds,
-    configuredRounds: isAutomaticAmericano ? undefined : input.rounds,
-    automaticCycle: isAutomaticAmericano ? { type: "automatic-cycle", cycleLength: configuredRounds } : undefined,
+    configuredRounds: isAutomaticCycle ? undefined : input.rounds,
+    automaticCycle: isAutomaticCycle ? { type: "automatic-cycle", cycleLength: configuredRounds } : undefined,
     courtCount: input.courts,
     activeRoundNumber: 1,
     results: [],

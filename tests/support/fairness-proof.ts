@@ -1,4 +1,4 @@
-import type { Team, TournamentMatch, TournamentPlayer, TournamentRound } from "../../lib/tournament-engine";
+import { createFixedPartnerAmericanoCycleRounds, getFixedPartnerAmericanoActivePairCount, getFixedPartnerAmericanoCycleLength, type Team, type TournamentMatch, type TournamentPlayer, type TournamentRound } from "../../lib/tournament-engine";
 
 export interface PlayerFairnessRow {
   id: string;
@@ -130,21 +130,12 @@ export function proveAmericanoCycle(players: TournamentPlayer[], courts: number)
 }
 
 export function proveFixedPartnerAmericanoCycle(teams: Team[], courts: number): FixedPairProofResult {
-  const activePairsPerRound = getActiveTeamCount(teams.length, courts);
+  const activePairsPerRound = getFixedPartnerAmericanoActivePairCount(teams.length, courts);
   const pairByesPerRound = teams.length - activePairsPerRound;
-  const lowerBound = Math.ceil(totalUnorderedPairs(teams.length) / (activePairsPerRound / 2));
 
   return measureDuration(() => {
-    const rounds = findShortestPassingSchedule(
-      lowerBound,
-      Math.max(lowerBound + teams.length * 3, teams.length * 6),
-      (cycleLength) => buildFixedPairSchedule(teams, courts, cycleLength),
-      (roundsToAnalyze) => {
-        const metrics = analyzeFixedPairSchedule(teams, roundsToAnalyze).metrics;
-        const allowedConsecutiveByes = teams.length === 4 && courts === 1 ? 2 : 1;
-        return hasBalancedCycle(metrics, allowedConsecutiveByes) && metrics.cycleOpponentCoverage === 1;
-      },
-    );
+    const cycleLength = getFixedPartnerAmericanoCycleLength(teams, courts);
+    const rounds = createFixedPartnerAmericanoCycleRounds(teams, courts, cycleLength);
     const analysis = analyzeFixedPairSchedule(teams, rounds);
     return {
       kind: "fixed-partner-americano" as const,
@@ -341,27 +332,6 @@ function buildIndividualSchedule(players: TournamentPlayer[], courts: number, cy
   });
 }
 
-function buildFixedPairSchedule(teams: Team[], courts: number, cycleLength: number): TournamentRound[] {
-  const ids = teams.map((team) => team.id);
-  const teamById = new Map(teams.map((team) => [team.id, team]));
-  const activeCount = getActiveTeamCount(ids.length, courts);
-  const state = createFrequencyState(ids);
-
-  return Array.from({ length: cycleLength }, (_, index) => {
-    const roundNumber = index + 1;
-    const activeIds = chooseActiveIds(ids, activeCount, state, roundNumber);
-    const matches = chooseFixedPairMatches(activeIds, state).map(([teamAId, teamBId], matchIndex) => ({
-      id: `r${roundNumber}-c${matchIndex + 1}`,
-      roundNumber,
-      courtNumber: matchIndex + 1,
-      teamA: teamById.get(teamAId) ?? fail(`Unknown team ${teamAId}`),
-      teamB: teamById.get(teamBId) ?? fail(`Unknown team ${teamBId}`),
-    }));
-    updateFixedPairState(ids, activeIds, matches, state);
-    return withByes({ roundNumber, matches }, ids.filter((id) => !activeIds.includes(id)).flatMap((id) => teamById.get(id)?.playerIds ?? []));
-  });
-}
-
 function buildMixedSchedule(females: TournamentPlayer[], males: TournamentPlayer[], courts: number, cycleLength: number): TournamentRound[] {
   const femaleIds = females.map((player) => player.id);
   const maleIds = males.map((player) => player.id);
@@ -503,23 +473,6 @@ function pairMixedTeamsIntoMatches(teams: Array<[string, string]>, state: Freque
   return pairTeamsIntoMatches(teams, state);
 }
 
-function chooseFixedPairMatches(activeIds: string[], state: FrequencyState): Array<[string, string]> {
-  const remaining = [...activeIds];
-  const matches: Array<[string, string]> = [];
-
-  while (remaining.length >= 2) {
-    const left = remaining.shift() ?? fail("Missing fixed pair");
-    const right = [...remaining].sort((a, b) => (
-      getPairFrequency(state.opponents, left, a) - getPairFrequency(state.opponents, left, b) ||
-      remaining.indexOf(a) - remaining.indexOf(b)
-    ))[0];
-    remaining.splice(remaining.indexOf(right), 1);
-    matches.push([left, right]);
-  }
-
-  return matches;
-}
-
 function updateIndividualState(ids: string[], matches: TournamentMatch[], state: FrequencyState): void {
   const activeIds = new Set(matches.flatMap((match) => allMatchPlayerIds(match)));
 
@@ -544,24 +497,6 @@ function updateIndividualState(ids: string[], matches: TournamentMatch[], state:
         incrementPairFrequency(state.opponents, left, right);
       }
     }
-  }
-}
-
-function updateFixedPairState(ids: string[], activeIds: string[], matches: TournamentMatch[], state: FrequencyState): void {
-  for (const id of ids) {
-    if (activeIds.includes(id)) {
-      state.matches.set(id, (state.matches.get(id) ?? 0) + 1);
-      state.consecutiveByes.set(id, 0);
-    } else {
-      state.byes.set(id, (state.byes.get(id) ?? 0) + 1);
-      const consecutive = (state.consecutiveByes.get(id) ?? 0) + 1;
-      state.consecutiveByes.set(id, consecutive);
-      state.maxConsecutiveByes.set(id, Math.max(state.maxConsecutiveByes.get(id) ?? 0, consecutive));
-    }
-  }
-
-  for (const match of matches) {
-    incrementPairFrequency(state.opponents, match.teamA.id, match.teamB.id);
   }
 }
 
@@ -630,17 +565,6 @@ function getActivePlayerCount(playerCount: number, courts: number): number {
 
   if (playableCount < 4) {
     throw new Error("At least four active players are required.");
-  }
-
-  return playableCount;
-}
-
-function getActiveTeamCount(teamCount: number, courts: number): number {
-  const activeCount = Math.min(teamCount, courts * 2);
-  const playableCount = activeCount - (activeCount % 2);
-
-  if (playableCount < 2) {
-    throw new Error("At least two active pairs are required.");
   }
 
   return playableCount;

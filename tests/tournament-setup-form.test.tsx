@@ -407,6 +407,19 @@ describe("tournament setup form", () => {
     expect(screen.getAllByText((_content, element) => element?.textContent === "Rotation: 13 runder")[0]).toBeInTheDocument();
   });
 
+  it("hides manual rounds for Fast Makker Americano and shows calculated pair rotation", () => {
+    render(<TournamentSetupForm />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Fast Makker Americano" }));
+
+    expect(screen.queryByRole("spinbutton", { name: "Runder" })).not.toBeInTheDocument();
+    expect(screen.getAllByText((_content, element) => element?.textContent === "Rotation: -")[0]).toBeInTheDocument();
+
+    fillFixedPartnerPlayerFields(Array.from({ length: 10 }, (_, index) => `Spiller ${index + 1}`));
+
+    expect(screen.getAllByText((_content, element) => element?.textContent === "Rotation: 8 runder")[0]).toBeInTheDocument();
+  });
+
   it("starts a timed free-scoring tournament even when the hidden score-point field was cleared", async () => {
     const fetchMock = mockAuthenticatedAccountFetch(Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 })));
     vi.stubGlobal("fetch", fetchMock);
@@ -826,6 +839,20 @@ function getNumberInput(label: string): HTMLInputElement {
 function fillIndividualPlayerFields(names: string[]): void {
   names.forEach((name, index) => {
     fireEvent.change(screen.getByRole("textbox", { name: `Spiller ${index + 1}` }), { target: { value: name } });
+  });
+}
+
+function fillFixedPartnerPlayerFields(names: string[]): void {
+  const requiredPairs = Math.ceil(names.length / 2);
+
+  while (screen.queryByRole("textbox", { name: `Par ${requiredPairs}, spiller 1` }) === null) {
+    fireEvent.click(screen.getByRole("button", { name: "Tilføj par" }));
+  }
+
+  names.forEach((name, index) => {
+    const pairNumber = Math.floor(index / 2) + 1;
+    const playerNumber = (index % 2) + 1;
+    fireEvent.change(screen.getByRole("textbox", { name: `Par ${pairNumber}, spiller ${playerNumber}` }), { target: { value: name } });
   });
 }
 

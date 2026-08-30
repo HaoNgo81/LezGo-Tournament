@@ -1590,6 +1590,28 @@ describe("LiveScoringApp score sheet", () => {
     expect(await screen.findByTestId("live-round-byes")).toHaveTextContent(`Oversiddere: ${byeNames.join(", ")}`);
   });
 
+  it("shows current Fast Makker Americano oversidderpar and updates them after advancing rounds", async () => {
+    const state = createStandardTournament("Fast Makker Americano", {
+      courts: 2,
+      playerText: Array.from({ length: 10 }, (_, index) => `Spiller ${index + 1}`).join("\n"),
+    });
+    const firstByePairNames = getByePairNamesForTest(state, state.rounds[0].byePlayerIds ?? []);
+    const secondByePairNames = getByePairNamesForTest(state, state.rounds[1].byePlayerIds ?? []);
+
+    saveActiveTournament(state);
+    render(<LiveScoringApp />);
+
+    expect(await screen.findByText("Rotation 1 · 1/8")).toBeInTheDocument();
+    expect(await screen.findByTestId("live-round-byes")).toHaveTextContent(`Oversidderpar: ${firstByePairNames.join(", ")}`);
+
+    scoreAllVisibleMatches();
+    fireEvent.click(screen.getAllByRole("button", { name: "Næste" })[0]);
+
+    expect(await screen.findByText("Rotation 1 · 2/8")).toBeInTheDocument();
+    expect(await screen.findByTestId("live-round-byes")).toHaveTextContent(`Oversidderpar: ${secondByePairNames.join(", ")}`);
+    expect(secondByePairNames).not.toEqual(firstByePairNames);
+  });
+
   it("opens the next Fast Makker Mexicano round from the live pair standings", async () => {
     saveActiveTournament(createStandardTournament("Fast Makker Mexicano"));
     render(<LiveScoringApp />);
@@ -1857,6 +1879,22 @@ function saveCurrentRoundForTest(state: ReturnType<typeof createStandardTourname
 
 function getPlayerNameForTest(state: ReturnType<typeof createStandardTournament>, playerId: string | undefined): string {
   return state.players.find((player) => player.id === playerId)?.name ?? "";
+}
+
+function getByePairNamesForTest(state: ReturnType<typeof createStandardTournament>, byePlayerIds: string[]): string[] {
+  const byePlayerIdSet = new Set(byePlayerIds);
+  const byePairs: string[] = [];
+
+  for (let index = 0; index < state.players.length; index += 2) {
+    const first = state.players[index];
+    const second = state.players[index + 1];
+
+    if (first && second && byePlayerIdSet.has(first.id) && byePlayerIdSet.has(second.id)) {
+      byePairs.push(`${first.name} / ${second.name}`);
+    }
+  }
+
+  return byePairs;
 }
 
 function expectLiveCourtScore(teamA: string, teamB: string, cardIndex = 0): HTMLElement {

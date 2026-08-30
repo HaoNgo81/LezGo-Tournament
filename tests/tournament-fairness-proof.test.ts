@@ -107,30 +107,8 @@ describe("tournament fairness proof infrastructure", () => {
     [4, 10],
   ])("proves a Fast Makker Americano fairness cycle for %i courts / %i pairs", (courts, pairCount) => {
     const teams = createFixedPartnerTeams(createPlayers(pairCount * 2));
-    const result = pairCount === 4 && courts === 1
-      ? null
-      : proveFixedPartnerAmericanoCycle(teams, courts);
-
-    if (!result) {
-      proofSummaries.push({
-        format: "Fast Makker Americano",
-        courts,
-        entrants: `${pairCount} pairs`,
-        activePerRound: "2 pairs",
-        byesPerRound: "2 pairs",
-        provenCycleLength: 0,
-        matchSpread: 0,
-        byeSpread: 0,
-        maxConsecutiveByes: 2,
-        partnerCoverage: "fixed",
-        partnerRepeatSpread: 0,
-        opponentRepeatMetric: "IMPOSSIBLE: all six pair-opponents on one court forces at least one pair to sit twice in a row",
-        durationMs: 0,
-      });
-      expect(pairCount).toBe(4);
-      expect(courts).toBe(1);
-      return;
-    }
+    const result = proveFixedPartnerAmericanoCycle(teams, courts);
+    const allowedConsecutiveByes = pairCount === 4 && courts === 1 ? 2 : 1;
 
     proofSummaries.push({
       format: "Fast Makker Americano",
@@ -150,7 +128,7 @@ describe("tournament fairness proof infrastructure", () => {
 
     expect(result.metrics.matchSpread).toBeLessThanOrEqual(1);
     expect(result.metrics.byeSpread).toBeLessThanOrEqual(1);
-    expect(result.metrics.maxConsecutiveByes).toBeLessThanOrEqual(1);
+    expect(result.metrics.maxConsecutiveByes).toBeLessThanOrEqual(allowedConsecutiveByes);
     expect(result.metrics.cycleOpponentCoverage).toBe(1);
     expect(result.pairRows).toHaveLength(pairCount);
   });

@@ -47,6 +47,9 @@ describe("STEP 25Y-E consolidated current product regression contract", () => {
     if (format === "Americano") {
       expect(tournament.configuredRounds).toBeUndefined();
       expect(tournament.automaticCycle).toEqual({ type: "automatic-cycle", cycleLength: 7 });
+    } else if (format === "Fast Makker Americano") {
+      expect(tournament.configuredRounds).toBeUndefined();
+      expect(tournament.automaticCycle).toEqual({ type: "automatic-cycle", cycleLength: 3 });
     } else {
       expect(tournament.configuredRounds).toBe(2);
     }

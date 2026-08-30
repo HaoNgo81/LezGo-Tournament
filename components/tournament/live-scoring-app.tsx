@@ -761,10 +761,7 @@ export function LiveScoringApp() {
           ? `Rotation ${americanoCycleStatus.cycleNumber} · ${americanoCycleStatus.roundInCycle}/${americanoCycleStatus.cycleLength}`
           : null;
         const activeRound = state.rounds.find((round) => round.roundNumber === state.activeRoundNumber) ?? null;
-        const byePlayerNames = (activeRound?.byePlayerIds ?? []).map((playerId) => getPlayerName(state.players, playerId));
-        const byeLabel = byePlayerNames.length === 1
-          ? `Oversidder: ${byePlayerNames[0]}`
-          : byePlayerNames.length > 1 ? `Oversiddere: ${byePlayerNames.join(", ")}` : null;
+        const byeLabel = createByeLabel(state, activeRound?.byePlayerIds ?? []);
         const roundStatusLabel = americanoCycleStatus?.isCycleComplete && roundProgress?.isComplete
           ? `Rotation ${americanoCycleStatus.cycleNumber} færdig`
           : roundProgress?.isComplete ? t("roundComplete") : t("roundIncomplete");
@@ -1961,6 +1958,33 @@ function haveOrganizerMatchScoreVersionsChanged(currentScoreVersions: Record<str
 
 function hasKnownMatchScoreVersions(matchScoreVersions: Record<string, number> | undefined): boolean {
   return Boolean(matchScoreVersions && Object.keys(matchScoreVersions).length > 0);
+}
+
+function createByeLabel(state: LiveTournamentState, byePlayerIds: string[]): string | null {
+  if (byePlayerIds.length === 0) {
+    return null;
+  }
+
+  if (state.format === "fixed-partner-americano") {
+    const byePlayerIdSet = new Set(byePlayerIds);
+    const byePairs: string[] = [];
+
+    for (let index = 0; index < state.players.length; index += 2) {
+      const first = state.players[index];
+      const second = state.players[index + 1];
+
+      if (first && second && byePlayerIdSet.has(first.id) && byePlayerIdSet.has(second.id)) {
+        byePairs.push(`${first.name} / ${second.name}`);
+      }
+    }
+
+    return byePairs.length ? `Oversidderpar: ${byePairs.join(", ")}` : null;
+  }
+
+  const byePlayerNames = byePlayerIds.map((playerId) => getPlayerName(state.players, playerId));
+  return byePlayerNames.length === 1
+    ? `Oversidder: ${byePlayerNames[0]}`
+    : `Oversiddere: ${byePlayerNames.join(", ")}`;
 }
 
 function getOrganizerStateSyncSignature(state: LiveTournamentState | undefined): string {

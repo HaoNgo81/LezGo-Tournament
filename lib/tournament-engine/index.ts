@@ -15,8 +15,12 @@ export type {
 
 export {
   createNextFixedMexicanoRoundFromTeamRanking,
+  createNextFixedPartnerAmericanoCycleRound,
+  createFixedPartnerAmericanoCycleRounds,
   createNextMexicanoRoundFromPlayerRanking,
   createTournamentRounds,
+  getFixedPartnerAmericanoActivePairCount,
+  getFixedPartnerAmericanoCycleLength,
   rebalanceFixedPartnerAmericanoCourts,
   rebalanceMixedAmericanoCourts,
 } from "./engine";
