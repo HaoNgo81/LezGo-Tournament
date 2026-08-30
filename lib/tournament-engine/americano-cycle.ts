@@ -83,7 +83,7 @@ export function getAmericanoCycleStatus(state: {
   rounds: TournamentRound[];
   automaticCycle?: AmericanoCycleMetadata;
 }): AmericanoCycleStatus | null {
-  if ((state.format !== "americano" && state.format !== "fixed-partner-americano") || !state.automaticCycle) {
+  if ((state.format !== "americano" && state.format !== "fixed-partner-americano" && state.format !== "mixed-americano") || !state.automaticCycle) {
     return null;
   }
 

@@ -41,7 +41,7 @@ describe("read-only tournament views", () => {
     ["Fast Makker Mexicano", 8],
   ] as const)("creates QR and TV data for standard %s tournaments", (format, expectedStandingRows) => {
     const view = createReadOnlyTournamentView(scoreActiveRound(createStandardTournament(format)));
-    const expectedTotalRounds = format === "Americano" ? 15 : format === "Fast Makker Americano" ? 7 : 5;
+    const expectedTotalRounds = format === "Americano" ? 15 : format === "Fast Makker Americano" ? 7 : format === "Mixed Americano" ? 8 : 5;
 
     expect(view).toMatchObject({
       format: "standard",

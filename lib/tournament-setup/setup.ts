@@ -3,6 +3,7 @@
   createFixedPartnerTeams,
   getAmericanoCycleLength,
   getFixedPartnerAmericanoCycleLength,
+  getMixedAmericanoCycleLength,
   type Gender,
   type StandingsRankingMode,
   type TournamentFormat,
@@ -64,7 +65,7 @@ export function createTournamentFromSetup(input: TournamentSetupInput): LiveTour
   const format = mapSetupFormat(input.format);
   const players = input.format === "Mixed Americano" ? parseMixedPlayers(input.femalePlayerText, input.malePlayerText) : parsePlayers(input.playerText);
   const isFixedPartner = input.format === "Fast Makker Americano" || input.format === "Fast Makker Mexicano";
-  const isAutomaticCycle = input.format === "Americano" || input.format === "Fast Makker Americano";
+  const isAutomaticCycle = input.format === "Americano" || input.format === "Fast Makker Americano" || input.format === "Mixed Americano";
 
   if (isFixedPartner) {
     if (players.length % 2 !== 0) {
@@ -86,7 +87,9 @@ export function createTournamentFromSetup(input: TournamentSetupInput): LiveTour
 
   const configuredRounds = input.format === "Americano"
     ? getAmericanoCycleLength(players, input.courts)
-    : input.format === "Fast Makker Americano" ? getFixedPartnerAmericanoCycleLength(createFixedPartnerTeams(players), input.courts) : input.rounds;
+    : input.format === "Fast Makker Americano"
+      ? getFixedPartnerAmericanoCycleLength(createFixedPartnerTeams(players), input.courts)
+      : input.format === "Mixed Americano" ? getMixedAmericanoCycleLength(players, input.courts) : input.rounds;
   const rounds = createTournamentRounds({
     format,
     players,

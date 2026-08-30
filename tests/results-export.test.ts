@@ -22,7 +22,7 @@ describe("result export", () => {
     const finishedState = finishTournament(scoreAllConfiguredRounds(createStandardTournament(format)), "2026-08-04T18:00:00.000Z");
     const lines = createTournamentResultLines(finishedState);
     const pdf = createTournamentResultPdf(finishedState);
-    const expectedRounds = format === "Americano" ? 15 : format === "Fast Makker Americano" ? 7 : 5;
+    const expectedRounds = format === "Americano" ? 15 : format === "Fast Makker Americano" ? 7 : format === "Mixed Americano" ? 8 : 5;
 
     expect(lines).toContain(`Format: ${expectedLabel}`);
     expect(lines).toContain("Status: Afsluttet");

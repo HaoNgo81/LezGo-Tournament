@@ -777,8 +777,10 @@ describe("tournament setup form", () => {
     render(<TournamentSetupForm />);
 
     fireEvent.click(screen.getByRole("button", { name: "Mixed Americano" }));
+    expect(screen.queryByRole("spinbutton", { name: "Runder" })).not.toBeInTheDocument();
     fillMixedPlayerFields("Kvinder", ["Anna", "Louise", "Maja", "Åse"]);
     fillMixedPlayerFields("Mænd", ["Hao", "Minh", "Søren", "Đức"]);
+    expect(screen.getAllByText((_content, element) => element?.textContent === "Rotation: 4 runder")[0]).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Start turnering" }));
 
     await waitFor(() => expect(push).toHaveBeenCalledWith("/live"));
@@ -786,6 +788,7 @@ describe("tournament setup form", () => {
     expect(players.map((player) => player.name)).toEqual(["Anna", "Louise", "Maja", "Åse", "Hao", "Minh", "Søren", "Đức"]);
     expect(players.filter((player) => player.gender === "female")).toHaveLength(4);
     expect(players.filter((player) => player.gender === "male")).toHaveLength(4);
+    expect(loadActiveTournament()?.automaticCycle).toEqual({ type: "automatic-cycle", cycleLength: 4 });
   });
 
   it("localizes individual player labels in English and keeps fixed partner pair entry unchanged", () => {

@@ -28,7 +28,7 @@ import {
   type ScoringMode,
   type TournamentSetupFormat,
 } from "@/lib/tournament-setup";
-import { createFixedPartnerTeams, getAmericanoCycleLength, getFixedPartnerAmericanoCycleLength, type StandingsRankingMode } from "@/lib/tournament-engine";
+import { createFixedPartnerTeams, getAmericanoCycleLength, getFixedPartnerAmericanoCycleLength, getMixedAmericanoCycleLength, type StandingsRankingMode } from "@/lib/tournament-engine";
 import {
   getTeamVsTeamCaptainName,
   type TeamVsTeamCompetitionMode,
@@ -108,7 +108,7 @@ export function TournamentSetupForm() {
   const isTeamVsTeam = format === "Team vs. Team";
   const isPoolPlay = format === "Puljespil";
   const isFixedPartner = format === "Fast Makker Americano" || format === "Fast Makker Mexicano";
-  const isAutomaticCycle = format === "Americano" || format === "Fast Makker Americano";
+  const isAutomaticCycle = format === "Americano" || format === "Fast Makker Americano" || format === "Mixed Americano";
   const fixedPartnerPairs = getFixedPartnerPairs(playerText);
   const teamRounds = playersPerTeam === 4 ? 3 : 2;
   const scoringChoice = getScoringChoice(scoringMode, fixedScoreRule);
@@ -118,7 +118,7 @@ export function TournamentSetupForm() {
   const femalePlayerFieldCount = getIndividualPlayerFieldCount(femalePlayerText, mixedGenderFieldCount);
   const malePlayerFieldCount = getIndividualPlayerFieldCount(malePlayerText, mixedGenderFieldCount);
   const isGuest = accountStatus === "guest";
-  const automaticRotationRounds = isAutomaticCycle ? getAutomaticRotationRounds(format, playerText, configuredCourtCount) : null;
+  const automaticRotationRounds = isAutomaticCycle ? getAutomaticRotationRounds(format, playerText, femalePlayerText, malePlayerText, configuredCourtCount) : null;
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -1130,7 +1130,7 @@ function getIndividualPlayerFieldCount(text: string, minimumFieldCount: number):
   return Math.max(minimum, names.length + (allVisibleFieldsAreFilled ? 1 : 0));
 }
 
-function getAutomaticRotationRounds(format: TournamentSetupFormat, playerText: string, courts: number): number | null {
+function getAutomaticRotationRounds(format: TournamentSetupFormat, playerText: string, femalePlayerText: string, malePlayerText: string, courts: number): number | null {
   try {
     const players = getPlayerTextLines(playerText)
       .map((name) => name.trim())
@@ -1140,6 +1140,21 @@ function getAutomaticRotationRounds(format: TournamentSetupFormat, playerText: s
     if (format === "Fast Makker Americano") {
       return players.length >= 4 && players.length % 2 === 0
         ? getFixedPartnerAmericanoCycleLength(createFixedPartnerTeams(players), courts)
+        : null;
+    }
+
+    if (format === "Mixed Americano") {
+      const females = getPlayerTextLines(femalePlayerText)
+        .map((name) => name.trim())
+        .filter(Boolean)
+        .map((name, index) => ({ id: `f${index + 1}`, name, gender: "female" as const }));
+      const males = getPlayerTextLines(malePlayerText)
+        .map((name) => name.trim())
+        .filter(Boolean)
+        .map((name, index) => ({ id: `m${index + 1}`, name, gender: "male" as const }));
+
+      return females.length >= 2 && females.length === males.length
+        ? getMixedAmericanoCycleLength([...females, ...males], courts)
         : null;
     }
 

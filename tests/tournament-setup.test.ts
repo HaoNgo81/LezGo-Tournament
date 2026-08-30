@@ -18,7 +18,7 @@ describe("tournament setup", () => {
   it.each([
     ["Americano", sixteenPlayerText, "", "", 15],
     ["Mexicano", sixteenPlayerText, "", "", 1],
-    ["Mixed Americano", "", eightFemalePlayerText, eightMalePlayerText, 5],
+    ["Mixed Americano", "", eightFemalePlayerText, eightMalePlayerText, 8],
     ["Fast Makker Americano", sixteenPlayerText, "", "", 7],
     ["Fast Makker Mexicano", sixteenPlayerText, "", "", 1],
   ] as const)("creates %s for 16 players or 8 pairs on 4 courts", (format, formatPlayerText, formatFemaleText, formatMaleText, expectedRounds) => {
@@ -42,6 +42,9 @@ describe("tournament setup", () => {
     } else if (format === "Fast Makker Americano") {
       expect(tournament.configuredRounds).toBeUndefined();
       expect(tournament.automaticCycle).toEqual({ type: "automatic-cycle", cycleLength: 7 });
+    } else if (format === "Mixed Americano") {
+      expect(tournament.configuredRounds).toBeUndefined();
+      expect(tournament.automaticCycle).toEqual({ type: "automatic-cycle", cycleLength: 8 });
     } else {
       expect(tournament.configuredRounds).toBe(5);
     }
@@ -268,6 +271,8 @@ describe("tournament setup", () => {
     expect(tournament.format).toBe("mixed-americano");
     expect(tournament.players.filter((player) => player.gender === "female")).toHaveLength(4);
     expect(tournament.players.filter((player) => player.gender === "male")).toHaveLength(4);
+    expect(tournament.configuredRounds).toBeUndefined();
+    expect(tournament.automaticCycle).toEqual({ type: "automatic-cycle", cycleLength: 4 });
     expect(tournament.rankingMode).toBe("partiPointsFirst");
   });
 

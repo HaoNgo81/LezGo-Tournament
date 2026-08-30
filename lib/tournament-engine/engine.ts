@@ -12,9 +12,8 @@ import {
   createFixedPartnerRound,
   createFixedPartnerTeams,
   createMexicanoRoundFromRanking,
-  createMixedAmericanoRound,
 } from "./round-generation";
-import { seededShuffle, shuffleItems } from "./utils";
+import { canonicalPairKey, seededShuffle, shuffleItems } from "./utils";
 
 interface ByeTracker {
   pauseCounts: Map<string, number>;
@@ -190,6 +189,16 @@ interface FixedPairFairnessState {
   previousByes: Set<string>;
   consecutiveByes: Map<string, number>;
   maxConsecutiveByes: Map<string, number>;
+  opponents: Map<string, number>;
+}
+
+interface MixedFairnessState {
+  matches: Map<string, number>;
+  byes: Map<string, number>;
+  previousByes: Set<string>;
+  consecutiveByes: Map<string, number>;
+  maxConsecutiveByes: Map<string, number>;
+  partners: Map<string, number>;
   opponents: Map<string, number>;
 }
 
@@ -382,33 +391,305 @@ function createMixedAmericanoRounds(
 
   const females = seedPlayers(players.filter((player) => player.gender === "female"), firstRoundOrder, randomSeed);
   const males = seedPlayers(players.filter((player) => player.gender === "male"), firstRoundOrder, randomSeed === undefined ? undefined : randomSeed + 1);
-  const activePairCount = Math.min(females.length, Math.max(2, Math.min(courts * 2, Math.floor(players.length / 2))));
-  const playablePairCount = activePairCount - (activePairCount % 2);
-  const femaleByeTracker = createByeTracker(females.map((player) => player.id));
-  const maleByeTracker = createByeTracker(males.map((player) => player.id));
-  const courtTracker = createCourtBalanceTracker();
+  return buildMixedAmericanoCycle(females, males, courts, rounds, 0);
+}
 
-  return Array.from({ length: rounds }, (_, index) => {
-    const roundNumber = index + 1;
-    const femaleSelection = selectActivePlayers(females, playablePairCount, femaleByeTracker, roundNumber);
-    const maleSelection = selectActivePlayers(males, playablePairCount, maleByeTracker, roundNumber);
-    const generatedRound = createMixedAmericanoRound(femaleSelection.activePlayers, maleSelection.activePlayers, roundNumber);
-    return withByes(assignBalancedCourts(generatedRound, courtTracker, (match) => [...match.teamA.playerIds, ...match.teamB.playerIds]), [...femaleSelection.byePlayerIds, ...maleSelection.byePlayerIds]);
+export function getMixedAmericanoActiveGenderCount(playerCountPerGender: number, courts: number): number {
+  const activeCount = Math.min(playerCountPerGender, courts * 2);
+  const playableCount = activeCount - (activeCount % 2);
+
+  if (playableCount < 2) {
+    throw new Error("Mixed Americano kræver mindst 2 aktive kvinder og 2 aktive mænd.");
+  }
+
+  return playableCount;
+}
+
+export function getMixedAmericanoCycleLength(players: TournamentEngineConfig["players"], courts: number): number {
+  assertMixedPlayers(players);
+
+  const females = players.filter((player) => player.gender === "female");
+  const males = players.filter((player) => player.gender === "male");
+  const activePerGender = getMixedAmericanoActiveGenderCount(females.length, courts);
+  const lowerBound = Math.ceil((females.length * males.length) / activePerGender);
+  const upperBound = Math.max(lowerBound + females.length * 3, females.length * 6);
+
+  for (let cycleLength = lowerBound; cycleLength <= upperBound; cycleLength += 1) {
+    const rounds = buildMixedAmericanoCycle(females, males, courts, cycleLength, 0);
+
+    if (passesMixedAmericanoCycle(females, males, rounds)) {
+      return cycleLength;
+    }
+  }
+
+  throw new Error("Mixed Americano-rotationen kunne ikke planlægges med fair oversidning.");
+}
+
+export function createMixedAmericanoCycleRounds(
+  players: TournamentEngineConfig["players"],
+  courts: number,
+  cycleLength = getMixedAmericanoCycleLength(players, courts),
+  cycleIndex = 0,
+): TournamentRound[] {
+  assertMixedPlayers(players);
+
+  return buildMixedAmericanoCycle(
+    players.filter((player) => player.gender === "female"),
+    players.filter((player) => player.gender === "male"),
+    courts,
+    cycleLength,
+    cycleIndex,
+  );
+}
+
+export function createNextMixedAmericanoCycleRound(state: {
+  players: TournamentPlayer[];
+  rounds: TournamentRound[];
+  courtCount?: number;
+  automaticCycle?: { cycleLength: number };
+}, roundNumber: number): TournamentRound {
+  const genderCount = state.players.filter((player) => player.gender === "female").length;
+  const courts = state.courtCount ?? Math.floor(genderCount / 2);
+  const orderedPlayers = getMixedPlayersInCycleOrder(state.players, state.rounds);
+  const cycleLength = state.automaticCycle?.cycleLength ?? getMixedAmericanoCycleLength(orderedPlayers, courts);
+  const cycleIndex = Math.floor((roundNumber - 1) / cycleLength);
+  const roundIndex = (roundNumber - 1) % cycleLength;
+  return createMixedAmericanoCycleRounds(orderedPlayers, courts, cycleLength, cycleIndex)[roundIndex];
+}
+
+function buildMixedAmericanoCycle(females: TournamentPlayer[], males: TournamentPlayer[], courts: number, cycleLength: number, cycleIndex: number): TournamentRound[] {
+  const orderedFemales = rotateIds(females.map((player) => player.id), cycleIndex).map((playerId) => females.find((player) => player.id === playerId) ?? fail(`Ukendt spiller: ${playerId}`));
+  const orderedMales = rotateIds(males.map((player) => player.id), cycleIndex).map((playerId) => males.find((player) => player.id === playerId) ?? fail(`Ukendt spiller: ${playerId}`));
+  const femaleIds = orderedFemales.map((player) => player.id);
+  const maleIds = orderedMales.map((player) => player.id);
+  const activePerGender = getMixedAmericanoActiveGenderCount(orderedFemales.length, courts);
+  const state = createMixedFairnessState([...femaleIds, ...maleIds]);
+  const courtTracker = createCourtBalanceTracker();
+  let previousFemaleByes = new Set<string>();
+  let previousMaleByes = new Set<string>();
+
+  return Array.from({ length: cycleLength }, (_, index) => {
+    const roundNumber = cycleIndex * cycleLength + index + 1;
+    state.previousByes = previousFemaleByes;
+    const activeFemaleIds = chooseMixedActiveIds(femaleIds, activePerGender, state, index + 1);
+    previousFemaleByes = new Set(femaleIds.filter((playerId) => !activeFemaleIds.includes(playerId)));
+
+    state.previousByes = previousMaleByes;
+    const activeMaleIds = chooseMixedActiveIds(maleIds, activePerGender, state, index + 1);
+    previousMaleByes = new Set(maleIds.filter((playerId) => !activeMaleIds.includes(playerId)));
+
+    const matches = pairMixedTeamsIntoMatches(chooseMixedTeams(activeFemaleIds, activeMaleIds, state), state)
+      .map((match, matchIndex) => createMixedMatch(roundNumber, matchIndex + 1, match));
+    const round = assignBalancedCourts({ roundNumber, matches }, courtTracker, (match) => [...match.teamA.playerIds, ...match.teamB.playerIds]);
+    updateMixedFairnessState([...femaleIds, ...maleIds], round.matches, state);
+
+    return withByes(round, [
+      ...femaleIds.filter((playerId) => !activeFemaleIds.includes(playerId)),
+      ...maleIds.filter((playerId) => !activeMaleIds.includes(playerId)),
+    ]);
   });
+}
+
+function passesMixedAmericanoCycle(females: TournamentPlayer[], males: TournamentPlayer[], rounds: TournamentRound[]): boolean {
+  const femaleIds = females.map((player) => player.id);
+  const maleIds = males.map((player) => player.id);
+  const ids = [...femaleIds, ...maleIds];
+  const genderById = new Map([...females, ...males].map((player) => [player.id, player.gender]));
+  const mixedPartnerUniverse = createMixedPartnerUniverse(females, males);
+  const state = createMixedFairnessState(ids);
+
+  for (const round of rounds) {
+    const roundPlayerIds = round.matches.flatMap((match) => [...match.teamA.playerIds, ...match.teamB.playerIds]);
+
+    if (roundPlayerIds.length !== new Set(roundPlayerIds).size) {
+      return false;
+    }
+
+    if (round.matches.some((match) => !isMixedTeam(match.teamA.playerIds, genderById) || !isMixedTeam(match.teamB.playerIds, genderById))) {
+      return false;
+    }
+
+    const byeIds = ids.filter((id) => !roundPlayerIds.includes(id));
+    if (byeIds.filter((id) => genderById.get(id) === "female").length !== byeIds.filter((id) => genderById.get(id) === "male").length) {
+      return false;
+    }
+
+    updateMixedFairnessState(ids, round.matches, state);
+  }
+
+  const femaleMatches = femaleIds.map((id) => state.matches.get(id) ?? 0);
+  const maleMatches = maleIds.map((id) => state.matches.get(id) ?? 0);
+  const femaleByes = femaleIds.map((id) => state.byes.get(id) ?? 0);
+  const maleByes = maleIds.map((id) => state.byes.get(id) ?? 0);
+
+  return (
+    spread(femaleMatches) <= 1 &&
+    spread(maleMatches) <= 1 &&
+    spread(femaleByes) <= 1 &&
+    spread(maleByes) <= 1 &&
+    Math.max(...state.maxConsecutiveByes.values()) <= 1 &&
+    [...mixedPartnerUniverse].every((key) => (state.partners.get(key) ?? 0) > 0)
+  );
+}
+
+function createMixedFairnessState(ids: string[]): MixedFairnessState {
+  return {
+    matches: new Map(ids.map((id) => [id, 0])),
+    byes: new Map(ids.map((id) => [id, 0])),
+    previousByes: new Set<string>(),
+    consecutiveByes: new Map(ids.map((id) => [id, 0])),
+    maxConsecutiveByes: new Map(ids.map((id) => [id, 0])),
+    partners: new Map(),
+    opponents: new Map(),
+  };
+}
+
+function chooseMixedActiveIds(ids: string[], activeCount: number, state: MixedFairnessState, roundNumber: number): string[] {
+  if (activeCount >= ids.length) {
+    state.previousByes = new Set<string>();
+    return [...ids];
+  }
+
+  const rotated = rotateIds(ids, roundNumber - 1);
+  const selected = [...rotated]
+    .sort((left, right) => (
+      (state.previousByes.has(left) ? -1 : 0) - (state.previousByes.has(right) ? -1 : 0) ||
+      (state.matches.get(left) ?? 0) - (state.matches.get(right) ?? 0) ||
+      (state.byes.get(right) ?? 0) - (state.byes.get(left) ?? 0) ||
+      rotated.indexOf(left) - rotated.indexOf(right)
+    ))
+    .slice(0, activeCount);
+
+  return selected;
+}
+
+function chooseMixedTeams(femaleIds: string[], maleIds: string[], state: MixedFairnessState): Array<[string, string]> {
+  const remainingFemales = [...femaleIds];
+  const remainingMales = [...maleIds];
+  const teams: Array<[string, string]> = [];
+
+  while (remainingFemales.length > 0 && remainingMales.length > 0) {
+    const female = remainingFemales.shift() ?? fail("Mangler kvindelig spiller.");
+    const male = [...remainingMales].sort((left, right) => (
+      getPairFrequency(state.partners, female, left) - getPairFrequency(state.partners, female, right) ||
+      remainingMales.indexOf(left) - remainingMales.indexOf(right)
+    ))[0];
+    remainingMales.splice(remainingMales.indexOf(male), 1);
+    teams.push([male, female]);
+  }
+
+  return teams;
+}
+
+function pairMixedTeamsIntoMatches(teams: Array<[string, string]>, state: MixedFairnessState): Array<[[string, string], [string, string]]> {
+  const remaining = [...teams];
+  const matches: Array<[[string, string], [string, string]]> = [];
+
+  while (remaining.length >= 2) {
+    const teamA = remaining.shift() ?? fail("Mangler hold A.");
+    const teamBIndex = remaining
+      .map((team, index) => ({ index, score: mixedOpponentScore(teamA, team, state) }))
+      .sort((left, right) => left.score - right.score || left.index - right.index)[0].index;
+    const teamB = remaining.splice(teamBIndex, 1)[0];
+    matches.push([teamA, teamB]);
+  }
+
+  return matches;
+}
+
+function createMixedMatch(
+  roundNumber: number,
+  courtNumber: number,
+  match: [[string, string], [string, string]],
+): TournamentRound["matches"][number] {
+  const [teamAIds, teamBIds] = match;
+
+  return {
+    id: `r${roundNumber}-c${courtNumber}`,
+    roundNumber,
+    courtNumber,
+    teamA: {
+      id: `r${roundNumber}-${canonicalPairKey(teamAIds)}`,
+      playerIds: teamAIds,
+    },
+    teamB: {
+      id: `r${roundNumber}-${canonicalPairKey(teamBIds)}`,
+      playerIds: teamBIds,
+    },
+  };
+}
+
+function updateMixedFairnessState(ids: string[], matches: TournamentRound["matches"], state: MixedFairnessState): void {
+  const activeIds = new Set(matches.flatMap((match) => [...match.teamA.playerIds, ...match.teamB.playerIds]));
+
+  for (const id of ids) {
+    if (activeIds.has(id)) {
+      state.matches.set(id, (state.matches.get(id) ?? 0) + 1);
+      state.consecutiveByes.set(id, 0);
+    } else {
+      state.byes.set(id, (state.byes.get(id) ?? 0) + 1);
+      const consecutive = (state.consecutiveByes.get(id) ?? 0) + 1;
+      state.consecutiveByes.set(id, consecutive);
+      state.maxConsecutiveByes.set(id, Math.max(state.maxConsecutiveByes.get(id) ?? 0, consecutive));
+    }
+  }
+
+  for (const match of matches) {
+    incrementPairFrequency(state.partners, match.teamA.playerIds[0], match.teamA.playerIds[1]);
+    incrementPairFrequency(state.partners, match.teamB.playerIds[0], match.teamB.playerIds[1]);
+
+    for (const left of match.teamA.playerIds) {
+      for (const right of match.teamB.playerIds) {
+        incrementPairFrequency(state.opponents, left, right);
+      }
+    }
+  }
+}
+
+function mixedOpponentScore(teamA: [string, string], teamB: [string, string], state: MixedFairnessState): number {
+  return teamA.reduce((total, left) => (
+    total + teamB.reduce((teamTotal, right) => teamTotal + getPairFrequency(state.opponents, left, right), 0)
+  ), 0);
+}
+
+function createMixedPartnerUniverse(females: TournamentPlayer[], males: TournamentPlayer[]): Set<string> {
+  const universe = new Set<string>();
+
+  for (const female of females) {
+    for (const male of males) {
+      universe.add([female.id, male.id].sort().join("|"));
+    }
+  }
+
+  return universe;
+}
+
+function isMixedTeam(playerIds: [string, string], genderById: Map<string, TournamentPlayer["gender"]>): boolean {
+  return playerIds.some((playerId) => genderById.get(playerId) === "female") && playerIds.some((playerId) => genderById.get(playerId) === "male");
+}
+
+function getMixedPlayersInCycleOrder(players: TournamentPlayer[], rounds: TournamentRound[]): TournamentPlayer[] {
+  const playerById = new Map(players.map((player) => [player.id, player]));
+  const seenIds: string[] = [];
+
+  for (const match of rounds.flatMap((round) => round.matches)) {
+    for (const playerId of [...match.teamA.playerIds, ...match.teamB.playerIds]) {
+      if (playerById.has(playerId) && !seenIds.includes(playerId)) {
+        seenIds.push(playerId);
+      }
+    }
+  }
+
+  return [
+    ...seenIds.map((playerId) => playerById.get(playerId) ?? fail(`Ukendt spiller: ${playerId}`)),
+    ...players.filter((player) => !seenIds.includes(player.id)),
+  ];
 }
 
 function createByeTracker(ids: string[]): ByeTracker {
   return {
     pauseCounts: new Map(ids.map((id) => [id, 0])),
     previousByeIds: new Set<string>(),
-  };
-}
-
-function selectActivePlayers(players: TournamentPlayer[], activeCount: number, tracker: ByeTracker, roundNumber: number): { activePlayers: TournamentPlayer[]; byePlayerIds: string[] } {
-  const activeIds = selectActiveIds(players.map((player) => player.id), activeCount, tracker, roundNumber);
-  return {
-    activePlayers: players.filter((player) => activeIds.has(player.id)),
-    byePlayerIds: players.filter((player) => !activeIds.has(player.id)).map((player) => player.id),
   };
 }
 

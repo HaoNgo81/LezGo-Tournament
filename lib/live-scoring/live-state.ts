@@ -3,6 +3,7 @@ import {
   calculateTeamStandings,
   createNextAmericanoCycleRound,
   createNextFixedPartnerAmericanoCycleRound,
+  createNextMixedAmericanoCycleRound,
   createFixedPartnerTeams,
   createNextFixedMexicanoRoundFromTeamRanking,
   createNextMexicanoRoundFromPlayerRanking,
@@ -359,9 +360,15 @@ function getConfiguredRoundCount(state: LiveTournamentState): number {
 
 function createNextDynamicRound(state: LiveTournamentState, roundNumber: number): TournamentRound {
   if (isOpenEndedAmericano(state)) {
-    return state.format === "fixed-partner-americano"
-      ? createNextFixedPartnerAmericanoCycleRound(state, roundNumber)
-      : createNextAmericanoCycleRound(state, roundNumber);
+    if (state.format === "fixed-partner-americano") {
+      return createNextFixedPartnerAmericanoCycleRound(state, roundNumber);
+    }
+
+    if (state.format === "mixed-americano") {
+      return createNextMixedAmericanoCycleRound(state, roundNumber);
+    }
+
+    return createNextAmericanoCycleRound(state, roundNumber);
   }
 
   if (state.format === "mexicano") {
@@ -385,7 +392,7 @@ function createNextDynamicRound(state: LiveTournamentState, roundNumber: number)
 }
 
 function isOpenEndedAmericano(state: LiveTournamentState): boolean {
-  return (state.format === "americano" || state.format === "fixed-partner-americano") && Boolean(state.automaticCycle);
+  return (state.format === "americano" || state.format === "fixed-partner-americano" || state.format === "mixed-americano") && Boolean(state.automaticCycle);
 }
 
 export function getLiveAmericanoCycleStatus(state: LiveTournamentState) {

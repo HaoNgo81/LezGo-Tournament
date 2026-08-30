@@ -16,11 +16,15 @@ export type {
 export {
   createNextFixedMexicanoRoundFromTeamRanking,
   createNextFixedPartnerAmericanoCycleRound,
+  createNextMixedAmericanoCycleRound,
   createFixedPartnerAmericanoCycleRounds,
+  createMixedAmericanoCycleRounds,
   createNextMexicanoRoundFromPlayerRanking,
   createTournamentRounds,
   getFixedPartnerAmericanoActivePairCount,
   getFixedPartnerAmericanoCycleLength,
+  getMixedAmericanoActiveGenderCount,
+  getMixedAmericanoCycleLength,
   rebalanceFixedPartnerAmericanoCourts,
   rebalanceMixedAmericanoCourts,
 } from "./engine";

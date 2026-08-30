@@ -7,6 +7,7 @@ import {
   createNextFixedMexicanoRoundFromTeamRanking,
   createNextMexicanoRoundFromPlayerRanking,
   createTournamentRounds,
+  getMixedAmericanoCycleLength,
   type FixedTeamStandingInput,
   type MatchResult,
   type Team,
@@ -141,8 +142,20 @@ describe("tournament fairness proof infrastructure", () => {
     [2, 6],
     [4, 8],
     [4, 9],
-  ])("proves a Mixed Americano fairness cycle for %i courts / %i women + %i men", (courts, genderCount) => {
-    const result = proveMixedAmericanoCycle(createGenderedPlayers("f", genderCount, "female"), createGenderedPlayers("m", genderCount, "male"), courts);
+  ] as const)("proves a Mixed Americano fairness cycle for %i courts / %i women + %i men", (courts, genderCount) => {
+    const females = createGenderedPlayers("f", genderCount, "female");
+    const males = createGenderedPlayers("m", genderCount, "male");
+    const result = proveMixedAmericanoCycle(females, males, courts);
+    const productionCycleLength = getMixedAmericanoCycleLength([...females, ...males], courts);
+    const expectedCycleLengths = new Map<string, number>([
+      ["1/2", 2],
+      ["1/3", 5],
+      ["2/4", 4],
+      ["2/5", 13],
+      ["2/6", 20],
+      ["4/8", 8],
+      ["4/9", 47],
+    ]);
 
     proofSummaries.push({
       format: "Mixed Americano",
@@ -160,6 +173,8 @@ describe("tournament fairness proof infrastructure", () => {
       durationMs: result.durationMs,
     });
 
+    expect(productionCycleLength).toBe(result.provenCycleLength);
+    expect(result.provenCycleLength).toBe(expectedCycleLengths.get(`${courts}/${genderCount}`));
     expect(result.metrics.matchSpread).toBeLessThanOrEqual(1);
     expect(result.metrics.byeSpread).toBeLessThanOrEqual(1);
     expect(result.metrics.maxConsecutiveByes).toBeLessThanOrEqual(1);
