@@ -66,6 +66,7 @@ export function createTournamentFromSetup(input: TournamentSetupInput): LiveTour
   const players = input.format === "Mixed Americano" ? parseMixedPlayers(input.femalePlayerText, input.malePlayerText) : parsePlayers(input.playerText);
   const isFixedPartner = input.format === "Fast Makker Americano" || input.format === "Fast Makker Mexicano";
   const isAutomaticCycle = input.format === "Americano" || input.format === "Fast Makker Americano" || input.format === "Mixed Americano";
+  const isOpenEndedMexicano = input.format === "Mexicano";
 
   if (isFixedPartner) {
     if (players.length % 2 !== 0) {
@@ -80,6 +81,10 @@ export function createTournamentFromSetup(input: TournamentSetupInput): LiveTour
     }
   }
 
+  if (isOpenEndedMexicano && players.length !== input.courts * 4) {
+    throw new Error("Mexicano kræver præcis 4 spillere pr. bane.");
+  }
+
   if (input.scoringMode === "Spil på tid" && (!input.timeLimitMinutes || input.timeLimitMinutes < 1)) {
     throw new Error("Vælg spilletid for Spil på tid.");
   }
@@ -89,7 +94,7 @@ export function createTournamentFromSetup(input: TournamentSetupInput): LiveTour
     ? getAmericanoCycleLength(players, input.courts)
     : input.format === "Fast Makker Americano"
       ? getFixedPartnerAmericanoCycleLength(createFixedPartnerTeams(players), input.courts)
-      : input.format === "Mixed Americano" ? getMixedAmericanoCycleLength(players, input.courts) : input.rounds;
+      : input.format === "Mixed Americano" ? getMixedAmericanoCycleLength(players, input.courts) : input.format === "Mexicano" ? 1 : input.rounds;
   const rounds = createTournamentRounds({
     format,
     players,
@@ -104,7 +109,7 @@ export function createTournamentFromSetup(input: TournamentSetupInput): LiveTour
     status: "active",
     players,
     rounds,
-    configuredRounds: isAutomaticCycle ? undefined : input.rounds,
+    configuredRounds: isAutomaticCycle || isOpenEndedMexicano ? undefined : input.rounds,
     automaticCycle: isAutomaticCycle ? { type: "automatic-cycle", cycleLength: configuredRounds } : undefined,
     courtCount: input.courts,
     activeRoundNumber: 1,

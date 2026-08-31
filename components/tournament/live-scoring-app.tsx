@@ -18,6 +18,7 @@ import {
   getRoundProgress,
   goToNextRound,
   goToPreviousRound,
+  isOpenEndedTournament,
   resetRoundTimer,
   saveMatchResult,
   saveInitialPoolResult,
@@ -755,8 +756,9 @@ export function LiveScoringApp() {
     <div className="grid gap-3 sm:gap-5" data-testid="live-layout">
       {(() => {
         const americanoCycleStatus = getLiveAmericanoCycleStatus(state);
-        const totalRoundLabel = americanoCycleStatus ? `${state.rounds.length} ${t("rounds").toLowerCase()}` : `${state.configuredRounds ?? state.rounds.length} ${t("rounds").toLowerCase()}`;
-        const activeRoundLabel = americanoCycleStatus ? `${state.activeRoundNumber}` : `${state.activeRoundNumber} / ${state.configuredRounds ?? state.rounds.length}`;
+        const openEndedMexicano = state.format === "mexicano" && isOpenEndedTournament(state);
+        const totalRoundLabel = openEndedMexicano ? null : `${state.configuredRounds ?? state.rounds.length} ${t("rounds").toLowerCase()}`;
+        const activeRoundLabel = openEndedMexicano || americanoCycleStatus ? `${state.activeRoundNumber}` : `${state.activeRoundNumber} / ${state.configuredRounds ?? state.rounds.length}`;
         const rotationLabel = americanoCycleStatus
           ? `Rotation ${americanoCycleStatus.cycleNumber} · ${americanoCycleStatus.roundInCycle}/${americanoCycleStatus.cycleLength}`
           : null;
@@ -773,7 +775,7 @@ export function LiveScoringApp() {
           <div className="min-w-0">
             <p className="text-[0.72rem] font-bold uppercase leading-none text-[var(--primary-strong)] sm:text-xs">{state.status === "finished" ? t("completedTournament") : t("activeTournament")}</p>
             <h2 className="mt-1 text-xl font-black leading-tight sm:text-2xl">{state.tournamentName}</h2>
-            <p className="mt-0.5 text-xs font-bold text-[var(--muted)] sm:text-sm">{state.players.length} {t("players").toLowerCase()} · {totalRoundLabel}</p>
+            <p className="mt-0.5 text-xs font-bold text-[var(--muted)] sm:text-sm">{state.players.length} {t("players").toLowerCase()}{totalRoundLabel ? ` · ${totalRoundLabel}` : null}</p>
             {rotationLabel ? <p className="mt-1 text-xs font-black text-[var(--primary-strong)] sm:text-sm">{rotationLabel}</p> : null}
           </div>
           {!isControllerReadOnly ? <ScreenMirroringControl /> : null}

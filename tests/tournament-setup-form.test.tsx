@@ -235,7 +235,6 @@ describe("tournament setup form", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Navn" }), { target: { value: "RESET TEST" } });
     fireEvent.change(screen.getByRole("combobox", { name: "Scoring" }), { target: { value: "timed" } });
     fireEvent.change(screen.getByRole("spinbutton", { name: "Baner" }), { target: { value: "2" } });
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Runder" }), { target: { value: "3" } });
     fireEvent.change(screen.getByRole("combobox", { name: "Sorter stilling efter" }), { target: { value: "partiPointsFirst" } });
     fillIndividualPlayerFields(["Hao", "Martin", "Ronnie", "Simon", "Tuan", "Johnnie", "Klaus", "Lindon"]);
     fireEvent.scroll(window, { target: { scrollY: 300 } });
@@ -252,7 +251,7 @@ describe("tournament setup form", () => {
     expect(screen.queryByRole("spinbutton", { name: "Antal scorepoint" })).not.toBeInTheDocument();
     expect(screen.getByRole("spinbutton", { name: "Spilletid (minutter)" })).toHaveValue(15);
     expect(screen.getByRole("spinbutton", { name: "Baner" })).toHaveValue(2);
-    expect(screen.getByRole("spinbutton", { name: "Runder" })).toHaveValue(3);
+    expect(screen.queryByRole("spinbutton", { name: "Runder" })).not.toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Sorter stilling efter" })).toHaveValue("partiPointsFirst");
     expect(screen.getByRole("textbox", { name: "Spiller 1" })).toHaveValue("Hao");
     expect(screen.getByRole("textbox", { name: "Spiller 8" })).toHaveValue("Lindon");
@@ -282,12 +281,11 @@ describe("tournament setup form", () => {
     expect(screen.queryByRole("spinbutton", { name: "Spilletid (minutter)" })).not.toBeInTheDocument();
   });
 
-  it("allows courts and rounds to be cleared temporarily before entering a new value", () => {
+  it("allows Mexicano courts to be cleared temporarily before entering a new value", () => {
     render(<TournamentSetupForm />);
 
     tapFormat("Mexicano");
     const courtsInput = getNumberInput("Baner");
-    const roundsInput = getNumberInput("Runder");
 
     expect(courtsInput).toHaveValue(2);
     fireEvent.change(courtsInput, { target: { value: "" } });
@@ -300,6 +298,15 @@ describe("tournament setup form", () => {
     expect(courtsInput.value).toBe("");
     fireEvent.change(courtsInput, { target: { value: "4" } });
     expect(courtsInput.value).toBe("4");
+
+    expect(screen.queryByRole("spinbutton", { name: "Runder" })).not.toBeInTheDocument();
+  });
+
+  it("allows configured-round formats to clear rounds temporarily before entering a new value", () => {
+    render(<TournamentSetupForm />);
+
+    tapFormat("Fast Makker Mexicano");
+    const roundsInput = getNumberInput("Runder");
 
     expect(roundsInput).toHaveValue(2);
     fireEvent.change(roundsInput, { target: { value: "" } });
@@ -336,7 +343,7 @@ describe("tournament setup form", () => {
     expect(timeLimitInput.value).toBe("");
   });
 
-  it("normalizes leading zeroes in courts and rounds without changing other setup state", () => {
+  it("normalizes leading zeroes in Mexicano courts without changing other setup state", () => {
     render(<TournamentSetupForm />);
 
     tapFormat("Mexicano");
@@ -345,18 +352,15 @@ describe("tournament setup form", () => {
     fillIndividualPlayerFields(["Hao", "Martin", "Ronnie", "Simon", "Tuan", "Johnnie", "Klaus", "Lindon"]);
 
     const courtsInput = getNumberInput("Baner");
-    const roundsInput = getNumberInput("Runder");
     fireEvent.change(courtsInput, { target: { value: "03" } });
     fireEvent.blur(courtsInput);
-    fireEvent.change(roundsInput, { target: { value: "010" } });
-    fireEvent.blur(roundsInput);
 
     expectSelectedFormat("Mexicano");
     expect(screen.getByRole("textbox", { name: "Navn" })).toHaveValue("RESET TEST");
     expect(screen.getByRole("combobox", { name: "Scoring" })).toHaveValue("timed");
     expect(screen.queryByRole("spinbutton", { name: "Antal scorepoint" })).not.toBeInTheDocument();
     expect(courtsInput.value).toBe("3");
-    expect(roundsInput.value).toBe("10");
+    expect(screen.queryByRole("spinbutton", { name: "Runder" })).not.toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Spiller 1" })).toHaveValue("Hao");
     expect(screen.getByRole("textbox", { name: "Spiller 8" })).toHaveValue("Lindon");
 
@@ -385,7 +389,7 @@ describe("tournament setup form", () => {
     expect(timeLimitInput.value).toBe("30");
 
     fireEvent.change(screen.getByRole("combobox", { name: "Scoring" }), { target: { value: "target" } });
-    tapFormat("Mexicano");
+    tapFormat("Fast Makker Mexicano");
     const courtsInput = getNumberInput("Baner");
     const roundsInput = getNumberInput("Runder");
     fireEvent.change(courtsInput, { target: { value: "03" } });
@@ -394,6 +398,15 @@ describe("tournament setup form", () => {
     fireEvent.blur(roundsInput);
     expect(courtsInput.value).toBe("3");
     expect(roundsInput.value).toBe("10");
+  });
+
+  it("hides manual rounds for Mexicano without showing rotation", () => {
+    render(<TournamentSetupForm />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Mexicano" }));
+
+    expect(screen.queryByRole("spinbutton", { name: "Runder" })).not.toBeInTheDocument();
+    expect(screen.queryByText((_content, element) => element?.textContent === "Rotation: -")).not.toBeInTheDocument();
   });
 
   it("hides manual rounds for Americano and shows calculated rotation", () => {
@@ -431,7 +444,6 @@ describe("tournament setup form", () => {
     fireEvent.change(getNumberInput("Spilletid (minutter)"), { target: { value: "15" } });
     fireEvent.click(screen.getByRole("button", { name: "Mexicano" }));
     fireEvent.change(getNumberInput("Baner"), { target: { value: "4" } });
-    fireEvent.change(getNumberInput("Runder"), { target: { value: "20" } });
     fillIndividualPlayerFields(Array.from({ length: 16 }, (_, index) => `Spiller ${index + 1}`));
     fireEvent.click(screen.getByRole("button", { name: "Start turnering" }));
 
@@ -441,9 +453,9 @@ describe("tournament setup form", () => {
       format: "mexicano",
       scoringMode: "Spil på tid",
       timeLimitMinutes: 15,
-      configuredRounds: 20,
       courtCount: 4,
     });
+    expect(loadActiveTournament()?.configuredRounds).toBeUndefined();
     expect(loadActiveTournament()?.fixedScorePoints).toBeUndefined();
   });
 

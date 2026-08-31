@@ -77,10 +77,13 @@ function seedTeams(teams: Team[], firstRoundOrder: "manual" | "random", randomSe
 export function createNextMexicanoRoundFromPlayerRanking(playersByRanking: TournamentEngineConfig["players"], roundNumber: number, courts?: number): TournamentRound {
   assertPlayerCount(playersByRanking);
   assertUniquePlayerIds(playersByRanking);
-  const activeCount = getActivePlayerCount(playersByRanking.length, courts ?? Math.floor(playersByRanking.length / 4));
-  const activePlayers = playersByRanking.slice(0, activeCount);
-  const byePlayerIds = playersByRanking.slice(activeCount).map((player) => player.id);
-  return withByes(createMexicanoRoundFromRanking(activePlayers, roundNumber), byePlayerIds);
+  const courtCount = courts ?? Math.floor(playersByRanking.length / 4);
+
+  if (playersByRanking.length !== courtCount * 4) {
+    throw new Error("Mexicano kraever praecis 4 spillere pr. bane.");
+  }
+
+  return createMexicanoRoundFromRanking(playersByRanking, roundNumber);
 }
 
 export function createNextFixedMexicanoRoundFromTeamRanking(teamsByRanking: Team[], roundNumber: number, courts?: number): TournamentRound {
@@ -732,17 +735,6 @@ function compareActivePriority(left: string, right: string, tracker: ByeTracker,
     (tracker.pauseCounts.get(left) ?? 0) - (tracker.pauseCounts.get(right) ?? 0) ||
     rotatedIds.indexOf(left) - rotatedIds.indexOf(right)
   );
-}
-
-function getActivePlayerCount(playerCount: number, courts: number): number {
-  const activeCount = Math.min(playerCount, courts * 4);
-  const playableCount = activeCount - (activeCount % 4);
-
-  if (playableCount < 4) {
-    throw new Error("Der skal vaere mindst 4 aktive spillere i hver runde.");
-  }
-
-  return playableCount;
 }
 
 function getActiveTeamCount(teamCount: number, courts: number): number {

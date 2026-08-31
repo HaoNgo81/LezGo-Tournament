@@ -53,6 +53,9 @@ describe("STEP 25Y-E consolidated current product regression contract", () => {
     } else if (format === "Mixed Americano") {
       expect(tournament.configuredRounds).toBeUndefined();
       expect(tournament.automaticCycle).toEqual({ type: "automatic-cycle", cycleLength: 4 });
+    } else if (format === "Mexicano") {
+      expect(tournament.configuredRounds).toBeUndefined();
+      expect(tournament.automaticCycle).toBeUndefined();
     } else {
       expect(tournament.configuredRounds).toBe(2);
     }

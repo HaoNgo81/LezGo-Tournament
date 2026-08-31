@@ -10,6 +10,7 @@
   getRoundProgress,
   goToNextRound,
   goToPreviousRound,
+  isOpenEndedTournament,
   resetRoundTimer,
   saveMatchResult,
   setLiveRankingMode,

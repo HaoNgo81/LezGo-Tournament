@@ -69,9 +69,17 @@ describe("live scoring state", () => {
 
   it("plays five 4-court Mexicano rounds from live standings", () => {
     const initialState = createStandardTournament("Mexicano", sixteenPlayerText, "", "");
-    const completedState = scoreAllConfiguredRounds(initialState);
+    let completedState = initialState;
 
-    expect(completedState.configuredRounds).toBe(5);
+    for (let round = 1; round <= 5; round += 1) {
+      completedState = scoreActiveRound(completedState);
+
+      if (round < 5) {
+        completedState = goToNextRound(completedState);
+      }
+    }
+
+    expect(completedState.configuredRounds).toBeUndefined();
     expect(completedState.rounds).toHaveLength(5);
     expect(completedState.activeRoundNumber).toBe(5);
     expect(completedState.results).toHaveLength(20);

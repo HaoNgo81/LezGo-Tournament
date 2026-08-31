@@ -254,7 +254,8 @@ describe("LiveScoringApp score sheet", () => {
 
     const header = screen.getByTestId("live-compact-mobile-header");
     expect(header).toHaveClass("p-3", "sm:px-4", "sm:py-3");
-    expect(within(header).getByText("16 spillere · 5 runder")).toBeInTheDocument();
+    expect(within(header).getByText("16 spillere")).toBeInTheDocument();
+    expect(within(header).queryByText(/runder/i)).not.toBeInTheDocument();
     expect(within(header).getByRole("button", { name: "Screen Mirroring" })).toBeInTheDocument();
 
     const summary = screen.getByTestId("live-mobile-round-summary");
@@ -262,7 +263,7 @@ describe("LiveScoringApp score sheet", () => {
     expect(within(summary).getByText("Runde")).toBeInTheDocument();
     expect(within(summary).getByText("Kampe")).toBeInTheDocument();
     expect(within(summary).getByText("Gemt")).toBeInTheDocument();
-    expect(within(summary).getByText("1 / 5")).toBeInTheDocument();
+    expect(within(summary).getByText("1")).toBeInTheDocument();
     expect(within(summary).getByText("4")).toBeInTheDocument();
     expect(within(summary).getByText("0 / 4")).toBeInTheDocument();
 
@@ -1500,12 +1501,12 @@ describe("LiveScoringApp score sheet", () => {
     saveActiveTournament(createStandardTournament("Mexicano"));
     render(<LiveScoringApp />);
 
-    expect(await screen.findByText("1 / 5")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Runde 1" })).toBeInTheDocument();
     scoreVisibleRound();
     fireEvent.click(screen.getAllByRole("button", { name: "Næste" })[0]);
 
     expect(screen.getByText("Næste runde åbnet.")).toBeInTheDocument();
-    expect(screen.getByText("2 / 5")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Runde 2" })).toBeInTheDocument();
     expect(screen.getAllByText("Spiller 1").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Spiller 5").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Spiller 3").length).toBeGreaterThan(0);
@@ -1517,7 +1518,7 @@ describe("LiveScoringApp score sheet", () => {
     saveActiveTournament(createStandardTournament("Mexicano"));
     render(<LiveScoringApp />);
 
-    expect(await screen.findByText("1 / 5")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Runde 1" })).toBeInTheDocument();
     scoreVisibleRound();
     const bottomNavigation = screen.getByTestId("live-bottom-round-navigation");
     expect(bottomNavigation).toHaveClass("grid-cols-1", "sm:grid-cols-3");
@@ -1528,21 +1529,21 @@ describe("LiveScoringApp score sheet", () => {
     fireEvent.click(within(bottomNavigation).getByRole("button", { name: "Næste" }));
 
     expect(screen.getByText("Næste runde åbnet.")).toBeInTheDocument();
-    expect(screen.getByText("2 / 5")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Runde 2" })).toBeInTheDocument();
   });
 
   it("opens the previous round from the bottom standings navigation", async () => {
     saveActiveTournament(createStandardTournament("Mexicano"));
     render(<LiveScoringApp />);
 
-    expect(await screen.findByText("1 / 5")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Runde 1" })).toBeInTheDocument();
     scoreVisibleRound();
     fireEvent.click(screen.getAllByRole("button", { name: "Næste" })[0]);
 
-    expect(screen.getByText("2 / 5")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Runde 2" })).toBeInTheDocument();
     fireEvent.click(within(screen.getByTestId("live-bottom-round-navigation")).getByRole("button", { name: "Forrige" }));
 
-    expect(screen.getByText("1 / 5")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Runde 1" })).toBeInTheDocument();
   });
 
   it("does not show an oversidder line when every Americano player is active", async () => {

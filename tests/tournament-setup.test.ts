@@ -45,6 +45,9 @@ describe("tournament setup", () => {
     } else if (format === "Mixed Americano") {
       expect(tournament.configuredRounds).toBeUndefined();
       expect(tournament.automaticCycle).toEqual({ type: "automatic-cycle", cycleLength: 8 });
+    } else if (format === "Mexicano") {
+      expect(tournament.configuredRounds).toBeUndefined();
+      expect(tournament.automaticCycle).toBeUndefined();
     } else {
       expect(tournament.configuredRounds).toBe(5);
     }
@@ -152,6 +155,43 @@ describe("tournament setup", () => {
       fixedScoreRule: undefined,
       fixedScorePoints: undefined,
     });
+  });
+
+  it("creates new Mexicano tournaments as open-ended with exact court capacity", () => {
+    const tournament = createTournamentFromSetup({
+      name: "Åben Mexicano",
+      format: "Mexicano",
+      playerText: playerText,
+      femalePlayerText: "",
+      malePlayerText: "",
+      courts: 2,
+      rounds: 20,
+      scoringMode: "Fri scoring",
+      firstRoundOrder: "manual",
+      rankingMode: "matchPointsFirst",
+    });
+
+    expect(tournament.format).toBe("mexicano");
+    expect(tournament.configuredRounds).toBeUndefined();
+    expect(tournament.automaticCycle).toBeUndefined();
+    expect(tournament.rounds).toHaveLength(1);
+    expect(tournament.rounds[0].matches).toHaveLength(2);
+    expect(tournament.rounds[0].byePlayerIds).toBeUndefined();
+  });
+
+  it("rejects new Mexicano tournaments unless players fill the selected courts exactly", () => {
+    expect(() => createTournamentFromSetup({
+      name: "For få spillere",
+      format: "Mexicano",
+      playerText: playerText,
+      femalePlayerText: "",
+      malePlayerText: "",
+      courts: 3,
+      rounds: 5,
+      scoringMode: "Fri scoring",
+      firstRoundOrder: "manual",
+      rankingMode: "matchPointsFirst",
+    })).toThrow("Mexicano kræver præcis 4 spillere pr. bane.");
   });
 
   it("rejects timed scoring without a valid duration", () => {

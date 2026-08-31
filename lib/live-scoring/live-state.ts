@@ -139,7 +139,7 @@ export function getRoundProgress(state: LiveTournamentState, roundNumber = state
 }
 
 export function canGoToNextRound(state: LiveTournamentState): boolean {
-  return (isOpenEndedAmericano(state) || state.activeRoundNumber < getConfiguredRoundCount(state)) && getRoundProgress(state).isComplete;
+  return (isOpenEndedTournament(state) || state.activeRoundNumber < getConfiguredRoundCount(state)) && getRoundProgress(state).isComplete;
 }
 
 export function goToPreviousRound(state: LiveTournamentState): LiveTournamentState {
@@ -156,7 +156,7 @@ export function goToPreviousRound(state: LiveTournamentState): LiveTournamentSta
 export function goToNextRound(state: LiveTournamentState): LiveTournamentState {
   const nextRoundNumber = state.activeRoundNumber + 1;
 
-  if (!isOpenEndedAmericano(state) && state.activeRoundNumber >= getConfiguredRoundCount(state)) {
+  if (!isOpenEndedTournament(state) && state.activeRoundNumber >= getConfiguredRoundCount(state)) {
     return state;
   }
 
@@ -393,6 +393,10 @@ function createNextDynamicRound(state: LiveTournamentState, roundNumber: number)
 
 function isOpenEndedAmericano(state: LiveTournamentState): boolean {
   return (state.format === "americano" || state.format === "fixed-partner-americano" || state.format === "mixed-americano") && Boolean(state.automaticCycle);
+}
+
+export function isOpenEndedTournament(state: LiveTournamentState): boolean {
+  return isOpenEndedAmericano(state) || (state.format === "mexicano" && state.configuredRounds === undefined);
 }
 
 export function getLiveAmericanoCycleStatus(state: LiveTournamentState) {

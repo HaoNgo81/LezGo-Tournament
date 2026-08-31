@@ -491,7 +491,7 @@ function createStandardTournament(format: TournamentSetupFormat, overrides: Part
   playerText: string;
   rounds: number;
 }> = {}): LiveTournamentState {
-  return createTournamentFromSetup({
+  const state = createTournamentFromSetup({
     name: overrides.name ?? `${format} 16/4`,
     format,
     playerText: overrides.playerText ?? (format === "Mixed Americano" ? "" : sixteenPlayerText),
@@ -503,6 +503,8 @@ function createStandardTournament(format: TournamentSetupFormat, overrides: Part
     firstRoundOrder: "manual",
     rankingMode: "matchPointsFirst",
   });
+
+  return format === "Mexicano" ? { ...state, configuredRounds: overrides.rounds ?? 5 } : state;
 }
 
 function scoreActiveRound(state: LiveTournamentState): LiveTournamentState {
