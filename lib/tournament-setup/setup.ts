@@ -67,6 +67,7 @@ export function createTournamentFromSetup(input: TournamentSetupInput): LiveTour
   const isFixedPartner = input.format === "Fast Makker Americano" || input.format === "Fast Makker Mexicano";
   const isAutomaticCycle = input.format === "Americano" || input.format === "Fast Makker Americano" || input.format === "Mixed Americano";
   const isOpenEndedMexicano = input.format === "Mexicano";
+  const isOpenEndedFixedPartnerMexicano = input.format === "Fast Makker Mexicano";
 
   if (isFixedPartner) {
     if (players.length % 2 !== 0) {
@@ -74,8 +75,12 @@ export function createTournamentFromSetup(input: TournamentSetupInput): LiveTour
     }
 
     const pairCount = players.length / 2;
-    const maxCourts = Math.floor(pairCount / 2);
 
+    if (isOpenEndedFixedPartnerMexicano && pairCount !== input.courts * 2) {
+      throw new Error("Fast Makker Mexicano kræver præcis 2 par pr. bane.");
+    }
+
+    const maxCourts = Math.floor(pairCount / 2);
     if (input.courts > maxCourts) {
       throw new Error(`${pairCount} par kan højst fylde ${maxCourts} ${maxCourts === 1 ? "bane" : "baner"}.`);
     }
@@ -94,7 +99,7 @@ export function createTournamentFromSetup(input: TournamentSetupInput): LiveTour
     ? getAmericanoCycleLength(players, input.courts)
     : input.format === "Fast Makker Americano"
       ? getFixedPartnerAmericanoCycleLength(createFixedPartnerTeams(players), input.courts)
-      : input.format === "Mixed Americano" ? getMixedAmericanoCycleLength(players, input.courts) : input.format === "Mexicano" ? 1 : input.rounds;
+      : input.format === "Mixed Americano" ? getMixedAmericanoCycleLength(players, input.courts) : input.format === "Mexicano" || input.format === "Fast Makker Mexicano" ? 1 : input.rounds;
   const rounds = createTournamentRounds({
     format,
     players,
@@ -109,7 +114,7 @@ export function createTournamentFromSetup(input: TournamentSetupInput): LiveTour
     status: "active",
     players,
     rounds,
-    configuredRounds: isAutomaticCycle || isOpenEndedMexicano ? undefined : input.rounds,
+    configuredRounds: isAutomaticCycle || isOpenEndedMexicano || isOpenEndedFixedPartnerMexicano ? undefined : input.rounds,
     automaticCycle: isAutomaticCycle ? { type: "automatic-cycle", cycleLength: configuredRounds } : undefined,
     courtCount: input.courts,
     activeRoundNumber: 1,

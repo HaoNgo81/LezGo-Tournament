@@ -756,9 +756,9 @@ export function LiveScoringApp() {
     <div className="grid gap-3 sm:gap-5" data-testid="live-layout">
       {(() => {
         const americanoCycleStatus = getLiveAmericanoCycleStatus(state);
-        const openEndedMexicano = state.format === "mexicano" && isOpenEndedTournament(state);
-        const totalRoundLabel = openEndedMexicano ? null : `${state.configuredRounds ?? state.rounds.length} ${t("rounds").toLowerCase()}`;
-        const activeRoundLabel = openEndedMexicano || americanoCycleStatus ? `${state.activeRoundNumber}` : `${state.activeRoundNumber} / ${state.configuredRounds ?? state.rounds.length}`;
+        const openEndedRankingFormat = (state.format === "mexicano" || state.format === "fixed-partner-mexicano") && isOpenEndedTournament(state);
+        const totalRoundLabel = openEndedRankingFormat ? null : `${state.configuredRounds ?? state.rounds.length} ${t("rounds").toLowerCase()}`;
+        const activeRoundLabel = openEndedRankingFormat || americanoCycleStatus ? `${state.activeRoundNumber}` : `${state.activeRoundNumber} / ${state.configuredRounds ?? state.rounds.length}`;
         const rotationLabel = americanoCycleStatus
           ? `Rotation ${americanoCycleStatus.cycleNumber} · ${americanoCycleStatus.roundInCycle}/${americanoCycleStatus.cycleLength}`
           : null;

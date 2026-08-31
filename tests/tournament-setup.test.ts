@@ -45,7 +45,7 @@ describe("tournament setup", () => {
     } else if (format === "Mixed Americano") {
       expect(tournament.configuredRounds).toBeUndefined();
       expect(tournament.automaticCycle).toEqual({ type: "automatic-cycle", cycleLength: 8 });
-    } else if (format === "Mexicano") {
+    } else if (format === "Mexicano" || format === "Fast Makker Mexicano") {
       expect(tournament.configuredRounds).toBeUndefined();
       expect(tournament.automaticCycle).toBeUndefined();
     } else {
@@ -279,9 +279,9 @@ describe("tournament setup", () => {
     expect(tournament.rounds[0].matches[0].teamA.playerIds).toEqual(["p1", "p2"]);
   });
 
-  it("rejects more courts than fixed partner pairs can fill", () => {
+  it("rejects new Fast Makker Mexicano tournaments unless pairs fill selected courts exactly", () => {
     expect(() => createTournamentFromSetup({
-      name: "For mange baner",
+      name: "For få par",
       format: "Fast Makker Mexicano",
       playerText,
       femalePlayerText: "",
@@ -291,7 +291,7 @@ describe("tournament setup", () => {
       scoringMode: "Fri scoring",
       firstRoundOrder: "manual",
       rankingMode: "matchPointsFirst",
-    })).toThrow("4 par kan højst fylde 2 baner");
+    })).toThrow("Fast Makker Mexicano kræver præcis 2 par pr. bane.");
   });
 
   it("creates Mixed Americano from separate women and men fields", () => {

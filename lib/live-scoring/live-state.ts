@@ -396,7 +396,7 @@ function isOpenEndedAmericano(state: LiveTournamentState): boolean {
 }
 
 export function isOpenEndedTournament(state: LiveTournamentState): boolean {
-  return isOpenEndedAmericano(state) || (state.format === "mexicano" && state.configuredRounds === undefined);
+  return isOpenEndedAmericano(state) || ((state.format === "mexicano" || state.format === "fixed-partner-mexicano") && state.configuredRounds === undefined);
 }
 
 export function getLiveAmericanoCycleStatus(state: LiveTournamentState) {

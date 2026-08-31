@@ -110,7 +110,8 @@ export function TournamentSetupForm() {
   const isFixedPartner = format === "Fast Makker Americano" || format === "Fast Makker Mexicano";
   const isAutomaticCycle = format === "Americano" || format === "Fast Makker Americano" || format === "Mixed Americano";
   const isOpenEndedMexicano = format === "Mexicano";
-  const hidesManualRoundCount = isAutomaticCycle || isOpenEndedMexicano;
+  const isOpenEndedFixedPartnerMexicano = format === "Fast Makker Mexicano";
+  const hidesManualRoundCount = isAutomaticCycle || isOpenEndedMexicano || isOpenEndedFixedPartnerMexicano;
   const fixedPartnerPairs = getFixedPartnerPairs(playerText);
   const teamRounds = playersPerTeam === 4 ? 3 : 2;
   const scoringChoice = getScoringChoice(scoringMode, fixedScoreRule);
@@ -764,7 +765,7 @@ export function TournamentSetupForm() {
                   <div className="self-end rounded-md border border-[var(--line)] bg-white px-4 py-3 text-base font-black">
                     Rotation: {automaticRotationRounds ? `${automaticRotationRounds} runder` : "-"}
                   </div>
-                ) : isOpenEndedMexicano ? null : (
+                ) : hidesManualRoundCount ? null : (
                   <label className="grid gap-2 text-lg font-bold">
                     {t("rounds")}
                     <input
@@ -872,7 +873,7 @@ export function TournamentSetupForm() {
           {isTeamVsTeam ? <p><strong>Spillere pr. hold:</strong> {playersPerTeam}</p> : null}
           {isTeamVsTeam ? <p><strong>Holdkaptajner:</strong> {teamDrafts.slice(0, teamCount).map((team) => `${team.name || "Hold"}: ${getTeamVsTeamCaptainName(team)}`).join(" · ")}</p> : null}
           {!isTeamVsTeam && !isPoolPlay ? <p><strong>{t("courts")}:</strong> {courts || "-"}</p> : null}
-          {!isTeamVsTeam && !isPoolPlay && !isOpenEndedMexicano ? <p><strong>{isAutomaticCycle ? "Rotation" : t("rounds")}:</strong> {isAutomaticCycle ? (automaticRotationRounds ? `${automaticRotationRounds} runder` : "-") : (rounds || "-")}</p> : isTeamVsTeam ? <p><strong>Holdkamp:</strong> {teamRounds} runder · 2 kampe pr. runde · {teamMatchFormat === "oneSet" ? "1 sæt" : "bedst af 3 sæt"}</p> : null}
+          {!isTeamVsTeam && !isPoolPlay && !hidesManualRoundCount ? <p><strong>{isAutomaticCycle ? "Rotation" : t("rounds")}:</strong> {isAutomaticCycle ? (automaticRotationRounds ? `${automaticRotationRounds} runder` : "-") : (rounds || "-")}</p> : isTeamVsTeam ? <p><strong>Holdkamp:</strong> {teamRounds} runder · 2 kampe pr. runde · {teamMatchFormat === "oneSet" ? "1 sæt" : "bedst af 3 sæt"}</p> : null}
           {!isTeamVsTeam ? <p><strong>Ranking:</strong> {t(rankingModeOptions.find((option) => option.value === rankingMode)?.labelKey ?? "mostMatchPoints")}</p> : null}
         </div>
       </Section>

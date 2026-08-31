@@ -89,15 +89,16 @@ describe("live scoring state", () => {
 
   it("plays five 4-court Fast Makker Mexicano rounds from pair standings", () => {
     const initialState = createStandardTournament("Fast Makker Mexicano", sixteenPlayerText, "", "");
-    const completedState = scoreAllConfiguredRounds(initialState);
+    const completedState = playRounds(initialState, 5);
 
-    expect(completedState.configuredRounds).toBe(5);
+    expect(completedState.configuredRounds).toBeUndefined();
     expect(completedState.rounds).toHaveLength(5);
     expect(completedState.activeRoundNumber).toBe(5);
     expect(completedState.results).toHaveLength(20);
     expect(completedState.rounds.every((round) => round.matches.length === 4)).toBe(true);
     expect(calculateLiveStandings(completedState)).toHaveLength(8);
     expect(getRoundProgress(completedState)).toMatchObject({ completedMatches: 4, totalMatches: 4, isComplete: true });
+    expect(canGoToNextRound(completedState)).toBe(true);
   });
 
   it.each([
@@ -881,6 +882,20 @@ function scoreAllConfiguredRounds(state: LiveTournamentState, scores: ReadonlyAr
     currentState = scoreActiveRound(currentState, scores);
 
     if (roundNumber < configuredRounds) {
+      currentState = goToNextRound(currentState);
+    }
+  }
+
+  return currentState;
+}
+
+function playRounds(state: LiveTournamentState, roundCount: number, scores: ReadonlyArray<readonly [number, number]> = [[21, 10], [21, 11], [21, 12], [21, 13]]): LiveTournamentState {
+  let currentState = state;
+
+  for (let roundNumber = 1; roundNumber <= roundCount; roundNumber += 1) {
+    currentState = scoreActiveRound(currentState, scores);
+
+    if (roundNumber < roundCount) {
       currentState = goToNextRound(currentState);
     }
   }

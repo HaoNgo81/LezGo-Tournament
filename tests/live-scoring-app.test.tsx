@@ -1617,12 +1617,15 @@ describe("LiveScoringApp score sheet", () => {
     saveActiveTournament(createStandardTournament("Fast Makker Mexicano"));
     render(<LiveScoringApp />);
 
-    expect(await screen.findByText("1 / 5")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Runde 1" })).toBeInTheDocument();
+    expect(screen.queryByText("1 / 5")).not.toBeInTheDocument();
+    expect(screen.queryByText("Rotation 1")).not.toBeInTheDocument();
     scoreVisibleRound();
     fireEvent.click(screen.getAllByRole("button", { name: "Næste" })[0]);
 
     expect(screen.getByText("Næste runde åbnet.")).toBeInTheDocument();
-    expect(screen.getByText("2 / 5")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Runde 2" })).toBeInTheDocument();
+    expect(screen.queryByText("2 / 5")).not.toBeInTheDocument();
     expect(screen.getAllByText("Spiller 1 / Spiller 2").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Spiller 5 / Spiller 6").length).toBeGreaterThan(0);
   });

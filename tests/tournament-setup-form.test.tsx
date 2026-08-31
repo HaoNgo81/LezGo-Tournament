@@ -302,22 +302,23 @@ describe("tournament setup form", () => {
     expect(screen.queryByRole("spinbutton", { name: "Runder" })).not.toBeInTheDocument();
   });
 
-  it("allows configured-round formats to clear rounds temporarily before entering a new value", () => {
+  it("keeps Fast Makker Mexicano courts editable while manual rounds stay hidden", () => {
     render(<TournamentSetupForm />);
 
     tapFormat("Fast Makker Mexicano");
-    const roundsInput = getNumberInput("Runder");
+    const courtsInput = getNumberInput("Baner");
 
-    expect(roundsInput).toHaveValue(2);
-    fireEvent.change(roundsInput, { target: { value: "" } });
-    expect(roundsInput.value).toBe("");
-    fireEvent.change(roundsInput, { target: { value: "3" } });
-    expect(roundsInput.value).toBe("3");
+    expect(courtsInput).toHaveValue(2);
+    fireEvent.change(courtsInput, { target: { value: "" } });
+    expect(courtsInput.value).toBe("");
+    fireEvent.change(courtsInput, { target: { value: "3" } });
+    expect(courtsInput.value).toBe("3");
 
-    fireEvent.change(roundsInput, { target: { value: "" } });
-    expect(roundsInput.value).toBe("");
-    fireEvent.change(roundsInput, { target: { value: "10" } });
-    expect(roundsInput.value).toBe("10");
+    fireEvent.change(courtsInput, { target: { value: "" } });
+    expect(courtsInput.value).toBe("");
+    fireEvent.change(courtsInput, { target: { value: "4" } });
+    expect(courtsInput.value).toBe("4");
+    expect(screen.queryByRole("spinbutton", { name: "Runder" })).not.toBeInTheDocument();
   });
 
   it("allows time limit minutes to be cleared temporarily before entering a new value", () => {
@@ -391,13 +392,10 @@ describe("tournament setup form", () => {
     fireEvent.change(screen.getByRole("combobox", { name: "Scoring" }), { target: { value: "target" } });
     tapFormat("Fast Makker Mexicano");
     const courtsInput = getNumberInput("Baner");
-    const roundsInput = getNumberInput("Runder");
     fireEvent.change(courtsInput, { target: { value: "03" } });
     fireEvent.blur(courtsInput);
-    fireEvent.change(roundsInput, { target: { value: "010" } });
-    fireEvent.blur(roundsInput);
     expect(courtsInput.value).toBe("3");
-    expect(roundsInput.value).toBe("10");
+    expect(screen.queryByRole("spinbutton", { name: "Runder" })).not.toBeInTheDocument();
   });
 
   it("hides manual rounds for Mexicano without showing rotation", () => {
@@ -431,6 +429,15 @@ describe("tournament setup form", () => {
     fillFixedPartnerPlayerFields(Array.from({ length: 10 }, (_, index) => `Spiller ${index + 1}`));
 
     expect(screen.getAllByText((_content, element) => element?.textContent === "Rotation: 8 runder")[0]).toBeInTheDocument();
+  });
+
+  it("hides manual rounds for Fast Makker Mexicano without showing rotation", () => {
+    render(<TournamentSetupForm />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Fast Makker Mexicano" }));
+
+    expect(screen.queryByRole("spinbutton", { name: "Runder" })).not.toBeInTheDocument();
+    expect(screen.queryByText((_content, element) => element?.textContent === "Rotation: -")).not.toBeInTheDocument();
   });
 
   it("starts a timed free-scoring tournament even when the hidden score-point field was cleared", async () => {
