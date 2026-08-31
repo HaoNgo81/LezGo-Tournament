@@ -168,6 +168,40 @@ describe("tournament engine", () => {
     });
   });
 
+  it("creates 4-court Fast Makker Mexicano rounds from adjacent ranked pairs", () => {
+    const teams = createFixedPartnerTeams(sixteenPlayers);
+    const teamsByRanking = [teams[0], teams[5], teams[7], teams[4], teams[1], teams[6], teams[3], teams[2]];
+    const round = createNextFixedMexicanoRoundFromTeamRanking(teamsByRanking, 2, 4);
+
+    for (let courtIndex = 0; courtIndex < 4; courtIndex += 1) {
+      const baseRank = courtIndex * 2;
+
+      expect(round.matches[courtIndex]).toMatchObject({
+        courtNumber: courtIndex + 1,
+        teamA: teamsByRanking[baseRank],
+        teamB: teamsByRanking[baseRank + 1],
+      });
+    }
+    expect(round.byePlayerIds).toBeUndefined();
+  });
+
+  it("rejects extra ranked pairs for Fast Makker Mexicano instead of creating pair byes", () => {
+    const teamsByRanking = createFixedPartnerTeams(tenPlayers);
+
+    expect(() => createNextFixedMexicanoRoundFromTeamRanking(teamsByRanking, 2, 2)).toThrow("Fast Makker Mexicano kraever praecis 2 par pr. bane.");
+  });
+
+  it("keeps ordinary Mexicano player grouping distinct from Fast Makker Mexicano pair ranking", () => {
+    const mexicanoRound = createNextMexicanoRoundFromPlayerRanking(sixteenPlayers, 2, 4);
+    const fixedTeamsByRanking = createFixedPartnerTeams(sixteenPlayers);
+    const fixedRound = createNextFixedMexicanoRoundFromTeamRanking(fixedTeamsByRanking, 2, 4);
+
+    expect(mexicanoRound.matches[0].teamA.playerIds).toEqual(["p1", "p3"]);
+    expect(mexicanoRound.matches[0].teamB.playerIds).toEqual(["p2", "p4"]);
+    expect(fixedRound.matches[0].teamA.playerIds).toEqual(["p1", "p2"]);
+    expect(fixedRound.matches[0].teamB.playerIds).toEqual(["p3", "p4"]);
+  });
+
   it.each(["fixed-partner-americano", "fixed-partner-mexicano"] as const)(
     "randomizes %s pair seed without breaking fixed pairs",
     (format) => {

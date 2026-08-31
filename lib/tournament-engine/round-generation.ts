@@ -76,6 +76,16 @@ export function createFixedPartnerRound(teams: Team[], roundNumber: number, mexi
   return { roundNumber, matches };
 }
 
+export function createFixedPartnerMexicanoRoundFromPairRanking(teamsByRanking: Team[], roundNumber: number): TournamentRound {
+  const matches: TournamentMatch[] = [];
+
+  for (let index = 0; index < teamsByRanking.length; index += 2) {
+    matches.push(makeMatch(roundNumber, index / 2 + 1, teamsByRanking[index], teamsByRanking[index + 1]));
+  }
+
+  return { roundNumber, matches };
+}
+
 export function createFixedPartnerAmericanoRound(teams: Team[], roundNumber: number): TournamentRound {
   const pairings = createRoundRobinPairings(orderedForAdjacentOpening(teams), roundNumber);
 

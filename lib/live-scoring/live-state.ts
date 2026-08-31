@@ -380,9 +380,12 @@ function createNextDynamicRound(state: LiveTournamentState, roundNumber: number)
   }
 
   if (state.format === "fixed-partner-mexicano") {
-    const teams = createFixedPartnerTeams(state.players);
+    const teams = createFixedPartnerTeams(state.players).map((team) => ({
+      team,
+      name: team.playerIds.map((playerId) => getPlayerName(state.players, playerId)).join(" / "),
+    }));
     const standings = calculateTeamStandings(teams, state.rounds, state.results, state.rankingMode);
-    const teamById = new Map(teams.map((team) => [team.id, team]));
+    const teamById = new Map(teams.map(({ team }) => [team.id, team]));
     const rankedTeams = standings.map((row) => teamById.get(row.id)).filter((team): team is Team => Boolean(team));
 
     return createNextFixedMexicanoRoundFromTeamRanking(rankedTeams, roundNumber, state.courtCount);

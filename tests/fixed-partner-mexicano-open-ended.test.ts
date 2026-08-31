@@ -63,7 +63,7 @@ describe("Fast Makker Mexicano open-ended rounds", () => {
     [2, 8],
     [4, 16],
   ])("runs %i-court / %i-player Fast Makker Mexicano through 50 open-ended rounds", (courts, playerCount) => {
-    const state = playRounds(createFixedPartnerMexicanoTournament(playerCount, courts), 50);
+    const state = playRounds(createFixedPartnerMexicanoTournament(playerCount, courts), 50, scorePatterns, true);
     const expectedPairIds = createFixedPartnerTeams(state.players).map((team) => team.id).sort();
 
     expect(state.configuredRounds).toBeUndefined();
@@ -118,8 +118,7 @@ describe("Fast Makker Mexicano open-ended rounds", () => {
       const standings = calculateLiveStandings(state);
       state = goToNextRound(state);
 
-      expect(state.rounds.at(-1)?.matches[0].teamA.id).toBe(standings[0].id);
-      expect(state.rounds.at(-1)?.matches[0].teamB.id).toBe(standings[1].id);
+      assertAdjacentPairRankingRound(state, standings);
     }
   });
 
@@ -193,15 +192,20 @@ function createFixedPartnerMexicanoTournament(
   });
 }
 
-function playRounds(state: LiveTournamentState, roundCount: number, scores = scorePatterns): LiveTournamentState {
+function playRounds(state: LiveTournamentState, roundCount: number, scores = scorePatterns, assertAdjacentRankings = false): LiveTournamentState {
   let currentState = state;
 
   for (let roundNumber = 1; roundNumber <= roundCount; roundNumber += 1) {
     currentState = scoreActiveRound(currentState, scores);
 
     if (roundNumber < roundCount) {
+      const standings = calculateLiveStandings(currentState);
       expect(canGoToNextRound(currentState)).toBe(true);
       currentState = goToNextRound(currentState);
+
+      if (assertAdjacentRankings) {
+        assertAdjacentPairRankingRound(currentState, standings);
+      }
     }
   }
 
@@ -222,6 +226,17 @@ function assertFixedPairTeam(playerIds: readonly string[]): void {
 
   expect(indexes[1] - indexes[0]).toBe(1);
   expect(indexes[0] % 2).toBe(1);
+}
+
+function assertAdjacentPairRankingRound(state: LiveTournamentState, standings = calculateLiveStandings(state)): void {
+  const round = state.rounds.find((candidate) => candidate.roundNumber === state.activeRoundNumber) ?? fail(`Missing round ${state.activeRoundNumber}`);
+
+  round.matches.forEach((match, courtIndex) => {
+    const baseRank = courtIndex * 2;
+
+    expect(match.teamA.id).toBe(standings[baseRank].id);
+    expect(match.teamB.id).toBe(standings[baseRank + 1].id);
+  });
 }
 
 function fail(message: string): never {

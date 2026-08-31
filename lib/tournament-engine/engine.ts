@@ -9,6 +9,7 @@ import {
 import { createAmericanoCycleRounds, getAmericanoCycleLength } from "./americano-cycle";
 import {
   createFixedPartnerAmericanoRound,
+  createFixedPartnerMexicanoRoundFromPairRanking,
   createFixedPartnerRound,
   createFixedPartnerTeams,
   createMexicanoRoundFromRanking,
@@ -87,10 +88,13 @@ export function createNextMexicanoRoundFromPlayerRanking(playersByRanking: Tourn
 }
 
 export function createNextFixedMexicanoRoundFromTeamRanking(teamsByRanking: Team[], roundNumber: number, courts?: number): TournamentRound {
-  const activeTeamCount = getActiveTeamCount(teamsByRanking.length, courts ?? Math.floor(teamsByRanking.length / 2));
-  const activeTeams = teamsByRanking.slice(0, activeTeamCount);
-  const byePlayerIds = teamsByRanking.slice(activeTeamCount).flatMap((team) => team.playerIds);
-  return withByes(createFixedPartnerRound(activeTeams, roundNumber, true), byePlayerIds);
+  const courtCount = courts ?? Math.floor(teamsByRanking.length / 2);
+
+  if (teamsByRanking.length !== courtCount * 2) {
+    throw new Error("Fast Makker Mexicano kraever praecis 2 par pr. bane.");
+  }
+
+  return createFixedPartnerMexicanoRoundFromPairRanking(teamsByRanking, roundNumber);
 }
 
 export function rebalanceMixedAmericanoCourts(rounds: TournamentRound[]): TournamentRound[] {
