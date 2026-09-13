@@ -11,9 +11,11 @@ export const dynamic = "force-dynamic";
 
 export async function GET(): Promise<Response> {
   const isRemembered = await readAuthRememberedSessionCookie();
+  const accessToken = await readAuthAccessCookie();
+  const refreshToken = await readAuthRefreshCookie();
 
   try {
-    const account = await readAccountFromAccessToken(await readAuthAccessCookie());
+    const account = await readAccountFromAccessToken(accessToken);
 
     if (isRemembered && account.role === "admin") {
       return Response.json({ ok: false, error: "Authentication was denied." }, {
@@ -30,12 +32,16 @@ export async function GET(): Promise<Response> {
   } catch (error) {
     if (!isRemembered) {
       const status = error instanceof AuthError ? error.status : 401;
-      return Response.json({ ok: false, error: "Authentication was denied." }, { status });
+      return Response.json({
+        ok: false,
+        error: "Authentication was denied.",
+        reauthRequired: Boolean(accessToken || refreshToken),
+      }, { status });
     }
   }
 
   try {
-    const result = await refreshAuthenticatedSession(await readAuthRefreshCookie());
+    const result = await refreshAuthenticatedSession(refreshToken);
 
     if (result.account.role !== "user") {
       return Response.json({ ok: false, error: "Authentication was denied." }, {

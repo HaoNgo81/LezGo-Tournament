@@ -449,7 +449,7 @@ export function LiveScoringApp() {
   }
 
   async function performOwnedCloudMatchSave(result: MatchResult, localId: string, tournamentId: string, expectedScoreVersion: number): Promise<void> {
-    const response = await fetch(`/api/account/tournaments/${encodeURIComponent(tournamentId)}/score`, {
+    const response = await fetchWithAuthRefresh(`/api/account/tournaments/${encodeURIComponent(tournamentId)}/score`, {
       method: "POST",
       cache: "no-store",
       headers: { "content-type": "application/json" },
@@ -516,7 +516,7 @@ export function LiveScoringApp() {
     tournamentId: string,
     metadata: NonNullable<ReturnType<typeof loadShadowSaveMetadata>>,
   ): Promise<boolean> {
-    const response = await fetch("/api/supabase/shadow-save", {
+    const response = await fetchWithAuthRefresh("/api/supabase/shadow-save", {
       method: "POST",
       cache: "no-store",
       headers: { "content-type": "application/json" },
@@ -574,7 +574,7 @@ export function LiveScoringApp() {
     }
 
     try {
-      const response = await fetch(`/api/account/tournaments/${encodeURIComponent(tournamentId)}`, {
+      const response = await fetchWithAuthRefresh(`/api/account/tournaments/${encodeURIComponent(tournamentId)}`, {
         method: "GET",
         cache: "no-store",
       });
@@ -618,7 +618,7 @@ export function LiveScoringApp() {
 
   async function reconcileControlLost(localId: string, tournamentId: string): Promise<void> {
     try {
-      const response = await fetch(`/api/account/tournaments/${encodeURIComponent(tournamentId)}`, {
+      const response = await fetchWithAuthRefresh(`/api/account/tournaments/${encodeURIComponent(tournamentId)}`, {
         method: "GET",
         cache: "no-store",
       });
@@ -2031,7 +2031,7 @@ function doesStateContainSelectedMatch(state: LiveTournamentState, matchId: stri
 
 async function readOrganizerRemoteState(metadata: { supabaseTournamentId?: string; organizerToken?: string; legacyLocalId?: string }, localId: string): Promise<{ response: Response; body: OrganizerRemoteReadResponse }> {
   if (metadata.supabaseTournamentId) {
-    const response = await fetch(`/api/account/tournaments/${encodeURIComponent(metadata.supabaseTournamentId)}`, {
+    const response = await fetchWithAuthRefresh(`/api/account/tournaments/${encodeURIComponent(metadata.supabaseTournamentId)}`, {
       cache: "no-store",
     });
     const body = await response.json() as OrganizerRemoteReadResponse;
@@ -2061,6 +2061,34 @@ async function readOrganizerRemoteState(metadata: { supabaseTournamentId?: strin
   });
   const body = await response.json() as OrganizerRemoteReadResponse;
   return { response, body };
+}
+
+async function fetchWithAuthRefresh(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const response = await fetch(input, init);
+
+  if (!isStaleAuthResponse(response)) {
+    return response;
+  }
+
+  if (!await refreshCurrentAuthSession()) {
+    return response;
+  }
+
+  return await fetch(input, init);
+}
+
+function isStaleAuthResponse(response: Response): boolean {
+  return response.status === 401;
+}
+
+async function refreshCurrentAuthSession(): Promise<boolean> {
+  try {
+    const response = await fetch("/api/auth/me", { cache: "no-store" });
+    const body = await response.json() as { ok?: boolean; account?: unknown };
+    return response.ok && body.ok === true && Boolean(body.account);
+  } catch {
+    return false;
+  }
 }
 
 async function parseShadowSaveWriteResponse(response: Response): Promise<ShadowSaveWriteResponse> {

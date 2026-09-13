@@ -68,7 +68,8 @@ type FormatTapGesture = {
   startY: number;
 };
 
-type AccountStatus = "unknown" | "authenticated" | "guest";
+type AccountStatus = "unknown" | "authenticated" | "guest" | "auth-error";
+const authVerificationErrorMessage = "Din login-session kunne ikke bekræftes. Log ind igen, før turneringen oprettes.";
 
 export function TournamentSetupForm() {
   const { t } = useAppTranslation();
@@ -182,10 +183,14 @@ export function TournamentSetupForm() {
     setError("");
 
     try {
-      const resolvedAccountStatus = accountStatus === "unknown" ? await readAccountStatus() : accountStatus;
+      const resolvedAccountStatus = await readAccountStatus();
       const shouldCreateLocalOnly = resolvedAccountStatus !== "authenticated";
       const parsedCourts = parsePositiveIntegerInput(courts, t("courts"));
       setAccountStatus(resolvedAccountStatus);
+
+      if (resolvedAccountStatus === "auth-error") {
+        throw new Error(authVerificationErrorMessage);
+      }
 
       if (shouldCreateLocalOnly) {
         assertGuestCourtLimit(parsedCourts, t);
@@ -1048,10 +1053,15 @@ function parseTimeLimitInput(scoringMode: ScoringMode, value: string): number | 
 async function readAccountStatus(): Promise<AccountStatus> {
   try {
     const response = await fetch("/api/auth/me", { cache: "no-store" });
-    const body = await response.json() as { ok?: boolean; account?: unknown };
-    return response.ok && body.ok && body.account ? "authenticated" : "guest";
+    const body = await response.json() as { ok?: boolean; account?: unknown; reauthRequired?: boolean };
+
+    if (response.ok && body.ok && body.account) {
+      return "authenticated";
+    }
+
+    return body.reauthRequired ? "auth-error" : "guest";
   } catch {
-    return "guest";
+    return "auth-error";
   }
 }
 

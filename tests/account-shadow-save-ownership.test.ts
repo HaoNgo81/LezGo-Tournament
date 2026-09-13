@@ -191,10 +191,10 @@ describe("STEP 25K user-created tournament ownership shadow-save", () => {
       }),
     }));
 
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(401);
     expect(await response.json()).toMatchObject({
       ok: false,
-      error: "Du har ikke længere styring af denne turnering.",
+      error: "Authentication was denied.",
     });
     expect(databaseMocks.standardSave).not.toHaveBeenCalled();
   });

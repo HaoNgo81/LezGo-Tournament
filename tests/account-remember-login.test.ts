@@ -215,6 +215,21 @@ describe("STEP 25I-C1-C7-FIX1 remember login policy", () => {
     expect(setCookies).toContain("lezgo_auth_remember=1");
   });
 
+  it("marks stale non-remembered auth cookies as requiring login again", async () => {
+    const { AuthError } = await import("../lib/auth");
+    const { GET } = await import("../app/api/auth/me/route");
+    cookieMocks.values.set("lezgo_auth_access", "stale-access-token");
+    authRouteMocks.readAccountFromAccessToken.mockRejectedValue(new AuthError());
+
+    const response = await GET();
+    const body = await response.json() as { ok: boolean; reauthRequired?: boolean };
+
+    expect(response.status).toBe(401);
+    expect(body.ok).toBe(false);
+    expect(body.reauthRequired).toBe(true);
+    expect(authRouteMocks.refreshAuthenticatedSession).not.toHaveBeenCalled();
+  });
+
   it("does not accept a remembered USER session that has been promoted to ADMIN", async () => {
     const { AuthError } = await import("../lib/auth");
     const { GET } = await import("../app/api/auth/me/route");

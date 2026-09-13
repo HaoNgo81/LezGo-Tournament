@@ -757,6 +757,92 @@ describe("LiveScoringApp score sheet", () => {
     expect(loadShadowSaveMetadata(localId)?.matchScoreVersions?.[roundFiveMatchId]).toBe(2);
   }, 10000);
 
+  it("refreshes auth and retries an owned score save once when the access cookie is stale", async () => {
+    const localState = createMockLiveTournamentState();
+    const matchId = localState.rounds[0].matches[0].id;
+    const remoteState = saveMatchResult(localState, {
+      matchId,
+      teamAPoints: 14,
+      teamBPoints: 9,
+    });
+    const localId = createStandardShadowSaveLocalId(localState);
+    saveActiveTournamentFromRemoteSync(localState);
+    saveShadowMetadata(localId, {
+      canManage: true,
+      kind: "standard",
+      lastLocalSaveAt: "2026-09-13T10:00:00.000Z",
+      lastShadowSaveVersion: "2026-09-13T10:00:00.000Z",
+      status: "synced",
+      supabaseTournamentId: "00000000-0000-4000-8000-0000000031a1",
+      matchScoreVersions: { [matchId]: 1 },
+    });
+    let scoreAttempts = 0;
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = input.toString();
+
+      if (url === "/api/account/tournaments/00000000-0000-4000-8000-0000000031a1/score") {
+        scoreAttempts += 1;
+
+        if (scoreAttempts === 1) {
+          return Promise.resolve(new Response(JSON.stringify({
+            ok: false,
+            error: "Authentication was denied.",
+          }), { status: 401 }));
+        }
+
+        return Promise.resolve(new Response(JSON.stringify({
+          ok: true,
+          kind: "standard",
+          state: remoteState,
+          tournamentId: "00000000-0000-4000-8000-0000000031a1",
+          updatedAt: "2026-09-13T10:00:05.000Z",
+          matchScoreVersions: { [matchId]: 2 },
+        }), { status: 200 }));
+      }
+
+      if (url === "/api/auth/me") {
+        return Promise.resolve(new Response(JSON.stringify({
+          ok: true,
+          account: {
+            userId: "00000000-0000-4000-8000-00000000aaa1",
+            email: "owner@example.com",
+            displayName: "Owner",
+            role: "user",
+          },
+        }), { status: 200 }));
+      }
+
+      if (url === "/api/account/tournaments/00000000-0000-4000-8000-0000000031a1") {
+        return Promise.resolve(new Response(JSON.stringify({
+          ok: true,
+          kind: "standard",
+          state: localState,
+          tournamentId: "00000000-0000-4000-8000-0000000031a1",
+          updatedAt: "2026-09-13T10:00:00.000Z",
+          canRead: true,
+          canManage: true,
+          matchScoreVersions: { [matchId]: 1 },
+        }), { status: 200 }));
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({ ok: false, error: `Unexpected URL ${url}` }), { status: 500 }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<LiveScoringApp />);
+
+    expect(await screen.findByText("Mock Americano")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Indtast score" })[0]);
+    fireEvent.change(screen.getByRole("textbox", { name: "Hold A scorepoint" }), { target: { value: "14" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Hold B scorepoint" }), { target: { value: "9" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gem" }));
+
+    await waitFor(() => expectLiveCourtScore("14", "9"));
+    expect(fetchMock.mock.calls.filter((call) => call[0] === "/api/account/tournaments/00000000-0000-4000-8000-0000000031a1/score")).toHaveLength(2);
+    expect(fetchMock).toHaveBeenCalledWith("/api/auth/me", { cache: "no-store" });
+    expect(loadShadowSaveMetadata(localId)?.matchScoreVersions?.[matchId]).toBe(2);
+  }, 10000);
+
   it("blocks rapid duplicate owned score saves while the first score write is pending", async () => {
     const localState = createMockLiveTournamentState();
     const matchId = localState.rounds[0].matches[0].id;

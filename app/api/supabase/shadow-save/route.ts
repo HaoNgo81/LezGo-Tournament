@@ -1,5 +1,5 @@
 import { createOrganizerToken, createStandardTournamentRepository, createTeamVsTeamTournamentRepository, readOwnedMatchScoreVersions } from "@/lib/database";
-import { readOptionalAccountFromAccessToken } from "@/lib/auth";
+import { AuthError, readOptionalAccountFromAccessToken } from "@/lib/auth";
 import { readAuthAccessCookie } from "@/lib/auth/cookies";
 import { canManageAccountTournament } from "@/lib/account/tournament-authority";
 import { TournamentWriteAccessError } from "@/lib/account/tournament-write-access";
@@ -99,7 +99,9 @@ export async function POST(request: Request): Promise<Response> {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Shadow-save failed.";
     const normalizedMessage = message.toLocaleLowerCase("en");
-    const status = error instanceof TournamentWriteAccessError
+    const status = error instanceof AuthError
+      ? error.status
+      : error instanceof TournamentWriteAccessError
       ? error.status
       : normalizedMessage.includes("authorization") || normalizedMessage.includes("authenticated")
       ? 403
@@ -109,7 +111,9 @@ export async function POST(request: Request): Promise<Response> {
       return await createSnapshotConflictResponse(body.tournamentId);
     }
 
-    const errorMessage = error instanceof TournamentWriteAccessError
+    const errorMessage = error instanceof AuthError
+      ? "Authentication was denied."
+      : error instanceof TournamentWriteAccessError
       ? error.message
       : status === 403
       ? "Du har ikke længere styring af denne turnering."
@@ -187,7 +191,7 @@ function resolveShadowSaveActorUserId(tournament: TournamentAuthorityRow | null,
   }
 
   if (!accountUserId) {
-    throw new TournamentWriteAccessError();
+    throw new AuthError();
   }
 
   if (!canManageAccountTournament(tournament, accountUserId)) {

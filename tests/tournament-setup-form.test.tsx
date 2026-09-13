@@ -557,6 +557,38 @@ describe("tournament setup form", () => {
     }
   });
 
+  it("blocks silent guest fallback when auth verification requires login again", async () => {
+    const originalFlag = process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE;
+    process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE = "1";
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (input.toString() === "/api/auth/me") {
+        return new Response(JSON.stringify({ ok: false, reauthRequired: true }), { status: 401 });
+      }
+
+      return new Response(JSON.stringify({ ok: false, error: "Unexpected request." }), { status: 500 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TournamentSetupForm />);
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Navn" }), { target: { value: "Session Cup" } });
+    fillIndividualPlayerFields(["Anna", "Peter", "Mads", "Louise"]);
+    fireEvent.click(screen.getByRole("button", { name: "Start turnering" }));
+
+    await screen.findByText("Din login-session kunne ikke bekræftes. Log ind igen, før turneringen oprettes.");
+    expect(push).not.toHaveBeenCalled();
+    expect(loadActiveTournament()).toBeNull();
+    expect(fetchMock.mock.calls.some((call) => call[0] === "/api/supabase/shadow-save")).toBe(false);
+    expect(screen.getByRole("textbox", { name: "Navn" })).toHaveValue("Session Cup");
+    expect(screen.getByRole("textbox", { name: "Spiller 1" })).toHaveValue("Anna");
+
+    if (originalFlag === undefined) {
+      delete process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE;
+    } else {
+      process.env.NEXT_PUBLIC_LEZGO_SUPABASE_SHADOW_SAVE = originalFlag;
+    }
+  });
+
   it("keeps guest court selection capped at 2 courts", async () => {
     mockGuestAccountFetch();
 
@@ -767,6 +799,7 @@ describe("tournament setup form", () => {
   });
 
   it("renders separate Americano player fields and preserves player order in the tournament payload", async () => {
+    mockGuestAccountFetch();
     render(<TournamentSetupForm />);
 
     fillIndividualPlayerFields(["Anna", "Peter", "Mads", "Louise", "Ægir", "Østen", "Åse", "Minh"]);
@@ -793,6 +826,7 @@ describe("tournament setup form", () => {
   });
 
   it("renders separate Mixed Americano women and men fields while preserving gender groups", async () => {
+    mockGuestAccountFetch();
     render(<TournamentSetupForm />);
 
     fireEvent.click(screen.getByRole("button", { name: "Mixed Americano" }));
