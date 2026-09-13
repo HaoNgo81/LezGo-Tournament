@@ -11,6 +11,9 @@ const authMocks = vi.hoisted(() => ({
 const databaseMocks = vi.hoisted(() => ({
   readStandard: vi.fn(),
   readTeamVsTeam: vi.fn(),
+  deleteStandard: vi.fn(),
+  deleteTeamVsTeam: vi.fn(),
+  revokePublicResult: vi.fn(),
   readOwnedMatchScoreVersions: vi.fn(),
 }));
 
@@ -36,8 +39,9 @@ vi.mock("@/lib/database", async (importOriginal) => {
 
   return {
     ...actual,
-    createStandardTournamentRepository: () => ({ read: databaseMocks.readStandard }),
-    createTeamVsTeamTournamentRepository: () => ({ read: databaseMocks.readTeamVsTeam }),
+    createStandardTournamentRepository: () => ({ read: databaseMocks.readStandard, deleteById: databaseMocks.deleteStandard }),
+    createTeamVsTeamTournamentRepository: () => ({ read: databaseMocks.readTeamVsTeam, deleteById: databaseMocks.deleteTeamVsTeam }),
+    createPublicResultSnapshotRepository: () => ({ revokeStandard: databaseMocks.revokePublicResult }),
     createOrganizerToken: () => "OWNER_ORGANIZER_TOKEN",
     readOwnedMatchScoreVersions: databaseMocks.readOwnedMatchScoreVersions,
   };
@@ -52,7 +56,7 @@ vi.mock("@/lib/supabase/rest-client", async (importOriginal) => {
   };
 });
 
-import { GET as openOwnedTournament } from "../app/api/account/tournaments/[tournamentId]/route";
+import { DELETE as deleteOwnedTournament, GET as openOwnedTournament } from "../app/api/account/tournaments/[tournamentId]/route";
 
 describe("STEP 25I-B1 owner cloud tournament open API", () => {
   beforeEach(() => {
@@ -60,6 +64,9 @@ describe("STEP 25I-B1 owner cloud tournament open API", () => {
     authMocks.readAccountFromAccessToken.mockReset();
     databaseMocks.readStandard.mockReset();
     databaseMocks.readTeamVsTeam.mockReset();
+    databaseMocks.deleteStandard.mockReset();
+    databaseMocks.deleteTeamVsTeam.mockReset();
+    databaseMocks.revokePublicResult.mockReset();
     databaseMocks.readOwnedMatchScoreVersions.mockReset();
     restClientMocks.select.mockReset();
     authMocks.readAuthAccessCookie.mockResolvedValue("auth-cookie-token");
@@ -169,6 +176,80 @@ describe("STEP 25I-B1 owner cloud tournament open API", () => {
 
     expect(response.status).toBe(401);
     expect(restClientMocks.select).not.toHaveBeenCalled();
+  });
+
+  it("deletes an owned completed standard tournament and revokes its public result snapshot first", async () => {
+    authMocks.readAccountFromAccessToken.mockResolvedValue(createAccount("00000000-0000-4000-8000-0000000000a1"));
+    restClientMocks.select.mockResolvedValue([{
+      id: "00000000-0000-4000-8000-000000000106",
+      format: "americano",
+      status: "finished",
+      legacy_local_id: "delete-standard-americano",
+      owner_user_id: "00000000-0000-4000-8000-0000000000a1",
+      created_by_user_id: "00000000-0000-4000-8000-0000000000a1",
+      controller_user_id: "00000000-0000-4000-8000-0000000000b2",
+      team_competition_mode: null,
+      updated_at: "2026-08-19T10:00:00.000Z",
+    }]);
+    const calls: string[] = [];
+    databaseMocks.revokePublicResult.mockImplementation(async () => {
+      calls.push("revoke");
+    });
+    databaseMocks.deleteStandard.mockImplementation(async () => {
+      calls.push("delete");
+    });
+
+    const response = await deleteOwnedTournament(new Request("http://localhost/api/account/tournaments/00000000-0000-4000-8000-000000000106", { method: "DELETE" }), createRouteContext("00000000-0000-4000-8000-000000000106"));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true });
+    expect(calls).toEqual(["revoke", "delete"]);
+    expect(databaseMocks.revokePublicResult).toHaveBeenCalledWith({ tournamentId: "00000000-0000-4000-8000-000000000106" });
+    expect(databaseMocks.deleteStandard).toHaveBeenCalledWith("00000000-0000-4000-8000-000000000106");
+  });
+
+  it("rejects cross-user tournament deletion", async () => {
+    authMocks.readAccountFromAccessToken.mockResolvedValue(createAccount("00000000-0000-4000-8000-0000000000b2"));
+    restClientMocks.select.mockResolvedValue([{
+      id: "00000000-0000-4000-8000-000000000107",
+      format: "americano",
+      status: "finished",
+      legacy_local_id: "private-delete-americano",
+      owner_user_id: "00000000-0000-4000-8000-0000000000a1",
+      created_by_user_id: "00000000-0000-4000-8000-0000000000a1",
+      controller_user_id: "00000000-0000-4000-8000-0000000000a1",
+      team_competition_mode: null,
+      updated_at: "2026-08-19T10:00:00.000Z",
+    }]);
+
+    const response = await deleteOwnedTournament(new Request("http://localhost/api/account/tournaments/00000000-0000-4000-8000-000000000107", { method: "DELETE" }), createRouteContext("00000000-0000-4000-8000-000000000107"));
+
+    expect(response.status).toBe(403);
+    expect(databaseMocks.revokePublicResult).not.toHaveBeenCalled();
+    expect(databaseMocks.deleteStandard).not.toHaveBeenCalled();
+  });
+
+  it("allows an admin to delete an account tournament through the existing admin role", async () => {
+    authMocks.readAccountFromAccessToken.mockResolvedValue({
+      ...createAccount("00000000-0000-4000-8000-00000000ad01"),
+      role: "admin",
+    });
+    restClientMocks.select.mockResolvedValue([{
+      id: "00000000-0000-4000-8000-000000000108",
+      format: "americano",
+      status: "finished",
+      legacy_local_id: "admin-delete-americano",
+      owner_user_id: "00000000-0000-4000-8000-0000000000a1",
+      created_by_user_id: "00000000-0000-4000-8000-0000000000a1",
+      controller_user_id: "00000000-0000-4000-8000-0000000000a1",
+      team_competition_mode: null,
+      updated_at: "2026-08-19T10:00:00.000Z",
+    }]);
+
+    const response = await deleteOwnedTournament(new Request("http://localhost/api/account/tournaments/00000000-0000-4000-8000-000000000108", { method: "DELETE" }), createRouteContext("00000000-0000-4000-8000-000000000108"));
+
+    expect(response.status).toBe(200);
+    expect(databaseMocks.deleteStandard).toHaveBeenCalledWith("00000000-0000-4000-8000-000000000108");
   });
 });
 

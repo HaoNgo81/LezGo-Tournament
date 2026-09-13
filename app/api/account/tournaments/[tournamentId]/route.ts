@@ -1,4 +1,4 @@
-import { createOrganizerToken, createStandardTournamentRepository, createTeamVsTeamTournamentRepository, readOwnedMatchScoreVersions } from "@/lib/database";
+import { createOrganizerToken, createPublicResultSnapshotRepository, createStandardTournamentRepository, createTeamVsTeamTournamentRepository, readOwnedMatchScoreVersions } from "@/lib/database";
 import { AuthError, readAccountFromAccessToken } from "@/lib/auth";
 import { readAuthAccessCookie } from "@/lib/auth/cookies";
 import { canListOwnCreatedAccountTournament, canManageAccountTournament } from "@/lib/account/tournament-authority";
@@ -15,6 +15,7 @@ interface RouteContext {
 interface OwnedTournamentRow {
   id: string;
   format: string;
+  status: "setup" | "active" | "finished";
   legacy_local_id: string | null;
   owner_user_id: string | null;
   created_by_user_id: string | null;
@@ -35,7 +36,7 @@ export async function GET(_request: Request, context: RouteContext): Promise<Res
     const client = createSupabaseRestClient();
     const [tournament] = await client.select<OwnedTournamentRow>(
       "tournaments",
-      `id=eq.${encodeURIComponent(tournamentId)}&select=id,format,legacy_local_id,owner_user_id,created_by_user_id,controller_user_id,team_competition_mode,updated_at`,
+      `id=eq.${encodeURIComponent(tournamentId)}&select=id,format,status,legacy_local_id,owner_user_id,created_by_user_id,controller_user_id,team_competition_mode,updated_at`,
     );
 
     if (!tournament) {
@@ -85,6 +86,59 @@ export async function GET(_request: Request, context: RouteContext): Promise<Res
     }
 
     const message = error instanceof Error ? error.message : "Could not open owned tournament.";
+    return Response.json({ ok: false, error: message }, { status: 500 });
+  }
+}
+
+export async function DELETE(_request: Request, context: RouteContext): Promise<Response> {
+  const { tournamentId } = await context.params;
+
+  if (!isUuid(tournamentId)) {
+    return Response.json({ ok: false, error: "Tournament ID is invalid." }, { status: 400 });
+  }
+
+  try {
+    const account = await readAccountFromAccessToken(await readAuthAccessCookie());
+    const client = createSupabaseRestClient();
+    const [tournament] = await client.select<OwnedTournamentRow>(
+      "tournaments",
+      `id=eq.${encodeURIComponent(tournamentId)}&select=id,format,status,legacy_local_id,owner_user_id,created_by_user_id,controller_user_id,team_competition_mode,updated_at`,
+    );
+
+    if (!tournament) {
+      return Response.json({ ok: false, error: "Tournament was not found." }, { status: 404 });
+    }
+
+    if (!canListOwnCreatedAccountTournament(tournament, account.userId) && account.role !== "admin") {
+      return Response.json({ ok: false, error: "Tournament access was denied." }, { status: 403 });
+    }
+
+    if (tournament.status !== "finished") {
+      return Response.json({ ok: false, error: "Only completed tournaments can be deleted from Mine turneringer." }, { status: 400 });
+    }
+
+    if (isTeamVsTeamTournament(tournament)) {
+      await createTeamVsTeamTournamentRepository(client).deleteById(tournament.id);
+    } else {
+      await createPublicResultSnapshotRepository(client).revokeStandard({ tournamentId: tournament.id });
+      await createStandardTournamentRepository(client).deleteById(tournament.id);
+    }
+
+    return Response.json({ ok: true }, {
+      headers: {
+        "Cache-Control": "no-store, max-age=0",
+      },
+    });
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return Response.json({ ok: false, error: "Authentication was denied." }, { status: error.status });
+    }
+
+    if (error instanceof SupabaseRestClientError && error.status === 401) {
+      return Response.json({ ok: false, error: "Authentication was denied." }, { status: 401 });
+    }
+
+    const message = error instanceof Error ? error.message : "Could not delete tournament.";
     return Response.json({ ok: false, error: message }, { status: 500 });
   }
 }

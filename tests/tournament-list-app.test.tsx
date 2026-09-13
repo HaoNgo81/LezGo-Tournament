@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TournamentsPage from "../app/tournaments/page";
 import { TournamentListApp } from "../components/tournament/tournament-list-app";
@@ -120,6 +120,91 @@ describe("TournamentListApp pool play", () => {
     });
   });
 
+  it("confirms before deleting a completed cloud tournament and cancel preserves it", async () => {
+    const completed = saveCompletedTournament(finishTournament(createStandardTournament("Cancel delete completed"), "2026-08-24T12:00:00.000Z"));
+    markOwnedCompletedTournament(completed, "00000000-0000-4000-8000-000000000108");
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    render(<TournamentListApp account={ownerAccount} />);
+
+    const card = (await screen.findByText("Cancel delete completed")).closest("article");
+
+    if (!card) {
+      throw new Error("Missing completed card.");
+    }
+
+    fireEvent.click(within(card).getByRole("button", { name: "Slet" }));
+
+    expect(confirmSpy).toHaveBeenCalledWith("Slet turnering?\n\nTurneringen fjernes permanent fra Mine turneringer.");
+    expect(screen.getByText("Cancel delete completed")).toBeInTheDocument();
+    expect(fetch).not.toHaveBeenCalledWith(expect.stringContaining("/api/account/tournaments/00000000-0000-4000-8000-000000000108"), expect.objectContaining({ method: "DELETE" }));
+    confirmSpy.mockRestore();
+  });
+
+  it("durably deletes a completed cloud tournament only after the API succeeds", async () => {
+    const completed = saveCompletedTournament(finishTournament(createStandardTournament("Delete cloud completed"), "2026-08-24T12:00:00.000Z"));
+    markOwnedCompletedTournament(completed, "00000000-0000-4000-8000-000000000109");
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString();
+
+      if (url === "/api/account/tournaments" && !init?.method) {
+        return Response.json({ ok: true, tournaments: accountTournamentRows });
+      }
+
+      if (url === "/api/account/tournaments/00000000-0000-4000-8000-000000000109" && init?.method === "DELETE") {
+        accountTournamentRows = accountTournamentRows.filter((row) => row.id !== "00000000-0000-4000-8000-000000000109");
+        return Response.json({ ok: true });
+      }
+
+      return Response.json({ ok: false }, { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const view = render(<TournamentListApp account={ownerAccount} />);
+
+    expect(await screen.findByText("Delete cloud completed")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Slet" }));
+
+    await waitFor(() => expect(screen.queryByText("Delete cloud completed")).not.toBeInTheDocument());
+    expect(fetchMock).toHaveBeenCalledWith("/api/account/tournaments/00000000-0000-4000-8000-000000000109", expect.objectContaining({ method: "DELETE" }));
+
+    view.unmount();
+    render(<TournamentListApp account={ownerAccount} />);
+
+    await screen.findByRole("heading", { name: "Afsluttet" });
+    await waitFor(() => expect(screen.queryByText("Delete cloud completed")).not.toBeInTheDocument());
+    confirmSpy.mockRestore();
+  });
+
+  it("keeps a completed tournament visible and shows a retryable error when cloud delete fails", async () => {
+    const completed = saveCompletedTournament(finishTournament(createStandardTournament("Failed delete completed"), "2026-08-24T12:00:00.000Z"));
+    markOwnedCompletedTournament(completed, "00000000-0000-4000-8000-000000000110");
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString();
+
+      if (url === "/api/account/tournaments" && !init?.method) {
+        return Response.json({ ok: true, tournaments: accountTournamentRows });
+      }
+
+      if (url === "/api/account/tournaments/00000000-0000-4000-8000-000000000110" && init?.method === "DELETE") {
+        return Response.json({ ok: false, error: "Cloud delete failed." }, { status: 500 });
+      }
+
+      return Response.json({ ok: false }, { status: 404 });
+    }));
+
+    render(<TournamentListApp account={ownerAccount} />);
+
+    expect(await screen.findByText("Failed delete completed")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Slet" }));
+
+    expect(await screen.findByText("Cloud delete failed.")).toBeInTheDocument();
+    expect(screen.getByText("Failed delete completed")).toBeInTheDocument();
+    confirmSpy.mockRestore();
+  });
+
   it("classifies a finished tournament only under completed even when a stale active copy exists", async () => {
     const tournament = createStandardTournament("FIX 6");
     saveActiveTournament(tournament);
@@ -178,6 +263,72 @@ describe("TournamentListApp pool play", () => {
     screen.getAllByRole("link", { name: "Åbn live" }).at(-1)?.click();
 
     expect(loadActiveTournament()?.tournamentName).toBe("Aktiv 1");
+  });
+
+  it("confirms before finishing an active tournament from the list and cancel keeps it active", async () => {
+    const activeTournament = createStandardTournament("Cancel finish active");
+    saveActiveTournament(activeTournament);
+    markOwnedStandardTournament(activeTournament, "00000000-0000-4000-8000-000000000111", "active");
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    render(<TournamentListApp account={ownerAccount} />);
+
+    const card = (await screen.findByText("Cancel finish active")).closest("article");
+
+    if (!card) {
+      throw new Error("Missing active card.");
+    }
+
+    fireEvent.click(within(card).getByRole("button", { name: "Afslut turnering" }));
+
+    expect(confirmSpy).toHaveBeenCalledWith("Afslut turnering?\n\nTurneringen afsluttes med de resultater, der er registreret indtil nu.");
+    expect(within(getSectionByHeading("Aktive")).getByText("Cancel finish active")).toBeInTheDocument();
+    expect(within(getSectionByHeading("Afsluttet")).queryByText("Cancel finish active")).not.toBeInTheDocument();
+    confirmSpy.mockRestore();
+  });
+
+  it("finishes an active cloud tournament from the list through the existing shadow-save semantics", async () => {
+    const activeTournament = createStandardTournament("Finish from list");
+    saveActiveTournament(activeTournament);
+    markOwnedStandardTournament(activeTournament, "00000000-0000-4000-8000-000000000112", "active");
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const shadowSaveBodies: Array<{ state?: { status?: string; tournamentName?: string } }> = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString();
+
+      if (url === "/api/account/tournaments" && !init?.method) {
+        return Response.json({ ok: true, tournaments: accountTournamentRows });
+      }
+
+      if (url === "/api/supabase/shadow-save" && init?.method === "POST") {
+        const body = JSON.parse(String(init.body)) as { state?: { status?: string; tournamentName?: string } };
+        shadowSaveBodies.push(body);
+        accountTournamentRows = accountTournamentRows.map((row) => row.id === "00000000-0000-4000-8000-000000000112" ? { ...row, status: "finished", managementState: "completed" } : row);
+        return Response.json({
+          ok: true,
+          tournamentId: "00000000-0000-4000-8000-000000000112",
+          updatedAt: "2026-08-24T12:30:00.000Z",
+          matchScoreVersions: {},
+        });
+      }
+
+      return Response.json({ ok: false }, { status: 404 });
+    }));
+
+    render(<TournamentListApp account={ownerAccount} />);
+
+    const activeSection = getSectionByHeading("Aktive");
+    expect(await within(activeSection).findByText("Finish from list")).toBeInTheDocument();
+    fireEvent.click(within(activeSection).getByRole("button", { name: "Afslut turnering" }));
+
+    await waitFor(() => expect(within(getSectionByHeading("Aktive")).queryByText("Finish from list")).not.toBeInTheDocument());
+    expect(await within(getSectionByHeading("Afsluttet")).findByText("Finish from list")).toBeInTheDocument();
+    expect(shadowSaveBodies[0]?.state).toMatchObject({
+      tournamentName: "Finish from list",
+      status: "finished",
+    });
+    expect(loadActiveTournament()?.status).toBe("finished");
+    confirmSpy.mockRestore();
   });
 
   it("hides all stale local tournaments while anonymous", async () => {

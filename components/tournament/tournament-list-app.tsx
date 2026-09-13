@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Section } from "@/components/ui/section";
@@ -17,10 +17,12 @@ import {
   loadShadowSaveMetadata,
   markActiveCloudTournamentAuthority,
   markCloudTournamentRestored,
+  markRemoteShadowSaveApplied,
   reopenCompletedTeamVsTeamTournament,
   reopenCompletedTournament,
   restoreCompletedTeamVsTeamTournament,
   restoreCompletedTournament,
+  saveCompletedTournament,
   saveActiveTeamVsTeamTournamentFromRemoteSync,
   saveActiveTournamentFromRemoteSync,
   selectActiveTournament,
@@ -28,7 +30,7 @@ import {
   type CompletedTournament,
   type TeamVsTeamTournamentState,
 } from "@/lib/tournament-setup";
-import { createPoolPlaySummary, type LiveTournamentState } from "@/lib/live-scoring";
+import { createPoolPlaySummary, finishTournament, type LiveTournamentState } from "@/lib/live-scoring";
 import { getTeamVsTeamCaptainName } from "@/lib/team-vs-team";
 import { useAppTranslation } from "@/lib/preferences/client";
 import type { TranslationKey } from "@/lib/i18n/translations";
@@ -61,6 +63,7 @@ type CloudTournamentOpenResponse =
       controllerUserId?: string | null;
       ownerUserId?: string | null;
       matchScoreVersions?: Record<string, number>;
+      error?: string;
     }
   | {
       ok: true;
@@ -75,6 +78,22 @@ type CloudTournamentOpenResponse =
       createdByUserId?: string | null;
       controllerUserId?: string | null;
       ownerUserId?: string | null;
+      error?: string;
+    }
+  | {
+      ok?: false;
+      error?: string;
+    };
+
+type CloudTournamentWriteResponse =
+  | {
+      ok: true;
+      kind?: "standard" | "team-vs-team";
+      state?: LiveTournamentState;
+      tournamentId?: string;
+      updatedAt?: string;
+      matchScoreVersions?: Record<string, number>;
+      error?: string;
     }
   | {
       ok?: false;
@@ -100,6 +119,9 @@ export function TournamentListApp(props: { account?: Account | null; accountRevi
   const [completedTournaments, setCompletedTournaments] = useState<CompletedTournament[]>([]);
   const [completedTeamVsTeamTournaments, setCompletedTeamVsTeamTournaments] = useState<CompletedTeamVsTeamTournament[]>([]);
   const [openingCloudTournamentId, setOpeningCloudTournamentId] = useState<string | null>(null);
+  const [deletingTournamentId, setDeletingTournamentId] = useState<string | null>(null);
+  const [finishingTournamentId, setFinishingTournamentId] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState("");
   const accountTournamentRequestIdRef = useRef(0);
   const settledAccountUserIdRef = useRef<string | null>(null);
   const ownedCloudTournamentIds = useMemo(() => {
@@ -186,6 +208,62 @@ export function TournamentListApp(props: { account?: Account | null; accountRevi
     [cloudTournaments, localCloudTournamentIds],
   );
 
+  const loadPrivateTournaments = useCallback(async (requestId: number, isDisposed: () => boolean) => {
+    if (isAccountUnresolved) {
+      setCloudTournaments([]);
+      setAccountStatus("loading");
+      return;
+    }
+
+    if (!accountUserId) {
+      setCloudTournaments([]);
+      settledAccountUserIdRef.current = null;
+      setAccountStatus("anonymous");
+      return;
+    }
+
+    if (settledAccountUserIdRef.current !== accountUserId) {
+      setCloudTournaments([]);
+      setAccountStatus("loading");
+    }
+
+    try {
+      const tournamentResponse = await fetch("/api/account/tournaments", { cache: "no-store" });
+      const tournamentBody = await tournamentResponse.json() as { ok?: boolean; tournaments?: AccountTournament[] };
+
+      if (!tournamentResponse.ok || !tournamentBody.ok || !Array.isArray(tournamentBody.tournaments)) {
+        throw new Error("Authentication required.");
+      }
+
+      if (isDisposed() || requestId !== accountTournamentRequestIdRef.current) {
+        return;
+      }
+
+      setCloudTournaments(tournamentBody.tournaments);
+      settledAccountUserIdRef.current = accountUserId;
+      setAccountStatus("authenticated");
+    } catch {
+      if (isDisposed() || requestId !== accountTournamentRequestIdRef.current) {
+        return;
+      }
+
+      setCloudTournaments([]);
+      settledAccountUserIdRef.current = null;
+      setAccountStatus("anonymous");
+    }
+  }, [accountUserId, isAccountUnresolved]);
+
+  const refreshPrivateTournaments = useCallback(async () => {
+    if (!accountUserId) {
+      return;
+    }
+
+    const requestId = accountTournamentRequestIdRef.current + 1;
+    accountTournamentRequestIdRef.current = requestId;
+
+    await loadPrivateTournaments(requestId, () => false);
+  }, [accountUserId, loadPrivateTournaments]);
+
   useEffect(() => {
     if (!hasHydrated) {
       return undefined;
@@ -195,65 +273,20 @@ export function TournamentListApp(props: { account?: Account | null; accountRevi
     const requestId = accountTournamentRequestIdRef.current + 1;
     accountTournamentRequestIdRef.current = requestId;
 
-    async function loadPrivateTournaments() {
-      if (isAccountUnresolved) {
-        setCloudTournaments([]);
-        setAccountStatus("loading");
-        return;
-      }
-
-      if (!accountUserId) {
-        setCloudTournaments([]);
-        settledAccountUserIdRef.current = null;
-        setAccountStatus("anonymous");
-        return;
-      }
-
-      if (settledAccountUserIdRef.current !== accountUserId) {
-        setCloudTournaments([]);
-        setAccountStatus("loading");
-      }
-
-      try {
-        const tournamentResponse = await fetch("/api/account/tournaments", { cache: "no-store" });
-        const tournamentBody = await tournamentResponse.json() as { ok?: boolean; tournaments?: AccountTournament[] };
-
-        if (!tournamentResponse.ok || !tournamentBody.ok || !Array.isArray(tournamentBody.tournaments)) {
-          throw new Error("Authentication required.");
-        }
-
-        if (isDisposed || requestId !== accountTournamentRequestIdRef.current) {
-          return;
-        }
-
-        setCloudTournaments(tournamentBody.tournaments);
-        settledAccountUserIdRef.current = accountUserId;
-        setAccountStatus("authenticated");
-      } catch {
-        if (isDisposed || requestId !== accountTournamentRequestIdRef.current) {
-          return;
-        }
-
-        setCloudTournaments([]);
-        settledAccountUserIdRef.current = null;
-        setAccountStatus("anonymous");
-      }
-    }
-
     const timeoutId = window.setTimeout(() => {
       setActiveTournament(loadActiveTournament());
       setActiveTournamentList(loadActiveTournaments());
       setActiveTeamVsTeamTournament(loadActiveTeamVsTeamTournament());
       setCompletedTournaments(loadCompletedTournaments());
       setCompletedTeamVsTeamTournaments(loadCompletedTeamVsTeamTournaments());
-      void loadPrivateTournaments();
+      void loadPrivateTournaments(requestId, () => isDisposed);
     }, 0);
 
     return () => {
       isDisposed = true;
       window.clearTimeout(timeoutId);
     };
-  }, [accountRevision, accountUserId, hasHydrated, isAccountUnresolved]);
+  }, [accountRevision, accountUserId, hasHydrated, isAccountUnresolved, loadPrivateTournaments]);
 
   if (!hasHydrated) {
     return <p className="app-card p-4 font-bold text-[var(--muted)]">{t("loadingTournaments")}</p>;
@@ -323,7 +356,13 @@ export function TournamentListApp(props: { account?: Account | null; accountRevi
   }
 
   function handleDeleteFinished(id: string) {
-    setCompletedTournaments(deleteCompletedTournament(id));
+    const completedTournament = completedTournaments.find((tournament) => tournament.id === id);
+
+    if (!completedTournament || !confirmDeleteTournament()) {
+      return;
+    }
+
+    void deleteCompletedStandardTournament(completedTournament);
   }
 
   function handleOpenFinishedTeamVsTeam(id: string) {
@@ -335,7 +374,188 @@ export function TournamentListApp(props: { account?: Account | null; accountRevi
   }
 
   function handleDeleteFinishedTeamVsTeam(id: string) {
+    if (!confirmDeleteTournament()) {
+      return;
+    }
+
     setCompletedTeamVsTeamTournaments(deleteCompletedTeamVsTeamTournament(id));
+  }
+
+  async function deleteCompletedStandardTournament(completedTournament: CompletedTournament): Promise<void> {
+    const localId = createStandardShadowSaveLocalId(completedTournament.state);
+    const metadata = loadShadowSaveMetadata(localId);
+    const tournamentId = metadata?.supabaseTournamentId;
+
+    if (!tournamentId) {
+      setCompletedTournaments(deleteCompletedTournament(completedTournament.id));
+      return;
+    }
+
+    setDeletingTournamentId(tournamentId);
+    setActionMessage("");
+
+    try {
+      const response = await fetch(`/api/account/tournaments/${encodeURIComponent(tournamentId)}`, {
+        method: "DELETE",
+        cache: "no-store",
+      });
+      const body = await parseWriteResponse(response);
+
+      if (!response.ok || !body.ok) {
+        throw new Error(body.error ?? "Turneringen kunne ikke slettes. Prøv igen.");
+      }
+
+      setCompletedTournaments(deleteCompletedTournament(completedTournament.id));
+      setCloudTournaments((tournaments) => tournaments.filter((tournament) => tournament.id !== tournamentId));
+      await refreshPrivateTournaments();
+    } catch (error) {
+      setActionMessage(error instanceof Error ? error.message : "Turneringen kunne ikke slettes. Prøv igen.");
+      setCompletedTournaments(loadCompletedTournaments());
+    } finally {
+      setDeletingTournamentId(null);
+    }
+  }
+
+  async function handleDeleteCloudCompletedTournament(tournament: AccountTournament): Promise<void> {
+    if (!confirmDeleteTournament()) {
+      return;
+    }
+
+    setDeletingTournamentId(tournament.id);
+    setActionMessage("");
+
+    try {
+      const response = await fetch(`/api/account/tournaments/${encodeURIComponent(tournament.id)}`, {
+        method: "DELETE",
+        cache: "no-store",
+      });
+      const body = await parseWriteResponse(response);
+
+      if (!response.ok || !body.ok) {
+        throw new Error(body.error ?? "Turneringen kunne ikke slettes. Prøv igen.");
+      }
+
+      setCloudTournaments((tournaments) => tournaments.filter((candidate) => candidate.id !== tournament.id));
+      await refreshPrivateTournaments();
+    } catch (error) {
+      setActionMessage(error instanceof Error ? error.message : "Turneringen kunne ikke slettes. Prøv igen.");
+    } finally {
+      setDeletingTournamentId(null);
+    }
+  }
+
+  async function handleFinishLocalActiveTournament(tournament: LiveTournamentState): Promise<void> {
+    if (!confirmFinishTournament()) {
+      return;
+    }
+
+    const localId = createStandardShadowSaveLocalId(tournament);
+    const metadata = loadShadowSaveMetadata(localId);
+    const tournamentId = metadata?.supabaseTournamentId ?? localId;
+
+    setFinishingTournamentId(tournamentId);
+    setActionMessage("");
+
+    try {
+      const finishedState = finishTournament(tournament);
+
+      if (metadata?.supabaseTournamentId) {
+        await persistFinishedCloudTournament(finishedState, {
+          localId,
+          legacyLocalId: metadata.legacyLocalId ?? localId,
+          tournamentId: metadata.supabaseTournamentId,
+          expectedUpdatedAt: metadata.lastShadowSaveVersion,
+        });
+      }
+
+      saveCompletedTournament(finishedState);
+      setActiveTournamentList(loadActiveTournaments());
+      setActiveTournament(loadActiveTournament());
+      setCompletedTournaments(loadCompletedTournaments());
+      await refreshPrivateTournaments();
+    } catch (error) {
+      setActionMessage(error instanceof Error ? error.message : "Turneringen kunne ikke afsluttes. Prøv igen.");
+      setActiveTournamentList(loadActiveTournaments());
+      setActiveTournament(loadActiveTournament());
+    } finally {
+      setFinishingTournamentId(null);
+    }
+  }
+
+  async function handleFinishCloudActiveTournament(tournament: AccountTournament): Promise<void> {
+    if (!confirmFinishTournament()) {
+      return;
+    }
+
+    setFinishingTournamentId(tournament.id);
+    setActionMessage("");
+
+    try {
+      const response = await fetch(`/api/account/tournaments/${encodeURIComponent(tournament.id)}`, { cache: "no-store" });
+      const body = await response.json() as CloudTournamentOpenResponse;
+
+      if (!response.ok || !body.ok || body.kind !== "standard") {
+        throw new Error(body.error ?? "Turneringen kunne ikke åbnes.");
+      }
+
+      if (body.canManage === false) {
+        throw new Error(t("remoteControlledByOtherUser"));
+      }
+
+      const localId = createStandardShadowSaveLocalId(body.state);
+      const legacyLocalId = body.legacyLocalId ?? localId;
+      markCloudTournamentRestored({
+        localId,
+        legacyLocalId,
+        kind: "standard",
+        tournamentId: body.tournamentId,
+        updatedAt: body.updatedAt,
+        organizerToken: body.organizerToken,
+        canManage: body.canManage,
+        matchScoreVersions: body.matchScoreVersions,
+      });
+
+      const finishedState = finishTournament(body.state);
+      await persistFinishedCloudTournament(finishedState, {
+        localId,
+        legacyLocalId,
+        tournamentId: body.tournamentId,
+        expectedUpdatedAt: body.updatedAt,
+      });
+
+      saveCompletedTournament(finishedState);
+      setActiveTournamentList(loadActiveTournaments());
+      setActiveTournament(loadActiveTournament());
+      setCompletedTournaments(loadCompletedTournaments());
+      await refreshPrivateTournaments();
+    } catch (error) {
+      setActionMessage(error instanceof Error ? error.message : "Turneringen kunne ikke afsluttes. Prøv igen.");
+    } finally {
+      setFinishingTournamentId(null);
+    }
+  }
+
+  async function persistFinishedCloudTournament(finishedState: LiveTournamentState, input: { localId: string; legacyLocalId: string; tournamentId: string; expectedUpdatedAt?: string }): Promise<void> {
+    const response = await fetch("/api/supabase/shadow-save", {
+      method: "POST",
+      cache: "no-store",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        kind: "standard",
+        legacyLocalId: input.legacyLocalId,
+        tournamentId: input.tournamentId,
+        expectedUpdatedAt: input.expectedUpdatedAt,
+        state: finishedState,
+      }),
+    });
+    const body = await parseWriteResponse(response);
+
+    if (!response.ok || !body.ok || !body.tournamentId) {
+      throw new Error(body.error ?? "Turneringen kunne ikke afsluttes. Prøv igen.");
+    }
+
+    saveActiveTournamentFromRemoteSync(finishedState);
+    markRemoteShadowSaveApplied(input.localId, "standard", body.updatedAt, new Date().toISOString(), body.matchScoreVersions);
   }
 
   async function handleOpenCloudTournament(tournamentId: string) {
@@ -413,7 +633,12 @@ export function TournamentListApp(props: { account?: Account | null; accountRevi
             <article key={tournament.tournamentName} className="app-card p-4 sm:p-5">
               <h3 className="text-xl font-black">{tournament.tournamentName}</h3>
               <p className="mt-1 font-bold text-[var(--muted)]">{formatLiveTournamentSummary(tournament, t)}</p>
-              <Link className="btn-outline-primary mt-4" href="/live" onClick={() => handleOpenActive(tournament)}>{t("openLive")}</Link>
+              <div className="mt-4 action-grid">
+                <Link className="btn-outline-primary" href="/live" onClick={() => handleOpenActive(tournament)}>{t("openLive")}</Link>
+                <button className="btn-danger" type="button" disabled={Boolean(finishingTournamentId)} onClick={() => void handleFinishLocalActiveTournament(tournament)}>
+                  {finishingTournamentId === createStandardShadowSaveLocalId(tournament) ? t("loadingTournament") : t("finishTournament")}
+                </button>
+              </div>
             </article>
           )) : null}
           {cloudOnlyActiveTournaments.map((tournament) => (
@@ -423,6 +648,11 @@ export function TournamentListApp(props: { account?: Account | null; accountRevi
               actionLabel={openingCloudTournamentId === tournament.id ? t("loadingTournament") : t("openLive")}
               disabled={Boolean(openingCloudTournamentId)}
               onOpen={handleOpenCloudTournament}
+              secondaryAction={isStandardTournamentFormat(tournament.format) && tournament.canManage !== false ? {
+                label: finishingTournamentId === tournament.id ? t("loadingTournament") : t("finishTournament"),
+                disabled: Boolean(finishingTournamentId),
+                onClick: () => void handleFinishCloudActiveTournament(tournament),
+              } : undefined}
               t={t}
             />
           ))}
@@ -448,8 +678,14 @@ export function TournamentListApp(props: { account?: Account | null; accountRevi
               key={tournament.id}
               tournament={tournament}
               actionLabel={openingCloudTournamentId === tournament.id ? t("loadingTournament") : t("seeFinalStandings")}
-              disabled={Boolean(openingCloudTournamentId)}
+              disabled={Boolean(openingCloudTournamentId || deletingTournamentId)}
               onOpen={handleOpenCloudTournament}
+              secondaryAction={{
+                label: deletingTournamentId === tournament.id ? t("loadingTournament") : t("delete"),
+                disabled: Boolean(deletingTournamentId),
+                onClick: () => void handleDeleteCloudCompletedTournament(tournament),
+                destructive: true,
+              }}
               t={t}
             />
           ))}
@@ -471,18 +707,40 @@ export function TournamentListApp(props: { account?: Account | null; accountRevi
           {!completedVisibleTournaments.length && !cloudOnlyCompletedTournaments.length && !completedVisibleTeamVsTeamTournaments.length ? <EmptyState text={isReconcilingAccountTournaments ? t("loadingTournaments") : t("noCompletedTournaments")} /> : null}
         </div>
       </Section>
+      {actionMessage ? <p className="app-card p-4 font-bold text-red-700">{actionMessage}</p> : null}
     </div>
   );
 }
 
-function CloudTournamentCard({ actionLabel, disabled, onOpen, tournament, t }: { actionLabel: string; disabled: boolean; onOpen: (id: string) => void; tournament: AccountTournament; t: (key: TranslationKey) => string }) {
+function CloudTournamentCard({
+  actionLabel,
+  disabled,
+  onOpen,
+  secondaryAction,
+  tournament,
+  t,
+}: {
+  actionLabel: string;
+  disabled: boolean;
+  onOpen: (id: string) => void;
+  secondaryAction?: { label: string; disabled?: boolean; destructive?: boolean; onClick: () => void };
+  tournament: AccountTournament;
+  t: (key: TranslationKey) => string;
+}) {
   return (
     <article className="app-card p-4 sm:p-5">
       <h3 className="text-xl font-black">{tournament.name}</h3>
       <p className="mt-1 font-bold text-[var(--muted)]">
         {formatCloudTournamentSummary(tournament, t)}
       </p>
-      <button className="btn-outline-primary mt-4" type="button" disabled={disabled} onClick={() => onOpen(tournament.id)}>{actionLabel}</button>
+      <div className="mt-4 action-grid">
+        <button className="btn-outline-primary" type="button" disabled={disabled} onClick={() => onOpen(tournament.id)}>{actionLabel}</button>
+        {secondaryAction ? (
+          <button className={secondaryAction.destructive ? "btn-danger" : "btn-secondary"} type="button" disabled={secondaryAction.disabled} onClick={secondaryAction.onClick}>
+            {secondaryAction.label}
+          </button>
+        ) : null}
+      </div>
     </article>
   );
 }
@@ -684,6 +942,22 @@ function getTeamVsTeamSupabaseTournamentId(tournament: TeamVsTeamTournamentState
 
 function isDefined<T>(value: T | undefined): value is T {
   return value !== undefined;
+}
+
+function confirmDeleteTournament(): boolean {
+  return window.confirm("Slet turnering?\n\nTurneringen fjernes permanent fra Mine turneringer.");
+}
+
+function confirmFinishTournament(): boolean {
+  return window.confirm("Afslut turnering?\n\nTurneringen afsluttes med de resultater, der er registreret indtil nu.");
+}
+
+async function parseWriteResponse(response: Response): Promise<CloudTournamentWriteResponse> {
+  try {
+    return await response.json() as CloudTournamentWriteResponse;
+  } catch {
+    return { ok: false, error: "Handlingen kunne ikke gennemføres. Prøv igen." };
+  }
 }
 
 function isStandardTournamentFormat(format: string): format is LiveTournamentState["format"] {
