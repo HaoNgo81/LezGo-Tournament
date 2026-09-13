@@ -1531,43 +1531,162 @@ describe("LiveScoringApp score sheet", () => {
     expect(screen.queryByText("17 - 7")).not.toBeInTheDocument();
   }, 10000);
 
-  it("calculates the opponent score from one input for fixed total scoring", async () => {
-    saveActiveTournament(createFixedPartnerAmericanoTotalScoreTournament());
+  it("calculates the opponent score from the left input for fixed total scoring", async () => {
+    saveActiveTournament(createTotalScoreTournament("Fast Makker Americano"));
     render(<LiveScoringApp />);
 
     fireEvent.click(await screen.findAllByRole("button", { name: "Indtast score" }).then((buttons) => buttons[0]));
-    fireEvent.change(screen.getByRole("textbox", { name: "Hold A scorepoint" }), { target: { value: "18" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Hold A scorepoint" }), { target: { value: "27" } });
 
-    expect(screen.getByLabelText("Hold B scorepoint")).toHaveTextContent("6");
-    expect(screen.queryByRole("textbox", { name: "Hold B scorepoint" })).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Hold A scorepoint" })).toHaveValue("27");
+    expect(screen.getByRole("textbox", { name: "Hold B scorepoint" })).toHaveValue("15");
 
     fireEvent.click(screen.getByRole("button", { name: "Gem" }));
 
-    await waitFor(() => expectLiveCourtScore("18", "6"));
+    await waitFor(() => expectLiveCourtScore("27", "15"));
+  });
+
+  it("calculates the opponent score from the right input for fixed total scoring", async () => {
+    saveActiveTournament(createTotalScoreTournament("Fast Makker Americano"));
+    render(<LiveScoringApp />);
+
+    fireEvent.click(await screen.findAllByRole("button", { name: "Indtast score" }).then((buttons) => buttons[0]));
+    fireEvent.change(screen.getByRole("textbox", { name: "Hold B scorepoint" }), { target: { value: "15" } });
+
+    expect(screen.getByRole("textbox", { name: "Hold A scorepoint" })).toHaveValue("27");
+    expect(screen.getByRole("textbox", { name: "Hold B scorepoint" })).toHaveValue("15");
+
+    fireEvent.click(screen.getByRole("button", { name: "Gem" }));
+
+    await waitFor(() => expectLiveCourtScore("27", "15"));
+  });
+
+  it("supports fixed total edge values and repeated active-side switching", async () => {
+    saveActiveTournament(createTotalScoreTournament("Fast Makker Americano"));
+    render(<LiveScoringApp />);
+
+    fireEvent.click(await screen.findAllByRole("button", { name: "Indtast score" }).then((buttons) => buttons[0]));
+    const leftInput = screen.getByRole("textbox", { name: "Hold A scorepoint" });
+    const rightInput = screen.getByRole("textbox", { name: "Hold B scorepoint" });
+
+    rightInput.focus();
+    fireEvent.change(rightInput, { target: { value: "18" } });
+    expect(leftInput).toHaveValue("24");
+    expect(rightInput).toHaveValue("18");
+    expect(rightInput).toHaveFocus();
+
+    leftInput.focus();
+    fireEvent.change(leftInput, { target: { value: "42" } });
+    expect(leftInput).toHaveValue("42");
+    expect(rightInput).toHaveValue("0");
+    expect(leftInput).toHaveFocus();
+
+    rightInput.focus();
+    fireEvent.change(rightInput, { target: { value: "42" } });
+    expect(leftInput).toHaveValue("0");
+    expect(rightInput).toHaveValue("42");
+    expect(rightInput).toHaveFocus();
+
+    leftInput.focus();
+    fireEvent.change(leftInput, { target: { value: "27" } });
+    expect(leftInput).toHaveValue("27");
+    expect(rightInput).toHaveValue("15");
+    expect(leftInput).toHaveFocus();
+
+    rightInput.focus();
+    fireEvent.change(rightInput, { target: { value: "17" } });
+    expect(leftInput).toHaveValue("25");
+    expect(rightInput).toHaveValue("17");
+    expect(rightInput).toHaveFocus();
+
+    leftInput.focus();
+    fireEvent.change(leftInput, { target: { value: "30" } });
+    expect(leftInput).toHaveValue("30");
+    expect(rightInput).toHaveValue("12");
+    expect(leftInput).toHaveFocus();
   });
 
   it("calculates the opponent score for Mixed Americano fixed total scoring", async () => {
-    saveActiveTournament(createMixedAmericanoTotalScoreTournament());
+    saveActiveTournament(createTotalScoreTournament("Mixed Americano"));
     render(<LiveScoringApp />);
 
     fireEvent.click(await screen.findAllByRole("button", { name: "Indtast score" }).then((buttons) => buttons[0]));
-    fireEvent.change(screen.getByRole("textbox", { name: "Hold A scorepoint" }), { target: { value: "17" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Hold B scorepoint" }), { target: { value: "18" } });
 
-    expect(screen.getByLabelText("Hold B scorepoint")).toHaveTextContent("7");
+    expect(screen.getByRole("textbox", { name: "Hold A scorepoint" })).toHaveValue("24");
+    expect(screen.getByRole("textbox", { name: "Hold B scorepoint" })).toHaveValue("18");
     fireEvent.click(screen.getByRole("button", { name: "Gem" }));
 
-    await waitFor(() => expectLiveCourtScore("17", "7"));
+    await waitFor(() => expectLiveCourtScore("24", "18"));
   });
 
   it("shows validation instead of crashing for invalid fixed total scoring", async () => {
-    saveActiveTournament(createFixedPartnerAmericanoTotalScoreTournament());
+    saveActiveTournament(createTotalScoreTournament("Fast Makker Americano"));
     render(<LiveScoringApp />);
 
     fireEvent.click(await screen.findAllByRole("button", { name: "Indtast score" }).then((buttons) => buttons[0]));
-    fireEvent.change(screen.getByRole("textbox", { name: "Hold A scorepoint" }), { target: { value: "25" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Hold A scorepoint" }), { target: { value: "43" } });
 
-    expect(screen.getByText("Scoren skal være mellem 0 og 24.")).toBeInTheDocument();
+    expect(screen.getByText("Scoren skal være mellem 0 og 42.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Gem" })).toBeDisabled();
+  });
+
+  it.each([
+    "Americano",
+    "Fast Makker Americano",
+    "Mexicano",
+    "Fast Makker Mexicano",
+  ] as const)("saves fixed total scores from the right input for %s", async (format) => {
+    saveActiveTournament(createTotalScoreTournament(format));
+    render(<LiveScoringApp />);
+
+    fireEvent.click(await screen.findAllByRole("button", { name: "Indtast score" }).then((buttons) => buttons[0]));
+    fireEvent.change(screen.getByRole("textbox", { name: "Hold B scorepoint" }), { target: { value: "18" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gem" }));
+
+    await waitFor(() => expectLiveCourtScore("24", "18"));
+  });
+
+  it("keeps free scoring inputs independent", async () => {
+    saveActiveTournament(createStandardTournament("Americano", { scoringMode: "Fri scoring" }));
+    render(<LiveScoringApp />);
+
+    fireEvent.click(await screen.findAllByRole("button", { name: "Indtast score" }).then((buttons) => buttons[0]));
+    fireEvent.change(screen.getByRole("textbox", { name: "Hold A scorepoint" }), { target: { value: "27" } });
+
+    expect(screen.getByRole("textbox", { name: "Hold A scorepoint" })).toHaveValue("27");
+    expect(screen.getByRole("textbox", { name: "Hold B scorepoint" })).toHaveValue("");
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Hold B scorepoint" }), { target: { value: "15" } });
+
+    expect(screen.getByRole("textbox", { name: "Hold A scorepoint" })).toHaveValue("27");
+    expect(screen.getByRole("textbox", { name: "Hold B scorepoint" })).toHaveValue("15");
+  });
+
+  it("edits an existing fixed total score from either side", async () => {
+    const state = createTotalScoreTournament("Fast Makker Americano");
+    const matchId = state.rounds[0].matches[0].id;
+    saveActiveTournament(saveMatchResult(state, { matchId, teamAPoints: 27, teamBPoints: 15 }));
+    render(<LiveScoringApp />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Rediger score" }));
+    const leftInput = screen.getByRole("textbox", { name: "Hold A scorepoint" });
+    const rightInput = screen.getByRole("textbox", { name: "Hold B scorepoint" });
+
+    expect(leftInput).toHaveValue("27");
+    expect(rightInput).toHaveValue("15");
+
+    fireEvent.change(rightInput, { target: { value: "17" } });
+    expect(leftInput).toHaveValue("25");
+    expect(rightInput).toHaveValue("17");
+
+    fireEvent.change(leftInput, { target: { value: "30" } });
+    expect(leftInput).toHaveValue("30");
+    expect(rightInput).toHaveValue("12");
+
+    fireEvent.click(screen.getByRole("button", { name: "Gem" }));
+
+    await waitFor(() => expectLiveCourtScore("30", "12"));
   });
 
   it("shows target score validation instead of the runtime error page", async () => {
@@ -1882,23 +2001,6 @@ function createStandardTournament(format: TournamentSetupFormat, overrides: Part
   });
 }
 
-function createFixedPartnerAmericanoTotalScoreTournament() {
-  return createTournamentFromSetup({
-    name: "Fast Makker Americano total",
-    format: "Fast Makker Americano",
-    playerText: sixteenPlayerText,
-    femalePlayerText: "",
-    malePlayerText: "",
-    courts: 4,
-    rounds: 8,
-    scoringMode: "Fast antal point",
-    fixedScoreRule: "total",
-    fixedScorePoints: 24,
-    firstRoundOrder: "manual",
-    rankingMode: "matchPointsFirst",
-  });
-}
-
 function createFixedPartnerAmericanoTargetScoreTournament() {
   return createTournamentFromSetup({
     name: "Fast Makker Americano target",
@@ -1916,18 +2018,35 @@ function createFixedPartnerAmericanoTargetScoreTournament() {
   });
 }
 
-function createMixedAmericanoTotalScoreTournament() {
+function createTotalScoreTournament(format: TournamentSetupFormat) {
+  if (format === "Mixed Americano") {
+    return createTournamentFromSetup({
+      name: "Mixed Americano total",
+      format,
+      playerText: "",
+      femalePlayerText: Array.from({ length: 8 }, (_, index) => `Kvinde ${index + 1}`).join("\n"),
+      malePlayerText: Array.from({ length: 8 }, (_, index) => `Mand ${index + 1}`).join("\n"),
+      courts: 4,
+      rounds: 8,
+      scoringMode: "Fast antal point",
+      fixedScoreRule: "total",
+      fixedScorePoints: 42,
+      firstRoundOrder: "manual",
+      rankingMode: "matchPointsFirst",
+    });
+  }
+
   return createTournamentFromSetup({
-    name: "Mixed Americano total",
-    format: "Mixed Americano",
-    playerText: "",
-    femalePlayerText: Array.from({ length: 8 }, (_, index) => `Kvinde ${index + 1}`).join("\n"),
-    malePlayerText: Array.from({ length: 8 }, (_, index) => `Mand ${index + 1}`).join("\n"),
+    name: `${format} total`,
+    format,
+    playerText: sixteenPlayerText,
+    femalePlayerText: "",
+    malePlayerText: "",
     courts: 4,
     rounds: 8,
     scoringMode: "Fast antal point",
     fixedScoreRule: "total",
-    fixedScorePoints: 24,
+    fixedScorePoints: 42,
     firstRoundOrder: "manual",
     rankingMode: "matchPointsFirst",
   });

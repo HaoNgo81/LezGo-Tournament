@@ -1781,12 +1781,43 @@ function ScoreSheet({ liveMatch, players, state, onClose, onSave }: { liveMatch:
   const fixedTotalPoints = state.scoringMode === "Fast antal point" && state.fixedScoreRule === "total" ? state.fixedScorePoints : undefined;
   const [teamAPoints, setTeamAPoints] = useState(liveMatch.result?.teamAPoints.toString() ?? "");
   const [teamBPoints, setTeamBPoints] = useState(liveMatch.result?.teamBPoints.toString() ?? (fixedTotalPoints !== undefined && teamAPoints !== "" ? String(fixedTotalPoints - Number(teamAPoints)) : ""));
+  const [activeScoreSide, setActiveScoreSide] = useState<"left" | "right">("left");
   const [formError, setFormError] = useState("");
-  const parsedTeamAPoints = parseScoreInput(teamAPoints);
-  const fixedTotalCalculation = fixedTotalPoints !== undefined && parsedTeamAPoints !== null ? getFixedTotalCalculation(fixedTotalPoints, parsedTeamAPoints) : null;
-  const calculatedTeamBPoints = fixedTotalCalculation && "score" in fixedTotalCalculation ? fixedTotalCalculation.score.teamBPoints : null;
+  const activeScoreValue = activeScoreSide === "left" ? teamAPoints : teamBPoints;
+  const parsedActiveScore = parseScoreInput(activeScoreValue);
+  const fixedTotalCalculation = fixedTotalPoints !== undefined && parsedActiveScore !== null ? getFixedTotalCalculation(fixedTotalPoints, activeScoreSide, parsedActiveScore) : null;
   const fixedTotalError = fixedTotalCalculation && "error" in fixedTotalCalculation ? fixedTotalCalculation.error : "";
   const isFixedTotalScoring = fixedTotalPoints !== undefined;
+
+  function handleScoreInputChange(side: "left" | "right", value: string) {
+    setActiveScoreSide(side);
+    setFormError("");
+
+    if (side === "left") {
+      setTeamAPoints(value);
+    } else {
+      setTeamBPoints(value);
+    }
+
+    if (!isFixedTotalScoring) {
+      return;
+    }
+
+    const parsedScore = parseScoreInput(value);
+    const setOppositeScore = side === "left" ? setTeamBPoints : setTeamAPoints;
+
+    if (parsedScore === null) {
+      setOppositeScore("");
+      return;
+    }
+
+    const calculation = getFixedTotalCalculation(fixedTotalPoints, side, parsedScore);
+    if ("score" in calculation) {
+      setOppositeScore(String(side === "left" ? calculation.score.teamBPoints : calculation.score.teamAPoints));
+    } else {
+      setOppositeScore("");
+    }
+  }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1794,7 +1825,7 @@ function ScoreSheet({ liveMatch, players, state, onClose, onSave }: { liveMatch:
     try {
       const teamAScore = parseRequiredScoreInput(teamAPoints);
       const score = isFixedTotalScoring
-        ? calculateFixedTotalScore(fixedTotalPoints, teamAScore)
+        ? getValidFixedTotalScore(fixedTotalPoints, teamAScore, parseRequiredScoreInput(teamBPoints))
         : {
             teamAPoints: teamAScore,
             teamBPoints: parseRequiredScoreInput(teamBPoints),
@@ -1837,19 +1868,23 @@ function ScoreSheet({ liveMatch, players, state, onClose, onSave }: { liveMatch:
               pattern="[0-9]*"
               className="field-control min-h-16 text-center text-3xl font-black"
               value={teamAPoints}
-              onChange={(event) => setTeamAPoints(event.target.value)}
+              onChange={(event) => handleScoreInputChange("left", event.target.value)}
               aria-label="Hold A scorepoint"
             />
           </label>
           <label className="grid gap-2 text-base font-bold">
             {formatTeam(liveMatch.match.teamB.playerIds, players)}
-            {isFixedTotalScoring ? (
-              <output className="field-control flex min-h-16 items-center justify-center text-center text-3xl font-black" aria-label="Hold B scorepoint">
-                {calculatedTeamBPoints ?? "-"}
-              </output>
-            ) : (
-              <input required inputMode="numeric" min="0" pattern="[0-9]*" className="field-control min-h-16 text-center text-3xl font-black" value={teamBPoints} onChange={(event) => setTeamBPoints(event.target.value)} aria-label="Hold B scorepoint" />
-            )}
+            <input
+              required
+              inputMode="numeric"
+              max={fixedTotalPoints}
+              min="0"
+              pattern="[0-9]*"
+              className="field-control min-h-16 text-center text-3xl font-black"
+              value={teamBPoints}
+              onChange={(event) => handleScoreInputChange("right", event.target.value)}
+              aria-label="Hold B scorepoint"
+            />
           </label>
         </div>
         {fixedTotalError || formError ? <p className="rounded-md bg-red-50 p-3 font-bold text-red-700">{fixedTotalError || formError}</p> : null}
@@ -1886,12 +1921,32 @@ function parseRequiredScoreInput(value: string): number {
   return parsedValue;
 }
 
-function getFixedTotalCalculation(fixedScoreTotal: number, enteredScore: number): { score: ReturnType<typeof calculateFixedTotalScore> } | { error: string } {
+function getFixedTotalCalculation(fixedScoreTotal: number, side: "left" | "right", enteredScore: number): { score: ReturnType<typeof calculateFixedTotalScore> } | { error: string } {
   try {
-    return { score: calculateFixedTotalScore(fixedScoreTotal, enteredScore) };
+    const validatedScore = calculateFixedTotalScore(fixedScoreTotal, enteredScore);
+    return {
+      score: side === "left"
+        ? validatedScore
+        : {
+            teamAPoints: validatedScore.teamBPoints,
+            teamBPoints: validatedScore.teamAPoints,
+          },
+    };
   } catch (caughtError) {
     return { error: caughtError instanceof Error ? caughtError.message : "Scoren er ugyldig." };
   }
+}
+
+function getValidFixedTotalScore(fixedScoreTotal: number, teamAPoints: number, teamBPoints: number): ReturnType<typeof calculateFixedTotalScore> {
+  if (teamAPoints < 0 || teamBPoints < 0) {
+    throw new Error("Resultat må ikke være negativt.");
+  }
+
+  if (teamAPoints + teamBPoints !== fixedScoreTotal) {
+    throw new Error(`De to scorer skal tilsammen være ${fixedScoreTotal}.`);
+  }
+
+  return { teamAPoints, teamBPoints };
 }
 
 function isNewerOrganizerRemoteVersion(currentUpdatedAt: string | undefined, nextUpdatedAt: string): boolean {
