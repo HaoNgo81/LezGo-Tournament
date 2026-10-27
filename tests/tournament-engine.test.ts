@@ -301,7 +301,7 @@ describe("tournament engine", () => {
     }
   });
 
-  it("uses head-to-head only after equal match points and won parti points", () => {
+  it("uses overall point difference before head-to-head after equal match points and won parti points", () => {
     const teams = createFixedPartnerTeams(players);
     const rounds: TournamentRound[] = [
       {
@@ -328,12 +328,55 @@ describe("tournament engine", () => {
       { matchId: "m5", teamAPoints: 6, teamBPoints: 6 },
     ];
 
-    const standings = calculateTeamStandings(teams, rounds, results);
+    for (const rankingMode of ["matchPointsFirst", "partiPointsFirst"] as const) {
+      const standings = calculateTeamStandings(teams, rounds, results, rankingMode);
 
-    expect(standings[0]).toMatchObject({ id: teams[2].id, matchPoints: 4, pointsFor: 24 });
-    expect(standings[1]).toMatchObject({ id: teams[1].id, matchPoints: 4, pointsFor: 24 });
-    expect(standings[0].headToHeadMatchPoints).toBe(3);
-    expect(standings[1].headToHeadMatchPoints).toBe(0);
+      // teams[2] won the direct match, but teams[1] has the better overall point difference (+4 vs -4).
+      expect(standings[0]).toMatchObject({ id: teams[1].id, matchPoints: 4, pointsFor: 24, pointDifference: 4 });
+      expect(standings[1]).toMatchObject({ id: teams[2].id, matchPoints: 4, pointsFor: 24, pointDifference: -4 });
+      expect(standings[0].headToHeadMatchPoints).toBe(0);
+      expect(standings[1].headToHeadMatchPoints).toBe(3);
+    }
+  });
+
+  it("uses head-to-head when match points, won parti points and point difference are equal", () => {
+    const teams = createFixedPartnerTeams(players);
+    const createScenario = (winner: (typeof teams)[number], loser: (typeof teams)[number]) => {
+      const rounds: TournamentRound[] = [
+        {
+          roundNumber: 1,
+          matches: [
+            { id: "m1", roundNumber: 1, courtNumber: 1, teamA: winner, teamB: loser },
+            { id: "m2", roundNumber: 1, courtNumber: 2, teamA: teams[2], teamB: teams[3] },
+          ],
+        },
+        {
+          roundNumber: 2,
+          matches: [
+            { id: "m3", roundNumber: 2, courtNumber: 1, teamA: winner, teamB: teams[3] },
+            { id: "m4", roundNumber: 2, courtNumber: 2, teamA: loser, teamB: teams[2] },
+          ],
+        },
+      ];
+      const results: MatchResult[] = [
+        { matchId: "m1", teamAPoints: 10, teamBPoints: 8 },
+        { matchId: "m2", teamAPoints: 5, teamBPoints: 5 },
+        { matchId: "m3", teamAPoints: 8, teamBPoints: 10 },
+        { matchId: "m4", teamAPoints: 10, teamBPoints: 8 },
+      ];
+      return calculateTeamStandings(teams, rounds, results);
+    };
+
+    // Run both directions so the alphabetical name fallback cannot explain the order.
+    for (const [winner, loser] of [[teams[0], teams[1]], [teams[1], teams[0]]] as const) {
+      const standings = createScenario(winner, loser);
+      const winnerIndex = standings.findIndex((row) => row.id === winner.id);
+      const loserIndex = standings.findIndex((row) => row.id === loser.id);
+
+      expect(standings[winnerIndex]).toMatchObject({ matchPoints: 3, pointsFor: 18, pointDifference: 0, headToHeadMatchPoints: 3 });
+      expect(standings[loserIndex]).toMatchObject({ matchPoints: 3, pointsFor: 18, pointDifference: 0, headToHeadMatchPoints: 0 });
+      expect(winnerIndex).toBeLessThan(loserIndex);
+    }
   });
 
   it("ranks tied teams by won parti points before head-to-head", () => {
