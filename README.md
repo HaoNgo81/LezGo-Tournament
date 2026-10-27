@@ -79,10 +79,12 @@ Match points:
 
 Tie-break handling follows the implemented tournament engine rules:
 
-- Match points
-- Won score points
-- Point difference
-- Internal head-to-head result when relevant
+- Match points (or won score points first, depending on the selected ranking mode)
+- Won score points (or match points)
+- Overall point difference
+- Internal head-to-head match points between the tied players or teams
+- Internal head-to-head point difference
+- Name in alphabetical order as the final fixed fallback
 
 The same ranking logic is used during live play and after the tournament is finished.
 

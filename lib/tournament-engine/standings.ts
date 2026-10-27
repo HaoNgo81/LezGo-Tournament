@@ -269,9 +269,9 @@ function compareRows(left: Accumulator, right: Accumulator, rankingMode: Standin
   const leftDifference = left.pointsFor - left.pointsAgainst;
   const rightDifference = right.pointsFor - right.pointsAgainst;
   const sharedTieBreakers =
+    rightDifference - leftDifference ||
     right.headToHeadMatchPoints - left.headToHeadMatchPoints ||
     right.headToHeadPointDifference - left.headToHeadPointDifference ||
-    rightDifference - leftDifference ||
     left.name.localeCompare(right.name, "da");
 
   if (rankingMode === "partiPointsFirst") {

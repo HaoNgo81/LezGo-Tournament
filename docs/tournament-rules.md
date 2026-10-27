@@ -85,12 +85,14 @@ The selected ranking mode is used consistently in:
 
 The implemented standings logic uses:
 
-- Match points
-- Won score points
-- Point difference
-- Internal head-to-head result when relevant
+- Match points (or won score points first, depending on the selected ranking mode)
+- Won score points (or match points)
+- Overall point difference
+- Internal head-to-head match points between the tied players or teams
+- Internal head-to-head point difference
+- Name in alphabetical order as the final fixed fallback
 
-Internal head-to-head compares the direct result between the tied players or teams.
+Internal head-to-head compares the direct result between the tied players or teams. Head-to-head is only used when match points, won score points, and overall point difference are all equal. The same order applies to live standings, finished tournaments, PDF, QR, TV, pool-play standings, and later Mexicano rounds generated from the standings.
 
 ## Live Tournament
 

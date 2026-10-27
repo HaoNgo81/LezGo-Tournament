@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- STEP 32A: Overall point difference now ranks before internal head-to-head in all standings. The new order also applies when finished tournaments are shown again.
+
 ## 0.24.0
 
 - Added the pool-play configuration model with player, pair, and team participation.
