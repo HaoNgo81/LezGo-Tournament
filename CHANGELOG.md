@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- STEP 33C: The "Ny version klar" notice no longer appears on the first visit (the service worker taking control of a fresh install is not an update), is shown at the top of the screen instead of over the score dialog's Gem button, and has a close button.
 - STEP 33A: Added a +/− point difference column to the live standings, the finished-tournament standings, and the PDF (shown with sign, for example +4 and -4). Column widths were tightened so phone and tablet-landscape layouts keep the same name width as before; very long names may wrap to three lines on 320 px phones. The finished-tournament standings now use the same compact table as the live standings, so they fit on phone screens without sideways scrolling. Shared result links that contain the full tournament use the same table; older snapshot-only links are unchanged.
 - STEP 33B: The home page shows the app version (short commit) at the bottom, marked "Testversion" on Vercel preview deployments, so testers can see which version they are using.
 - STEP 32B: Removed the GitHub Pages workflow. Vercel is the only deployment target. The `GITHUB_PAGES` build switch in `next.config.ts` is left in place but is no longer used by any workflow.
