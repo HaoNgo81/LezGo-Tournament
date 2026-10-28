@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- STEP 33B: The home page shows the app version (short commit) at the bottom, marked "Testversion" on Vercel preview deployments, so testers can see which version they are using.
 - STEP 32B: Removed the GitHub Pages workflow. Vercel is the only deployment target. The `GITHUB_PAGES` build switch in `next.config.ts` is left in place but is no longer used by any workflow.
 - STEP 32A: Overall point difference now ranks before internal head-to-head in all standings. The new order also applies when finished tournaments are shown again.
 

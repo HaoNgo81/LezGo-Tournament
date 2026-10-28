@@ -6,6 +6,7 @@ import { AccountAccess } from "@/components/auth/account-access";
 import { RecoveryHashRouter } from "@/components/auth/recovery-hash-router";
 import type { Account } from "@/components/auth/account-panel";
 import { LargeAction } from "@/components/ui/large-action";
+import { AppVersionLabel } from "@/components/layout/app-version-label";
 import { useAppTranslation } from "@/lib/preferences/client";
 
 export default function HomePage() {
@@ -21,6 +22,7 @@ export default function HomePage() {
         <LargeAction href="/tournaments" title={t("tournaments")} description={t("homeTournamentsDescription")} icon=">" />
         {isAdmin ? <LargeAction href="/settings" title={t("settings")} description={t("homeSettingsDescription")} icon="*" /> : null}
       </nav>
+      <AppVersionLabel />
     </AppShell>
   );
 }
