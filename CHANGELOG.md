@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- STEP 32B: Removed the GitHub Pages workflow. Vercel is the only deployment target. The `GITHUB_PAGES` build switch in `next.config.ts` is left in place but is no longer used by any workflow.
 - STEP 32A: Overall point difference now ranks before internal head-to-head in all standings. The new order also applies when finished tournaments are shown again.
 
 ## 0.24.0
