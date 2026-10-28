@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- STEP 34A: Added Playwright browser tests to CI. Every pull request now plays a full guest Fast Makker Americano tournament on phone (390 and 320 px) and tablet landscape, checks standings, +/− values, final standings, the PDF, the version label, and that the update notice does not appear on a first visit.
 - STEP 33C: The "Ny version klar" notice no longer appears on the first visit (the service worker taking control of a fresh install is not an update), is shown at the top of the screen instead of over the score dialog's Gem button, and has a close button.
 - STEP 33A: Added a +/− point difference column to the live standings, the finished-tournament standings, and the PDF (shown with sign, for example +4 and -4). Column widths were tightened so phone and tablet-landscape layouts keep the same name width as before; very long names may wrap to three lines on 320 px phones. The finished-tournament standings now use the same compact table as the live standings, so they fit on phone screens without sideways scrolling. Shared result links that contain the full tournament use the same table; older snapshot-only links are unchanged.
 - STEP 33B: The home page shows the app version (short commit) at the bottom, marked "Testversion" on Vercel preview deployments, so testers can see which version they are using.
