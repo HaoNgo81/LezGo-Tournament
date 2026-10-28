@@ -140,6 +140,15 @@ npm run lint
 npm run test
 ```
 
+Browser tests (Playwright) run the real app in Chromium on phone, small-phone and tablet-landscape sizes, play a full guest tournament and check standings, the final standings and the PDF. They need a production build first:
+
+```bash
+npm run build
+npm run test:e2e
+```
+
+GitHub Actions runs them on every pull request after the unit tests. When they fail, the report and screenshots are uploaded as the `playwright-report` artifact.
+
 On Windows PowerShell, use `npm.cmd` if script execution policy blocks `npm`:
 
 ```powershell
