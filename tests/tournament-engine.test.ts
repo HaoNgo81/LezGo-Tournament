@@ -6,6 +6,7 @@ import {
   createNextFixedMexicanoRoundFromTeamRanking,
   createNextMexicanoRoundFromPlayerRanking,
   createTournamentRounds,
+  formatPointDifference,
   type MatchResult,
   type TournamentPlayer,
   type TournamentRound,
@@ -401,6 +402,12 @@ describe("tournament engine", () => {
 
     expect(standings[0]).toMatchObject({ id: teams[0].id, matchPoints: 3, pointsFor: 41 });
     expect(standings.find((row) => row.id === teams[1].id)).toMatchObject({ matchPoints: 3, pointsFor: 22, headToHeadMatchPoints: 3 });
+  });
+
+  it("formats point difference with a sign for display", () => {
+    expect(formatPointDifference(4)).toBe("+4");
+    expect(formatPointDifference(-4)).toBe("-4");
+    expect(formatPointDifference(0)).toBe("0");
   });
 
   it("lets the organiser rank by either match points or won parti points", () => {

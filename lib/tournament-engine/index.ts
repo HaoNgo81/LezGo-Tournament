@@ -38,4 +38,4 @@ export {
   type AmericanoCycleStatus,
 } from "./americano-cycle";
 export { createFixedPartnerTeams } from "./round-generation";
-export { calculatePlayerStandings, calculateTeamStandings } from "./standings";
+export { calculatePlayerStandings, calculateTeamStandings, formatPointDifference } from "./standings";
