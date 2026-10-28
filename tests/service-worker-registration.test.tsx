@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServiceWorkerRegistration, hasActiveTournamentInBrowserStorage } from "../components/pwa/service-worker-registration";
 
@@ -253,5 +253,56 @@ describe("service worker registration", () => {
 
     expect(await screen.findByText("New version ready")).toBeInTheDocument();
     expect(screen.getByText("LEZGO has been updated. The new version will activate when it is safe.")).toBeInTheDocument();
+  });
+  it("ignores the first service worker takeover on a fresh install instead of showing an update notice", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const reload = vi.fn();
+    window.localStorage.setItem("lezgo.activeTournament.v1", JSON.stringify({ status: "active" }));
+    const { dispatchControllerChange } = createProductionServiceWorkerMock({ controller: false });
+    mockAppVersionResponses("version-1");
+
+    render(<ServiceWorkerRegistration reload={reload} />);
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+
+    act(() => dispatchControllerChange());
+
+    expect(screen.queryByText("Ny version klar")).not.toBeInTheDocument();
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it("still shows a real deployment update after a fresh install takeover", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    window.localStorage.setItem("lezgo.activeTournament.v1", JSON.stringify({ status: "active" }));
+    const { dispatchControllerChange } = createProductionServiceWorkerMock({ controller: false });
+    mockAppVersionResponses("version-1", "version-2");
+
+    render(<ServiceWorkerRegistration reload={vi.fn()} />);
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    act(() => dispatchControllerChange());
+
+    window.dispatchEvent(new Event("focus"));
+
+    expect(await screen.findByTestId("pwa-update-notice")).toBeInTheDocument();
+  });
+
+  it("shows the update notice at the top with a close button that hides it without reloading", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const reload = vi.fn();
+    window.localStorage.setItem("lezgo.activeTournament.v1", JSON.stringify({ status: "active" }));
+    createProductionServiceWorkerMock();
+    mockAppVersionResponses("version-1", "version-2");
+
+    render(<ServiceWorkerRegistration reload={reload} />);
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    window.dispatchEvent(new Event("focus"));
+
+    const notice = await screen.findByTestId("pwa-update-notice");
+    expect(notice).toHaveClass("top-4");
+    expect(notice).not.toHaveClass("bottom-4");
+
+    fireEvent.click(screen.getByRole("button", { name: "Luk" }));
+
+    expect(screen.queryByTestId("pwa-update-notice")).not.toBeInTheDocument();
+    expect(reload).not.toHaveBeenCalled();
   });
 });

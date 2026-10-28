@@ -13,7 +13,8 @@ const serviceWorkerSkipWaitingMessage = "LEZGO_SKIP_WAITING";
 
 export function ServiceWorkerRegistration({ reload = () => window.location.reload() }: { reload?: () => void } = {}) {
   const { t } = useAppTranslation();
-  const [updateReady, setUpdateReady] = useState(false);
+  const [readyUpdateVersion, setReadyUpdateVersion] = useState<string | null>(null);
+  const [dismissedVersion, setDismissedVersion] = useState<string | null>(null);
   const pendingUpdateVersionRef = useRef<string | null>(null);
   const pageReloadedRef = useRef(false);
 
@@ -21,7 +22,7 @@ export function ServiceWorkerRegistration({ reload = () => window.location.reloa
     pendingUpdateVersionRef.current = version;
 
     if (hasActiveTournamentInBrowserStorage()) {
-      setUpdateReady(true);
+      setReadyUpdateVersion(version);
       return;
     }
 
@@ -32,7 +33,7 @@ export function ServiceWorkerRegistration({ reload = () => window.location.reloa
     const lastReloadAttempt = safeSessionStorageGetItem(updateReloadKey);
 
     if (lastReloadAttempt === version) {
-      setUpdateReady(true);
+      setReadyUpdateVersion(version);
       return;
     }
 
@@ -56,6 +57,9 @@ export function ServiceWorkerRegistration({ reload = () => window.location.reloa
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
     let isDisposed = false;
     let knownAppVersion: string | null = null;
+    // A page that loaded without a controlling worker gets one on first install (clients.claim()).
+    // That first takeover is not an app update, so it must not show the update notice or reload.
+    let pageHasBeenControlled = Boolean(navigator.serviceWorker.controller);
     let registration: globalThis.ServiceWorkerRegistration | null = null;
 
     const requestWorkerActivation = (worker: ServiceWorker | null | undefined) => {
@@ -119,6 +123,12 @@ export function ServiceWorkerRegistration({ reload = () => window.location.reloa
     };
 
     const handleControllerChange = () => {
+      if (!pageHasBeenControlled && !pendingUpdateVersionRef.current) {
+        pageHasBeenControlled = true;
+        return;
+      }
+
+      pageHasBeenControlled = true;
       applyUpdateWhenSafe(pendingUpdateVersionRef.current ?? "service-worker");
     };
 
@@ -167,14 +177,29 @@ export function ServiceWorkerRegistration({ reload = () => window.location.reloa
     };
   }, [applyUpdateWhenSafe]);
 
-  if (!updateReady) {
+  if (!readyUpdateVersion || dismissedVersion === readyUpdateVersion) {
     return null;
   }
 
   return (
-    <aside className="fixed bottom-4 right-4 z-50 max-w-sm rounded-md border border-[var(--primary)] bg-[var(--card)] p-4 text-[var(--foreground)] shadow-xl" role="status" aria-live="polite">
-      <p className="text-sm font-black text-[var(--primary-strong)]">{t("pwaUpdateReadyTitle")}</p>
-      <p className="mt-1 text-sm font-bold text-[var(--muted)]">{t("pwaUpdateReadyBody")}</p>
+    <aside
+      className="fixed inset-x-4 top-4 z-50 mx-auto flex max-w-sm items-start gap-3 rounded-md border border-[var(--primary)] bg-[var(--card)] p-4 text-[var(--foreground)] shadow-xl sm:left-auto sm:right-4 sm:mx-0"
+      role="status"
+      aria-live="polite"
+      data-testid="pwa-update-notice"
+    >
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-black text-[var(--primary-strong)]">{t("pwaUpdateReadyTitle")}</p>
+        <p className="mt-1 text-sm font-bold text-[var(--muted)]">{t("pwaUpdateReadyBody")}</p>
+      </div>
+      <button
+        type="button"
+        className="-m-1 grid h-11 w-11 shrink-0 place-items-center rounded-md text-2xl font-black leading-none text-[var(--muted)] hover:bg-[var(--primary-soft)] focus:outline-none focus:ring-4 focus:ring-[var(--focus-ring)]"
+        aria-label={t("close")}
+        onClick={() => setDismissedVersion(readyUpdateVersion)}
+      >
+        <span aria-hidden="true">×</span>
+      </button>
     </aside>
   );
 }
