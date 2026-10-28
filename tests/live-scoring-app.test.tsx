@@ -351,14 +351,16 @@ describe("LiveScoringApp score sheet", () => {
 
     const playerHeader = within(compactStandings).getByTestId("live-standings-player-header");
     expect(playerHeader).toHaveStyle({ overflowWrap: "normal", wordBreak: "normal" });
-    expect(playerHeader.parentElement?.className).toContain("minmax(7rem,1fr)");
+    expect(playerHeader.parentElement?.className).toContain("minmax(4.75rem,1fr)");
 
     expect(compactStandings).toHaveTextContent("V");
     expect(compactStandings).toHaveTextContent("U");
     expect(compactStandings).toHaveTextContent("T");
     expect(compactStandings).toHaveTextContent("MP");
     expect(compactStandings).toHaveTextContent("Point");
+    expect(compactStandings).toHaveTextContent("+/−");
     expect(compactStandings).toHaveTextContent("100");
+    expect(within(compactStandings).getAllByTestId("live-standings-point-difference").map((cell) => cell.textContent)).toEqual(expect.arrayContaining(["+2", "-2", "0"]));
 
     const rows = within(compactStandings).getAllByTestId("live-compact-standings-row");
     expect(rows.every((row) => row.getAttribute("data-column-layout") === "player-priority")).toBe(true);

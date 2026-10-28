@@ -88,6 +88,8 @@ Tie-break handling follows the implemented tournament engine rules:
 
 The same ranking logic is used during live play and after the tournament is finished.
 
+Standings show the overall point difference in a +/− column (for example +4 or -4), so players can see why tied rows are ordered as they are.
+
 ## Key Features
 
 - Manual result entry

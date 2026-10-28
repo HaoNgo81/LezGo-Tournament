@@ -31,12 +31,14 @@ describe("StandingsTable", () => {
       "Navn",
       "Matchpoint",
       "Scorepoint",
+      "+/−",
       "Sejre",
       "Uafgjort",
       "Tab",
     ]);
     expect(screen.queryByRole("columnheader", { name: "Tabte" })).not.toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "Difference" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["1", "Anna", "3", "21", "+9", "1", "0", "0"]);
   });
 
   it("renders the compact live standings with player-priority columns", () => {
@@ -86,18 +88,20 @@ describe("StandingsTable", () => {
     const header = screen.getByTestId("live-standings-player-header");
     expect(header).toHaveTextContent("Spiller");
     expect(header).toHaveStyle({ overflowWrap: "normal", wordBreak: "normal" });
-    expect(header.parentElement?.className).toContain("minmax(7rem,1fr)");
+    expect(header.parentElement?.className).toContain("minmax(4.75rem,1fr)");
 
     expect(screen.getByText("V")).toBeInTheDocument();
     expect(screen.getByText("U")).toBeInTheDocument();
     expect(screen.getByText("T")).toBeInTheDocument();
     expect(screen.getByText("MP")).toBeInTheDocument();
     expect(screen.getByText("Point")).toBeInTheDocument();
+    expect(within(standings).getByText("+/−")).toBeInTheDocument();
 
     const rows = screen.getAllByTestId("live-compact-standings-row");
     expect(rows).toHaveLength(2);
     expect(rows.every((row) => row.getAttribute("data-column-layout") === "player-priority")).toBe(true);
-    expect(screen.getByLabelText("1 dfr V 1 U 0 T 0 MP 3 Point 100")).toBeInTheDocument();
+    expect(screen.getByLabelText("1 dfr V 1 U 0 T 0 MP 3 Point 100 +/− +2")).toBeInTheDocument();
+    expect(screen.getAllByTestId("live-standings-point-difference").map((cell) => cell.textContent)).toEqual(["+2", "-2"]);
 
     const playerNames = screen.getAllByTestId("live-standings-player-name");
     expect(playerNames.map((name) => name.textContent)).toEqual(["dfr", "Aage My eng h"]);

@@ -38,6 +38,7 @@ describe("tablet landscape live tournament layout", () => {
 
     expect(compactRules).toMatch(/\[data-testid="live-court-card"\] > button[\s\S]*?min-height: 2\.75rem/);
     expect(compactRules).toMatch(/\[data-testid="live-compact-standings-row"\][\s\S]*?padding: 0\.375rem 0\.5rem/);
+    expect(compactRules).toMatch(/\[data-testid="live-compact-standings-row"\] \{\s*grid-template-columns: 1\.5rem minmax\(0, 1fr\)( [0-9.]+rem){6};/);
     expect(compactRules).not.toMatch(/\[data-testid="live-court-card"\][\s\S]*?display: none/);
     expect(compactRules).not.toMatch(/\[data-testid="live-standings-section"\][\s\S]*?display: none/);
   });

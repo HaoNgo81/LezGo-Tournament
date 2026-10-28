@@ -280,3 +280,11 @@ function compareRows(left: Accumulator, right: Accumulator, rankingMode: Standin
 
   return right.matchPoints - left.matchPoints || right.pointsFor - left.pointsFor || sharedTieBreakers;
 }
+
+export function formatPointDifference(pointDifference: number): string {
+  if (pointDifference > 0) {
+    return `+${pointDifference}`;
+  }
+
+  return String(pointDifference);
+}

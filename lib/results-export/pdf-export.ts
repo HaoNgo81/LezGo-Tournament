@@ -1,5 +1,5 @@
 ﻿import { calculateLiveStandings, getPlayerName, type LiveTournamentState } from "../live-scoring";
-import type { MatchResult, StandingRow, TournamentFormat, TournamentMatch, TournamentRound } from "../tournament-engine";
+import { formatPointDifference, type MatchResult, type StandingRow, type TournamentFormat, type TournamentMatch, type TournamentRound } from "../tournament-engine";
 import { createPoolPlaySummary, type PoolPlaySummaryMatch } from "../live-scoring";
 import { officialPdfLogo } from "./official-logo-data";
 
@@ -659,7 +659,7 @@ function drawStandingsTable(commands: PdfCommand[], x: number, y: number, width:
     { label: "MP", value: (row: StandingRow) => String(row.matchPoints), width: 28 },
     { label: "SP", value: (row: StandingRow) => String(row.pointsFor), width: 28 },
     { label: "Tabte", value: (row: StandingRow) => String(row.pointsAgainst), width: 34 },
-    { label: "Diff", value: (row: StandingRow) => String(row.pointDifference), width: 30 },
+    { label: "+/-", value: (row: StandingRow) => formatPointDifference(row.pointDifference), width: 30 },
     { label: "Sejre", value: (row: StandingRow) => String(row.wins), width: 30 },
     { label: "Uafgjort", value: (row: StandingRow) => String(row.draws), width: 44 },
     { label: "Tab", value: (row: StandingRow) => String(row.losses), width: 24 },

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- STEP 33A: Added a +/− point difference column to the live standings, the finished-tournament standings, and the PDF (shown with sign, for example +4 and -4). Column widths were tightened so phone and tablet-landscape layouts keep the same name width as before; very long names may wrap to three lines on 320 px phones. Shared result links (`/result/...`) are unchanged.
 - STEP 32B: Removed the GitHub Pages workflow. Vercel is the only deployment target. The `GITHUB_PAGES` build switch in `next.config.ts` is left in place but is no longer used by any workflow.
 - STEP 32A: Overall point difference now ranks before internal head-to-head in all standings. The new order also applies when finished tournaments are shown again.
 

@@ -164,6 +164,7 @@ export type TranslationKey =
   | "saveSettings"
   | "scoring"
   | "scorePoints"
+  | "pointDifference"
   | "fixedPartnerAmericano"
   | "fixedPartnerMexicano"
   | "fixedScore"
@@ -422,6 +423,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     saveSettings: "Gem indstillinger",
     scoring: "Scoring",
     scorePoints: "Scorepoint",
+    pointDifference: "+/−",
     fixedPartnerAmericano: "Fast Makker Americano",
     fixedPartnerAmericanoDescription: "Faste makkerpar møder de øvrige par.",
     fixedPartnerMexicano: "Fast Makker Mexicano",
@@ -678,6 +680,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     saveSettings: "Save settings",
     scoring: "Scoring",
     scorePoints: "Score points",
+    pointDifference: "+/−",
     fixedPartnerAmericano: "Fixed Partner Americano",
     fixedPartnerAmericanoDescription: "Fixed partner pairs play the other pairs.",
     fixedPartnerMexicano: "Fixed Partner Mexicano",
