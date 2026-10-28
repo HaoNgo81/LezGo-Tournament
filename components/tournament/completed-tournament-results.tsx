@@ -35,7 +35,7 @@ export function CompletedTournamentResults({ state, t }: { state: LiveTournament
     <>
       <section className="grid gap-3">
         <h2 className="text-xl font-black uppercase">{t("finalStandings")}</h2>
-        <StandingsTable standings={standings} />
+        <StandingsTable standings={standings} variant="compactLive" />
       </section>
       {state.status === "finished" ? (
         <RoundHistory
