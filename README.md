@@ -154,6 +154,10 @@ npm run test:e2e
 
 GitHub Actions runs them on every pull request after the unit tests. When they fail, the report and screenshots are uploaded as the `playwright-report` artifact.
 
+`e2e/accessibility.spec.ts` checks the home page and `/new-tournament` at 375 and 1280 px with axe-core (no colour-contrast and no serious or critical findings), that pinch zoom is allowed, that inputs use at least 16 px text (no iOS auto-zoom), the text contrast of "Start turnering" and "Opret bruger", and the focus ring on the home cards.
+
+The workflow `Deployed app tests` runs the same accessibility tests against the real Vercel deployment when Vercel reports it ready: the preview of every pull request (shown as a check on the pull request) and, after a merge, the production deployment and `lezgotournament.vercel.app` as a smoke test. Run them yourself against any URL with `E2E_BASE_URL=https://... npx playwright test e2e/accessibility.spec.ts`.
+
 On Windows PowerShell, use `npm.cmd` if script execution policy blocks `npm`:
 
 ```powershell

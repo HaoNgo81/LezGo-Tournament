@@ -401,11 +401,14 @@ function createMixedAmericanoRounds(
   return buildMixedAmericanoCycle(females, males, courts, rounds, 0);
 }
 
+// Mixed Americano needs at least this many active women and active men.
+export const mixedAmericanoMinimumPerGender = 2;
+
 export function getMixedAmericanoActiveGenderCount(playerCountPerGender: number, courts: number): number {
   const activeCount = Math.min(playerCountPerGender, courts * 2);
   const playableCount = activeCount - (activeCount % 2);
 
-  if (playableCount < 2) {
+  if (playableCount < mixedAmericanoMinimumPerGender) {
     throw new Error("Mixed Americano kræver mindst 2 aktive kvinder og 2 aktive mænd.");
   }
 

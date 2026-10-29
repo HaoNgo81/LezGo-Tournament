@@ -5,14 +5,20 @@ interface PrimaryButtonProps {
   href?: string;
   children: ReactNode;
   type?: "button" | "submit";
+  disabled?: boolean;
+  describedBy?: string;
 }
 
-export function PrimaryButton({ href, children, type = "button" }: PrimaryButtonProps) {
-  const className = "inline-flex min-h-14 w-full items-center justify-center rounded-md bg-[var(--primary)] px-5 text-center text-lg font-black text-white shadow-sm transition hover:bg-[var(--primary-strong)] focus:outline-none focus:ring-4 focus:ring-green-100 disabled:bg-gray-300";
+// Dark text on gold: #191d1b on #d8aa20 is 7.9:1 (white on gold was 2.2:1).
+// Disabled: --muted on --control-hover-bg is 5.2:1 (gray-300 gave 4.2:1).
+// font-black! is important because the global `button { font: inherit }` in globals.css is unlayered and
+// otherwise overrides Tailwind font utilities, which left this button at weight 400.
+const className = "inline-flex min-h-14 w-full items-center justify-center rounded-md bg-[var(--primary)] px-5 text-center text-lg font-black! text-[var(--foreground)] shadow-sm transition hover:bg-[var(--accent)] focus:outline-none focus:ring-4 focus:ring-[var(--focus-ring)] disabled:cursor-not-allowed disabled:border-2 disabled:border-dashed disabled:border-[var(--control-border)] disabled:bg-[var(--control-hover-bg)] disabled:text-[var(--muted)] disabled:shadow-none";
 
+export function PrimaryButton({ href, children, type = "button", disabled = false, describedBy }: PrimaryButtonProps) {
   if (href) {
     return <Link className={className} href={href}>{children}</Link>;
   }
 
-  return <button className={className} type={type}>{children}</button>;
+  return <button aria-describedby={describedBy} className={className} disabled={disabled} type={type}>{children}</button>;
 }

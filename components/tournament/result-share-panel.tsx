@@ -160,7 +160,7 @@ export function ResultSharePanel({ state }: { state: LiveTournamentState }) {
         </div>
       ) : null}
 
-      {message ? <p className="text-sm font-black text-[var(--primary-strong)]">{message}</p> : null}
+      {message ? <p className="text-sm font-black text-[var(--accent-text)]">{message}</p> : null}
     </div>
   );
 }

@@ -181,7 +181,7 @@ export function SettingsApp() {
         </div>
         </Section>
 
-        {message ? <p className="rounded-md bg-green-50 p-3 font-bold text-[var(--primary-strong)]">{message}</p> : null}
+        {message ? <p className="rounded-md bg-green-50 p-3 font-bold text-[var(--accent-text)]">{message}</p> : null}
 
         <button className="btn-primary min-h-14 text-lg" type="submit">
           {t("saveSettings")}

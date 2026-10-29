@@ -4,6 +4,8 @@
   getAmericanoCycleLength,
   getFixedPartnerAmericanoCycleLength,
   getMixedAmericanoCycleLength,
+  minimumTournamentPlayerCount,
+  mixedAmericanoMinimumPerGender,
   type Gender,
   type StandingsRankingMode,
   type TournamentFormat,
@@ -248,3 +250,21 @@ function assertNever(value: never): never {
 
 
 
+
+export type StartPlayerRequirement = { kind: "players"; minimum: number } | { kind: "mixed"; minimumPerGender: number };
+
+// Minimum player count needed before a standard tournament can start. Uses the engine's existing
+// rules (minimumTournamentPlayerCount, mixedAmericanoMinimumPerGender); it does not add new rules.
+// Returns null when the minimum is met. Exact court fits, even pair counts etc. are still checked on submit.
+export function getUnmetStartPlayerRequirement(
+  format: TournamentSetupFormat,
+  counts: { players: number; women: number; men: number },
+): StartPlayerRequirement | null {
+  if (format === "Mixed Americano") {
+    return counts.women >= mixedAmericanoMinimumPerGender && counts.men >= mixedAmericanoMinimumPerGender
+      ? null
+      : { kind: "mixed", minimumPerGender: mixedAmericanoMinimumPerGender };
+  }
+
+  return counts.players >= minimumTournamentPlayerCount ? null : { kind: "players", minimum: minimumTournamentPlayerCount };
+}

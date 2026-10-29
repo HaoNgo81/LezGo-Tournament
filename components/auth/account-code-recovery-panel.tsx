@@ -69,7 +69,7 @@ export function AccountCodeRecoveryPanel() {
   return (
     <section className="app-card mx-auto grid w-full max-w-xl gap-4 p-4 sm:p-5" data-testid="account-code-recovery-panel">
       <div>
-        <p className="text-sm font-black uppercase tracking-wide text-[var(--primary-strong)]">{t("accountResetCodeTitle")}</p>
+        <p className="text-sm font-black uppercase tracking-wide text-[var(--accent-text)]">{t("accountResetCodeTitle")}</p>
         <h2 className="mt-1 text-2xl font-black">{t("accountNewCode")}</h2>
       </div>
 
@@ -84,7 +84,7 @@ export function AccountCodeRecoveryPanel() {
         </div>
       ) : isSuccess ? (
         <div className="grid gap-3">
-          <p className="rounded-md bg-green-50 p-3 font-bold text-[var(--primary-strong)]" role="status">{message}</p>
+          <p className="rounded-md bg-green-50 p-3 font-bold text-[var(--accent-text)]" role="status">{message}</p>
           <button className="btn-primary min-h-12" type="button" onClick={() => router.push("/")}>
             {t("accountLogin")}
           </button>
@@ -93,7 +93,7 @@ export function AccountCodeRecoveryPanel() {
         <form className="grid gap-3" onSubmit={handleSubmit}>
           <CodeField label={t("accountNewCode")} value={code} onChange={setCode} showCode={showCode} />
           <CodeField label={t("accountRepeatCode")} value={repeatCode} onChange={setRepeatCode} showCode={showCode} />
-          <button className="w-fit rounded-md px-1 py-2 text-sm font-black text-[var(--primary-strong)]" type="button" onClick={() => setShowCode((value) => !value)}>
+          <button className="w-fit rounded-md px-1 py-2 text-sm font-black text-[var(--accent-text)]" type="button" onClick={() => setShowCode((value) => !value)}>
             {showCode ? t("accountHideCode") : t("accountShowCode")}
           </button>
           <button className="btn-primary min-h-12" type="submit" disabled={isLoading}>
@@ -102,7 +102,7 @@ export function AccountCodeRecoveryPanel() {
         </form>
       )}
 
-      {message && !isSuccess ? <p className="font-bold text-[var(--primary-strong)]" role="status">{message}</p> : null}
+      {message && !isSuccess ? <p className="font-bold text-[var(--accent-text)]" role="status">{message}</p> : null}
     </section>
   );
 }

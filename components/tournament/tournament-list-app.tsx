@@ -691,7 +691,7 @@ export function TournamentListApp(props: { account?: Account | null; accountRevi
           ))}
           {completedVisibleTeamVsTeamTournaments.map((completedTournament) => (
             <article key={completedTournament.id} className="app-card p-4 sm:p-5">
-              <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">Team vs. Team</p>
+              <p className="text-sm font-bold uppercase text-[var(--accent-text)]">Team vs. Team</p>
               <h3 className="mt-1 text-xl font-black">{completedTournament.state.name}</h3>
               <p className="mt-1 font-bold text-[var(--muted)]">
                 {t("completed")} · {completedTournament.state.teams.length} {t("teams").toLowerCase()} · {completedTournament.state.playersPerTeam} {t("players").toLowerCase()} / {t("team").toLowerCase()} · {formatDate(completedTournament.finishedAt)}
@@ -748,7 +748,7 @@ function CloudTournamentCard({
 function TeamVsTeamCard({ tournament, t }: { tournament: TeamVsTeamTournamentState; t: (key: TranslationKey) => string }) {
   return (
     <article className="app-card p-4 sm:p-5">
-      <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">Team vs. Team</p>
+      <p className="text-sm font-bold uppercase text-[var(--accent-text)]">Team vs. Team</p>
       <h3 className="mt-1 text-xl font-black">{tournament.name}</h3>
       <p className="mt-1 font-bold text-[var(--muted)]">
         {tournament.teams.length} {t("teams").toLowerCase()} · {tournament.playersPerTeam} {t("players").toLowerCase()} / {t("team").toLowerCase()} · {tournament.teams.length * tournament.playersPerTeam} {t("players").toLowerCase()} · {tournament.scoringMode}
@@ -811,7 +811,7 @@ function CompletedTournamentCard({
 function CompletedPoolPlacements({ placements, t }: { placements: ReturnType<typeof createPoolPlaySummary>["finalPlacements"]; t: (key: TranslationKey) => string }) {
   return (
     <section className="mt-4 grid gap-2" aria-label={t("finalPlacements")}>
-      <h4 className="text-sm font-black uppercase text-[var(--primary-strong)]">{t("finalPlacements")}</h4>
+      <h4 className="text-sm font-black uppercase text-[var(--accent-text)]">{t("finalPlacements")}</h4>
       <div className="grid gap-2 sm:grid-cols-2">
         {placements.map((placement) => (
           <p key={`${placement.groupName}-${placement.rank}`} className="flex items-center justify-between gap-3 rounded-md border border-[var(--line)] bg-white px-3 py-2 text-sm font-bold">

@@ -199,7 +199,7 @@ export function AccountAccess({ onAccountChange }: AccountAccessProps) {
           </button>
           <AccountSeparator />
           <button
-            className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[var(--primary-strong)] transition hover:bg-[var(--primary-soft)]/45 focus:outline-none focus:ring-4 focus:ring-[var(--focus-ring)] sm:gap-1.5 sm:px-2"
+            className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[var(--accent-text)] transition hover:bg-[var(--primary-soft)]/45 focus:outline-none focus:ring-4 focus:ring-[var(--focus-ring)] sm:gap-1.5 sm:px-2"
             type="button"
             aria-label={t("accountCreateAccount")}
             data-testid="main-account-create-control"
@@ -245,7 +245,7 @@ function GlobeIcon() {
 
 function ChevronDownIcon() {
   return (
-    <svg className="h-3.5 w-3.5 shrink-0 text-[var(--primary-strong)]" aria-hidden="true" viewBox="0 0 24 24" fill="none">
+    <svg className="h-3.5 w-3.5 shrink-0 text-[var(--accent-text)]" aria-hidden="true" viewBox="0 0 24 24" fill="none">
       <path d="m7 10 5 5 5-5" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
@@ -253,7 +253,7 @@ function ChevronDownIcon() {
 
 function ChevronRightIcon() {
   return (
-    <svg className="hidden h-3.5 w-3.5 shrink-0 text-[var(--primary-strong)] sm:block" aria-hidden="true" viewBox="0 0 24 24" fill="none">
+    <svg className="hidden h-3.5 w-3.5 shrink-0 text-[var(--accent-text)] sm:block" aria-hidden="true" viewBox="0 0 24 24" fill="none">
       <path d="m9 6 6 6-6 6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );

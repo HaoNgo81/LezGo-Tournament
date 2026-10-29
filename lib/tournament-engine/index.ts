@@ -25,6 +25,7 @@ export {
   getFixedPartnerAmericanoCycleLength,
   getMixedAmericanoActiveGenderCount,
   getMixedAmericanoCycleLength,
+  mixedAmericanoMinimumPerGender,
   rebalanceFixedPartnerAmericanoCourts,
   rebalanceMixedAmericanoCourts,
 } from "./engine";
@@ -39,3 +40,4 @@ export {
 } from "./americano-cycle";
 export { createFixedPartnerTeams } from "./round-generation";
 export { calculatePlayerStandings, calculateTeamStandings, formatPointDifference } from "./standings";
+export { minimumTournamentPlayerCount } from "./validation";

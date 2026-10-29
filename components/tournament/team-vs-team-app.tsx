@@ -117,7 +117,7 @@ export function TeamVsTeamApp() {
   return (
     <div className="grid gap-5">
       <section className="app-card grid gap-3 p-4 sm:p-5">
-        <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{isFinished ? "Afsluttet Team vs. Team" : "Aktiv Team vs. Team"}</p>
+        <p className="text-sm font-bold uppercase text-[var(--accent-text)]">{isFinished ? "Afsluttet Team vs. Team" : "Aktiv Team vs. Team"}</p>
         <h2 className="text-2xl font-black">{tournament.name}</h2>
         <p className="font-bold text-[var(--muted)]">
           {tournament.competitionMode === "pool" ? "Puljespil" : "Knockout"} · {tournament.teamCount} hold · {tournament.playersPerTeam} spillere pr. hold · {tournament.maxRounds} runder · {tournament.matchFormat === "oneSet" ? "1 sæt" : "bedst af 3 sæt"}
@@ -128,7 +128,7 @@ export function TeamVsTeamApp() {
             {isFinished ? "Afsluttet" : "Afslut turnering nu"}
           </button>
         </div>
-        {message ? <p className="rounded-md bg-green-50 p-3 font-bold text-[var(--primary-strong)]">{message}</p> : null}
+        {message ? <p className="rounded-md bg-green-50 p-3 font-bold text-[var(--accent-text)]">{message}</p> : null}
       </section>
 
       <TeamVsTeamStandings standings={standings} />
@@ -150,7 +150,7 @@ function TeamVsTeamCaptains({ teams }: { teams: TeamVsTeamTeam[] }) {
       <div className="grid gap-3 sm:grid-cols-2">
         {teams.map((team) => (
           <article key={team.id} className="app-card grid gap-1 p-4">
-            <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{team.name}</p>
+            <p className="text-sm font-bold uppercase text-[var(--accent-text)]">{team.name}</p>
             <p className="text-lg font-black">{getTeamVsTeamCaptainName(team)}</p>
           </article>
         ))}
@@ -167,7 +167,7 @@ function TeamVsTeamStandings({ standings }: { standings: ReturnType<typeof calcu
       <h2 className="text-xl font-black">Holdstilling</h2>
       <div className="overflow-x-auto rounded-md border border-[var(--border)] bg-white">
         <div className="min-w-[520px]">
-          <div className="grid gap-2 bg-green-50 px-3 py-2 text-sm font-black text-[var(--primary-strong)]" style={columns}>
+          <div className="grid gap-2 bg-green-50 px-3 py-2 text-sm font-black text-[var(--accent-text)]" style={columns}>
             <span>Plads</span>
             <span>Hold</span>
             <span>V</span>
@@ -194,7 +194,7 @@ function TeamVsTeamMatchesPanel({ activeMatchId, canAdvanceBracket, state, onAdv
     <section className="app-card grid gap-3 p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{state.competitionMode === "pool" ? "Puljespil" : "Knockout"}</p>
+          <p className="text-sm font-bold uppercase text-[var(--accent-text)]">{state.competitionMode === "pool" ? "Puljespil" : "Knockout"}</p>
           <h2 className="text-xl font-black">Holdkampe</h2>
         </div>
         {canAdvanceBracket ? <button className="min-h-11 rounded-md bg-[var(--primary)] px-4 font-black text-white" type="button" onClick={onAdvance}>Dan næste knockout- og placeringsrunde</button> : null}
@@ -226,7 +226,7 @@ function TeamVsTeamMatchesPanel({ activeMatchId, canAdvanceBracket, state, onAdv
 function TeamVsTeamPlacements({ placements, state }: { placements: Array<{ rank: number; teamId: string }>; state: TeamVsTeamTournamentState }) {
   return (
     <section className="app-card grid gap-3 p-4 sm:p-5">
-      <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">Slutstilling</p>
+      <p className="text-sm font-bold uppercase text-[var(--accent-text)]">Slutstilling</p>
       <div className="grid gap-2">
         {placements.map((placement) => (
           <div key={placement.rank} className="flex items-center justify-between rounded-md border border-[var(--border)] bg-white p-3 font-black">
@@ -315,18 +315,18 @@ function ActiveTeamVsTeamFlow({ activeMatch, matchup, state, setState }: { activ
   return (
     <div className="grid gap-5">
       <section className="app-card grid gap-3 p-4 sm:p-5">
-        <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{activeMatch.label}</p>
+        <p className="text-sm font-bold uppercase text-[var(--accent-text)]">{activeMatch.label}</p>
         <h2 className="text-2xl font-black">{state.name}</h2>
         <p className="font-bold text-[var(--muted)]">{matchup.teamA.name} mod {matchup.teamB.name} · {state.scoringMode} · {state.playersPerTeam} spillere pr. hold · {state.maxRounds} runder · {state.matchFormat === "oneSet" ? "1 sæt" : "bedst af 3 sæt"}</p>
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="metric-card"><p className="text-sm font-bold text-[var(--muted)]">{matchup.teamA.name}</p><p className="mt-1 text-3xl font-black">{score.teamAWins}</p></div>
           <div className="metric-card"><p className="text-sm font-bold text-[var(--muted)]">{matchup.teamB.name}</p><p className="mt-1 text-3xl font-black">{score.teamBWins}</p></div>
         </div>
-        {score.winnerTeamId ? <p className="rounded-md bg-green-50 p-3 font-black text-[var(--primary-strong)]">Vinder: {getTeamName(matchup, score.winnerTeamId)}</p> : null}
+        {score.winnerTeamId ? <p className="rounded-md bg-green-50 p-3 font-black text-[var(--accent-text)]">Vinder: {getTeamName(matchup, score.winnerTeamId)}</p> : null}
         {score.tieBreakRequired && !score.winnerTeamId ? <p className="rounded-md bg-yellow-50 p-3 font-black text-yellow-800">Holdkampen står uafgjort. Vælg Match Tie-break nedenfor.</p> : null}
       </section>
 
-      {message ? <p className="rounded-md bg-green-50 p-3 font-bold text-[var(--primary-strong)]">{message}</p> : null}
+      {message ? <p className="rounded-md bg-green-50 p-3 font-bold text-[var(--accent-text)]">{message}</p> : null}
 
       {canEditRound ? (
         <section className="grid gap-3">

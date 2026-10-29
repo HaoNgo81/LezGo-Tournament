@@ -231,6 +231,8 @@ export type TranslationKey =
   | "settingsDescription"
   | "standardsForNewTournaments"
   | "startTournament"
+  | "startNeedsPlayers"
+  | "startNeedsMixedPlayers"
   | "team"
   | "teams"
   | "timeLimitMinutes"
@@ -489,6 +491,8 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     settingsDescription: "Standarder, der bruges automatisk ved nye turneringer.",
     standardsForNewTournaments: "Standarder for nye turneringer",
     startTournament: "Start turnering",
+    startNeedsPlayers: "Tilføj mindst {count} spillere for at starte.",
+    startNeedsMixedPlayers: "Tilføj mindst {count} kvinder og {count} mænd for at starte.",
     team: "Hold",
     teams: "Hold",
     timeLimitMinutes: "Spilletid (minutter)",
@@ -746,6 +750,8 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     settingsDescription: "Defaults used automatically for new tournaments.",
     standardsForNewTournaments: "Defaults for new tournaments",
     startTournament: "Start tournament",
+    startNeedsPlayers: "Add at least {count} players to start.",
+    startNeedsMixedPlayers: "Add at least {count} women and {count} men to start.",
     team: "Team",
     teams: "Teams",
     timeLimitMinutes: "Playing time (minutes)",

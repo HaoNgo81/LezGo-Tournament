@@ -882,6 +882,68 @@ describe("tournament setup form", () => {
     expect(screen.getByRole("spinbutton", { name: "Antal scorepoint" })).toHaveValue(21);
     expect(screen.queryByRole("combobox", { name: "Runde 1" })).not.toBeInTheDocument();
   });
+
+  describe("Start turnering is only enabled once the format's minimum players are filled in", () => {
+    it("Americano: disabled with 0 and 3 players, enabled with 4", async () => {
+      render(<TournamentSetupForm />);
+      const start = await screen.findByRole("button", { name: "Start turnering" });
+
+      expect(start).toBeDisabled();
+      expect(screen.getByTestId("start-requirement")).toHaveTextContent("Tilføj mindst 4 spillere for at starte.");
+      expect(start).toHaveAttribute("aria-describedby", "start-requirement");
+
+      fillIndividualPlayerFields(["Anna", "Peter", "Mads"]);
+      expect(start).toBeDisabled();
+
+      fillIndividualPlayerFields(["Anna", "Peter", "Mads", "Louise"]);
+      expect(start).toBeEnabled();
+      expect(screen.queryByTestId("start-requirement")).not.toBeInTheDocument();
+      expect(start).not.toHaveAttribute("aria-describedby");
+    });
+
+    it("Fast Makker Americano: disabled with one pair, enabled with two pairs", async () => {
+      render(<TournamentSetupForm />);
+      fireEvent.click(getFormatButton("Fast Makker Americano"));
+      const start = screen.getByRole("button", { name: "Start turnering" });
+
+      fillFixedPartnerPlayerFields(["A", "Aa"]);
+      expect(start).toBeDisabled();
+      expect(screen.getByTestId("start-requirement")).toHaveTextContent("Tilføj mindst 4 spillere for at starte.");
+
+      fillFixedPartnerPlayerFields(["A", "Aa", "B", "Bb"]);
+      expect(start).toBeEnabled();
+    });
+
+    it("Mixed Americano: needs 2 women and 2 men", async () => {
+      render(<TournamentSetupForm />);
+      fireEvent.click(getFormatButton("Mixed Americano"));
+      const start = screen.getByRole("button", { name: "Start turnering" });
+
+      fillMixedPlayerFields("Kvinder", ["Anna", "Louise"]);
+      fillMixedPlayerFields("Mænd", ["Hao"]);
+      expect(start).toBeDisabled();
+      expect(screen.getByTestId("start-requirement")).toHaveTextContent("Tilføj mindst 2 kvinder og 2 mænd for at starte.");
+
+      fillMixedPlayerFields("Mænd", ["Hao", "Minh"]);
+      expect(start).toBeEnabled();
+    });
+
+    it("keeps the existing submit validation for rules beyond the minimum", async () => {
+      mockGuestAccountFetch();
+      render(<TournamentSetupForm />);
+      await screen.findByText("Som gæst kan du bruge op til 2 baner. Log ind for flere baner.");
+      fireEvent.click(getFormatButton("Mexicano"));
+      fireEvent.change(getNumberInput("Baner"), { target: { value: "2" } });
+      fillIndividualPlayerFields(["A", "B", "C", "D", "E"]);
+      const start = screen.getByRole("button", { name: "Start turnering" });
+
+      expect(start).toBeEnabled();
+      fireEvent.click(start);
+
+      expect(await screen.findByText("Mexicano kræver præcis 4 spillere pr. bane.")).toBeInTheDocument();
+      expect(push).not.toHaveBeenCalled();
+    });
+  });
 });
 
 function getFormatButton(formatName: string): HTMLElement {

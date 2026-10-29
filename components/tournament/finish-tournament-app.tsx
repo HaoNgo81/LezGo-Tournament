@@ -224,7 +224,7 @@ export function FinishTournamentApp() {
   return (
     <div className="grid gap-5">
       <section className="app-card grid gap-3 p-4 sm:p-5">
-        <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{isFinished ? t("completedTournament") : t("finishTournament")}</p>
+        <p className="text-sm font-bold uppercase text-[var(--accent-text)]">{isFinished ? t("completedTournament") : t("finishTournament")}</p>
         <h2 className="text-2xl font-black">{state.tournamentName}</h2>
         <p className="text-sm font-bold text-[var(--muted)]">
           {formatFinishedTournamentSummary(state, t)}

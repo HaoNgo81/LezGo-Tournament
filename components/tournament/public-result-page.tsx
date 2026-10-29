@@ -15,9 +15,9 @@ export function PublicResultPage({ snapshot }: { snapshot: PublicResultSnapshot 
     <main className="safe-screen">
       <div className="mx-auto grid max-w-4xl gap-5">
         <header className="app-card grid gap-3 p-5 sm:p-6">
-          <Link className="text-sm font-black uppercase text-[var(--primary-strong)]" href="/">LEZGO PADEL</Link>
+          <Link className="text-sm font-black uppercase text-[var(--accent-text)]" href="/">LEZGO PADEL</Link>
           <div className="grid gap-2">
-            <p className="text-sm font-black uppercase text-[var(--primary-strong)]">{t("resultFinalResult")}</p>
+            <p className="text-sm font-black uppercase text-[var(--accent-text)]">{t("resultFinalResult")}</p>
             <h1 className="text-3xl font-black leading-tight sm:text-5xl">{snapshot.tournamentName}</h1>
             <p className="font-bold text-[var(--muted)]">
               {completedState ? formatFinishedTournamentSummary(completedState, t) : `${snapshot.formatLabel} · ${snapshot.participantCount} ${participantType} · ${snapshot.completedAt ? formatDate(snapshot.completedAt, language) : t("completed")}`}
@@ -31,7 +31,7 @@ export function PublicResultPage({ snapshot }: { snapshot: PublicResultSnapshot 
           <section className="grid gap-3">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
-                <p className="text-sm font-black uppercase text-[var(--primary-strong)]">{t("resultFinalResult")}</p>
+                <p className="text-sm font-black uppercase text-[var(--accent-text)]">{t("resultFinalResult")}</p>
                 <h2 className="text-2xl font-black">{t("finalStandings")}</h2>
               </div>
               <p className="text-sm font-bold text-[var(--muted)]">
@@ -53,7 +53,7 @@ function PublicResultTable({ snapshot }: { snapshot: PublicResultSnapshot }) {
   return (
     <div className="app-card table-scroll" tabIndex={0}>
       <table className="w-full min-w-[640px] border-collapse text-left">
-        <thead className="bg-[var(--primary-soft)] text-sm uppercase text-[var(--primary-strong)]">
+        <thead className="bg-[var(--primary-soft)] text-sm uppercase text-[var(--accent-text)]">
           <tr>
             <th className="p-3">#</th>
             <th className="p-3">{snapshot.participantType === "pair" ? t("resultPairPlayers") : formatParticipantType(snapshot.participantType, language)}</th>
@@ -68,7 +68,7 @@ function PublicResultTable({ snapshot }: { snapshot: PublicResultSnapshot }) {
         <tbody>
           {snapshot.rows.map((row) => (
               <tr key={row.id} className="border-t border-[var(--line)]">
-              <td className="p-3 text-lg font-black text-[var(--primary-strong)]">{row.rank}</td>
+              <td className="p-3 text-lg font-black text-[var(--accent-text)]">{row.rank}</td>
               <td className="max-w-[20rem] p-3 font-black">{row.name}</td>
               {hasGroups ? <td className="p-3 font-bold text-[var(--muted)]">{row.groupName ?? ""}</td> : null}
               <td className="p-3 text-right font-bold">{row.wins ?? "-"}</td>

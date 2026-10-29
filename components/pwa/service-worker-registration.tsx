@@ -189,7 +189,7 @@ export function ServiceWorkerRegistration({ reload = () => window.location.reloa
       data-testid="pwa-update-notice"
     >
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-black text-[var(--primary-strong)]">{t("pwaUpdateReadyTitle")}</p>
+        <p className="text-sm font-black text-[var(--accent-text)]">{t("pwaUpdateReadyTitle")}</p>
         <p className="mt-1 text-sm font-bold text-[var(--muted)]">{t("pwaUpdateReadyBody")}</p>
       </div>
       <button

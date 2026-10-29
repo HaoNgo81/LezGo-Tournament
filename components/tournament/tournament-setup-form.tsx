@@ -13,6 +13,7 @@ import {
   createTeamVsTeamTournamentFromSetup,
   createTeamVsTeamShadowSaveLocalId,
   createTournamentFromSetup,
+  getUnmetStartPlayerRequirement,
   ensureStandardTournamentShadowSaveCompleted,
   ensureTeamVsTeamTournamentShadowSaveCompleted,
   isShadowSaveEnabled,
@@ -177,6 +178,13 @@ export function TournamentSetupForm() {
 
     return countLines(playerText);
   }, [femalePlayerText, format, isPoolPlay, isTeamVsTeam, malePlayerText, playerText, playersPerTeam, teamCount]);
+  // Standard formats only: Team vs Team and pool play keep their own validation on submit.
+  const unmetStartRequirement = isTeamVsTeam || isPoolPlay
+    ? null
+    : getUnmetStartPlayerRequirement(format, { players: playerCount, women: countLines(femalePlayerText), men: countLines(malePlayerText) });
+  const startRequirementMessage = unmetStartRequirement
+    ? t(unmetStartRequirement.kind === "mixed" ? "startNeedsMixedPlayers" : "startNeedsPlayers").replaceAll("{count}", String(unmetStartRequirement.kind === "mixed" ? unmetStartRequirement.minimumPerGender : unmetStartRequirement.minimum))
+    : "";
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -885,7 +893,8 @@ export function TournamentSetupForm() {
 
       <Section title={`5. ${t("startTournament")}`}>
         {error ? <p className="mb-3 rounded-md bg-red-50 p-3 font-bold text-red-700">{error}</p> : null}
-        <PrimaryButton type="submit">{t("startTournament")}</PrimaryButton>
+        {startRequirementMessage ? <p className="mb-3 font-bold text-[var(--muted)]" data-testid="start-requirement" id="start-requirement">{startRequirementMessage}</p> : null}
+        <PrimaryButton describedBy={startRequirementMessage ? "start-requirement" : undefined} disabled={Boolean(startRequirementMessage)} type="submit">{t("startTournament")}</PrimaryButton>
       </Section>
     </form>
   );
