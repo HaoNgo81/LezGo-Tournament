@@ -44,3 +44,13 @@ test("without a browser install prompt the panel shows the manual steps, and can
   await expect(page.getByTestId("install-panel")).toHaveCount(0);
   expect(new URL(page.url()).search).toBe("");
 });
+
+test.describe("opened inside Messenger on Android", () => {
+  test.use({ userAgent: "Mozilla/5.0 (Linux; Android 14; wv) AppleWebKit/537.36 Chrome/130 Mobile Safari/537.36 [FB_IAB/MESSENGER;FBAV/480.0]" });
+
+  test("explains how to open the page in Chrome", async ({ page }) => {
+    await page.goto("/?install=1");
+    await expect(page.getByTestId("install-panel")).toHaveAttribute("data-install-state", "inAppAndroid");
+    await expect(page.getByText(/vælg Åbn i Chrome/)).toBeVisible();
+  });
+});

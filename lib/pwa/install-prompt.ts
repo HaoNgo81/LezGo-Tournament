@@ -36,3 +36,9 @@ export function isAppleTouchDevice(userAgent: string, platform: string, maxTouch
   // iPadOS reports itself as a Mac, so a touch-capable "MacIntel" is an iPad.
   return /iPad|iPhone|iPod/.test(userAgent) || (platform === "MacIntel" && maxTouchPoints > 1);
 }
+
+// Browsers built into other apps (Facebook, Messenger, Instagram, TikTok, Snapchat, LINE, Android WebView)
+// never offer installation. Chrome Custom Tabs cannot be detected; the fallback text covers them.
+export function isInAppBrowser(userAgent: string): boolean {
+  return /FBAN|FBAV|FB_IAB|FBIOS|Instagram|Messenger|Snapchat|musical_ly|TikTok|BytedanceWebview|Line\/|; wv\)/.test(userAgent);
+}

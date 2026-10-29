@@ -236,6 +236,8 @@ export type TranslationKey =
   | "installBody"
   | "installButton"
   | "installFallback"
+  | "installInAppAndroid"
+  | "installInAppIos"
   | "installIosSteps"
   | "installTitle"
   | "installWaiting"
@@ -504,7 +506,9 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     installButton: "Installer app",
     installWaiting: "Gør klar til installation …",
     installIosSteps: "På iPhone og iPad: tryk på Del-ikonet i Safari, og vælg Føj til hjemmeskærm.",
-    installFallback: "Din browser viser ikke installer-knappen her. Åbn browserens menu, og vælg Installer app eller Føj til startskærm. Er appen allerede installeret, kan du åbne den derfra.",
+    installFallback: "Din browser viser ikke installer-knappen her. Åbn browserens menu, og vælg Installer app eller Føj til startskærm. Er siden åbnet inde i en anden app, så vælg først Åbn i Chrome. Er appen allerede installeret, kan du åbne den derfra.",
+    installInAppAndroid: "Siden er åbnet inde i en anden app, som ikke kan installere apps. Tryk på ⋮ eller ⋯ øverst, vælg Åbn i Chrome (eller Åbn i browser), og tryk Installer igen.",
+    installInAppIos: "Siden er åbnet inde i en anden app, som ikke kan installere apps. Tryk på ⋯ eller Del-ikonet, vælg Åbn i Safari, og følg så Del → Føj til hjemmeskærm.",
     installAlready: "Appen er installeret. Du kan åbne den fra din startskærm.",
     startNeedsMixedPlayers: "Tilføj mindst {count} kvinder og {count} mænd for at starte.",
     team: "Hold",
@@ -770,7 +774,9 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     installButton: "Install app",
     installWaiting: "Getting ready to install …",
     installIosSteps: "On iPhone and iPad: tap the Share icon in Safari and choose Add to Home Screen.",
-    installFallback: "Your browser does not offer the install button here. Open the browser menu and choose Install app or Add to Home screen. If the app is already installed, open it from there.",
+    installFallback: "Your browser does not offer the install button here. Open the browser menu and choose Install app or Add to Home screen. If the page is open inside another app, choose Open in Chrome first. If the app is already installed, open it from there.",
+    installInAppAndroid: "This page is open inside another app, which cannot install apps. Tap ⋮ or ⋯ at the top, choose Open in Chrome (or Open in browser), and tap Install again.",
+    installInAppIos: "This page is open inside another app, which cannot install apps. Tap ⋯ or the Share icon, choose Open in Safari, then use Share → Add to Home Screen.",
     installAlready: "The app is installed. You can open it from your home screen.",
     startNeedsMixedPlayers: "Add at least {count} women and {count} men to start.",
     team: "Team",
