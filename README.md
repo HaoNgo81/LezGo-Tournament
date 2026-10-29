@@ -21,7 +21,10 @@ The app currently supports:
 - Puljespil setup, live scoring, finish summaries, PDF export, QR view, TV view, and history summaries. Puljespil is currently on standby while standard formats are made ready for active use.
 - PWA installation support with a registered service worker
 
-Data is stored locally in the browser with `localStorage`.
+Data storage:
+
+- **Guest** (not logged in): tournaments are stored only in the browser (`localStorage`) on that device. Guests can use up to 2 courts.
+- **Account** (logged in with username or e-mail): tournaments are also saved in the cloud (Supabase), so a tournament created on a phone can be opened on a tablet with the same account.
 
 ## Tournament Formats
 
@@ -119,11 +122,13 @@ tests/        Vitest test suite
 
 ## Development
 
-Install dependencies:
+Install dependencies exactly as locked in `package-lock.json`:
 
 ```bash
-npm install
+npm ci
 ```
+
+Use `npm ci`, not `npm install`: several packages are declared as `latest` in `package.json`, so `npm install` can pull in new major versions of Next.js or React.
 
 Start local development:
 
@@ -173,6 +178,15 @@ Workflow file:
 ```text
 .github/workflows/ci.yml
 ```
+
+## Deployment
+
+Production runs on Vercel (project `lezgotournament`). Every merge to `main` deploys automatically to:
+
+- https://app.lezgopadel.dk
+- https://lezgotournament.vercel.app (`lez-go-tournament.vercel.app` redirects here)
+
+Every pull request gets its own Vercel preview. Previews use the same Supabase database as production, so test previews as a guest. The home page shows the running version (short commit) and marks previews as "Testversion"; `/api/app-version` returns the full commit.
 
 ## Development Rule
 
