@@ -1471,7 +1471,7 @@ function PoolScoreSheet({ match, onClose, onSave }: { match: PoolMatchView; onCl
             </select>
           </label>
         ) : null}
-        <button className="min-h-14 w-full rounded-md bg-[var(--primary)] px-5 text-lg font-black text-white" type="submit">{t("save")}</button>
+        <button className="min-h-14 w-full rounded-md bg-[var(--primary)] px-5 text-lg font-black text-[var(--primary-text)]" type="submit">{t("save")}</button>
       </form>
     </div>
   );
@@ -1888,7 +1888,7 @@ function ScoreSheet({ liveMatch, players, state, onClose, onSave }: { liveMatch:
           </label>
         </div>
         {fixedTotalError || formError ? <p className="rounded-md bg-red-50 p-3 font-bold text-red-700">{fixedTotalError || formError}</p> : null}
-        <button className="min-h-14 w-full rounded-md bg-[var(--primary)] px-5 text-lg font-black text-white disabled:bg-gray-300" type="submit" disabled={Boolean(fixedTotalError)}>{t("save")}</button>
+        <button className="min-h-14 w-full rounded-md bg-[var(--primary)] px-5 text-lg font-black text-[var(--primary-text)] disabled:bg-[var(--control-hover-bg)] disabled:text-[var(--muted)]" type="submit" disabled={Boolean(fixedTotalError)}>{t("save")}</button>
       </form>
     </div>
   );

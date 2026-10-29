@@ -119,6 +119,25 @@ for (const width of widths) {
       expect(Number(await start.evaluate((element) => getComputedStyle(element).fontWeight))).toBeGreaterThanOrEqual(700);
     });
 
+    test("live page and score dialog: Gem uses dark bold text and axe finds no contrast problems", async ({ page }) => {
+      // Americano with 4 players starts on one court; the live page then has the round buttons and score dialog.
+      await page.goto("/new-tournament");
+      await fillFourAmericanoPlayers(page);
+      await page.getByRole("button", { name: "Start turnering" }).click();
+      await page.waitForURL(/\/live/);
+      await expect(page.getByTestId("live-court-card").first()).toContainText(/Anna|Peter|Mads|Louise/);
+
+      await page.getByTestId("live-court-card").first().getByRole("button", { name: /Indtast score/i }).click();
+      const save = page.getByRole("button", { name: "Gem", exact: true });
+      await expect(save).toBeVisible();
+      // Button text utilities apply again (STEP 41A): Gem is bold, and its text is dark on gold.
+      expect(Number(await save.evaluate((element) => getComputedStyle(element).fontWeight))).toBeGreaterThanOrEqual(700);
+      expect(await getTextContrast(save)).toBeGreaterThanOrEqual(4.5);
+
+      const results = await new AxeBuilder({ page }).withTags(["wcag2aa"]).withRules(["color-contrast"]).analyze();
+      expect(results.violations.map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(" ")).join(", ")}`)).toEqual([]);
+    });
+
     test("home cards show a visible focus ring when reached with Tab", async ({ page }) => {
       await page.goto("/");
       const card = page.getByRole("link", { name: /Ny turnering/ });
