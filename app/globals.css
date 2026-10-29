@@ -29,7 +29,8 @@
   --selected-border: #d8aa20;
   --focus-ring: rgba(216, 170, 32, 0.30);
   --warning: #f7d046;
-  --danger: #dc2626;
+  /* Red text on --danger-bg: #b91c1c is 5.9:1 (#dc2626 was 4.4:1). */
+  --danger: #b91c1c;
   --danger-bg: #fff2ed;
   --danger-soft: #fee2e2;
   --shadow-soft: 0 8px 24px rgba(47, 39, 23, 0.10);
@@ -77,7 +78,8 @@ html[data-theme="hybridLezgo"] [data-card-structure="unified-court-card"] h3 {
 
 html[data-theme="hybridLezgo"] [data-card-structure="unified-court-card"] [data-testid$="-vs"] {
   background: rgba(216, 170, 32, 0.12);
-  color: #d8aa20;
+  /* #e3b82f (same gold as the court title) is 4.9:1 on the badge; #d8aa20 was 4.3:1. */
+  color: #e3b82f;
 }
 
 html[data-theme="hybridLezgo"] [data-card-structure="unified-court-card"] [data-testid$="-score-row"] {
@@ -127,7 +129,9 @@ a {
   -webkit-tap-highlight-color: transparent;
 }
 
-button,
+/* Form fields keep the page font (and at least 16px via .field-control). Buttons are left to Tailwind's
+   base layer, which already inherits the font: an unlayered rule here overrode every text-* and font-*
+   utility on buttons (STEP 41A). */
 input,
 textarea,
 select {

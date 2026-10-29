@@ -197,7 +197,7 @@ function TeamVsTeamMatchesPanel({ activeMatchId, canAdvanceBracket, state, onAdv
           <p className="text-sm font-bold uppercase text-[var(--accent-text)]">{state.competitionMode === "pool" ? "Puljespil" : "Knockout"}</p>
           <h2 className="text-xl font-black">Holdkampe</h2>
         </div>
-        {canAdvanceBracket ? <button className="min-h-11 rounded-md bg-[var(--primary)] px-4 font-black text-white" type="button" onClick={onAdvance}>Dan næste knockout- og placeringsrunde</button> : null}
+        {canAdvanceBracket ? <button className="min-h-11 rounded-md bg-[var(--primary)] px-4 font-black text-[var(--primary-text)]" type="button" onClick={onAdvance}>Dan næste knockout- og placeringsrunde</button> : null}
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
         {state.matchups.map((match) => {
@@ -373,7 +373,7 @@ function LineupEditor({ matchup, lineup, previousLineups, playersPerTeam, onSave
         <input className="h-5 w-5 accent-[var(--primary)]" type="checkbox" checked={Boolean(draft.overrideRepeatedPairs)} onChange={(event) => setDraft({ ...draft, overrideRepeatedPairs: event.target.checked })} />
         Tilsidesæt advarsel om gentaget makkerpar
       </label>
-      <button className="min-h-12 rounded-md bg-[var(--primary)] px-4 font-black text-white" type="button" onClick={() => onSave(draft)}>Gem opstilling</button>
+      <button className="min-h-12 rounded-md bg-[var(--primary)] px-4 font-black text-[var(--primary-text)]" type="button" onClick={() => onSave(draft)}>Gem opstilling</button>
     </div>
   );
 }
@@ -401,7 +401,7 @@ function RoundResultEditor({ matchup, result, matchFormat, onSave }: { matchup: 
     <div className="app-card grid gap-4 p-4 sm:p-5">
       <MatchResultInputs title="Kamp 1" matchup={matchup} result={draft.match1} matchFormat={matchFormat} onChange={(match1) => setDraft({ ...draft, match1 })} />
       <MatchResultInputs title="Kamp 2" matchup={matchup} result={draft.match2} matchFormat={matchFormat} onChange={(match2) => setDraft({ ...draft, match2 })} />
-      <button className="min-h-12 rounded-md bg-[var(--primary)] px-4 font-black text-white" type="button" onClick={() => onSave(draft)}>Gem runderesultat</button>
+      <button className="min-h-12 rounded-md bg-[var(--primary)] px-4 font-black text-[var(--primary-text)]" type="button" onClick={() => onSave(draft)}>Gem runderesultat</button>
     </div>
   );
 }
@@ -417,7 +417,7 @@ function TieBreakEditor({ matchup, tieBreak, onSave }: { matchup: TeamVsTeamMatc
         <TeamPairSelect team={matchup.teamB} title={matchup.teamB.name} value={draft.teamBPlayerIds} onChange={(teamBPlayerIds) => setDraft({ ...draft, teamBPlayerIds })} />
       </div>
       <SetResultInputs title="Match Tie-break resultat" matchup={matchup} result={draft.result} onChange={(result) => setDraft({ ...draft, result })} />
-      <button className="min-h-12 rounded-md bg-[var(--primary)] px-4 font-black text-white" type="button" onClick={() => onSave(draft)}>Gem Match Tie-break</button>
+      <button className="min-h-12 rounded-md bg-[var(--primary)] px-4 font-black text-[var(--primary-text)]" type="button" onClick={() => onSave(draft)}>Gem Match Tie-break</button>
     </div>
   );
 }
