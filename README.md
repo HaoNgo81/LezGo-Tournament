@@ -186,6 +186,8 @@ Production runs on Vercel (project `lezgotournament`). Every merge to `main` dep
 - https://app.lezgopadel.dk
 - https://lezgotournament.vercel.app (`lez-go-tournament.vercel.app` redirects here)
 
+Supabase pauses free-plan projects after about 7 days without activity. The scheduled GitHub Actions workflow `keep-database-awake.yml` calls a read-only production endpoint every second day so the database stays active. If login or cloud saving ever stops working, check the Supabase project status first.
+
 Every pull request gets its own Vercel preview. Previews use the same Supabase database as production, so test previews as a guest. The home page shows the running version (short commit) and marks previews as "Testversion"; `/api/app-version` returns the full commit.
 
 ## Development Rule
