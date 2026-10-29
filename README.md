@@ -156,6 +156,8 @@ GitHub Actions runs them on every pull request after the unit tests. When they f
 
 `e2e/accessibility.spec.ts` checks the home page and `/new-tournament` at 375 and 1280 px with axe-core (no colour-contrast and no serious or critical findings), that pinch zoom is allowed, that inputs use at least 16 px text (no iOS auto-zoom), the text contrast of "Start turnering" and "Opret bruger", and the focus ring on the home cards.
 
+Install link: `https://lezgotournament.vercel.app/?install=1` shows an install panel on the home page (used by the "Installer" button in the LEZGO Apps portal). Browsers only allow the install dialog on the app's own domain and after a tap, so the panel has the button; iPhone/iPad get Share > Add to Home Screen steps. `e2e/install-panel.spec.ts` tests the flow.
+
 The workflow `Deployed app tests` runs the same accessibility tests against the real Vercel deployment when Vercel reports it ready: the preview of every pull request (shown as a check on the pull request) and, after a merge, the production deployment and `lezgotournament.vercel.app` as a smoke test. Run them yourself against any URL with `E2E_BASE_URL=https://... npx playwright test e2e/accessibility.spec.ts`.
 
 On Windows PowerShell, use `npm.cmd` if script execution policy blocks `npm`:

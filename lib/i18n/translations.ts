@@ -232,6 +232,13 @@ export type TranslationKey =
   | "standardsForNewTournaments"
   | "startTournament"
   | "startNeedsPlayers"
+  | "installAlready"
+  | "installBody"
+  | "installButton"
+  | "installFallback"
+  | "installIosSteps"
+  | "installTitle"
+  | "installWaiting"
   | "startNeedsMixedPlayers"
   | "team"
   | "teams"
@@ -492,6 +499,13 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     standardsForNewTournaments: "Standarder for nye turneringer",
     startTournament: "Start turnering",
     startNeedsPlayers: "Tilføj mindst {count} spillere for at starte.",
+    installTitle: "Installer LEZGO Padel",
+    installBody: "Læg appen på din startskærm, så den åbner som en app.",
+    installButton: "Installer app",
+    installWaiting: "Gør klar til installation …",
+    installIosSteps: "På iPhone og iPad: tryk på Del-ikonet i Safari, og vælg Føj til hjemmeskærm.",
+    installFallback: "Din browser viser ikke installer-knappen her. Åbn browserens menu, og vælg Installer app eller Føj til startskærm.",
+    installAlready: "Appen er installeret. Du kan åbne den fra din startskærm.",
     startNeedsMixedPlayers: "Tilføj mindst {count} kvinder og {count} mænd for at starte.",
     team: "Hold",
     teams: "Hold",
@@ -751,6 +765,13 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     standardsForNewTournaments: "Defaults for new tournaments",
     startTournament: "Start tournament",
     startNeedsPlayers: "Add at least {count} players to start.",
+    installTitle: "Install LEZGO Padel",
+    installBody: "Put the app on your home screen so it opens like an app.",
+    installButton: "Install app",
+    installWaiting: "Getting ready to install …",
+    installIosSteps: "On iPhone and iPad: tap the Share icon in Safari and choose Add to Home Screen.",
+    installFallback: "Your browser does not offer the install button here. Open the browser menu and choose Install app or Add to Home screen.",
+    installAlready: "The app is installed. You can open it from your home screen.",
     startNeedsMixedPlayers: "Add at least {count} women and {count} men to start.",
     team: "Team",
     teams: "Teams",
