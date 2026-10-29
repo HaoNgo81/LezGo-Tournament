@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- STEP 36B: README describes guest vs. account storage, recommends `npm ci` and documents the Vercel deployment; CHANGELOG now lists STEP 28-31 (0.25.0); removed the unused GitHub Pages build switches (`GITHUB_PAGES`) from the code.
 - STEP 35A: New PDF design "Resultattavle" (owner choice): dark sidebar with logo, title, winner (or leader while running) and facts; main column with the final standings including a signed +/- column and one compact line per match grouped by round, winners in bold. Rounds are never split across pages; continuation pages repeat a slim sidebar. A running tournament shows "STILLING" and "FØRER" instead of "SLUTSTILLING" and "VINDER". Text is measured with real Helvetica widths, which fixes overlapping text in the old Overblik box. Pool-play PDFs are unchanged.
 - STEP 34A: Added Playwright browser tests to CI. Every pull request now plays a full guest Fast Makker Americano tournament on phone (390 and 320 px) and tablet landscape, checks standings, +/− values, final standings, the PDF, the version label, and that the update notice does not appear on a first visit.
 - STEP 33C: The "Ny version klar" notice no longer appears on the first visit (the service worker taking control of a fresh install is not an update), is shown at the top of the screen instead of over the score dialog's Gem button, and has a close button.
@@ -9,6 +10,22 @@
 - STEP 33B: The home page shows the app version (short commit) at the bottom, marked "Testversion" on Vercel preview deployments, so testers can see which version they are using.
 - STEP 32B: Removed the GitHub Pages workflow. Vercel is the only deployment target. The `GITHUB_PAGES` build switch in `next.config.ts` is left in place but is no longer used by any workflow.
 - STEP 32A: Overall point difference now ranks before internal head-to-head in all standings. The new order also applies when finished tournaments are shown again.
+
+## 0.25.0
+
+- STEP 28A: Compact tablet-landscape layout for the live tournament page (courts in a 2 by 2 grid beside the standings); wider tablet-landscape detection.
+- STEP 28B: Fixed validation of free scoring in timed tournaments.
+- STEP 29A: Read-only sharing of completed tournaments via a result link.
+- STEP 29C: Redesigned completed-tournament PDF (later replaced by the STEP 35A "Resultattavle" design).
+- STEP 30B: Tournament fairness proof test infrastructure.
+- STEP 30C: Americano automatic cycles with fair byes, shown in the live UI; fixed saving scores in later cycles.
+- STEP 30D: Fast Makker Americano automatic cycles; improved bye order for 4 pairs.
+- STEP 30E: Mixed Americano automatic cycles.
+- STEP 30F: Open-ended Mexicano rounds generated from the live standings.
+- STEP 30G: Open-ended Fast Makker Mexicano rounds; fixed ranking-based pairings.
+- STEP 31A: Fixed cloud creation and live session continuity between devices.
+- STEP 31B: Total-score input works in both directions (either side can be entered first).
+- STEP 31C: Improved delete and finish controls in the tournament list.
 
 ## 0.24.0
 

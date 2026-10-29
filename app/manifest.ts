@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-const basePath = process.env.GITHUB_PAGES === "true" ? "/LezGo-Tournament" : "";
+const basePath = "";
 
 export const dynamic = "force-static";
 

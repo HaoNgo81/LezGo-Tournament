@@ -4,7 +4,7 @@ import { AppPreferences } from "@/components/preferences/app-preferences";
 import { ServiceWorkerRegistration } from "@/components/pwa/service-worker-registration";
 import "./globals.css";
 
-const basePath = process.env.GITHUB_PAGES === "true" ? "/LezGo-Tournament" : "";
+const basePath = "";
 
 export const metadata: Metadata = {
   title: "LEZGO PADEL",
