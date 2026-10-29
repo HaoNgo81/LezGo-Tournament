@@ -88,7 +88,7 @@ describe("StandingsTable", () => {
     const header = screen.getByTestId("live-standings-player-header");
     expect(header).toHaveTextContent("Spiller");
     expect(header).toHaveStyle({ overflowWrap: "normal", wordBreak: "normal" });
-    expect(header.parentElement?.className).toContain("minmax(4.75rem,1fr)");
+    expect(header.parentElement?.className).toContain("minmax(7.5rem,1fr)");
 
     expect(screen.getByText("V")).toBeInTheDocument();
     expect(screen.getByText("U")).toBeInTheDocument();
