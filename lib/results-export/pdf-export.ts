@@ -687,7 +687,7 @@ function drawScoreboardRound(
 }
 
 function drawScoreboardFooter(commands: PdfCommand[], pageNumber: number, pageCount: number) {
-  text(commands, "LEZGO PADEL · app.lezgopadel.dk", scoreboard.mainX, 22, 6.5, "regular", colors.muted);
+  text(commands, "LEZGO PADEL · lezgotournament.vercel.app", scoreboard.mainX, 22, 6.5, "regular", colors.muted);
   rightAlignedText(commands, `Side ${pageNumber} / ${pageCount}`, scoreboard.mainRight, 22, 6.5, "regular", colors.muted);
 }
 

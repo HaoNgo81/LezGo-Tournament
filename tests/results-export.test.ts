@@ -321,6 +321,9 @@ describe("result export", () => {
     ["(FORMAT)", "(SPILLERE)", "(BANER)", "(RUNDER)", "(RANGERING)", "(AFSLUTTET)", "(Side 1 / 1)"].forEach((label) => {
       expect(pdfText).toContain(label);
     });
+    // The footer points to the working app address; app.lezgopadel.dk is not used (2026-10-29).
+    expect(pdfText).toContain("(LEZGO PADEL · lezgotournament.vercel.app)");
+    expect(pdfText).not.toContain("lezgopadel.dk");
   });
 
   it("labels the leader instead of a winner while the tournament is still running", () => {
