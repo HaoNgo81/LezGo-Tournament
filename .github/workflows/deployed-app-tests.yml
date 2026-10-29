@@ -1,0 +1,65 @@
+name: Deployed app tests
+
+# Runs the accessibility browser tests against the real Vercel deployment once Vercel reports it ready.
+# - Preview deployments (every push to a pull request branch): the check shows on the pull request,
+#   so a change is tested on Vercel before it is merged.
+# - Production deployments (after a merge to main): a smoke test against the deployment and
+#   against lezgotournament.vercel.app.
+# Vercel deployment protection is off for this project, so no bypass secret is needed. If protection
+# is turned on later, add the protection bypass secret and send it as the x-vercel-protection-bypass header.
+
+on:
+  deployment_status:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deployed-app-tests-${{ github.event.deployment.sha }}-${{ github.event.deployment.environment }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Deployed app tests (${{ github.event.deployment.environment }})
+    if: github.event.deployment_status.state == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.deployment.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx playwright install --with-deps chromium
+
+      - name: Test the deployment
+        env:
+          E2E_BASE_URL: ${{ github.event.deployment_status.environment_url }}
+        run: |
+          echo "Testing $E2E_BASE_URL"
+          npx playwright test e2e/accessibility.spec.ts --reporter=line
+
+      - name: Smoke test lezgotournament.vercel.app
+        if: github.event.deployment.environment == 'Production'
+        env:
+          E2E_BASE_URL: https://lezgotournament.vercel.app
+        run: |
+          version=$(curl --silent --max-time 30 "$E2E_BASE_URL/api/app-version" || true)
+          echo "Live version: $version"
+          npx playwright test e2e/accessibility.spec.ts --reporter=line
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: deployed-app-test-report
+          path: |
+            playwright-report
+            test-results
+          retention-days: 7

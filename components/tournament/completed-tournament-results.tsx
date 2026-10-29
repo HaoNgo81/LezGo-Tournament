@@ -246,7 +246,7 @@ function PoolPlayFinishSummary({ summary }: { summary: PoolPlaySummary }) {
             {summary.finalPlacements.map((placement) => (
               <article key={`${placement.groupName}-${placement.rank}`} className="app-card flex items-center justify-between gap-3 p-4">
                 <div>
-                  <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{placement.groupName}</p>
+                  <p className="text-sm font-bold uppercase text-[var(--accent-text)]">{placement.groupName}</p>
                   <h3 className="mt-1 text-lg font-black">{placement.participantName}</h3>
                 </div>
                 <span className="text-3xl font-black">{placement.rank}.</span>
@@ -286,7 +286,7 @@ function PoolPlayFinishSummary({ summary }: { summary: PoolPlaySummary }) {
           <div className="grid gap-3 sm:grid-cols-2">
             {summary.automaticAdvances.map((advance) => (
               <article key={advance.id} className="app-card p-4">
-                <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{advance.resolution === "bye" ? "Oversidning" : "Walkover"}</p>
+                <p className="text-sm font-bold uppercase text-[var(--accent-text)]">{advance.resolution === "bye" ? "Oversidning" : "Walkover"}</p>
                 <h3 className="mt-1 text-lg font-black">{advance.participantName}</h3>
                 <p className="mt-2 text-sm font-bold text-[var(--muted)]">{advance.sourcePoolName}, nr. {advance.sourceRank}</p>
               </article>
@@ -315,10 +315,10 @@ function PoolMatchSummarySection({
           <article key={match.id} className="app-card p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{match.groupName}</p>
+                <p className="text-sm font-bold uppercase text-[var(--accent-text)]">{match.groupName}</p>
                 <h3 className="mt-1 text-lg font-black">{match.label}</h3>
               </div>
-              {match.matchesPerTeam ? <span className="rounded-md bg-[var(--primary-soft)] px-3 py-1 text-sm font-black text-[var(--primary-strong)]">{match.matchesPerTeam} delkampe</span> : null}
+              {match.matchesPerTeam ? <span className="rounded-md bg-[var(--primary-soft)] px-3 py-1 text-sm font-black text-[var(--accent-text)]">{match.matchesPerTeam} delkampe</span> : null}
             </div>
             <p className="mt-3 font-bold">{match.teamAName}</p>
             <p className="text-sm font-bold uppercase text-[var(--muted)]">mod</p>

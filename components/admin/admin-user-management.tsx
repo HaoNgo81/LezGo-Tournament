@@ -183,7 +183,7 @@ export function AdminUserManagement({ users: initialUsers, currentUserId }: Admi
     <section className="mx-auto grid w-full max-w-6xl gap-4" data-testid="admin-user-management">
       <div className="app-card grid gap-3 p-4 sm:p-5">
         <div>
-          <p className="text-sm font-black uppercase tracking-wide text-[var(--primary-strong)]">ADMIN</p>
+          <p className="text-sm font-black uppercase tracking-wide text-[var(--accent-text)]">ADMIN</p>
           <h2 className="mt-1 text-2xl font-black">{copy.title}</h2>
           <p className="mt-2 font-bold text-[var(--muted)]">{copy.description}</p>
         </div>
@@ -218,7 +218,7 @@ export function AdminUserManagement({ users: initialUsers, currentUserId }: Admi
           </button>
         </div>
         <p className="text-sm font-black text-[var(--muted)]">{copy.noCredentialMaterial}</p>
-        {message ? <p className="rounded-md border border-[var(--primary)] bg-[var(--primary-soft)]/45 px-3 py-2 text-sm font-black text-[var(--primary-strong)]" role="status">{message}</p> : null}
+        {message ? <p className="rounded-md border border-[var(--primary)] bg-[var(--primary-soft)]/45 px-3 py-2 text-sm font-black text-[var(--accent-text)]" role="status">{message}</p> : null}
         {generatedCode ? (
           <p className="rounded-md border border-amber-400 bg-amber-50 px-3 py-2 text-sm font-black text-amber-900" role="status">
             {copy.generatedCodeLabel}: <span className="font-mono text-base tracking-[0.2em]">{generatedCode}</span>
@@ -370,7 +370,7 @@ function UserDetailPanel(props: {
       >
         <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-[var(--line)] bg-[var(--surface)] p-4 sm:p-5">
           <div className="min-w-0">
-            <p className="text-xs font-black uppercase text-[var(--primary-strong)]">{props.copy.detail}</p>
+            <p className="text-xs font-black uppercase text-[var(--accent-text)]">{props.copy.detail}</p>
             <h3 className="mt-1 break-words text-2xl font-black">{props.user.displayName}</h3>
             <p className="break-words text-sm font-bold text-[var(--muted)]">{formatEmailForDisplay(props.user.email)}</p>
           </div>
@@ -518,7 +518,7 @@ function CompactInfo({ label, value }: { label: string; value: string }) {
 
 function RoleBadge({ role }: { role: AccountRole }) {
   return (
-    <span className={`inline-flex w-fit rounded-md border px-2 py-1 text-xs font-black ${role === "admin" ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary-strong)]" : "border-[var(--line)] bg-white/80 text-[var(--muted)]"}`}>
+    <span className={`inline-flex w-fit rounded-md border px-2 py-1 text-xs font-black ${role === "admin" ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--accent-text)]" : "border-[var(--line)] bg-white/80 text-[var(--muted)]"}`}>
       {role.toUpperCase()}
     </span>
   );
@@ -535,7 +535,7 @@ function StatusBadge({ status, copy }: { status: ManagedAccountStatus; copy: typ
 function PanelSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="grid gap-3 rounded-md border border-[var(--line)] bg-[var(--surface)] p-4 shadow-lg">
-      <h4 className="text-sm font-black uppercase text-[var(--primary-strong)]">{title}</h4>
+      <h4 className="text-sm font-black uppercase text-[var(--accent-text)]">{title}</h4>
       {children}
     </section>
   );

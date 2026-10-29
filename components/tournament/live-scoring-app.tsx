@@ -773,10 +773,10 @@ export function LiveScoringApp() {
       <div className="app-card p-3 sm:px-4 sm:py-3" data-testid="live-compact-mobile-header">
         <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
           <div className="min-w-0">
-            <p className="text-[0.72rem] font-bold uppercase leading-none text-[var(--primary-strong)] sm:text-xs">{state.status === "finished" ? t("completedTournament") : t("activeTournament")}</p>
+            <p className="text-[0.72rem] font-bold uppercase leading-none text-[var(--accent-text)] sm:text-xs">{state.status === "finished" ? t("completedTournament") : t("activeTournament")}</p>
             <h2 className="mt-1 text-xl font-black leading-tight sm:text-2xl">{state.tournamentName}</h2>
             <p className="mt-0.5 text-xs font-bold text-[var(--muted)] sm:text-sm">{state.players.length} {t("players").toLowerCase()}{totalRoundLabel ? ` · ${totalRoundLabel}` : null}</p>
-            {rotationLabel ? <p className="mt-1 text-xs font-black text-[var(--primary-strong)] sm:text-sm">{rotationLabel}</p> : null}
+            {rotationLabel ? <p className="mt-1 text-xs font-black text-[var(--accent-text)] sm:text-sm">{rotationLabel}</p> : null}
           </div>
           {!isControllerReadOnly ? <ScreenMirroringControl /> : null}
         </div>
@@ -811,7 +811,7 @@ export function LiveScoringApp() {
             <p className="text-xs font-bold text-[var(--muted)] sm:text-sm">
               {roundStatusLabel}
             </p>
-            {byeLabel ? <p className="mt-1 text-xs font-black text-[var(--primary-strong)] sm:text-sm" data-testid="live-round-byes">{byeLabel}</p> : null}
+            {byeLabel ? <p className="mt-1 text-xs font-black text-[var(--accent-text)] sm:text-sm" data-testid="live-round-byes">{byeLabel}</p> : null}
           </div>
           {!isControllerReadOnly ? <RoundNavigationButtons canGoPrevious={state.activeRoundNumber > 1} canGoNext={nextRoundIsAvailable} onNext={handleNextRound} onPrevious={handlePreviousRound} /> : null}
         </div>
@@ -820,7 +820,7 @@ export function LiveScoringApp() {
         </div>
       </section>
 
-      {toast ? <p className="rounded-md bg-green-50 p-3 font-bold text-[var(--primary-strong)]">{toast}</p> : null}
+      {toast ? <p className="rounded-md bg-green-50 p-3 font-bold text-[var(--accent-text)]">{toast}</p> : null}
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-start" data-testid="live-desktop-content-grid">
         <section className="flex flex-col gap-3">
@@ -853,7 +853,7 @@ function EmptyLiveTournamentState() {
   return (
     <div className="app-card grid gap-4 p-5 text-center sm:p-8" data-testid="live-empty-state">
       <div>
-        <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">Live turnering</p>
+        <p className="text-sm font-bold uppercase text-[var(--accent-text)]">Live turnering</p>
         <h2 className="mt-1 text-2xl font-black">Ingen aktiv turnering til visning</h2>
         <p className="mt-2 font-bold text-[var(--muted)]">Åbn en turnering fra din konto eller opret en ny turnering for at bruge livescore.</p>
       </div>
@@ -979,7 +979,7 @@ function ScreenMirroringDialog({ onClose }: { onClose: () => void }) {
       <div className="grid max-h-[92svh] w-full max-w-lg gap-3 overflow-y-auto overflow-x-hidden rounded-t-md border border-[var(--line)] bg-[var(--card)] p-4 text-[var(--foreground)] shadow-2xl sm:rounded-md sm:p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs font-black uppercase text-[var(--primary-strong)]">{t("screenMirroring").toLocaleUpperCase()}</p>
+            <p className="text-xs font-black uppercase text-[var(--accent-text)]">{t("screenMirroring").toLocaleUpperCase()}</p>
             <h2 id="screen-mirroring-heading" className="text-2xl font-black leading-tight">{t("screenMirroring")}</h2>
             <p className="mt-1 text-sm font-bold text-[var(--muted)]">{t("screenMirroringSubtitle")}</p>
           </div>
@@ -989,14 +989,14 @@ function ScreenMirroringDialog({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="rounded-md border border-[var(--primary)] bg-[var(--primary-soft)]/50 p-3">
-          <p className="text-sm font-black text-[var(--primary-strong)]">{t("screenMirroringDirectUnavailableTitle")}</p>
+          <p className="text-sm font-black text-[var(--accent-text)]">{t("screenMirroringDirectUnavailableTitle")}</p>
           <p className="mt-1 text-sm font-bold text-[var(--muted)]">{t("screenMirroringDirectUnavailableBody")}</p>
         </div>
 
         <ScreenMirroringStep title={t(primaryGuidance.title)} body={t(primaryGuidance.body)} emphasis />
 
         <details className="rounded-md border border-[var(--line)] bg-[var(--primary-soft)]/40 p-3">
-          <summary className="cursor-pointer text-sm font-black text-[var(--primary-strong)]">{t("screenMirroringOtherDevices")}</summary>
+          <summary className="cursor-pointer text-sm font-black text-[var(--accent-text)]">{t("screenMirroringOtherDevices")}</summary>
           <div className="mt-3 grid gap-2">
             {extraGuidance.map(([key, guidance]) => (
               <ScreenMirroringStep key={key} title={t(guidance.title)} body={t(guidance.body)} />
@@ -1067,7 +1067,7 @@ function RoundTimerPanel({ state, onReset, onStart, onStop }: { state: LiveTourn
     <section className="app-card grid gap-3 p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{t("playByTime")}</p>
+          <p className="text-sm font-bold uppercase text-[var(--accent-text)]">{t("playByTime")}</p>
           <h2 className="text-3xl font-black tabular-nums">{label}</h2>
         </div>
         <div className="action-grid">
@@ -1136,7 +1136,7 @@ function PoolPlayLiveView({
       <div className="app-card p-3 sm:px-4 sm:py-3">
         <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
           <div className="min-w-0">
-            <p className="text-[0.72rem] font-bold uppercase leading-none text-[var(--primary-strong)] sm:text-xs">Aktiv turnering</p>
+            <p className="text-[0.72rem] font-bold uppercase leading-none text-[var(--accent-text)] sm:text-xs">Aktiv turnering</p>
             <h2 className="mt-1 text-xl font-black leading-tight sm:text-2xl">{state.tournamentName}</h2>
             <p className="mt-0.5 text-xs font-bold text-[var(--muted)] sm:text-sm">
               Puljespil · {state.poolPlay.initialStage.participants.length} deltagere · {state.poolPlay.initialStage.pools.length} puljer
@@ -1168,7 +1168,7 @@ function PoolPlayLiveView({
         onAdvance={onAdvance}
       />
 
-      {toast ? <p className="rounded-md bg-green-50 p-3 font-bold text-[var(--primary-strong)]">{toast}</p> : null}
+      {toast ? <p className="rounded-md bg-green-50 p-3 font-bold text-[var(--accent-text)]">{toast}</p> : null}
 
       {state.poolPlay.phase === "crossMatches" && state.poolPlay.crossMatchStage ? (
         <CrossMatchStagePanel stage={state.poolPlay.crossMatchStage} />
@@ -1375,7 +1375,7 @@ function CrossMatchFinalStagePanel({
           <p className="text-sm font-bold uppercase text-[var(--muted)]">Afgørende kampe</p>
           <h2 className="text-2xl font-black">Finaler</h2>
         </div>
-        <span className="rounded-md border border-[var(--line)] bg-white px-3 py-2 text-sm font-black text-[var(--primary-strong)]">
+        <span className="rounded-md border border-[var(--line)] bg-white px-3 py-2 text-sm font-black text-[var(--accent-text)]">
           {stage.groups.length} finalespil
         </span>
       </div>
@@ -1406,11 +1406,11 @@ function PoolMatchCard({ isReadOnly, match, onSelect }: { isReadOnly?: boolean; 
     <article className="app-card min-h-44 p-4 text-left transition hover:border-[var(--primary)] focus-within:ring-4 focus-within:ring-green-100">
       <div className="flex items-center justify-between gap-3">
         <h4 className="text-xl font-black">{match.label}</h4>
-        <span className={`rounded-md px-3 py-1 text-sm font-bold ${isCompleted ? "bg-green-100 text-[var(--primary-strong)]" : "bg-gray-100 text-[var(--muted)]"}`}>
+        <span className={`rounded-md px-3 py-1 text-sm font-bold ${isCompleted ? "bg-green-100 text-[var(--accent-text)]" : "bg-gray-100 text-[var(--muted)]"}`}>
           {isCompleted ? t("completed") : t("ready")}
         </span>
       </div>
-      {match.matchesPerTeam ? <p className="mt-2 text-sm font-black text-[var(--primary-strong)]">{match.matchesPerTeam} delkampe</p> : null}
+      {match.matchesPerTeam ? <p className="mt-2 text-sm font-black text-[var(--accent-text)]">{match.matchesPerTeam} delkampe</p> : null}
       <button className="mt-4 grid w-full gap-2 text-left text-lg font-bold disabled:cursor-default" type="button" disabled={isReadOnly} onClick={onSelect}>
         <p className="leading-7">
           <span>{match.teamAName}</span>{" "}
@@ -1446,7 +1446,7 @@ function PoolScoreSheet({ match, onClose, onSave }: { match: PoolMatchView; onCl
       <form className="mx-auto grid max-w-3xl gap-4" onSubmit={handleSubmit}>
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{match.poolName} · {match.label}</p>
+            <p className="text-sm font-bold uppercase text-[var(--accent-text)]">{match.poolName} · {match.label}</p>
             <h2 className="mt-1 text-2xl font-black">{t("registerScorePoints")}</h2>
           </div>
           <button className="btn-secondary" type="button" onClick={onClose}>{t("close")}</button>
@@ -1847,13 +1847,13 @@ function ScoreSheet({ liveMatch, players, state, onClose, onSave }: { liveMatch:
       <form className="mx-auto grid max-w-3xl gap-4" onSubmit={handleSubmit}>
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-sm font-bold uppercase text-[var(--primary-strong)]">{t("court")} {liveMatch.match.courtNumber}</p>
+            <p className="text-sm font-bold uppercase text-[var(--accent-text)]">{t("court")} {liveMatch.match.courtNumber}</p>
             <h2 className="mt-1 text-2xl font-black">{t("registerScorePoints")}</h2>
           </div>
           <button className="btn-secondary" type="button" onClick={onClose}>{t("close")}</button>
         </div>
         {isFixedTotalScoring ? (
-          <p className="rounded-md bg-[var(--primary-soft)] p-3 text-sm font-bold text-[var(--primary-strong)]">
+          <p className="rounded-md bg-[var(--primary-soft)] p-3 text-sm font-bold text-[var(--accent-text)]">
             Fast samlet score: indtast én score. Modstanderens score beregnes automatisk til samlet {fixedTotalPoints}.
           </p>
         ) : null}

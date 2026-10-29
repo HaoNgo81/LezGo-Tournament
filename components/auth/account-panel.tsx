@@ -321,15 +321,15 @@ export function AccountPanel({ framed = true, initialAccount, initialView = "log
       <div className={containerClassName} data-testid="account-panel">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-sm font-black uppercase tracking-wide text-[var(--primary-strong)]">{t("accountSignedIn")}</p>
+            <p className="text-sm font-black uppercase tracking-wide text-[var(--accent-text)]">{t("accountSignedIn")}</p>
             <p className="mt-1 text-xl font-black">{account.displayName || account.username || t("account")}</p>
             {account.username ? <p className="font-bold text-[var(--muted)]">@{account.username}</p> : null}
             {account.email ? <p className="font-bold text-[var(--muted)]">{account.email}</p> : null}
           </div>
           {account.role === "admin" ? (
             <div className="flex flex-wrap gap-2">
-              <span className="rounded-md border border-[var(--primary)] px-3 py-1 text-xs font-black text-[var(--primary-strong)]">ADMIN</span>
-              <Link className="rounded-md border border-[var(--primary)] px-3 py-1 text-xs font-black text-[var(--primary-strong)]" href="/admin">
+              <span className="rounded-md border border-[var(--primary)] px-3 py-1 text-xs font-black text-[var(--accent-text)]">ADMIN</span>
+              <Link className="rounded-md border border-[var(--primary)] px-3 py-1 text-xs font-black text-[var(--accent-text)]" href="/admin">
                 {t("admin")}
               </Link>
             </div>
@@ -347,7 +347,7 @@ export function AccountPanel({ framed = true, initialAccount, initialView = "log
           </form>
         ) : null}
         <div className="rounded-md border border-[var(--line)] bg-white/70 p-3">
-          <p className="text-sm font-black uppercase tracking-wide text-[var(--primary-strong)]">{t("accountSecurity")}</p>
+          <p className="text-sm font-black uppercase tracking-wide text-[var(--accent-text)]">{t("accountSecurity")}</p>
           <div className="mt-2 grid gap-1 text-sm font-bold text-[var(--muted)]">
             <p>{t("accountCurrentSession")}</p>
             <p>{t("accountSessionHelp")}</p>
@@ -366,7 +366,7 @@ export function AccountPanel({ framed = true, initialAccount, initialView = "log
             {t("logout")}
           </button>
         </div>
-        {message ? <p className="font-bold text-[var(--primary-strong)]" role="status">{message}</p> : null}
+        {message ? <p className="font-bold text-[var(--accent-text)]" role="status">{message}</p> : null}
       </div>
     );
   }
@@ -396,7 +396,7 @@ export function AccountPanel({ framed = true, initialAccount, initialView = "log
           <button className="btn-primary min-h-12" type="submit" disabled={isLoading}>
             {t("accountLogin")}
           </button>
-          <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-black text-[var(--primary-strong)]">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-black text-[var(--accent-text)]">
             <button className="rounded-md px-1 py-2 text-left" type="button" onClick={() => { setView("forgot"); setMessage(""); }}>
               {t("accountForgotCode")}?
             </button>
@@ -429,7 +429,7 @@ export function AccountPanel({ framed = true, initialAccount, initialView = "log
           <button className="btn-primary min-h-12" type="submit" disabled={isLoading}>
             {t("accountCreateSubmit")}
           </button>
-          <button className="rounded-md px-1 py-2 text-left text-sm font-black text-[var(--primary-strong)]" type="button" onClick={() => { setView("login"); setMessage(""); }}>
+          <button className="rounded-md px-1 py-2 text-left text-sm font-black text-[var(--accent-text)]" type="button" onClick={() => { setView("login"); setMessage(""); }}>
             {t("accountAlreadyHaveLogin")}
           </button>
         </form>
@@ -441,7 +441,7 @@ export function AccountPanel({ framed = true, initialAccount, initialView = "log
             <p className="mt-1 font-bold text-[var(--muted)]">{t("accountVerifyEmailBody")}</p>
           </div>
           {pendingVerificationEmail ? (
-            <p className="break-words text-sm font-black text-[var(--primary-strong)]">{pendingVerificationEmail}</p>
+            <p className="break-words text-sm font-black text-[var(--accent-text)]">{pendingVerificationEmail}</p>
           ) : null}
           <div className="action-grid">
             <button className="btn-secondary min-h-12" type="button" disabled={isLoading} onClick={() => void handleResendVerification()}>
@@ -466,18 +466,18 @@ export function AccountPanel({ framed = true, initialAccount, initialView = "log
           <button className="btn-primary min-h-12" type="submit" disabled={isLoading}>
             {isLoading ? t("loadingTournament") : t("accountSendInstructions")}
           </button>
-          <button className="rounded-md px-1 py-2 text-left text-sm font-black text-[var(--primary-strong)]" type="button" onClick={() => { setView("login"); setMessage(""); }}>
+          <button className="rounded-md px-1 py-2 text-left text-sm font-black text-[var(--accent-text)]" type="button" onClick={() => { setView("login"); setMessage(""); }}>
             {t("accountLogin")}
           </button>
         </form>
       ) : null}
-      {message ? <p className="font-bold text-[var(--primary-strong)]" role="status">{message}</p> : null}
+      {message ? <p className="font-bold text-[var(--accent-text)]" role="status">{message}</p> : null}
     </div>
   );
 
   function ShowCodeButton({ showCode: isShown, onToggle }: { showCode: boolean; onToggle: () => void }) {
     return (
-      <button className="w-fit rounded-md px-1 py-2 text-sm font-black text-[var(--primary-strong)]" type="button" onClick={onToggle}>
+      <button className="w-fit rounded-md px-1 py-2 text-sm font-black text-[var(--accent-text)]" type="button" onClick={onToggle}>
         {isShown ? t("accountHideCode") : t("accountShowCode")}
       </button>
     );

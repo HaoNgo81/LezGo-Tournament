@@ -8,6 +8,8 @@
   --card: #fbf7ef;
   --primary: #d8aa20;
   --primary-strong: #a87a08;
+  /* Gold for text: 6.2:1 on --surface. --primary-strong (#a87a08, 3.7:1) stays for surfaces and hover backgrounds. */
+  --accent-text: #7a5800;
   --primary-soft: #f2e3b5;
   --primary-text: #161a18;
   --secondary: #fbf7ef;
@@ -169,6 +171,14 @@ img {
   box-shadow: var(--shadow-soft);
 }
 
+/* Cards that are links or buttons need their own focus ring: the card's box-shadow above is not in a
+   Tailwind layer, so it overrides focus:ring-* utilities and the ring never showed. */
+a.app-card:focus-visible,
+button.app-card:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--focus-ring), var(--shadow-soft);
+}
+
 .field-control {
   min-height: 3.5rem;
   width: 100%;
@@ -177,6 +187,8 @@ img {
   background: var(--control-bg);
   padding: 0.75rem;
   color: var(--control-text);
+  /* At least 16px so iOS does not zoom in when a field gets focus. */
+  font-size: 1rem;
   outline: none;
 }
 
@@ -254,7 +266,7 @@ img {
   padding: 0.75rem 1rem;
   text-align: center;
   font-weight: 900;
-  color: var(--primary-strong);
+  color: var(--accent-text);
 }
 
 .btn-danger {
@@ -407,7 +419,7 @@ img {
 .btn-primary-soft {
   border: 1px solid var(--primary-soft);
   background: var(--primary-soft);
-  color: var(--primary-strong);
+  color: var(--accent-text);
 }
 
 .action-grid {

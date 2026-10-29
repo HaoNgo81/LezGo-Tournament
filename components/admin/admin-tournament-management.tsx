@@ -122,7 +122,7 @@ export function AdminTournamentManagement({ tournaments: initialTournaments }: A
     <section className="grid gap-4" data-testid="admin-tournament-management">
       <div className="app-card grid gap-3 p-4 sm:p-5">
         <div>
-          <p className="text-sm font-black uppercase tracking-wide text-[var(--primary-strong)]">TURNERINGSSTYRING</p>
+          <p className="text-sm font-black uppercase tracking-wide text-[var(--accent-text)]">TURNERINGSSTYRING</p>
           <h2 className="mt-1 text-2xl font-black">Turneringer</h2>
           <p className="mt-2 font-bold text-[var(--muted)]">Se og administrer turneringer.</p>
         </div>
@@ -160,14 +160,14 @@ export function AdminTournamentManagement({ tournaments: initialTournaments }: A
           <span>Viser {visibleTournaments.length} af {tournaments.length} turneringer</span>
           <span>Ingen turneringer kan slettes her.</span>
         </div>
-        {message ? <p className="rounded-md border border-[var(--primary)] bg-[var(--primary-soft)]/45 px-3 py-2 text-sm font-black text-[var(--primary-strong)]" role="status">{message}</p> : null}
+        {message ? <p className="rounded-md border border-[var(--primary)] bg-[var(--primary-soft)]/45 px-3 py-2 text-sm font-black text-[var(--accent-text)]" role="status">{message}</p> : null}
       </div>
 
       {visibleTournaments.length ? (
         <>
           <div className="hidden overflow-hidden rounded-md border border-[var(--line)] bg-[var(--surface)] shadow-xl lg:block">
             <table className="w-full table-fixed text-left text-sm">
-              <thead className="bg-[var(--primary-soft)]/60 text-xs uppercase text-[var(--primary-strong)]">
+              <thead className="bg-[var(--primary-soft)]/60 text-xs uppercase text-[var(--accent-text)]">
                 <tr>
                   <TableHeader className="w-[21%]">Turnering</TableHeader>
                   <TableHeader className="w-[16%]">Format</TableHeader>
@@ -336,7 +336,7 @@ function TournamentActions(props: {
       </button>
       {props.tournament.isControlledByCurrentAdmin ? (
         <>
-          <span className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-md border border-[var(--primary)] bg-[var(--primary-soft)] px-3 py-2 text-center text-sm font-black text-[var(--primary-strong)]">
+          <span className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-md border border-[var(--primary)] bg-[var(--primary-soft)] px-3 py-2 text-center text-sm font-black text-[var(--accent-text)]">
             Du styrer
           </span>
           {props.tournament.canReturnControlToOwner ? (
@@ -357,7 +357,7 @@ function TournamentActions(props: {
 function TournamentInspection({ tournament }: { tournament: ManagedTournament }) {
   return (
     <div className="grid gap-2 rounded-md border border-[var(--line)] bg-white/70 p-3 text-sm font-bold" data-testid="admin-tournament-inspection">
-      <p className="font-black text-[var(--primary-strong)]">Inspektion</p>
+      <p className="font-black text-[var(--accent-text)]">Inspektion</p>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <InfoRow label="Runde" value={tournament.activeRoundNumber ? String(tournament.activeRoundNumber) : "-"} />
         <InfoRow label="Baner" value={tournament.courtCount ? String(tournament.courtCount) : "-"} />
@@ -412,7 +412,7 @@ function PersonBlock({ person }: { person: ManagedTournamentPerson }) {
 
 function StatusBadge({ status }: { status: ManagedTournamentStatus }) {
   return (
-    <span className="inline-flex w-fit rounded-md border border-[var(--primary)] bg-[var(--primary-soft)] px-2 py-1 text-xs font-black text-[var(--primary-strong)]">
+    <span className="inline-flex w-fit rounded-md border border-[var(--primary)] bg-[var(--primary-soft)] px-2 py-1 text-xs font-black text-[var(--accent-text)]">
       {statusLabel(status)}
     </span>
   );

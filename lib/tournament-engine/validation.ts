@@ -1,7 +1,10 @@
 ﻿import type { TournamentPlayer } from "./types";
 
+// Smallest number of players any standard format accepts (one court with two pairs).
+export const minimumTournamentPlayerCount = 4;
+
 export function assertPlayerCount(players: TournamentPlayer[]): void {
-  if (players.length < 4) {
+  if (players.length < minimumTournamentPlayerCount) {
     throw new Error("Der skal vaere mindst 4 spillere for at oprette en turnering.");
   }
 }

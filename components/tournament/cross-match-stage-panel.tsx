@@ -20,7 +20,7 @@ export function CrossMatchStagePanel({ stage }: CrossMatchStagePanelProps) {
           <p className="text-sm font-bold uppercase text-[var(--muted)]">Næste fase</p>
           <h2 className="text-2xl font-black">Krydskampe</h2>
         </div>
-        <span className="rounded-md border border-[var(--line)] bg-white px-3 py-2 text-sm font-black text-[var(--primary-strong)]">
+        <span className="rounded-md border border-[var(--line)] bg-white px-3 py-2 text-sm font-black text-[var(--accent-text)]">
           {stage.groups.length} krydsspil
         </span>
       </div>
@@ -141,7 +141,7 @@ export function CrossMatchStagePanel({ stage }: CrossMatchStagePanelProps) {
           <div className="grid gap-3 md:grid-cols-2">
             {stage.automaticAdvances.map((advance) => (
               <article key={advance.id} className="app-card p-4">
-                <p className="text-sm font-black uppercase text-[var(--primary-strong)]">
+                <p className="text-sm font-black uppercase text-[var(--accent-text)]">
                   {advance.resolution === "bye" ? "Oversidning" : "Walkover"}
                 </p>
                 <h4 className="mt-2 text-lg font-black">
@@ -192,7 +192,7 @@ function EncounterCard({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h4 className="text-lg font-black">Kamp {encounterNumber}</h4>
         {showMatchesPerTeam && encounter.matchesPerTeam ? (
-          <span className="rounded-md bg-[var(--primary-soft)] px-3 py-1 text-sm font-black text-[var(--primary-strong)]">
+          <span className="rounded-md bg-[var(--primary-soft)] px-3 py-1 text-sm font-black text-[var(--accent-text)]">
             {encounter.matchesPerTeam} delkampe
           </span>
         ) : null}
@@ -215,7 +215,7 @@ interface AmericanoMatchCardProps {
 function AmericanoMatchCard({ match, qualifiers, participantById }: AmericanoMatchCardProps) {
   return (
     <div className="rounded-md border border-[var(--line)] bg-white p-3">
-      <p className="text-sm font-black uppercase text-[var(--primary-strong)]">Bane {match.courtNumber}</p>
+      <p className="text-sm font-black uppercase text-[var(--accent-text)]">Bane {match.courtNumber}</p>
       <div className="mt-3 grid gap-3">
         <AmericanoTeamLine playerIds={match.teamA.playerIds} qualifiers={qualifiers} participantById={participantById} />
         <p className="text-sm font-black uppercase text-[var(--muted)]">mod</p>

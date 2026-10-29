@@ -10,8 +10,8 @@ interface LargeActionProps {
 
 export function LargeAction({ href, title, description, icon }: LargeActionProps) {
   return (
-    <Link className="app-card flex min-h-28 items-start gap-4 p-4 sm:items-center sm:p-5 transition hover:border-[var(--primary)] focus:outline-none focus:ring-4 focus:ring-green-100" href={href}>
-      <span className="grid h-14 w-14 shrink-0 place-items-center rounded-md bg-[var(--primary-soft)] text-2xl font-black text-[var(--primary-strong)]" aria-hidden="true">
+    <Link className="app-card flex min-h-28 items-start gap-4 p-4 sm:items-center sm:p-5 transition hover:border-[var(--primary)] focus:outline-none focus:ring-4 focus:ring-[var(--focus-ring)]" href={href}>
+      <span className="grid h-14 w-14 shrink-0 place-items-center rounded-md bg-[var(--primary-soft)] text-2xl font-black text-[var(--accent-text)]" aria-hidden="true">
         {icon}
       </span>
       <span className="min-w-0 flex-1">

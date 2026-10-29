@@ -86,6 +86,7 @@ export interface ThemeCssVariables {
   "--border": string;
   "--primary": string;
   "--primary-strong": string;
+  "--accent-text": string;
   "--primary-soft": string;
   "--primary-text": string;
   "--secondary": string;
@@ -159,6 +160,7 @@ export function createThemeCssVariables(theme: AppTheme): ThemeCssVariables {
       "--border": "rgba(153, 119, 39, 0.20)",
       "--primary": "#d8aa20",
       "--primary-strong": "#a87a08",
+      "--accent-text": "#7a5800",
       "--primary-soft": "#f2e3b5",
       "--primary-text": "#161a18",
       "--secondary": "#fbf7ef",
@@ -202,6 +204,7 @@ export function createThemeCssVariables(theme: AppTheme): ThemeCssVariables {
     "--border": line,
     "--primary": theme.primary,
     "--primary-strong": theme.accent,
+    "--accent-text": getReadableAccentText(theme.accent, theme.surface, theme.foreground),
     "--primary-soft": primarySoft,
     "--primary-text": primaryText,
     "--secondary": theme.secondary,
@@ -220,6 +223,18 @@ export function createThemeCssVariables(theme: AppTheme): ThemeCssVariables {
     "--focus-ring": focusRing,
     "--danger-bg": dangerBg,
   };
+}
+
+// Accent colour darkened toward the foreground until it reaches 4.5:1 on the surface (WCAG AA text).
+function getReadableAccentText(accent: string, surface: string, foreground: string): string {
+  for (let step = 0; step <= 10; step += 1) {
+    const candidate = step === 0 ? accent : mixHex(accent, foreground, step / 10);
+    if (getContrastRatio(candidate, surface) >= 4.5) {
+      return candidate;
+    }
+  }
+
+  return foreground;
 }
 
 export function getContrastRatio(colorA: string, colorB: string): number {

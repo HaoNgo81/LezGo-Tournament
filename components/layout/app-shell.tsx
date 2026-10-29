@@ -35,7 +35,7 @@ export function AppShell({ title, subtitle, children, backHref = "/", compactMob
           </div>
         ) : null}
         {backHref ? (
-          <Link className={`inline-flex w-fit items-center rounded-md px-1 font-black text-[var(--primary-strong)] ${compactMobile ? "min-h-9 text-sm sm:min-h-11 sm:text-base" : "min-h-11 text-base"}`} href={backHref}>
+          <Link className={`inline-flex w-fit items-center rounded-md px-1 font-black text-[var(--accent-text)] ${compactMobile ? "min-h-9 text-sm sm:min-h-11 sm:text-base" : "min-h-11 text-base"}`} href={backHref}>
             {t("back")}
           </Link>
         ) : null}

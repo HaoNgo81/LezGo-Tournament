@@ -1,4 +1,4 @@
-export { createPoolTournamentFromSetup, createTournamentFromSetup, parsePlayers } from "./setup";
+export { createPoolTournamentFromSetup, createTournamentFromSetup, getUnmetStartPlayerRequirement, parsePlayers, type StartPlayerRequirement } from "./setup";
 export { createTeamVsTeamKnockoutGroup, createTeamVsTeamPoolMatches, createTeamVsTeamTournamentFromSetup } from "./team-vs-team-setup";
 export { validateScoreForScoringMode, validateScoringSettings } from "./scoring";
 export { createInitialPoolStage, maxPoolCount, poolParticipantLimits, validatePoolPlayConfig } from "./pool-play";

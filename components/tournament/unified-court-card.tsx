@@ -158,7 +158,7 @@ export function UnifiedCourtCard({
       {...articleProps}
     >
       <div className="flex min-w-0 items-start justify-between gap-2">
-        <h3 className={`${styles.court} min-w-0 font-black uppercase leading-none text-[var(--primary-strong)]`}>{court}</h3>
+        <h3 className={`${styles.court} min-w-0 font-black uppercase leading-none text-[var(--accent-text)]`}>{court}</h3>
         <span className={`shrink-0 rounded-md font-black uppercase leading-none ${styles.status} ${statusClassName ?? getStatusClass(status)}`}>{status}</span>
       </div>
 
@@ -237,7 +237,7 @@ function getToneClass(tone: UnifiedCourtCardTone): string {
 
 function getStatusClass(status: string): string {
   if (status === "Afsluttet") {
-    return "bg-green-100 text-[var(--primary-strong)]";
+    return "bg-green-100 text-[var(--accent-text)]";
   }
 
   if (status === "I gang") {

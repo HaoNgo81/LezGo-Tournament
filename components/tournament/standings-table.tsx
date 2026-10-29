@@ -19,7 +19,7 @@ export function StandingsTable({ standings, variant = "standard" }: StandingsTab
 
     return (
       <div className="app-card overflow-hidden p-0" data-density="compact-live" data-testid="live-compact-standings">
-        <div className={`grid bg-[var(--primary-soft)] font-black uppercase text-[var(--primary-strong)] ${headerGridClass}`} data-column-layout="player-priority">
+        <div className={`grid bg-[var(--primary-soft)] font-black uppercase text-[var(--accent-text)] ${headerGridClass}`} data-column-layout="player-priority">
           <span>#</span>
           <span data-testid="live-standings-player-header" style={{ overflowWrap: "normal", wordBreak: "normal" }}>Spiller</span>
           <span className="hidden text-right min-[360px]:block">V</span>
@@ -37,7 +37,7 @@ export function StandingsTable({ standings, variant = "standard" }: StandingsTab
             data-column-layout="player-priority"
             data-testid="live-compact-standings-row"
           >
-            <span className="text-sm font-black text-[var(--primary-strong)] sm:text-base xl:text-lg">{row.rank}</span>
+            <span className="text-sm font-black text-[var(--accent-text)] sm:text-base xl:text-lg">{row.rank}</span>
             <h3 className="min-w-0 text-sm font-black leading-tight sm:text-base xl:text-lg" data-testid="live-standings-player-name" style={{ overflowWrap: "normal", wordBreak: "normal" }}>{row.name}</h3>
             <p className="hidden text-right text-sm font-black text-[var(--muted)] min-[360px]:block sm:text-base xl:text-lg">{row.wins}</p>
             <p className="hidden text-right text-sm font-black text-[var(--muted)] min-[360px]:block sm:text-base xl:text-lg">{row.draws}</p>

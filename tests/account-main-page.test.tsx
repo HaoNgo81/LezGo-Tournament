@@ -86,7 +86,7 @@ describe("STEP 25I-C1-B main page account UI", () => {
     expect(createButton).toHaveTextContent("Opret bruger");
     expect(loginButton).toHaveClass("min-h-9");
     expect(createButton).toHaveClass("min-h-9");
-    expect(createButton).toHaveClass("text-[var(--primary-strong)]");
+    expect(createButton).toHaveClass("text-[var(--accent-text)]");
     expect(createButton).not.toHaveClass("bg-[var(--primary)]");
     expect(screen.getByRole("link", { name: /Ny turnering/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /^Turneringer/i })).toBeInTheDocument();
