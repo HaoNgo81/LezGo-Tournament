@@ -190,7 +190,8 @@ Workflow file:
 Production runs on Vercel (project `lezgotournament`). Every merge to `main` deploys automatically to:
 
 - https://lezgotournament.vercel.app (`lez-go-tournament.vercel.app` redirects here)
-- https://app.lezgopadel.dk — added in Vercel, but as of 2026-10-29 the DNS at one.com has no record for `app`, so the address does not work until a CNAME `app` → `cname.vercel-dns.com` is added.
+
+The custom domain `app.lezgopadel.dk` is not used (owner decision 2026-10-29). Old result links on that host are still rewritten to the Vercel domain.
 
 Supabase pauses free-plan projects after about 7 days without activity. The scheduled GitHub Actions workflow `keep-database-awake.yml` calls a read-only production endpoint every second day so the database stays active. If login or cloud saving ever stops working, check the Supabase project status first.
 
