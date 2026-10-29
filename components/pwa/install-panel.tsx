@@ -7,12 +7,13 @@ import {
   installQueryParameter,
   installReadyEvent,
   isAppleTouchDevice,
+  isInAppBrowser,
   isInstallRequested,
   isRunningAsInstalledApp,
 } from "@/lib/pwa/install-prompt";
 import { useAppTranslation } from "@/lib/preferences/client";
 
-type InstallState = "hidden" | "waiting" | "ready" | "ios" | "fallback" | "installed";
+type InstallState = "hidden" | "waiting" | "ready" | "ios" | "inAppAndroid" | "inAppIos" | "fallback" | "installed";
 
 // How long to wait for the browser's beforeinstallprompt before showing the manual steps.
 export const installPromptWaitMs = 4000;
@@ -41,6 +42,10 @@ export function InstallPanel() {
         showInstalled();
       } else if (window.__lezgoInstallPrompt) {
         showReady();
+      } else if (isInAppBrowser(navigator.userAgent)) {
+        // Apps such as Messenger open links in their own browser, which cannot install. A prompt that still
+        // arrives replaces this message with the install button (showReady).
+        setState(isAppleTouchDevice(navigator.userAgent, navigator.platform, navigator.maxTouchPoints) ? "inAppIos" : "inAppAndroid");
       } else if (isAppleTouchDevice(navigator.userAgent, navigator.platform, navigator.maxTouchPoints)) {
         // Safari on iPhone/iPad has no install dialog; only Share > Add to Home Screen.
         setState("ios");
@@ -95,6 +100,8 @@ export function InstallPanel() {
     waiting: t("installWaiting"),
     ready: t("installBody"),
     ios: t("installIosSteps"),
+    inAppAndroid: t("installInAppAndroid"),
+    inAppIos: t("installInAppIos"),
     fallback: t("installFallback"),
     installed: t("installAlready"),
   }[state];
