@@ -1,6 +1,7 @@
 ﻿import { calculateLiveStandings, getPlayerName, type LiveTournamentState } from "../live-scoring";
 import { formatPointDifference, type MatchResult, type StandingRow, type TournamentFormat, type TournamentMatch, type TournamentRound } from "../tournament-engine";
 import { createPoolPlaySummary, type PoolPlaySummaryMatch } from "../live-scoring";
+import { helveticaBoldWidths, helveticaWidths } from "./helvetica-metrics";
 import { officialPdfLogo } from "./official-logo-data";
 
 const rankingModeLabels = {
@@ -305,7 +306,6 @@ const colors = {
 } as const;
 
 const minimumReadableFontSize = 5.2;
-const maxRoundsPerPage = 12;
 
 function createDesignedPdf(state: LiveTournamentState): Uint8Array {
   const layout = createResultLayout(state);
@@ -342,83 +342,94 @@ function createResultLayout(state: LiveTournamentState): PdfLayout {
     return createPoolPlayOnePageLayout(state as LiveTournamentState & { poolPlay: NonNullable<LiveTournamentState["poolPlay"]> });
   }
 
+  return createScoreboardLayout(state);
+}
+
+// "Resultattavle" design (owner choice 2026-10-28): dark sidebar with logo, title, winner and facts;
+// main column with the final standings and one compact line per match, grouped by round.
+const scoreboard = {
+  sidebarWidth: 170,
+  sidebarPadding: 18,
+  mainX: 194,
+  mainRight: 571,
+  top: 816,
+  bottom: 44,
+  roundGap: 6,
+  roundHeaderHeight: 15,
+  matchRowHeight: 13,
+  matchFontSize: 7.6,
+  scoreFontSize: 9,
+  courtColumnWidth: 22,
+  scoreColumnWidth: 54,
+} as const;
+
+const scoreboardColors = {
+  divider: [0.29, 0.22, 0.157] as PdfColor,
+  negative: [0.6, 0.23, 0.15] as PdfColor,
+  positive: [0.18, 0.42, 0.18] as PdfColor,
+} as const;
+
+function createScoreboardLayout(state: LiveTournamentState): PdfLayout {
   const standings = calculateLiveStandings(state);
   const completedRounds = getCompletedResultRounds(state);
   const courtColumns = Math.max(1, ...completedRounds.flatMap((round) => round.matches.map((match) => match.courtNumber)));
   const resultByMatchId = new Map(state.results.map((result) => [result.matchId, result]));
-  const pages: PdfCommand[][] = [];
-  const contentX = page.margin;
-  const contentWidth = page.width - page.margin * 2;
   const density = getDensity(standings.length, completedRounds.length, courtColumns);
-  const roundPages = chunkRounds(completedRounds, courtColumns);
-  const summaryX = density === "relaxed" ? 398 : 414;
-  const standingsWidth = summaryX - contentX - 14;
-  const standingsHeight = getStandingsHeight(standings.length, density);
-  const topY = 704 - standingsHeight;
-  const standingsFontSize = getStandingsFontSize(standings.length, density);
-  let resultFontSize = 0;
-  let resultCardColumns = 1;
-  let resultCardRows = 1;
-  let fitsAllPages = true;
+  const mainWidth = scoreboard.mainRight - scoreboard.mainX;
+  const standingsRowHeight = getScoreboardStandingsRowHeight(standings.length);
+  const standingsFontSize = getScoreboardStandingsFontSize(standingsRowHeight);
+  const standingsTop = scoreboard.top - 18;
+  const standingsBottom = standingsTop - 16 - standings.length * standingsRowHeight;
+  const firstResultsTop = standingsBottom - 22;
+  const roundPages = paginateScoreboardRounds(completedRounds, firstResultsTop - 16, scoreboard.top - 16);
+  const pageCount = roundPages.length;
+  const pages: PdfCommand[][] = [];
   const matchRows: PdfMatchRowDiagnostics[] = [];
   const resultPages: PdfResultPageDiagnostics[] = [];
 
   roundPages.forEach((roundPage, pageIndex) => {
     const commands: PdfCommand[] = [];
-    const isFirstPage = pageIndex === 0;
     const pageNumber = pageIndex + 1;
-    const pageCount = roundPages.length;
-    const resultsTop = isFirstPage ? topY - 34 : 700;
-    const resultsBottom = 50;
-    const resultsHeight = resultsTop - resultsBottom;
-    const grid = calculateResultGrid(roundPage.length, courtColumns, contentWidth, resultsHeight, density);
-    const blockHeight = grid.rows * grid.cardHeight + Math.max(0, grid.rows - 1) * grid.rowGap;
-    const blockBottom = isFirstPage ? resultsBottom : resultsTop - blockHeight;
-    const roundCards: PdfResultPageDiagnostics["roundCards"] = [];
+    const isFirstPage = pageIndex === 0;
+    let cursorY = isFirstPage ? firstResultsTop : scoreboard.top;
 
-    resultFontSize = Math.max(resultFontSize, grid.fontSize);
-    resultCardColumns = Math.max(resultCardColumns, grid.columns);
-    resultCardRows = Math.max(resultCardRows, grid.rows);
-    fitsAllPages = fitsAllPages && grid.fontSize >= minimumReadableFontSize;
-
-    drawPageBase(commands, isFirstPage ? "main" : "continuation");
+    rect(commands, 0, 0, page.width, page.height, colors.background);
     if (isFirstPage) {
-      drawHeader(commands, state);
-      drawSectionHeader(commands, contentX, topY + standingsHeight + 24, standingsWidth, "SLUTSTILLING");
-      drawStandingsTable(commands, contentX, topY, standingsWidth, standingsHeight, standings, standingsFontSize, density);
-      drawSummaryPanel(commands, summaryX, topY, contentX + contentWidth - summaryX, standingsHeight, state, density);
+      drawScoreboardSidebar(commands, state, standings, completedRounds.length);
+      drawScoreboardSectionHeader(commands, scoreboard.top, state.finishedAt ? "SLUTSTILLING" : "STILLING");
+      drawScoreboardStandings(commands, standingsTop, standings, standingsRowHeight, standingsFontSize);
     } else {
-      drawContinuationHeader(commands, state, roundPage);
+      drawScoreboardContinuationSidebar(commands, state, roundPage);
     }
-    drawSectionHeader(commands, contentX, resultsTop + 21, contentWidth, "KAMPRESULTATER");
 
-    roundPage.forEach((round, index) => {
-      const column = index % grid.columns;
-      const row = Math.floor(index / grid.columns);
-      const remainingRounds = roundPage.length - row * grid.columns;
-      const rowColumns = Math.min(grid.columns, remainingRounds);
-      const rowWidth = rowColumns * grid.cardWidth + Math.max(0, rowColumns - 1) * grid.gap;
-      const rowX = contentX + (contentWidth - rowWidth) / 2;
-      const x = rowX + column * (grid.cardWidth + grid.gap);
-      const y = blockBottom + blockHeight - (row + 1) * grid.cardHeight - row * grid.rowGap;
+    const roundCards: PdfResultPageDiagnostics["roundCards"] = [];
+    if (roundPage.length > 0) {
+      drawScoreboardSectionHeader(commands, cursorY, isFirstPage ? "KAMPRESULTATER" : "KAMPRESULTATER (FORTSAT)");
+      cursorY -= 16;
+    }
+    const gridTop = cursorY;
 
-      roundCards.push({ bounds: { height: grid.cardHeight, width: grid.cardWidth, x, y }, roundNumber: round.roundNumber });
-      matchRows.push(...drawRoundCard(commands, x, y, grid.cardWidth, grid.cardHeight, round, resultByMatchId, state, grid.fontSize, density, pageNumber));
+    roundPage.forEach((round) => {
+      const blockHeight = getScoreboardRoundHeight(round);
+      const blockBottom = cursorY - blockHeight;
+      roundCards.push({ bounds: { height: blockHeight, width: mainWidth, x: scoreboard.mainX, y: blockBottom }, roundNumber: round.roundNumber });
+      matchRows.push(...drawScoreboardRound(commands, scoreboard.mainX, cursorY, mainWidth, round, resultByMatchId, state, pageNumber));
+      cursorY = blockBottom - scoreboard.roundGap;
     });
+
     resultPages.push({
-      cardHeight: grid.cardHeight,
-      cardWidth: grid.cardWidth,
-      columns: grid.columns,
-      gridBottom: blockBottom,
-      gridTop: blockBottom + blockHeight,
+      cardHeight: Math.max(0, ...roundCards.map((card) => card.bounds.height)),
+      cardWidth: mainWidth,
+      columns: 1,
+      gridBottom: roundCards.length ? Math.min(...roundCards.map((card) => card.bounds.y)) : gridTop,
+      gridTop,
       page: pageNumber,
       roundCards,
       roundNumbers: roundPage.map((round) => round.roundNumber),
-      rowGap: grid.rowGap,
-      rows: grid.rows,
+      rowGap: scoreboard.roundGap,
+      rows: roundPage.length,
     });
-
-    drawPageNumber(commands, pageNumber, pageCount);
+    drawScoreboardFooter(commands, pageNumber, pageCount);
     pages.push(commands);
   });
 
@@ -431,7 +442,7 @@ function createResultLayout(state: LiveTournamentState): PdfLayout {
     roundNumbers: roundPage.map((round) => round.roundNumber),
     start: roundPage[0]?.roundNumber ?? 0,
   }));
-  const roundsPerPageValid = pageRoundRanges.every((range) => range.roundNumbers.length <= maxRoundsPerPage);
+  const contentInsidePages = resultPages.every((resultPage) => resultPage.gridBottom >= scoreboard.bottom);
 
   return {
     pages,
@@ -439,7 +450,7 @@ function createResultLayout(state: LiveTournamentState): PdfLayout {
       completedRounds: completedRounds.length,
       courtColumns,
       density,
-      fitsOnePage: fitsAllPages && roundsPerPageValid && maxDrawnX <= page.width && maxDrawnY <= page.height && allCommands.length > 0,
+      fitsOnePage: contentInsidePages && standingsBottom >= scoreboard.bottom && maxDrawnX <= page.width && maxDrawnY <= page.height && allCommands.length > 0,
       logoSourcePath: officialPdfLogo.sourcePath,
       logoUsed: true,
       matchRows,
@@ -450,12 +461,265 @@ function createResultLayout(state: LiveTournamentState): PdfLayout {
       pageCount: pages.length,
       pageRoundRanges,
       resultPages,
-      resultCardColumns,
-      resultCardRows,
-      resultFontSize,
+      resultCardColumns: 1,
+      resultCardRows: Math.max(1, ...roundPages.map((roundPage) => roundPage.length)),
+      resultFontSize: scoreboard.matchFontSize,
       standingsFontSize,
     },
   };
+}
+
+function getScoreboardStandingsRowHeight(rowCount: number): number {
+  if (rowCount <= 8) return 20;
+  if (rowCount <= 12) return 17;
+  if (rowCount <= 16) return 15;
+  if (rowCount <= 24) return 12.5;
+  return 11;
+}
+
+function getScoreboardStandingsFontSize(rowHeight: number): number {
+  if (rowHeight >= 17) return 9;
+  if (rowHeight >= 15) return 8;
+  return 7.2;
+}
+
+function getScoreboardRoundHeight(round: TournamentRound): number {
+  return scoreboard.roundHeaderHeight + round.matches.length * scoreboard.matchRowHeight + 3;
+}
+
+function paginateScoreboardRounds(rounds: TournamentRound[], firstPageSpace: number, continuationSpace: number): TournamentRound[][] {
+  const pagesOfRounds: TournamentRound[][] = [[]];
+  let remaining = firstPageSpace - scoreboard.bottom;
+
+  rounds.forEach((round) => {
+    const needed = getScoreboardRoundHeight(round) + scoreboard.roundGap;
+    const currentPage = pagesOfRounds[pagesOfRounds.length - 1];
+
+    if (needed > remaining && (currentPage.length > 0 || pagesOfRounds.length === 1)) {
+      pagesOfRounds.push([]);
+      remaining = continuationSpace - scoreboard.bottom;
+    }
+
+    pagesOfRounds[pagesOfRounds.length - 1].push(round);
+    remaining -= needed;
+  });
+
+  return pagesOfRounds.filter((roundPage, index) => index === 0 || roundPage.length > 0);
+}
+
+function drawScoreboardSectionHeader(commands: PdfCommand[], y: number, label: string) {
+  const labelWidth = estimateTextWidth(label, 8, "bold") + 8;
+  text(commands, label, scoreboard.mainX, y - 8, 8, "bold", colors.goldDark);
+  rect(commands, scoreboard.mainX + labelWidth, y - 5.5, scoreboard.mainRight - scoreboard.mainX - labelWidth, 1, colors.gold);
+}
+
+function drawScoreboardSidebar(commands: PdfCommand[], state: LiveTournamentState, standings: StandingRow[], playedRounds: number) {
+  const x = scoreboard.sidebarPadding;
+  const width = scoreboard.sidebarWidth - scoreboard.sidebarPadding * 2;
+  const logoHeight = getLogoHeight(width);
+  let cursorY = scoreboard.top - logoHeight;
+
+  rect(commands, 0, 0, scoreboard.sidebarWidth, page.height, colors.brown);
+  image(commands, "officialLogo", x, cursorY, width, logoHeight);
+
+  const titleSize = state.tournamentName.length > 40 ? 14 : 18;
+  const titleLines = wrapText(state.tournamentName, titleSize, width, 4);
+  cursorY -= 14;
+  titleLines.forEach((line) => {
+    cursorY -= titleSize * 1.12;
+    text(commands, line, x, cursorY, titleSize, "bold", colors.cream, width);
+  });
+
+  const leader = standings[0];
+  if (leader) {
+    const nameLines = wrapText(leader.name, 12, width - 20, 2);
+    const boxHeight = 44 + nameLines.length * 14;
+    cursorY -= 18 + boxHeight;
+    rect(commands, x, cursorY, width, boxHeight, colors.gold);
+    text(commands, state.finishedAt ? "VINDER" : "FØRER", x + 10, cursorY + boxHeight - 16, 6.2, "bold", colors.brown, width - 20);
+    nameLines.forEach((line, index) => {
+      text(commands, line, x + 10, cursorY + boxHeight - 32 - index * 14, 12, "bold", colors.brown, width - 20);
+    });
+    text(commands, `${leader.matchPoints} MP · ${leader.pointsFor} point · ${formatPointDifference(leader.pointDifference)}`, x + 10, cursorY + 10, 7, "regular", colors.brown, width - 20);
+  }
+
+  const entries: Array<[string, string]> = [
+    ["Format", formatLabels[state.format]],
+    ["Spillere", String(state.players.length)],
+    ["Baner", String(state.courtCount)],
+    ["Runder", String(playedRounds)],
+    ["Rangering", rankingModeLabels[state.rankingMode]],
+    ["Afsluttet", state.finishedAt ? formatDateTime(state.finishedAt) : "Ikke afsluttet"],
+  ];
+  cursorY -= 22;
+  text(commands, "OVERBLIK", x, cursorY, 6.2, "bold", colors.gold, width);
+  cursorY -= 8;
+  entries.forEach(([label, value]) => {
+    rect(commands, x, cursorY, width, 0.6, scoreboardColors.divider);
+    text(commands, label.toUpperCase(), x, cursorY - 10, 6.2, "bold", colors.gold, width);
+    text(commands, value, x, cursorY - 22, 9, "bold", colors.cream, width);
+    cursorY -= 31;
+  });
+}
+
+function drawScoreboardContinuationSidebar(commands: PdfCommand[], state: LiveTournamentState, rounds: TournamentRound[]) {
+  const x = scoreboard.sidebarPadding;
+  const width = scoreboard.sidebarWidth - scoreboard.sidebarPadding * 2;
+  const logoHeight = getLogoHeight(width);
+  let cursorY = scoreboard.top - logoHeight;
+
+  rect(commands, 0, 0, scoreboard.sidebarWidth, page.height, colors.brown);
+  image(commands, "officialLogo", x, cursorY, width, logoHeight);
+  cursorY -= 14;
+  wrapText(state.tournamentName, 14, width, 3).forEach((line) => {
+    cursorY -= 16;
+    text(commands, line, x, cursorY, 14, "bold", colors.cream, width);
+  });
+  const start = rounds[0]?.roundNumber ?? 0;
+  const end = rounds[rounds.length - 1]?.roundNumber ?? 0;
+  cursorY -= 26;
+  rect(commands, x, cursorY, width, 0.6, scoreboardColors.divider);
+  text(commands, "RUNDER", x, cursorY - 10, 6.2, "bold", colors.gold, width);
+  text(commands, start === end ? String(start) : `${start}-${end}`, x, cursorY - 22, 9, "bold", colors.cream, width);
+}
+
+function drawScoreboardStandings(commands: PdfCommand[], top: number, standings: StandingRow[], rowHeight: number, fontSize: number) {
+  const x = scoreboard.mainX;
+  const right = scoreboard.mainRight;
+  const numberColumns: Array<{ label: string; right: number; value: (row: StandingRow) => string; bold?: boolean; signed?: boolean }> = [
+    { label: "+/-", right: right - 4, value: (row) => formatPointDifference(row.pointDifference), bold: true, signed: true },
+    { label: "POINT", right: right - 44, value: (row) => String(row.pointsFor) },
+    { label: "MP", right: right - 86, value: (row) => String(row.matchPoints), bold: true },
+    { label: "T", right: right - 116, value: (row) => String(row.losses) },
+    { label: "U", right: right - 140, value: (row) => String(row.draws) },
+    { label: "V", right: right - 164, value: (row) => String(row.wins) },
+  ];
+  const nameWidth = right - 188 - (x + 22);
+  const headerBaseline = top - 9;
+
+  text(commands, "#", x + 4, headerBaseline, 6.5, "bold", colors.muted);
+  text(commands, "NAVN", x + 22, headerBaseline, 6.5, "bold", colors.muted);
+  numberColumns.forEach((column) => rightAlignedText(commands, column.label, column.right, headerBaseline, 6.5, "bold", colors.muted));
+  rect(commands, x, top - 15, right - x, 1, colors.brown);
+
+  standings.forEach((row, index) => {
+    const rowTop = top - 16 - index * rowHeight;
+    const baseline = rowTop - rowHeight / 2 - fontSize * 0.35;
+
+    text(commands, String(row.rank), x + 4, baseline, fontSize, "bold", colors.brown);
+    text(commands, row.name, x + 22, baseline, fontSize, "bold", colors.brown, nameWidth);
+    numberColumns.forEach((column) => {
+      const value = column.value(row);
+      const color = column.signed ? (row.pointDifference > 0 ? scoreboardColors.positive : row.pointDifference < 0 ? scoreboardColors.negative : colors.brown) : colors.brown;
+      rightAlignedText(commands, value, column.right, baseline, fontSize, column.bold ? "bold" : "regular", color);
+    });
+    rect(commands, x, rowTop - rowHeight, right - x, 0.5, colors.sand);
+  });
+}
+
+function drawScoreboardRound(
+  commands: PdfCommand[],
+  x: number,
+  top: number,
+  width: number,
+  round: TournamentRound,
+  resultByMatchId: Map<string, MatchResult>,
+  state: LiveTournamentState,
+  pageNumber: number,
+): PdfMatchRowDiagnostics[] {
+  const height = getScoreboardRoundHeight(round);
+  const rows: PdfMatchRowDiagnostics[] = [];
+  const innerX = x + 9;
+  const innerRight = x + width - 8;
+  const byes = (round.byePlayerIds ?? []).map((playerId) => getPlayerName(state.players, playerId));
+
+  rect(commands, x, top - height, width, height, colors.cream);
+  rect(commands, x, top - height, 3, height, colors.gold);
+  text(commands, `RUNDE ${round.roundNumber}`, innerX, top - 10, 7, "bold", colors.goldDark);
+  if (byes.length > 0) {
+    const label = `Pause: ${byes.join(", ")}`;
+    rightAlignedText(commands, fitText(label, 6.5, width - 90), innerRight, top - 10, 6.5, "regular", colors.muted);
+  }
+
+  [...round.matches].sort((left, right) => left.courtNumber - right.courtNumber).forEach((match, index) => {
+    const rowTop = top - scoreboard.roundHeaderHeight - index * scoreboard.matchRowHeight;
+    const rowBottom = rowTop - scoreboard.matchRowHeight;
+    const baseline = rowBottom + 4;
+    const result = resultByMatchId.get(match.id);
+    const teamA = match.teamA.playerIds.map((playerId) => getPlayerName(state.players, playerId));
+    const teamB = match.teamB.playerIds.map((playerId) => getPlayerName(state.players, playerId));
+    const aWon = result ? result.teamAPoints > result.teamBPoints : false;
+    const bWon = result ? result.teamBPoints > result.teamAPoints : false;
+    // Row bounds are symmetric around the block centre so the score column sits exactly in the middle.
+    const court: PdfBounds = { height: scoreboard.matchRowHeight, width: width - 8, x: x + 4, y: rowBottom };
+    const scoreX = x + width / 2 - scoreboard.scoreColumnWidth / 2;
+    const score: PdfBounds = { height: scoreboard.matchRowHeight - 2, width: scoreboard.scoreColumnWidth, x: scoreX, y: rowBottom + 1 };
+    const sideAX = innerX + scoreboard.courtColumnWidth;
+    const sideA: PdfBounds = { height: scoreboard.matchRowHeight, width: score.x - 4 - sideAX, x: sideAX, y: rowBottom };
+    const sideBX = score.x + score.width + 4;
+    const sideB: PdfBounds = { height: scoreboard.matchRowHeight, width: innerRight - sideBX, x: sideBX, y: rowBottom };
+
+    text(commands, `B${match.courtNumber}`, innerX, baseline, 6.5, "bold", colors.goldDark);
+    text(commands, teamA.join(" / "), sideA.x, baseline, scoreboard.matchFontSize, aWon ? "bold" : "regular", colors.brown, sideA.width);
+    centeredText(commands, result ? `${result.teamAPoints}–${result.teamBPoints}` : "-", score, scoreboard.scoreFontSize, "bold", colors.brown);
+    const nameB = fitText(teamB.join(" / "), scoreboard.matchFontSize, sideB.width, bWon ? "bold" : "regular");
+    rightAlignedText(commands, nameB, innerRight, baseline, scoreboard.matchFontSize, bWon ? "bold" : "regular", colors.brown);
+    if (index < round.matches.length - 1) {
+      rect(commands, innerX, rowBottom, innerRight - innerX, 0.4, colors.sand);
+    }
+
+    rows.push({
+      bottomLeftPlayer: teamA[1] ?? "",
+      bottomRightPlayer: teamB[1] ?? "",
+      court,
+      courtNumber: match.courtNumber,
+      page: pageNumber,
+      roundNumber: round.roundNumber,
+      score,
+      sideA,
+      sideB,
+      topLeftPlayer: teamA[0] ?? "",
+      topRightPlayer: teamB[0] ?? "",
+    });
+  });
+
+  return rows;
+}
+
+function drawScoreboardFooter(commands: PdfCommand[], pageNumber: number, pageCount: number) {
+  text(commands, "LEZGO PADEL · app.lezgopadel.dk", scoreboard.mainX, 22, 6.5, "regular", colors.muted);
+  rightAlignedText(commands, `Side ${pageNumber} / ${pageCount}`, scoreboard.mainRight, 22, 6.5, "regular", colors.muted);
+}
+
+function rightAlignedText(commands: PdfCommand[], value: string, right: number, y: number, size: number, font: "regular" | "bold", color: PdfColor) {
+  text(commands, value, right - estimateTextWidth(value, size, font), y, size, font, color);
+}
+
+function wrapText(value: string, size: number, maxWidth: number, maxLines: number): string[] {
+  const words = value.trim().split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let current = "";
+
+  words.forEach((word) => {
+    const candidate = current ? `${current} ${word}` : word;
+    if (estimateTextWidth(candidate, size, "bold") <= maxWidth || !current) {
+      current = candidate;
+      return;
+    }
+    lines.push(current);
+    current = word;
+  });
+  if (current) {
+    lines.push(current);
+  }
+
+  if (lines.length <= maxLines) {
+    return lines;
+  }
+
+  const kept = lines.slice(0, maxLines);
+  kept[maxLines - 1] = fitText(`${kept[maxLines - 1]} ${lines.slice(maxLines).join(" ")}`, size, maxWidth, "bold");
+  return kept;
 }
 
 function createPoolPlayOnePageLayout(state: LiveTournamentState & { poolPlay: NonNullable<LiveTournamentState["poolPlay"]> }): PdfLayout {
@@ -547,36 +811,6 @@ function getDensity(playerCount: number, roundCount: number, courtCount: number)
   return "dense";
 }
 
-function chunkRounds(rounds: TournamentRound[], courtCount = 1): TournamentRound[][] {
-  if (rounds.length === 20 && courtCount >= 4) {
-    return [rounds.slice(0, 8), ...chunkRoundTail(rounds.slice(8))];
-  }
-
-  return chunkRoundTail(rounds);
-}
-
-function chunkRoundTail(rounds: TournamentRound[]): TournamentRound[][] {
-  const chunks: TournamentRound[][] = [];
-
-  for (let index = 0; index < rounds.length; index += maxRoundsPerPage) {
-    chunks.push(rounds.slice(index, index + maxRoundsPerPage));
-  }
-
-  return chunks.length ? chunks : [[]];
-}
-
-function getStandingsHeight(playerCount: number, density: TournamentResultPdfLayoutDiagnostics["density"]): number {
-  const rowHeight = density === "relaxed" ? 23 : density === "standard" ? 18 : 15.5;
-
-  return clamp(30 + playerCount * rowHeight, 112, density === "relaxed" ? 210 : 278);
-}
-
-function getStandingsFontSize(playerCount: number, density: TournamentResultPdfLayoutDiagnostics["density"]): number {
-  const base = density === "relaxed" ? 9.4 : density === "standard" ? 8.6 : 8.2;
-
-  return clamp(base - Math.max(0, playerCount - 8) * 0.16, minimumReadableFontSize, base);
-}
-
 function drawPageBase(commands: PdfCommand[], variant: "main" | "continuation" = "main") {
   rect(commands, 0, 0, page.width, page.height, colors.background);
   rect(commands, page.margin, page.margin, page.width - page.margin * 2, page.height - page.margin * 2, colors.cream);
@@ -591,20 +825,6 @@ function drawHeader(commands: PdfCommand[], state: LiveTournamentState) {
   rect(commands, 420, 761, 130, 36, colors.goldSoft);
   text(commands, "AFSLUTTET", 432, 784, 6.4, "bold", colors.goldDark, 108);
   text(commands, state.finishedAt ? formatDateTime(state.finishedAt) : "Ikke afsluttet", 432, 769, 10, "bold", colors.brown, 108);
-}
-
-function drawContinuationHeader(commands: PdfCommand[], state: LiveTournamentState, rounds: TournamentRound[]) {
-  image(commands, "officialLogo", 44, 784, 126, getLogoHeight(126));
-  text(commands, fitTitle(state.tournamentName), 44, 766, 15, "bold", colors.white, 330);
-  const start = rounds[0]?.roundNumber ?? 0;
-  const end = rounds[rounds.length - 1]?.roundNumber ?? 0;
-  rect(commands, 405, 767, 145, 30, colors.goldSoft);
-  text(commands, "RUNDER", 418, 786, 6.2, "bold", colors.goldDark, 112);
-  text(commands, `${start}-${end}`, 418, 773, 12, "bold", colors.brown, 112);
-}
-
-function drawPageNumber(commands: PdfCommand[], pageNumber: number, pageCount: number) {
-  text(commands, `${pageNumber} / ${pageCount}`, 520, 32, 7.5, "bold", colors.muted, 38);
 }
 
 function getLogoHeight(width: number): number {
@@ -690,113 +910,6 @@ function drawStandingsTable(commands: PdfCommand[], x: number, y: number, width:
   });
 }
 
-function calculateResultGrid(roundCount: number, courtCount: number, width: number, height: number, density: TournamentResultPdfLayoutDiagnostics["density"]) {
-  const safeRoundCount = Math.max(1, roundCount);
-  const gap = density === "relaxed" ? 10 : 7;
-  const maxColumns = Math.min(3, safeRoundCount);
-  const preferredColumns = courtCount >= 3 ? 3 : Math.ceil(Math.sqrt(safeRoundCount * 1.05));
-  const columns = clamp(preferredColumns, 1, Math.min(maxColumns, safeRoundCount));
-  const rows = Math.ceil(safeRoundCount / columns);
-  const cardWidth = (width - gap * (columns - 1)) / columns;
-  const lineCount = courtCount + 1;
-  const stretchedCardHeight = (height - gap * (rows - 1)) / rows;
-  const cardHeight = stretchedCardHeight;
-  const rowGap = gap;
-  const fontSize = Math.min(density === "relaxed" ? 9.3 : 7.8, Math.max(minimumReadableFontSize, (cardHeight - 24) / Math.max(1, lineCount) * 0.58));
-
-  return { cardHeight, cardWidth, columns, fontSize, gap, rowGap, rows };
-}
-
-function drawRoundCard(
-  commands: PdfCommand[],
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  round: TournamentRound,
-  resultByMatchId: Map<string, MatchResult>,
-  state: LiveTournamentState,
-  fontSize: number,
-  density: TournamentResultPdfLayoutDiagnostics["density"],
-  pageNumber: number,
-): PdfMatchRowDiagnostics[] {
-  const matchRows: PdfMatchRowDiagnostics[] = [];
-
-  rect(commands, x, y, width, height, colors.white);
-  rect(commands, x, y + height - 18, width, 18, colors.goldSoft);
-  rect(commands, x, y, 3, height, colors.gold);
-  text(commands, `RUNDE ${round.roundNumber}`, x + 7, y + height - 12, Math.max(7, fontSize + 1.2), "bold", colors.brown, width - 14);
-
-  const courtGap = 3;
-  const courtCardHeight = (height - 24 - courtGap * Math.max(0, round.matches.length - 1)) / Math.max(1, round.matches.length);
-  const scoreWidth = Math.min(58, Math.max(52, width * 0.32));
-  const sideGap = 3;
-  const sidePadding = 10;
-  const sideWidth = (width - sidePadding * 2 - scoreWidth - sideGap * 2) / 2;
-  const sideXLeft = x + sidePadding;
-  const scoreX = x + (width - scoreWidth) / 2;
-  const sideXRight = scoreX + scoreWidth + sideGap;
-  const isConstrainedCourt = courtCardHeight < 24;
-  const scoreHeight = isConstrainedCourt
-    ? clamp(courtCardHeight * 0.52, 9, 12)
-    : Math.min(clamp(Math.max(courtCardHeight * 0.28, width * 0.11), 15, 24), Math.max(12, courtCardHeight - 2));
-  const scoreFontSize = isConstrainedCourt
-    ? clamp(width * 0.052, 8.8, 10.2)
-    : clamp(Math.max(courtCardHeight * 0.26, width * 0.068), fontSize + 1.5, 13.2);
-  const nameFontSize = density === "relaxed"
-    ? Math.max(7.6, fontSize)
-    : isConstrainedCourt
-      ? clamp(width * 0.038, 6.2, 6.8)
-      : clamp(Math.max(courtCardHeight * 0.16, width * 0.046), 7.2, 8.8);
-  const courtFontSize = density === "relaxed"
-    ? 6.8
-    : isConstrainedCourt
-      ? clamp(width * 0.027, 4.6, 5.2)
-      : clamp(Math.max(courtCardHeight * 0.12, width * 0.036), 6.1, 7);
-  round.matches.forEach((match, index) => {
-    const result = resultByMatchId.get(match.id);
-    const topLeft = formatCourtPlayerName(getPlayerName(state.players, match.teamA.playerIds[0]), density);
-    const bottomLeft = formatCourtPlayerName(getPlayerName(state.players, match.teamA.playerIds[1]), density);
-    const topRight = formatCourtPlayerName(getPlayerName(state.players, match.teamB.playerIds[0]), density);
-    const bottomRight = formatCourtPlayerName(getPlayerName(state.players, match.teamB.playerIds[1]), density);
-    const score = result ? `${result.teamAPoints}–${result.teamBPoints}` : "-";
-    const courtY = y + height - 21 - (index + 1) * courtCardHeight - index * courtGap;
-    const courtBounds = { height: courtCardHeight, width: width - 16, x: x + 8, y: courtY };
-    const scoreBounds = { height: scoreHeight, width: scoreWidth, x: scoreX, y: courtY + (courtCardHeight - scoreHeight) / 2 };
-    const sideABounds = { height: courtCardHeight, width: sideWidth, x: sideXLeft, y: courtY };
-    const sideBBounds = { height: courtCardHeight, width: sideWidth, x: sideXRight, y: courtY };
-    const topNameY = isConstrainedCourt ? courtY + courtCardHeight - 10 : courtY + courtCardHeight - 13;
-    const bottomNameY = isConstrainedCourt ? courtY + 3 : courtY + 7;
-    const courtLabelBounds = isConstrainedCourt
-      ? { height: 5, width: courtBounds.width, x: courtBounds.x, y: courtY + courtCardHeight - 5 }
-      : { height: 8, width: courtBounds.width, x: courtBounds.x, y: courtY + courtCardHeight - 8 };
-
-    rect(commands, courtBounds.x, courtBounds.y, courtBounds.width, courtBounds.height, [0.995, 0.99, 0.97]);
-    rect(commands, scoreBounds.x, scoreBounds.y, scoreBounds.width, scoreBounds.height, [1, 1, 1]);
-    centeredText(commands, `BANE ${match.courtNumber}`, courtLabelBounds, courtFontSize, "bold", colors.muted);
-    text(commands, topLeft, sideXLeft, topNameY, nameFontSize, "regular", colors.brown, sideWidth);
-    text(commands, topRight, sideXRight, topNameY, nameFontSize, "regular", colors.brown, sideWidth);
-    centeredText(commands, score, scoreBounds, scoreFontSize, "bold", colors.brown);
-    text(commands, bottomLeft, sideXLeft, bottomNameY, nameFontSize, "regular", colors.brown, sideWidth);
-    text(commands, bottomRight, sideXRight, bottomNameY, nameFontSize, "regular", colors.brown, sideWidth);
-    matchRows.push({
-      bottomLeftPlayer: getPlayerName(state.players, match.teamA.playerIds[1]),
-      bottomRightPlayer: getPlayerName(state.players, match.teamB.playerIds[1]),
-      court: courtBounds,
-      courtNumber: match.courtNumber,
-      page: pageNumber,
-      roundNumber: round.roundNumber,
-      score: scoreBounds,
-      sideA: sideABounds,
-      sideB: sideBBounds,
-      topLeftPlayer: getPlayerName(state.players, match.teamA.playerIds[0]),
-      topRightPlayer: getPlayerName(state.players, match.teamB.playerIds[0]),
-    });
-  });
-
-  return matchRows;
-}
-
 function getCompletedResultRounds(state: LiveTournamentState): TournamentRound[] {
   const resultByMatchId = new Set(state.results.map((result) => result.matchId));
 
@@ -806,29 +919,6 @@ function getCompletedResultRounds(state: LiveTournamentState): TournamentRound[]
       matches: round.matches.filter((match) => resultByMatchId.has(match.id)),
     }))
     .filter((round) => round.matches.length > 0);
-}
-
-function formatCourtPlayerName(name: string, density: TournamentResultPdfLayoutDiagnostics["density"]): string {
-  if (density === "relaxed") {
-    return name;
-  }
-
-  return shortenName(name);
-}
-
-function shortenName(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  const numberedName = /^(.+?)\s+(\d+)$/.exec(name.trim());
-
-  if (numberedName?.[1] && numberedName[2]) {
-    return `${numberedName[1].slice(0, 2)}. ${numberedName[2]}`;
-  }
-
-  if (parts.length === 1) {
-    return parts[0] ?? "";
-  }
-
-  return `${parts[0]} ${parts.slice(1).map((part) => part[0]).join("")}.`;
 }
 
 function rect(commands: PdfCommand[], x: number, y: number, width: number, height: number, color: PdfColor) {
@@ -845,7 +935,7 @@ function text(commands: PdfCommand[], value: string, x: number, y: number, size:
     font,
     maxWidth,
     size,
-    text: maxWidth ? fitText(value, size, maxWidth) : value,
+    text: maxWidth ? fitText(value, size, maxWidth, font) : value,
     type: "text",
     x,
     y,
@@ -853,29 +943,36 @@ function text(commands: PdfCommand[], value: string, x: number, y: number, size:
 }
 
 function centeredText(commands: PdfCommand[], value: string, bounds: PdfBounds, size: number, font: "regular" | "bold", color: PdfColor) {
-  const fittedText = fitText(value, size, bounds.width - 4);
-  const textWidth = estimateTextWidth(fittedText, size);
+  const fittedText = fitText(value, size, bounds.width - 4, font);
+  const textWidth = estimateTextWidth(fittedText, size, font);
   const x = bounds.x + Math.max(2, (bounds.width - textWidth) / 2);
   const y = bounds.y + (bounds.height - size) / 2 + 1.5;
 
   text(commands, fittedText, x, y, size, font, color);
 }
 
-function fitText(value: string, size: number, maxWidth: number): string {
-  if (estimateTextWidth(value, size) <= maxWidth) {
+function fitText(value: string, size: number, maxWidth: number, font: "regular" | "bold" = "regular"): string {
+  if (estimateTextWidth(value, size, font) <= maxWidth) {
     return value;
   }
 
   let clipped = value;
-  while (clipped.length > 4 && estimateTextWidth(`${clipped}...`, size) > maxWidth) {
+  while (clipped.length > 4 && estimateTextWidth(`${clipped}...`, size, font) > maxWidth) {
     clipped = clipped.slice(0, -1);
   }
 
   return `${clipped.trimEnd()}...`;
 }
 
-function estimateTextWidth(value: string, size: number): number {
-  return value.length * size * 0.48;
+function estimateTextWidth(value: string, size: number, font: "regular" | "bold" = "regular"): number {
+  const widths = font === "bold" ? helveticaBoldWidths : helveticaWidths;
+  let total = 0;
+
+  for (const character of value) {
+    total += widths[toWinAnsiChar(character).charCodeAt(0)] || 556;
+  }
+
+  return total * size / 1000;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -888,7 +985,7 @@ function getMaxDrawnX(commands: PdfCommand[]): number {
       return command.x + command.width;
     }
 
-    return command.maxWidth ? command.x + command.maxWidth : command.x + estimateTextWidth(command.text, command.size);
+    return command.maxWidth ? command.x + command.maxWidth : command.x + estimateTextWidth(command.text, command.size, command.font);
   }));
 }
 

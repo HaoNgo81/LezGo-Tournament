@@ -1,5 +1,5 @@
 ﻿import { describe, expect, it } from "vitest";
-import { advanceLivePoolPlayState, advanceLivePoolPlayToFinals, createMockLiveTournamentState, finishTournament, getLiveMatches, goToNextRound, saveMatchResult, saveNextPoolPhaseResult, savePoolFinalResult, savePoolPlacementTiebreakResult, type LiveTournamentState } from "../lib/live-scoring";
+import { advanceLivePoolPlayState, advanceLivePoolPlayToFinals, calculateLiveStandings, createMockLiveTournamentState, finishTournament, getLiveMatches, goToNextRound, saveMatchResult, saveNextPoolPhaseResult, savePoolFinalResult, savePoolPlacementTiebreakResult, type LiveTournamentState } from "../lib/live-scoring";
 import { createTournamentResultFileName, createTournamentResultLines, createTournamentResultPdf } from "../lib/results-export";
 import { createTournamentResultPdfLayoutDiagnostics } from "../lib/results-export/pdf-export";
 import { createPoolTournamentFromSetup, createTournamentFromSetup, type TournamentSetupFormat } from "../lib/tournament-setup";
@@ -62,30 +62,27 @@ describe("result export", () => {
   });
 
   it.each([
-    ["Scenario A", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Americano", { name: "A 4 spillere 1 bane", playerText: fourPlayerText, courts: 1, rounds: 3 })), "2026-08-04T18:00:00.000Z"), 3, 1, "relaxed", 1, [[1, 2, 3]]],
-    ["Scenario B", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Americano", { name: "B 8 spillere 2 baner", playerText: eightPlayerText, courts: 2, rounds: 8 })), "2026-08-04T18:00:00.000Z"), 7, 2, "standard", 1, [[1, 2, 3, 4, 5, 6, 7]]],
-    ["Scenario C", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mexicano", { name: "Chopstick Mex v1", courts: 4, rounds: 20 })), "2026-08-04T18:00:00.000Z"), 20, 4, "dense", 2, [[1, 2, 3, 4, 5, 6, 7, 8], [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]]],
-    ["Scenario D", finishTournament(scoreRounds(createStandardTournament("Fast Makker Mexicano", { name: "D stor fast makker", courts: 4, rounds: 20 }), 20), "2026-08-04T18:00:00.000Z"), 20, 4, "dense", 2, [[1, 2, 3, 4, 5, 6, 7, 8], [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]]],
-    ["Scenario E", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mixed Americano", { name: "E mixed format", courts: 4, rounds: 8 })), "2026-08-04T18:00:00.000Z"), 8, 4, "compact", 1, [[1, 2, 3, 4, 5, 6, 7, 8]]],
-    ["Scenario F", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mexicano", { name: "F 25 runder", courts: 4, rounds: 25 })), "2026-08-04T18:00:00.000Z"), 25, 4, "dense", 3, [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24], [25]]],
-  ] as const)("paginates %s without dropping completed data", (_label, state, expectedRounds, expectedCourts, expectedDensity, expectedPages, expectedRoundPages) => {
+    ["Scenario A", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Americano", { name: "A 4 spillere 1 bane", playerText: fourPlayerText, courts: 1, rounds: 3 })), "2026-08-04T18:00:00.000Z"), 3, 1, "relaxed"],
+    ["Scenario B", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Americano", { name: "B 8 spillere 2 baner", playerText: eightPlayerText, courts: 2, rounds: 8 })), "2026-08-04T18:00:00.000Z"), 7, 2, "standard"],
+    ["Scenario C", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mexicano", { name: "Chopstick Mex v1", courts: 4, rounds: 20 })), "2026-08-04T18:00:00.000Z"), 20, 4, "dense"],
+    ["Scenario D", finishTournament(scoreRounds(createStandardTournament("Fast Makker Mexicano", { name: "D stor fast makker", courts: 4, rounds: 20 }), 20), "2026-08-04T18:00:00.000Z"), 20, 4, "dense"],
+    ["Scenario E", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mixed Americano", { name: "E mixed format", courts: 4, rounds: 8 })), "2026-08-04T18:00:00.000Z"), 8, 4, "compact"],
+    ["Scenario F", finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mexicano", { name: "F 25 runder", courts: 4, rounds: 25 })), "2026-08-04T18:00:00.000Z"), 25, 4, "dense"],
+  ] as const)("paginates %s without dropping completed data", (_label, state, expectedRounds, expectedCourts, expectedDensity) => {
     const pdf = createTournamentResultPdf(state);
     const lines = createTournamentResultLines(state);
     const diagnostics = createTournamentResultPdfLayoutDiagnostics(state);
 
-    expect(getPdfPageCount(pdf)).toBe(expectedPages);
+    expect(getPdfPageCount(pdf)).toBe(diagnostics.pageCount);
     expect(diagnostics).toMatchObject({
       completedRounds: expectedRounds,
       courtColumns: expectedCourts,
       density: expectedDensity,
       fitsOnePage: true,
       orientation: "portrait",
-      pageCount: expectedPages,
     });
-    expect(diagnostics.pageRoundRanges.map((range) => range.roundNumbers)).toEqual(expectedRoundPages);
-    diagnostics.pageRoundRanges.forEach((range) => {
-      expect(range.roundNumbers.length).toBeLessThanOrEqual(12);
-    });
+    expectEveryRoundOnceInOrder(diagnostics, expectedRounds);
+    expect(diagnostics.matchRows).toHaveLength(expectedRounds * expectedCourts);
     expect(diagnostics.maxDrawnX).toBeLessThanOrEqual(595);
     expect(diagnostics.maxDrawnY).toBeLessThanOrEqual(842);
     expect(diagnostics.resultFontSize).toBeGreaterThanOrEqual(diagnostics.minimumFontSize);
@@ -99,13 +96,7 @@ describe("result export", () => {
     });
   });
 
-  it.each([
-    [13, 2, [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], [13]]],
-    [24, 2, [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]]],
-    [25, 3, [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24], [25]]],
-    [36, 3, [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24], [25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36]]],
-    [37, 4, [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24], [25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36], [37]]],
-  ] as const)("splits %s completed rounds into pages of at most 12 rounds", (rounds, expectedPages, expectedRoundPages) => {
+  it.each([13, 24, 25, 36, 37] as const)("splits %s completed rounds across pages without splitting a round", (rounds) => {
     const state = finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mexicano", {
       courts: 4,
       name: `${rounds} runder boundary`,
@@ -114,11 +105,14 @@ describe("result export", () => {
     const pdf = createTournamentResultPdf(state);
     const diagnostics = createTournamentResultPdfLayoutDiagnostics(state);
 
-    expect(getPdfPageCount(pdf)).toBe(expectedPages);
-    expect(diagnostics.pageCount).toBe(expectedPages);
-    expect(diagnostics.pageRoundRanges.map((range) => range.roundNumbers)).toEqual(expectedRoundPages);
-    expect(diagnostics.pageRoundRanges.every((range) => range.roundNumbers.length <= 12)).toBe(true);
+    expect(getPdfPageCount(pdf)).toBe(diagnostics.pageCount);
+    expect(diagnostics.pageCount).toBeGreaterThan(1);
+    expectEveryRoundOnceInOrder(diagnostics, rounds);
     expect(diagnostics.fitsOnePage).toBe(true);
+    diagnostics.matchRows.forEach((row) => {
+      const roundPage = diagnostics.pageRoundRanges.find((range) => range.roundNumbers.includes(row.roundNumber));
+      expect(row.page).toBe(roundPage?.page);
+    });
   });
 
   it("keeps a long tournament title inside the one-page PDF header", () => {
@@ -265,68 +259,19 @@ describe("result export", () => {
     });
   });
 
-  it("lays Scenario C first page rounds 1-8 out as a balanced 3 by 3 grid", () => {
+  it("puts the standings and the first rounds on page 1 and continues with full pages of rounds", () => {
     const state = finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mexicano", {
       name: "Chopstick Mex v1",
       courts: 4,
       rounds: 20,
     })), "2026-08-04T18:00:00.000Z");
     const diagnostics = createTournamentResultPdfLayoutDiagnostics(state);
-    const pageOne = diagnostics.resultPages.find((page) => page.page === 1);
-    const finalRowCards = pageOne?.roundCards.filter((card) => card.roundNumber === 7 || card.roundNumber === 8) ?? [];
 
-    expect(pageOne).toMatchObject({
-      columns: 3,
-      rows: 3,
-      roundNumbers: [1, 2, 3, 4, 5, 6, 7, 8],
-    });
-    expect(finalRowCards).toHaveLength(2);
-    expect(finalRowCards[0].bounds.x).toBeGreaterThan(26);
-    expect(finalRowCards[1].bounds.x + finalRowCards[1].bounds.width).toBeLessThan(569);
-    expect(finalRowCards[0].bounds.x - 26).toBeCloseTo(569 - (finalRowCards[1].bounds.x + finalRowCards[1].bounds.width), 4);
+    expect(diagnostics.pageRoundRanges.map((range) => range.roundNumbers.length)).toEqual([6, 9, 5]);
+    expect(diagnostics.resultPages.every((resultPage) => resultPage.columns === 1)).toBe(true);
   });
 
-  it("lays Scenario C continuation rounds 9-20 out as a fixed 3 by 4 grid", () => {
-    const state = finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mexicano", {
-      name: "Chopstick Mex v1",
-      courts: 4,
-      rounds: 20,
-    })), "2026-08-04T18:00:00.000Z");
-    const diagnostics = createTournamentResultPdfLayoutDiagnostics(state);
-    const pageTwo = diagnostics.resultPages.find((page) => page.page === 2);
-
-    expect(pageTwo).toMatchObject({
-      columns: 3,
-      rows: 4,
-      roundNumbers: [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
-    });
-  });
-
-  it("expands Scenario C result grids to the allocated page height", () => {
-    const state = finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mexicano", {
-      name: "Chopstick Mex v1",
-      courts: 4,
-      rounds: 20,
-    })), "2026-08-04T18:00:00.000Z");
-    const diagnostics = createTournamentResultPdfLayoutDiagnostics(state);
-    const [pageOne, pageTwo] = diagnostics.resultPages;
-
-    expect(pageOne).toMatchObject({ columns: 3, rows: 3 });
-    expect(pageTwo).toMatchObject({ columns: 3, rows: 4 });
-    [pageOne, pageTwo].forEach((resultPage) => {
-      const allocatedHeight = resultPage.gridTop - resultPage.gridBottom;
-      const usedHeight = resultPage.rows * resultPage.cardHeight + Math.max(0, resultPage.rows - 1) * resultPage.rowGap;
-
-      expect(usedHeight).toBeCloseTo(allocatedHeight, 4);
-      expect(resultPage.cardWidth * resultPage.columns + (resultPage.columns - 1) * resultPage.rowGap).toBeCloseTo(543, 4);
-      expect(resultPage.gridBottom).toBeGreaterThanOrEqual(50);
-      expect(resultPage.gridTop).toBeLessThanOrEqual(700);
-    });
-    expect(pageOne.cardWidth).toBeGreaterThan(170);
-    expect(pageTwo.cardWidth).toBeGreaterThan(170);
-  });
-
-  it("keeps Scenario C round cards inside the page without overlap", () => {
+  it("keeps every round block inside the main column of its page without overlap", () => {
     const state = finishTournament(scoreAllConfiguredRounds(createStandardTournament("Mexicano", {
       name: "Chopstick Mex v1",
       courts: 4,
@@ -336,19 +281,62 @@ describe("result export", () => {
 
     diagnostics.resultPages.forEach((resultPage) => {
       resultPage.roundCards.forEach((card, index) => {
-        expect(card.bounds.x).toBeGreaterThanOrEqual(26);
-        expect(card.bounds.x + card.bounds.width).toBeLessThanOrEqual(569);
-        expect(card.bounds.y).toBeGreaterThanOrEqual(50);
+        expect(card.bounds.x).toBeGreaterThanOrEqual(194);
+        expect(card.bounds.x + card.bounds.width).toBeLessThanOrEqual(571);
+        expect(card.bounds.y).toBeGreaterThanOrEqual(44);
         expect(card.bounds.y + card.bounds.height).toBeLessThanOrEqual(resultPage.gridTop);
 
         resultPage.roundCards.slice(index + 1).forEach((otherCard) => {
-          const overlapsX = card.bounds.x < otherCard.bounds.x + otherCard.bounds.width && card.bounds.x + card.bounds.width > otherCard.bounds.x;
           const overlapsY = card.bounds.y < otherCard.bounds.y + otherCard.bounds.height && card.bounds.y + card.bounds.height > otherCard.bounds.y;
-
-          expect(overlapsX && overlapsY).toBe(false);
+          expect(overlapsY).toBe(false);
         });
       });
     });
+    diagnostics.matchRows.forEach((row) => {
+      const card = diagnostics.resultPages.find((resultPage) => resultPage.page === row.page)?.roundCards.find((candidate) => candidate.roundNumber === row.roundNumber);
+      expect(card).toBeDefined();
+      expect(row.court.y).toBeGreaterThanOrEqual(card!.bounds.y);
+      expect(row.court.y + row.court.height).toBeLessThanOrEqual(card!.bounds.y + card!.bounds.height);
+    });
+  });
+
+  it("shows the winner, the facts and signed point differences in the scoreboard design", () => {
+    const state = finishTournament(scoreAllConfiguredRounds(createStandardTournament("Americano", {
+      name: "Resultattavle test",
+      playerText: eightPlayerText,
+      courts: 2,
+      rounds: 8,
+    })), "2026-08-04T18:00:00.000Z");
+    const pdfText = new TextDecoder("windows-1252")
+      .decode(createTournamentResultPdf(state))
+      .replace(/<< \/Type \/XObject \/Subtype \/Image[\s\S]*?endstream\s*endobj/g, "");
+    const winner = calculateLiveStandings(state)[0];
+
+    expect(pdfText).toContain("(VINDER)");
+    expect(pdfText).toContain(`(${winner.name})`);
+    expect(pdfText).toContain("(SLUTSTILLING)");
+    expect(pdfText).toContain("(+/-)");
+    expect(pdfText).toMatch(/\(\+\d+\)/);
+    expect(pdfText).toMatch(/\(-\d+\)/);
+    ["(FORMAT)", "(SPILLERE)", "(BANER)", "(RUNDER)", "(RANGERING)", "(AFSLUTTET)", "(Side 1 / 1)"].forEach((label) => {
+      expect(pdfText).toContain(label);
+    });
+  });
+
+  it("labels the leader instead of a winner while the tournament is still running", () => {
+    const state = scoreAllConfiguredRounds(createStandardTournament("Americano", {
+      name: "Ikke afsluttet",
+      playerText: eightPlayerText,
+      courts: 2,
+      rounds: 3,
+    }));
+    const pdfText = new TextDecoder("windows-1252").decode(createTournamentResultPdf(state));
+
+    expect(pdfText).toContain("(FØRER)");
+    expect(pdfText).not.toContain("(VINDER)");
+    expect(pdfText).toContain("(STILLING)");
+    expect(pdfText).not.toContain("(SLUTSTILLING)");
+    expect(pdfText).toContain("(Ikke afsluttet)");
   });
 
   it("creates pool-play result lines with pool standings and next phase matches", () => {
@@ -768,4 +756,15 @@ function scoreIndividualOddPoolCrossMatchTournament() {
   });
 
   return state;
+}
+
+function expectEveryRoundOnceInOrder(diagnostics: ReturnType<typeof createTournamentResultPdfLayoutDiagnostics>, expectedRounds: number) {
+  const roundsInPageOrder = diagnostics.pageRoundRanges.flatMap((range) => range.roundNumbers);
+
+  expect(roundsInPageOrder).toEqual(Array.from({ length: expectedRounds }, (_, index) => index + 1));
+  diagnostics.resultPages.forEach((resultPage) => {
+    expect(resultPage.gridBottom).toBeGreaterThanOrEqual(44);
+  });
+  expect(diagnostics.maxDrawnX).toBeLessThanOrEqual(595);
+  expect(diagnostics.maxDrawnY).toBeLessThanOrEqual(842);
 }
