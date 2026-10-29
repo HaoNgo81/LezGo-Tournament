@@ -26,7 +26,8 @@ jobs:
     steps:
       - name: Query a result through the production API
         run: |
-          url="https://app.lezgopadel.dk/api/result/810a9a73-8c73-4740-9733-bf3324cf001d"
+          # app.lezgopadel.dk has no DNS record pointing to Vercel yet (2026-10-29), so use the Vercel domain.
+          url="https://lezgotournament.vercel.app/api/result/810a9a73-8c73-4740-9733-bf3324cf001d"
           # curl already prints 000 for connection errors; "|| true" keeps the step running so the status is reported.
           status=$(curl --silent --show-error --output response.json --write-out "%{http_code}" --max-time 60 --retry 2 --retry-delay 10 "$url" || true)
           echo "HTTP status: $status"
