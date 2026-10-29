@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- STEP 37B: The keep-alive workflow calls lezgotournament.vercel.app, because app.lezgopadel.dk has no DNS record pointing to Vercel (first run failed with no connection). README notes the missing DNS record.
 - STEP 37A: Scheduled GitHub Actions workflow keeps the Supabase database active by calling a read-only production endpoint every second day. The project had been paused for inactivity (found 2026-10-29), which stops login, accounts, cloud saving and shared result links.
 - STEP 36B: README describes guest vs. account storage, recommends `npm ci` and documents the Vercel deployment; CHANGELOG now lists STEP 28-31 (0.25.0); removed the unused GitHub Pages build switches (`GITHUB_PAGES`) from the code.
 - STEP 36A: Fixed long player names overlapping the numbers in the live standings on laptop screens between 1024 and 1279 px wide (two-column live layout). Those widths now use slightly narrower number columns and normal text size; the large text starts at 1280 px. Phone, tablet and wide screens are unchanged. Below 360 px (small phones) the V/U/T columns are hidden so long names such as "Christoffersen" no longer run into the numbers; MP, Point and +/− stay visible. The browser tests now also check a 1180 px laptop and use long surnames.
