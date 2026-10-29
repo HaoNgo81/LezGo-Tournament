@@ -351,7 +351,7 @@ describe("LiveScoringApp score sheet", () => {
 
     const playerHeader = within(compactStandings).getByTestId("live-standings-player-header");
     expect(playerHeader).toHaveStyle({ overflowWrap: "normal", wordBreak: "normal" });
-    expect(playerHeader.parentElement?.className).toContain("minmax(4.75rem,1fr)");
+    expect(playerHeader.parentElement?.className).toContain("minmax(7.5rem,1fr)");
 
     expect(compactStandings).toHaveTextContent("V");
     expect(compactStandings).toHaveTextContent("U");

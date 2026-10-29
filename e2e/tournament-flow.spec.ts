@@ -12,18 +12,21 @@ const scores: Record<string, [number, number]> = {
   "B|D": [6, 6],
   "C|D": [5, 7],
 };
-const expectedOrder = ["D / Dd", "B / Bb", "A / Aa", "C / Cc"];
+// Long surnames make sure narrow standings layouts are tested with names that do not fit easily.
+const expectedOrder = ["D / Dd Frederiksen", "B / Bb Vestergaard", "A / Aa Christoffersen", "C / Cc Kristiansen"];
 const expectedDifferences = ["+2", "+4", "-4", "-2"];
 
 const phone: BrowserContextOptions = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, serviceWorkers: "allow" };
 const smallPhone: BrowserContextOptions = { viewport: { width: 320, height: 700 }, isMobile: true, hasTouch: true, serviceWorkers: "allow" };
 const tabletLandscape: BrowserContextOptions = { viewport: { width: 1180, height: 820 }, isMobile: true, hasTouch: true, serviceWorkers: "allow" };
+// Laptop with a mouse: the live page splits into two columns, so the standings card is narrow.
+const laptop: BrowserContextOptions = { viewport: { width: 1180, height: 820 }, serviceWorkers: "allow" };
 
 async function createFixedPartnerTournament(page: Page) {
   await page.goto("/new-tournament");
   await page.getByRole("button", { name: /Fast Makker Americano/ }).click();
   await page.locator("select").first().selectOption("timed");
-  const pairs = [["A", "Aa"], ["B", "Bb"], ["C", "Cc"], ["D", "Dd"]];
+  const pairs = [["A", "Aa Christoffersen"], ["B", "Bb Vestergaard"], ["C", "Cc Kristiansen"], ["D", "Dd Frederiksen"]];
 
   for (const [pairIndex, players] of pairs.entries()) {
     for (const [playerIndex, name] of players.entries()) {
@@ -89,7 +92,8 @@ async function expectFitsScreen(page: Page) {
       nameOverflows: names.some((name) => name.scrollWidth > name.clientWidth + 1),
     };
   });
-  expect(layout).toEqual({ pageScrollsSideways: false, tableScrollsSideways: false, nameOverflows: false });
+  const viewport = page.viewportSize();
+  expect(layout, `layout at ${viewport?.width}x${viewport?.height}`).toEqual({ pageScrollsSideways: false, tableScrollsSideways: false, nameOverflows: false });
 }
 
 async function openWithSameData(browser: Browser, source: Page, options: BrowserContextOptions, path: string) {
@@ -125,8 +129,8 @@ test("guest runs a Fast Makker Americano tournament on phone and tablet", async 
     await page.getByTestId("live-compact-standings").screenshot({ path: testInfo.outputPath("live-phone.png") });
   });
 
-  await test.step("live standings on tablet landscape and small phone", async () => {
-    for (const options of [tabletLandscape, smallPhone]) {
+  await test.step("live standings on tablet landscape, laptop and small phone", async () => {
+    for (const options of [tabletLandscape, laptop, smallPhone]) {
       const other = await openWithSameData(browser, page, options, "/live");
       await expectStandings(other);
       await expectFitsScreen(other);
@@ -149,7 +153,7 @@ test("guest runs a Fast Makker Americano tournament on phone and tablet", async 
 
     expect(pdf.startsWith("%PDF-")).toBe(true);
     expect(pdf).toContain("(+/-)");
-    expect(pdf).toMatch(/\(B \/ Bb\)[^]*?\(\+4\)[^]*?\(A \/ Aa\)[^]*?\(-4\)/);
+    expect(pdf).toMatch(/\(B \/ Bb Vestergaard\)[^]*?\(\+4\)[^]*?\(A \/ Aa Christoffersen\)[^]*?\(-4\)/);
   });
 
   await context.close();
