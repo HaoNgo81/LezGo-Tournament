@@ -12,18 +12,19 @@ export function StandingsTable({ standings, variant = "standard" }: StandingsTab
   const { t } = useAppTranslation();
 
   if (variant === "compactLive") {
-    const mobilePriorityGrid = "grid-cols-[1.45rem_minmax(4.75rem,1fr)_1.2rem_1.2rem_1.2rem_1.9rem_2.4rem_2.3rem] min-[360px]:grid-cols-[1.55rem_minmax(6rem,1fr)_1.3rem_1.3rem_1.3rem_2.1rem_2.6rem_2.5rem] min-[390px]:grid-cols-[1.65rem_minmax(7rem,1fr)_1.4rem_1.4rem_1.4rem_2.25rem_2.8rem_2.7rem]";
-    const headerGridClass = `${mobilePriorityGrid} gap-0.5 px-1 py-1 text-[0.58rem] sm:grid-cols-[2rem_minmax(12rem,1fr)_2rem_2rem_2rem_3rem_3.6rem_3.4rem] sm:gap-1.5 sm:px-2 sm:py-1.5 sm:text-xs lg:grid-cols-[2rem_minmax(0,1fr)_1.75rem_1.75rem_1.75rem_2.75rem_3.5rem_3.25rem] lg:gap-1.5 lg:px-3 lg:py-2 lg:text-sm`;
-    const rowGridClass = `${mobilePriorityGrid} gap-0.5 px-1 py-1 sm:grid-cols-[2rem_minmax(12rem,1fr)_2rem_2rem_2rem_3rem_3.6rem_3.4rem] sm:gap-1.5 sm:px-2 sm:py-1.5 lg:grid-cols-[2rem_minmax(0,1fr)_1.75rem_1.75rem_1.75rem_2.75rem_3.5rem_3.25rem] lg:gap-1.5 lg:px-3 lg:py-2`;
+    // Below 360 px the V/U/T columns are hidden so long names (e.g. "Christoffersen") fit next to MP, Point and +/−.
+    const mobilePriorityGrid = "grid-cols-[1.45rem_minmax(7.5rem,1fr)_1.9rem_2.4rem_2.3rem] min-[360px]:grid-cols-[1.55rem_minmax(6rem,1fr)_1.3rem_1.3rem_1.3rem_2.1rem_2.6rem_2.5rem] min-[390px]:grid-cols-[1.65rem_minmax(7rem,1fr)_1.4rem_1.4rem_1.4rem_2.25rem_2.8rem_2.7rem]";
+    const headerGridClass = `${mobilePriorityGrid} gap-0.5 px-1 py-1 text-[0.58rem] sm:grid-cols-[2rem_minmax(12rem,1fr)_2rem_2rem_2rem_3rem_3.6rem_3.4rem] sm:gap-1.5 sm:px-2 sm:py-1.5 sm:text-xs lg:grid-cols-[1.75rem_minmax(0,1fr)_1.5rem_1.5rem_1.5rem_2.25rem_2.75rem_2.75rem] lg:gap-1.5 xl:grid-cols-[2rem_minmax(0,1fr)_1.75rem_1.75rem_1.75rem_2.75rem_3.5rem_3.25rem] lg:px-3 lg:py-2 lg:text-sm`;
+    const rowGridClass = `${mobilePriorityGrid} gap-0.5 px-1 py-1 sm:grid-cols-[2rem_minmax(12rem,1fr)_2rem_2rem_2rem_3rem_3.6rem_3.4rem] sm:gap-1.5 sm:px-2 sm:py-1.5 lg:grid-cols-[1.75rem_minmax(0,1fr)_1.5rem_1.5rem_1.5rem_2.25rem_2.75rem_2.75rem] lg:gap-1.5 xl:grid-cols-[2rem_minmax(0,1fr)_1.75rem_1.75rem_1.75rem_2.75rem_3.5rem_3.25rem] lg:px-3 lg:py-2`;
 
     return (
       <div className="app-card overflow-hidden p-0" data-density="compact-live" data-testid="live-compact-standings">
         <div className={`grid bg-[var(--primary-soft)] font-black uppercase text-[var(--primary-strong)] ${headerGridClass}`} data-column-layout="player-priority">
           <span>#</span>
           <span data-testid="live-standings-player-header" style={{ overflowWrap: "normal", wordBreak: "normal" }}>Spiller</span>
-          <span className="text-right">V</span>
-          <span className="text-right">U</span>
-          <span className="text-right">T</span>
+          <span className="hidden text-right min-[360px]:block">V</span>
+          <span className="hidden text-right min-[360px]:block">U</span>
+          <span className="hidden text-right min-[360px]:block">T</span>
           <span className="text-right">MP</span>
           <span className="text-right">Point</span>
           <span className="text-right" title="Pointdifference">+/−</span>
@@ -36,14 +37,14 @@ export function StandingsTable({ standings, variant = "standard" }: StandingsTab
             data-column-layout="player-priority"
             data-testid="live-compact-standings-row"
           >
-            <span className="text-sm font-black text-[var(--primary-strong)] sm:text-base lg:text-lg">{row.rank}</span>
-            <h3 className="min-w-0 text-sm font-black leading-tight sm:text-base lg:text-lg" data-testid="live-standings-player-name" style={{ overflowWrap: "normal", wordBreak: "normal" }}>{row.name}</h3>
-            <p className="text-right text-sm font-black text-[var(--muted)] sm:text-base lg:text-lg">{row.wins}</p>
-            <p className="text-right text-sm font-black text-[var(--muted)] sm:text-base lg:text-lg">{row.draws}</p>
-            <p className="text-right text-sm font-black text-[var(--muted)] sm:text-base lg:text-lg">{row.losses}</p>
-            <p className="text-right text-sm font-black text-[var(--muted)] sm:text-base lg:text-lg">{row.matchPoints}</p>
-            <p className="text-right text-sm font-black text-[var(--muted)] sm:text-base lg:text-lg">{row.pointsFor}</p>
-            <p className="text-right text-sm font-black text-[var(--muted)] sm:text-base lg:text-lg" data-testid="live-standings-point-difference">{formatPointDifference(row.pointDifference)}</p>
+            <span className="text-sm font-black text-[var(--primary-strong)] sm:text-base xl:text-lg">{row.rank}</span>
+            <h3 className="min-w-0 text-sm font-black leading-tight sm:text-base xl:text-lg" data-testid="live-standings-player-name" style={{ overflowWrap: "normal", wordBreak: "normal" }}>{row.name}</h3>
+            <p className="hidden text-right text-sm font-black text-[var(--muted)] min-[360px]:block sm:text-base xl:text-lg">{row.wins}</p>
+            <p className="hidden text-right text-sm font-black text-[var(--muted)] min-[360px]:block sm:text-base xl:text-lg">{row.draws}</p>
+            <p className="hidden text-right text-sm font-black text-[var(--muted)] min-[360px]:block sm:text-base xl:text-lg">{row.losses}</p>
+            <p className="text-right text-sm font-black text-[var(--muted)] sm:text-base xl:text-lg">{row.matchPoints}</p>
+            <p className="text-right text-sm font-black text-[var(--muted)] sm:text-base xl:text-lg">{row.pointsFor}</p>
+            <p className="text-right text-sm font-black text-[var(--muted)] sm:text-base xl:text-lg" data-testid="live-standings-point-difference">{formatPointDifference(row.pointDifference)}</p>
           </article>
         ))}
       </div>
