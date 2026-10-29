@@ -1,0 +1,41 @@
+name: Keep database awake
+
+# Supabase pauses free-plan projects after about 7 days without activity. When the
+# database is paused, login, accounts, cloud saving and shared result links stop working.
+# This job calls a production endpoint that queries the database every second day,
+# so the project never reaches the inactivity limit. It only reads (a random result ID
+# that does not exist), so it never changes data.
+# Note: the app answers 404 for a missing result, and it also answered 404 while the
+# project was paused on 2026-10-29, so a green run does not prove the database is up.
+# The job's purpose is keeping the database active; a red run means the app itself failed.
+
+on:
+  schedule:
+    - cron: "17 6 */2 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    name: Ping production database
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Query a result through the production API
+        run: |
+          url="https://app.lezgopadel.dk/api/result/810a9a73-8c73-4740-9733-bf3324cf001d"
+          # curl already prints 000 for connection errors; "|| true" keeps the step running so the status is reported.
+          status=$(curl --silent --show-error --output response.json --write-out "%{http_code}" --max-time 60 --retry 2 --retry-delay 10 "$url" || true)
+          echo "HTTP status: $status"
+          cat response.json 2>/dev/null || true
+          echo
+          # 404 means the database answered "not found" for the random ID, which is the expected result.
+          if [ "$status" = "404" ] || [ "$status" = "200" ]; then
+            echo "Request reached the app and its database query."
+          else
+            echo "::error::Unexpected status $status from the production API."
+            exit 1
+          fi
