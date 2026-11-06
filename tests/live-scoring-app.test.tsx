@@ -414,14 +414,14 @@ describe("LiveScoringApp score sheet", () => {
       supabaseTournamentId: "00000000-0000-4000-8000-000000000240",
       matchScoreVersions: { [localState.rounds[0].matches[0].id]: 1 },
     });
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify({
       ok: true,
       kind: "standard",
       state: remoteState,
       tournamentId: "00000000-0000-4000-8000-000000000240",
       updatedAt: "2026-08-13T12:00:05.000Z",
       matchScoreVersions: { [localState.rounds[0].matches[0].id]: 2 },
-    }), { status: 200 }));
+    }), { status: 200 })));
     vi.stubGlobal("fetch", fetchMock);
 
     render(<LiveScoringApp />);
@@ -456,7 +456,7 @@ describe("LiveScoringApp score sheet", () => {
       supabaseTournamentId: "00000000-0000-4000-8000-0000000025c1",
       matchScoreVersions: { [matchId]: 1 },
     });
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify({
       ok: true,
       kind: "standard",
       state: remoteState,
@@ -465,7 +465,7 @@ describe("LiveScoringApp score sheet", () => {
       canRead: true,
       canManage: true,
       matchScoreVersions: { [matchId]: 1 },
-    }), { status: 200 }));
+    }), { status: 200 })));
     vi.stubGlobal("fetch", fetchMock);
 
     render(<LiveScoringApp />);
@@ -497,7 +497,7 @@ describe("LiveScoringApp score sheet", () => {
       activeRoundNumber: 99,
       rounds: localState.rounds.slice(0, 1),
     };
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify({
       ok: true,
       kind: "standard",
       state: incompleteRemoteState,
@@ -506,7 +506,7 @@ describe("LiveScoringApp score sheet", () => {
       canRead: true,
       canManage: true,
       matchScoreVersions: { [matchId]: 2 },
-    }), { status: 200 }));
+    }), { status: 200 })));
     vi.stubGlobal("fetch", fetchMock);
 
     render(<LiveScoringApp />);
@@ -1374,7 +1374,7 @@ describe("LiveScoringApp score sheet", () => {
       status: "synced",
       supabaseTournamentId: "00000000-0000-4000-8000-0000000025b3",
     });
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify({
       ok: true,
       kind: "standard",
       state: tournamentB,
@@ -1382,7 +1382,7 @@ describe("LiveScoringApp score sheet", () => {
       updatedAt: "2026-08-24T13:21:00.000Z",
       canRead: true,
       canManage: true,
-    }), { status: 200 }));
+    }), { status: 200 })));
     vi.stubGlobal("fetch", fetchMock);
 
     render(<LiveScoringApp />);
@@ -1516,13 +1516,13 @@ describe("LiveScoringApp score sheet", () => {
       status: "synced",
       supabaseTournamentId: "00000000-0000-4000-8000-000000000241",
     });
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify({
       ok: true,
       kind: "standard",
       state: remoteEditedState,
       tournamentId: "00000000-0000-4000-8000-000000000241",
       updatedAt: "2026-08-13T12:00:06.000Z",
-    }), { status: 200 })));
+    }), { status: 200 }))));
 
     render(<LiveScoringApp />);
 
