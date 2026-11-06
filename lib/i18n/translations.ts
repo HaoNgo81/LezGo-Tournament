@@ -204,6 +204,7 @@ export type TranslationKey =
   | "retry"
   | "remoteNotSaved"
   | "remoteControlledByOtherUser"
+  | "sessionExpiredDuringTournament"
   | "remoteControlledByOtherUserHelp"
   | "remoteScoreSaving"
   | "remoteTopStandings"
@@ -473,6 +474,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     retry: "Prøv igen",
     remoteNotSaved: "Ikke gemt",
     remoteControlledByOtherUser: "Du har ikke længere styring af denne turnering.",
+    sessionExpiredDuringTournament: "Du er blevet logget ud, så ændringen er ikke gemt. Turneringen er stadig din: log ind igen (forsiden → Log ind), og prøv igen.",
     remoteControlledByOtherUserHelp: "Du kan stadig se turneringen, men du kan ikke længere ændre den.",
     remoteScoreSaving: "Gemmer...",
     remoteTopStandings: "Stilling",
@@ -741,6 +743,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     retry: "Try again",
     remoteNotSaved: "Not saved",
     remoteControlledByOtherUser: "This tournament is now controlled by another user.",
+    sessionExpiredDuringTournament: "You have been signed out, so the change was not saved. The tournament is still yours: sign in again (home → Log in) and try again.",
     remoteControlledByOtherUserHelp: "You can still view the tournament, but you can no longer change it.",
     remoteScoreSaving: "Saving...",
     remoteTopStandings: "Standings",

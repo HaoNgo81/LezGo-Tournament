@@ -42,6 +42,7 @@ import { calculateFixedTotalScore } from "@/lib/tournament-setup/scoring";
 import { loadTournamentSettings, playTournamentAlarmSound } from "@/lib/tournament-settings";
 import type { MatchResult, StandingsRankingMode, TournamentPlayer } from "@/lib/tournament-engine";
 import { useHasHydrated } from "@/hooks/use-has-hydrated";
+import { checkCurrentAuthSession, fetchWithAuthRefresh } from "@/lib/auth/client-session";
 
 const rankingModeLabels: Record<StandingsRankingMode, TranslationKey> = {
   matchPointsFirst: "mostMatchPoints",
@@ -100,6 +101,9 @@ interface LiveRenderState {
   nextRoundIsAvailable: boolean;
 }
 
+// Screen-on and focus events come in bursts; check the login at most this often.
+const sessionCheckIntervalMs = 15_000;
+
 export function LiveScoringApp() {
   const { t } = useAppTranslation();
   const [state, setState] = useState<LiveTournamentState>(() => createMockLiveTournamentState());
@@ -109,6 +113,10 @@ export function LiveScoringApp() {
   const hasHydrated = useHasHydrated();
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [toast, setToast] = useState("");
+  // Shown when a save was refused because the organizer is no longer signed in (401). The tournament
+  // stays under this organizer's control; only signing in again is needed.
+  const [sessionNotice, setSessionNotice] = useState("");
+  const lastSessionCheckRef = useRef(0);
   const alarmPlayedForRound = useRef<number | null>(null);
   const controllerMutationInFlightRef = useRef(false);
   const renderState = useMemo(() => createLiveRenderState(state), [state]);
@@ -246,6 +254,15 @@ export function LiveScoringApp() {
       try {
         const { response, body } = await readOrganizerRemoteState(metadata, localId);
 
+        if (response.status === 401 && metadata.canManage !== false) {
+          // The background sync found the login gone (renewal already tried). Warn the organizer now,
+          // before the next score is typed; control of the tournament is unchanged.
+          const message = t("sessionExpiredDuringTournament");
+          setSessionNotice(message);
+          setToast(message);
+          return;
+        }
+
         if (!isUsableOrganizerRemoteBody(response, body, metadata.supabaseTournamentId)) {
           return;
         }
@@ -310,6 +327,55 @@ export function LiveScoringApp() {
       }
     };
   }, [applyOrganizerRemoteAuthority, applyOrganizerRemoteBody, hasHydrated, state.status, state.tournamentName, state.format]);
+
+  useEffect(() => {
+    if (!hasHydrated) {
+      return undefined;
+    }
+
+    // Phones often drop or expire the login while the screen is off. Check it as soon as the page is shown
+    // again, so the organizer is told before typing a score (and "Husk mig" renews the access token).
+    async function checkSessionForCloudTournament() {
+      const metadata = loadShadowSaveMetadata(createStandardShadowSaveLocalId(stateRef.current));
+
+      if (!metadata?.supabaseTournamentId || metadata.kind !== "standard" || metadata.canManage === false) {
+        return;
+      }
+
+      if (Date.now() - lastSessionCheckRef.current < sessionCheckIntervalMs) {
+        return;
+      }
+
+      lastSessionCheckRef.current = Date.now();
+      const status = await checkCurrentAuthSession();
+
+      if (status === "signedOut") {
+        const message = t("sessionExpiredDuringTournament");
+        setSessionNotice(message);
+        setToast(message);
+      } else if (status === "signedIn") {
+        setSessionNotice("");
+      }
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        void checkSessionForCloudTournament();
+      }
+    }
+
+    function handleFocus() {
+      void checkSessionForCloudTournament();
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [hasHydrated, t]);
 
   useEffect(() => {
     if (state.scoringMode === "Spil på tid" && state.roundTimer?.status === "expired" && alarmPlayedForRound.current !== state.roundTimer.roundNumber) {
@@ -472,7 +538,13 @@ export function LiveScoringApp() {
       return;
     }
 
-    if (response.status === 401 || response.status === 403) {
+    if (response.status === 401) {
+      // Signed out, not taken over: keep control and keep the score sheet open with the typed score.
+      handleSessionLost();
+      return;
+    }
+
+    if (response.status === 403) {
       void reconcileControlLost(localId, tournamentId);
       setSelectedMatchId(null);
       setToast(t("remoteControlledByOtherUser"));
@@ -487,8 +559,15 @@ export function LiveScoringApp() {
     markRemoteShadowSaveApplied(localId, "standard", body.updatedAt, new Date().toISOString(), body.matchScoreVersions);
     stateRef.current = body.state;
     setState(body.state);
+    setSessionNotice("");
     setSelectedMatchId(null);
     setToast("Resultat gemt.");
+  }
+
+  function handleSessionLost() {
+    const message = t("sessionExpiredDuringTournament");
+    setSessionNotice(message);
+    setToast(message);
   }
 
   function saveControlledCloudSnapshot(nextState: LiveTournamentState): CommitResult {
@@ -530,7 +609,12 @@ export function LiveScoringApp() {
     });
     const body = await parseShadowSaveWriteResponse(response);
 
-    if (response.status === 401 || response.status === 403) {
+    if (response.status === 401) {
+      handleSessionLost();
+      return false;
+    }
+
+    if (response.status === 403) {
       await reconcileControlLost(localId, tournamentId);
       setToast(t("remoteControlledByOtherUser"));
       return false;
@@ -549,6 +633,7 @@ export function LiveScoringApp() {
 
     saveActiveTournamentFromRemoteSync(nextState);
     markRemoteShadowSaveApplied(localId, "standard", body.updatedAt, new Date().toISOString(), body.matchScoreVersions);
+    setSessionNotice("");
     return true;
   }
 
@@ -820,7 +905,11 @@ export function LiveScoringApp() {
         </div>
       </section>
 
-      {toast ? <p className="rounded-md bg-green-50 p-3 font-bold text-[var(--accent-text)]">{toast}</p> : null}
+      {toast ? (
+        toast === sessionNotice
+          ? <p className="rounded-md bg-red-50 p-3 font-bold text-red-700" data-testid="live-session-notice" role="alert">{toast}</p>
+          : <p className="rounded-md bg-green-50 p-3 font-bold text-[var(--accent-text)]">{toast}</p>
+      ) : null}
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-start" data-testid="live-desktop-content-grid">
         <section className="flex flex-col gap-3">
@@ -840,7 +929,7 @@ export function LiveScoringApp() {
       </div>
 
       {selectedMatch && !isControllerReadOnly ? (
-        <ScoreSheet liveMatch={selectedMatch} players={state.players} state={state} onClose={() => setSelectedMatchId(null)} onSave={handleSave} />
+        <ScoreSheet liveMatch={selectedMatch} notice={sessionNotice} players={state.players} state={state} onClose={() => setSelectedMatchId(null)} onSave={handleSave} />
       ) : null}
           </>
         );
@@ -1776,7 +1865,7 @@ function RoundNavigationButtons({
   );
 }
 
-function ScoreSheet({ liveMatch, players, state, onClose, onSave }: { liveMatch: LiveMatchView; players: TournamentPlayer[]; state: LiveTournamentState; onClose: () => void; onSave: (result: MatchResult) => void | Promise<void> }) {
+function ScoreSheet({ liveMatch, notice, players, state, onClose, onSave }: { liveMatch: LiveMatchView; notice?: string; players: TournamentPlayer[]; state: LiveTournamentState; onClose: () => void; onSave: (result: MatchResult) => void | Promise<void> }) {
   const { t } = useAppTranslation();
   const fixedTotalPoints = state.scoringMode === "Fast antal point" && state.fixedScoreRule === "total" ? state.fixedScorePoints : undefined;
   const [teamAPoints, setTeamAPoints] = useState(liveMatch.result?.teamAPoints.toString() ?? "");
@@ -1888,6 +1977,7 @@ function ScoreSheet({ liveMatch, players, state, onClose, onSave }: { liveMatch:
           </label>
         </div>
         {fixedTotalError || formError ? <p className="rounded-md bg-red-50 p-3 font-bold text-red-700">{fixedTotalError || formError}</p> : null}
+        {notice && !fixedTotalError && !formError ? <p className="rounded-md bg-red-50 p-3 font-bold text-red-700" data-testid="score-sheet-session-notice" role="alert">{notice}</p> : null}
         <button className="min-h-14 w-full rounded-md bg-[var(--primary)] px-5 text-lg font-black text-[var(--primary-text)] disabled:bg-[var(--control-hover-bg)] disabled:text-[var(--muted)]" type="submit" disabled={Boolean(fixedTotalError)}>{t("save")}</button>
       </form>
     </div>
@@ -2116,34 +2206,6 @@ async function readOrganizerRemoteState(metadata: { supabaseTournamentId?: strin
   });
   const body = await response.json() as OrganizerRemoteReadResponse;
   return { response, body };
-}
-
-async function fetchWithAuthRefresh(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  const response = await fetch(input, init);
-
-  if (!isStaleAuthResponse(response)) {
-    return response;
-  }
-
-  if (!await refreshCurrentAuthSession()) {
-    return response;
-  }
-
-  return await fetch(input, init);
-}
-
-function isStaleAuthResponse(response: Response): boolean {
-  return response.status === 401;
-}
-
-async function refreshCurrentAuthSession(): Promise<boolean> {
-  try {
-    const response = await fetch("/api/auth/me", { cache: "no-store" });
-    const body = await response.json() as { ok?: boolean; account?: unknown };
-    return response.ok && body.ok === true && Boolean(body.account);
-  } catch {
-    return false;
-  }
 }
 
 async function parseShadowSaveWriteResponse(response: Response): Promise<ShadowSaveWriteResponse> {

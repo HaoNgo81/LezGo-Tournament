@@ -25,6 +25,7 @@ import { CompletedTournamentResults, formatFinishedTournamentSummary, getRanking
 import { ResultSharePanel } from "@/components/tournament/result-share-panel";
 import { useAppTranslation } from "@/lib/preferences/client";
 import { useHasHydrated } from "@/hooks/use-has-hydrated";
+import { fetchWithAuthRefresh } from "@/lib/auth/client-session";
 
 interface ShadowSaveWriteResponse {
   ok?: boolean;
@@ -100,7 +101,7 @@ export function FinishTournamentApp() {
       return false;
     }
 
-    const response = await fetch("/api/supabase/shadow-save", {
+    const response = await fetchWithAuthRefresh("/api/supabase/shadow-save", {
       method: "POST",
       cache: "no-store",
       headers: { "content-type": "application/json" },
@@ -114,7 +115,14 @@ export function FinishTournamentApp() {
     });
     const body = await parseShadowSaveWriteResponse(response);
 
-    if (response.status === 401 || response.status === 403) {
+    if (response.status === 401) {
+      // Signed out (for example after the screen was off): the organizer keeps control, so do not lock
+      // the tournament. Finishing works again after signing in.
+      setMessage(t("sessionExpiredDuringTournament"));
+      return false;
+    }
+
+    if (response.status === 403) {
       await reconcileControlLost(localId, metadata.supabaseTournamentId);
       setMessage(t("remoteControlledByOtherUser"));
       return false;
