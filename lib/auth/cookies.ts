@@ -7,7 +7,7 @@ import {
   type AccountRole,
   type SupabaseAuthSession,
 } from "./session";
-import { adminRememberMaxAgeSeconds, createAdminRememberValue, getAdminRememberSecondsLeft, isAdminRememberValue, nowInSeconds, readAdminRememberIssuedAt } from "./admin-remember";
+import { adminRememberMaxAgeSeconds, createAdminRememberValue, getAdminRememberSecondsLeft, isAdminRememberValue, isAdminSignInTooOld, nowInSeconds, readAdminRememberIssuedAt } from "./admin-remember";
 
 export const authRememberCookieName = "lezgo_auth_remember";
 
@@ -35,11 +35,18 @@ export async function readAuthAdminRememberIssuedAt(userId: string): Promise<num
 
 export async function assertFreshAdminAccountFromCookies(): ReturnType<typeof assertAdminAccount> {
   const cookieStore = await cookies();
-  const account = await assertAdminAccount(cookieStore.get(authAccessCookieName)?.value);
+  const accessToken = cookieStore.get(authAccessCookieName)?.value;
+  const account = await assertAdminAccount(accessToken);
+  const rememberValue = cookieStore.get(authRememberCookieName)?.value;
+
+  // Server-side limit, independent of cookies: admin work needs a sign-in from the last 30 days.
+  if (isAdminSignInTooOld(accessToken)) {
+    throw new AuthError("Admin access requires a fresh login.", 403);
+  }
 
   // A remembered session is accepted for admin work only when it is a signed ADMIN remember session for
   // this admin inside its 30 days. A USER "Husk mig" session that was later promoted to admin is not.
-  if (hasRememberedSession(cookieStore) && readAdminRememberIssuedAt(cookieStore.get(authRememberCookieName)?.value, account.userId) === null) {
+  if (hasRememberedSession(cookieStore) && readAdminRememberIssuedAt(rememberValue, account.userId) === null) {
     throw new AuthError("Admin access requires a fresh login.", 403);
   }
 
@@ -51,6 +58,7 @@ export async function assertFreshAdminAccountFromCookies(): ReturnType<typeof as
 // a sliding window: only a user who does not open the app for 400 days must sign in again. 400 days is the
 // longest cookie lifetime browsers accept (Chrome caps Max-Age there). Trade-off: a stolen refresh cookie
 // also stays usable that long; signing out (or "log ud på alle enheder") revokes it.
+// Admins are different: at most 30 days after the sign-in, never sliding (see admin-remember.ts).
 export const rememberedLoginMaxAgeSeconds = 60 * 60 * 24 * 400;
 
 export function createAuthCookieHeaders(

@@ -32,7 +32,6 @@ export type TranslationKey =
   | "accountHideCode"
   | "accountIdentifier"
   | "accountLogin"
-  | "accountLoginAdminNotRemembered"
   | "accountLoginAdminRemembered30Days"
   | "accountLoginError"
   | "accountLogoutOtherDevices"
@@ -303,7 +302,6 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountHideCode: "Skjul kode",
     accountIdentifier: "Email eller brugernavn",
     accountLogin: "Log ind",
-    accountLoginAdminNotRemembered: "Administrator-login huskes ikke af sikkerhedsmæssige årsager.",
     accountLoginAdminRemembered30Days: "Logget ind. Som administrator forbliver du logget ind i 30 dage, derefter skal du logge ind igen.",
     accountLoginError: "Email/brugernavn eller kode er forkert.",
     accountLogoutOtherDevices: "Log andre enheder ud",
@@ -573,7 +571,6 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
     accountHideCode: "Hide code",
     accountIdentifier: "Email or username",
     accountLogin: "Log in",
-    accountLoginAdminNotRemembered: "Administrator login is not remembered for security reasons.",
     accountLoginAdminRemembered30Days: "Signed in. As an administrator you stay signed in for 30 days, then you need to sign in again.",
     accountLoginError: "Email/username or code is incorrect.",
     accountLogoutOtherDevices: "Log out other devices",

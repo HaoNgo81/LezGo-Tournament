@@ -27,19 +27,23 @@ export async function POST(request: Request): Promise<Response> {
       rateLimitKey: getRateLimitKey(request, body.identifier ?? "unknown"),
     });
 
+    const headers = createAuthCookieHeaders(result.session, {
+      remember: body.remember === true,
+      accountRole: result.account.role,
+      userId: result.account.userId,
+    });
+    // Report what was really set: users 400 days (renewed on use), admins 30 days after this sign-in.
+    const rememberCookie = headers.getSetCookie().find((cookie) => cookie.startsWith("lezgo_auth_remember="));
+    const rememberedDays = rememberCookie?.startsWith("lezgo_auth_remember=1;")
+      ? 400
+      : rememberCookie?.startsWith("lezgo_auth_remember=admin.v1.") ? 30 : undefined;
+
     return Response.json({
       ok: true,
       account: result.account,
-      // Users are remembered for 400 days (renewed on use); admins for 30 days after this sign-in.
-      remembered: body.remember === true,
-      rememberedDays: body.remember === true ? (result.account.role === "admin" ? 30 : 400) : undefined,
-    }, {
-      headers: createAuthCookieHeaders(result.session, {
-        remember: body.remember === true,
-        accountRole: result.account.role,
-        userId: result.account.userId,
-      }),
-    });
+      remembered: rememberedDays !== undefined,
+      rememberedDays,
+    }, { headers });
   } catch (error) {
     const status = error instanceof AuthError ? error.status : 401;
     const rawMessage = error instanceof Error ? error.message : "";
