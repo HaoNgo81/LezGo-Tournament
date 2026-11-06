@@ -115,7 +115,7 @@ export function AccountPanel({ framed = true, initialAccount, initialView = "log
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ identifier, code: loginCode, remember: rememberLogin }),
       });
-      const body = await response.json() as { ok?: boolean; account?: Account; rememberDenied?: boolean; error?: string };
+      const body = await response.json() as { ok?: boolean; account?: Account; rememberedDays?: number; error?: string };
 
       if (!response.ok || !body.ok || !body.account) {
         throw new Error(localizeAuthError(body.error, t("accountLoginError"), {
@@ -126,7 +126,7 @@ export function AccountPanel({ framed = true, initialAccount, initialView = "log
       clearExplicitLogout();
       setSignedInAccount(body.account);
       setLoginCode("");
-      setMessage(body.rememberDenied ? t("accountLoginAdminNotRemembered") : t("accountLoggedIn"));
+      setMessage(body.rememberedDays === 30 ? t("accountLoginAdminRemembered30Days") : t("accountLoggedIn"));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t("accountLoginError"));
     } finally {

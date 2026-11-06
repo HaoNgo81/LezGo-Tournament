@@ -30,12 +30,14 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({
       ok: true,
       account: result.account,
-      remembered: Boolean(body.remember && result.account.role === "user"),
-      rememberDenied: Boolean(body.remember && result.account.role === "admin"),
+      // Users are remembered for 400 days (renewed on use); admins for 30 days after this sign-in.
+      remembered: body.remember === true,
+      rememberedDays: body.remember === true ? (result.account.role === "admin" ? 30 : 400) : undefined,
     }, {
       headers: createAuthCookieHeaders(result.session, {
         remember: body.remember === true,
         accountRole: result.account.role,
+        userId: result.account.userId,
       }),
     });
   } catch (error) {

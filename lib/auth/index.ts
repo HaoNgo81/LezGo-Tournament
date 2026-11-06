@@ -40,5 +40,6 @@ export {
   readAuthAccessCookie,
   readAuthRefreshCookie,
   readAuthRememberCookie,
+  readAuthAdminRememberIssuedAt,
   readAuthRememberedSessionCookie,
 } from "./cookies";

@@ -4,6 +4,7 @@ import {
   createLogoutCookieHeaders,
   readAuthAccessCookie,
   readAuthRefreshCookie,
+  readAuthAdminRememberIssuedAt,
   readAuthRememberedSessionCookie,
 } from "@/lib/auth/cookies";
 
@@ -17,7 +18,8 @@ export async function GET(): Promise<Response> {
   try {
     const account = await readAccountFromAccessToken(accessToken);
 
-    if (isRemembered && account.role === "admin") {
+    // A remembered ADMIN session is fine only with a valid signed 30-day admin remember cookie.
+    if (isRemembered && account.role === "admin" && (await readAuthAdminRememberIssuedAt(account.userId)) === null) {
       return Response.json({ ok: false, error: "Authentication was denied." }, {
         status: 401,
         headers: createLogoutCookieHeaders(),
@@ -42,6 +44,27 @@ export async function GET(): Promise<Response> {
 
   try {
     const result = await refreshAuthenticatedSession(refreshToken);
+
+    if (result.account.role === "admin") {
+      // Admins stay remembered only inside the 30 days after their sign-in; the limit never moves.
+      const adminRememberIssuedAt = await readAuthAdminRememberIssuedAt(result.account.userId);
+
+      if (adminRememberIssuedAt === null) {
+        return Response.json({ ok: false, error: "Authentication was denied." }, {
+          status: 401,
+          headers: createLogoutCookieHeaders(),
+        });
+      }
+
+      return Response.json({ ok: true, account: result.account, remembered: true }, {
+        headers: createAuthCookieHeaders(result.session, {
+          remember: true,
+          accountRole: "admin",
+          userId: result.account.userId,
+          adminRememberIssuedAt,
+        }),
+      });
+    }
 
     if (result.account.role !== "user") {
       return Response.json({ ok: false, error: "Authentication was denied." }, {
