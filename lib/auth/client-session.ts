@@ -6,12 +6,28 @@
 
 export type AuthSessionStatus = "signedIn" | "signedOut" | "unknown";
 
-/** Asks the server for the current account; with "Husk mig" the server renews the access token. */
-export async function checkCurrentAuthSession(): Promise<AuthSessionStatus> {
+let inFlightCheck: Promise<AuthSessionStatus> | null = null;
+
+/**
+ * Asks the server for the current account; with "Husk mig" the server renews the access token.
+ * Calls made while one is running share it: two renewals with the same refresh token at once (screen-on
+ * and focus fire together) could make the second one fail and log a remembered user out.
+ */
+export function checkCurrentAuthSession(): Promise<AuthSessionStatus> {
+  if (!inFlightCheck) {
+    inFlightCheck = requestCurrentAuthSession().finally(() => {
+      inFlightCheck = null;
+    });
+  }
+
+  return inFlightCheck;
+}
+
+async function requestCurrentAuthSession(): Promise<AuthSessionStatus> {
   try {
     const response = await fetch("/api/auth/me", { cache: "no-store" });
 
-    if (response.status === 401 || response.status === 403) {
+    if (response.status === 401) {
       return "signedOut";
     }
 

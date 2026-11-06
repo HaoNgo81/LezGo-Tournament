@@ -226,6 +226,37 @@ describe("Live tournament when the organizer is logged out", () => {
     expect(screen.queryByTestId("live-session-notice")).not.toBeInTheDocument();
   }, 10000);
 
+  it("background sync notices the lost login without any screen event, and clears it after signing in again", async () => {
+    const state = createMockLiveTournamentState();
+    setUpOwnedCloudTournament(state);
+    let signedIn = true;
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = input.toString();
+      if (url === "/api/auth/me") return signedIn ? json({ ok: true, account }) : signedOutResponse();
+      if (url === `/api/account/tournaments/${tournamentId}`) {
+        return signedIn ? json({ ok: true, kind: "standard", state, tournamentId, updatedAt: "2026-11-06T12:00:00.000Z", canManage: true }) : signedOutResponse();
+      }
+      return json({ ok: false, error: `Unexpected URL ${url}` }, 500);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<LiveScoringApp />);
+    expect(await screen.findByText("Mock Americano")).toBeInTheDocument();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(`/api/account/tournaments/${tournamentId}`, { cache: "no-store" }));
+    expect(screen.queryByTestId("live-session-notice")).not.toBeInTheDocument();
+
+    // The login expires; the next background sync (here triggered by the network coming back) finds it.
+    signedIn = false;
+    window.dispatchEvent(new Event("online"));
+    expect(await screen.findByTestId("live-session-notice")).toHaveTextContent(signedOutText);
+
+    // Signed in again: the next sync clears the notice, and no green copy of it is left behind.
+    signedIn = true;
+    window.dispatchEvent(new Event("online"));
+    await waitFor(() => expect(screen.queryByTestId("live-session-notice")).not.toBeInTheDocument());
+    expect(screen.queryByText(signedOutText)).not.toBeInTheDocument();
+  }, 10000);
+
   it("does not check any login for a guest tournament", async () => {
     saveActiveTournamentFromRemoteSync(createMockLiveTournamentState());
     const fetchMock = vi.fn(() => json({ ok: false }, 500));

@@ -38,9 +38,11 @@ export async function assertFreshAdminAccountFromCookies(): ReturnType<typeof as
   return account;
 }
 
-// "Husk mig" should never log a user out. Every visit renews these cookies (/api/auth/me refreshes the
-// session), so this is a sliding window: only a user who does not open the app for 400 days must sign in
-// again. 400 days is the longest cookie lifetime browsers accept (Chrome caps Max-Age there).
+// "Husk mig" should never log a user out. Whenever the short-lived access token has expired (about once an
+// hour while the app is used), /api/auth/me refreshes the session and sets these cookies again, so this is
+// a sliding window: only a user who does not open the app for 400 days must sign in again. 400 days is the
+// longest cookie lifetime browsers accept (Chrome caps Max-Age there). Trade-off: a stolen refresh cookie
+// also stays usable that long; signing out (or "log ud på alle enheder") revokes it.
 export const rememberedLoginMaxAgeSeconds = 60 * 60 * 24 * 400;
 
 export function createAuthCookieHeaders(
