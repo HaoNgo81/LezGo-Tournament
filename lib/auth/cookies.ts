@@ -38,6 +38,13 @@ export async function assertFreshAdminAccountFromCookies(): ReturnType<typeof as
   return account;
 }
 
+// "Husk mig" should never log a user out. Whenever the short-lived access token has expired (about once an
+// hour while the app is used), /api/auth/me refreshes the session and sets these cookies again, so this is
+// a sliding window: only a user who does not open the app for 400 days must sign in again. 400 days is the
+// longest cookie lifetime browsers accept (Chrome caps Max-Age there). Trade-off: a stolen refresh cookie
+// also stays usable that long; signing out (or "log ud på alle enheder") revokes it.
+export const rememberedLoginMaxAgeSeconds = 60 * 60 * 24 * 400;
+
 export function createAuthCookieHeaders(
   session: SupabaseAuthSession,
   options: { remember?: boolean; accountRole?: AccountRole } = {},
@@ -62,14 +69,14 @@ export function createAuthCookieHeaders(
       sameSite: "lax",
       secure,
       path: "/",
-      maxAge: 60 * 60 * 24 * 30,
+      maxAge: rememberedLoginMaxAgeSeconds,
     }));
     headers.append("Set-Cookie", serializeCookie(authRememberCookieName, "1", {
       httpOnly: true,
       sameSite: "lax",
       secure,
       path: "/",
-      maxAge: 60 * 60 * 24 * 30,
+      maxAge: rememberedLoginMaxAgeSeconds,
     }));
   } else {
     appendExpiredAuthCookie(headers, authRefreshCookieName, secure);

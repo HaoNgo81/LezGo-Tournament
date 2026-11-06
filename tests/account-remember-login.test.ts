@@ -70,7 +70,8 @@ describe("STEP 25I-C1-C7-FIX1 remember login policy", () => {
     expect(setCookies).toContain("lezgo_auth_access=access-token");
     expect(setCookies).toContain("lezgo_auth_refresh=refresh-token");
     expect(setCookies).toContain("lezgo_auth_remember=1");
-    expect(setCookies).toContain("Max-Age=2592000");
+    // 400 days, renewed on every visit, so "Husk mig" does not expire in practice.
+    expect(setCookies).toContain("Max-Age=34560000");
     expect(setCookies).not.toContain("ABC123");
     expect(setCookies).not.toContain("abc123");
   });
@@ -213,6 +214,10 @@ describe("STEP 25I-C1-C7-FIX1 remember login policy", () => {
     expect(body.account?.role).toBe("user");
     expect(setCookies).toContain("lezgo_auth_refresh=new-refresh-token");
     expect(setCookies).toContain("lezgo_auth_remember=1");
+    // Each renewal starts a fresh 400-day window for both cookies (sliding: "Husk mig" never expires while used).
+    for (const name of ["lezgo_auth_refresh", "lezgo_auth_remember"]) {
+      expect(response.headers.getSetCookie().find((cookie) => cookie.startsWith(`${name}=`))).toContain("Max-Age=34560000");
+    }
   });
 
   it("marks stale non-remembered auth cookies as requiring login again", async () => {
